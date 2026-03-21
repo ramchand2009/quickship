@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Delivery Logs | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card ops-log-card">
+            <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <h5 class="mb-0">WhatsApp Delivery Logs</h5>
+                <div class="ops-log-header-actions">
+                    <form method="get" class="ops-log-filter-form mb-0">
+                        <select name="result" class="form-select form-select-sm">
+                            <option value="" {% if not result_filter %}selected{% endif %}>All Results</option>
+                            <option value="success" {% if result_filter == "success" %}selected{% endif %}>Success</option>
+                            <option value="failed" {% if result_filter == "failed" %}selected{% endif %}>Failed</option>
+                        </select>
+                        <select name="trigger" class="form-select form-select-sm">
+                            <option value="" {% if not trigger_filter %}selected{% endif %}>All Triggers</option>
+                            {% for value, label in trigger_choices %}
+                                <option value="{{ value }}" {% if trigger_filter == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                    </form>
+                    <a
+                        class="btn btn-sm btn-outline-success"
+                        href="{% url 'whatsapp_delivery_logs_csv' %}?result={{ result_filter|urlencode }}&trigger={{ trigger_filter|urlencode }}"
+                    >
+                        Export CSV
+                    </a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'webhook_diagnostics' %}">
+                        Webhook Diagnostics
+                    </a>
+                    <a class="btn btn-sm btn-outline-dark" href="{% url 'admin_utilities' %}">
+                        Admin Utilities
+                    </a>
+                </div>
+            </div>
+            <div class="card-block">
+                {% if logs %}
+                    <div class="table-responsive ops-log-table-wrap">
+                        <table class="table table-sm table-hover align-middle whatsapp-log-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Order</th>
+                                    <th>Trigger</th>
+                                    <th>Status</th>
+                                    <th>Phone</th>
+                                    <th>Mode</th>
+                                    <th>Template</th>
+                                    <th>Delivery Status</th>
+                                    <th>Message ID</th>
+                                    <th>Result</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                    <tr>
+                                        <td data-label="Time">{{ log.created_at|date:"Y-m-d H:i:s T" }}</td>
+                                        <td data-label="Order">
+                                            {% if log.order %}
+                                                <a href="{% url 'order_detail' log.order.pk %}">{{ log.shiprocket_order_id|default:"-" }}</a>
+                                            {% else %}
+                                                {{ log.shiprocket_order_id|default:"-" }}
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Trigger">{{ log.get_trigger_display }}</td>
+                                        <td data-label="Status">
+                                            {{ log.previous_status|default:"-" }}
+                                            {% if log.current_status %}
+                                                <span class="text-muted">&rarr;</span> {{ log.current_status }}
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Phone">{{ log.phone_number|default:"-" }}</td>
+                                        <td data-label="Mode">{{ log.mode|default:"-" }}</td>
+                                        <td data-label="Template">
+                                            {{ log.template_name|default:"-" }}
+                                            {% if log.template_id %}
+                                                <div class="small text-muted">{{ log.template_id }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Delivery Status">
+                                            {% if log.delivery_status %}
+                                                {{ log.delivery_status }}
+                                            {% elif log.is_success and log.trigger != "webhook_status" %}
+                                                sent
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Message ID">
+                                            {{ log.external_message_id|default:"-" }}
+                                            {% if log.webhook_event_id %}
+                                                <div class="small text-muted">Event: {{ log.webhook_event_id }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Result">
+                                            {% if log.is_success %}
+                                                <span class="badge badge-light-success bg-light-success">Success</span>
+                                            {% else %}
+                                                <span class="badge badge-light-danger bg-light-danger">Failed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="log-details-cell" data-label="Details">
+                                            {% if log.error_message %}
+                                                <div class="text-danger small mb-1">{{ log.error_message }}</div>
+                                            {% endif %}
+                                            {% if can_view_raw_payload %}
+                                                {% if log.request_payload or log.response_payload %}
+                                                    <details>
+                                                        <summary class="small">
+                                                            {% if log.trigger == "webhook_status" %}Webhook Payload{% else %}Payload{% endif %}
+                                                        </summary>
+                                                        {% if log.request_payload %}
+                                                            <div class="small text-muted mt-1">Request</div>
+                                                            <pre class="small mb-2">{{ log.request_payload }}</pre>
+                                                        {% endif %}
+                                                        {% if log.response_payload %}
+                                                            <div class="small text-muted">Response</div>
+                                                            <pre class="small mb-0">{{ log.response_payload }}</pre>
+                                                        {% endif %}
+                                                    </details>
+                                                {% endif %}
+                                            {% elif log.request_payload or log.response_payload %}
+                                                <span class="small text-muted">Payload hidden (admin only)</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No logs available for selected filters.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Packing Queue | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-4 queue-screen-header">
+            <h4 class="m-b-10">Packing Queue</h4>
+            <p class="mb-0 text-muted">Select accepted orders and print packing lists in bulk.</p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card code-table ops-queue-card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Accepted Orders</h5>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}?tab=order_accepted">Back to Accepted Tab</a>
+            </div>
+            <div class="card-block">
+                {% if orders %}
+                    <form method="get" action="{% url 'packing_queue' %}" class="order-toolbar queue-filter-toolbar mb-3">
+                        <div class="order-toolbar-left">
+                            <input
+                                type="text"
+                                class="form-control"
+                                name="q"
+                                value="{{ search_query }}"
+                                placeholder="Search order id / customer / phone / pincode"
+                            >
+                        </div>
+                        <div class="order-toolbar-right">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+                        </div>
+                    </form>
+
+                    <form id="packingQueueForm" method="get" action="{% url 'bulk_packing_lists' %}" target="_blank">
+                        <div class="order-toolbar queue-bulk-toolbar mb-3">
+                            <div class="order-toolbar-right">
+                                <button type="button" class="btn btn-sm btn-outline-dark" id="selectAllPackingButton">Select All</button>
+                                <button type="button" class="btn btn-sm btn-outline-dark" id="clearAllPackingButton">Clear</button>
+                                <button id="openPackingButton" type="submit" class="btn btn-sm btn-primary" disabled>
+                                    Open Packing Lists
+                                </button>
+                                <span class="small text-muted" id="packingSelectionSummary">0 selected</span>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive queue-table-responsive">
+                            <table class="table table-hover order-list-table queue-results-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 44px;"></th>
+                                        <th>Order ID</th>
+                                        <th>Customer</th>
+                                        <th>Phone</th>
+                                        <th>City</th>
+                                        <th>Pincode</th>
+                                        <th>Order Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in orders %}
+                                        <tr>
+                                            <td class="queue-mobile-select-cell" data-label="Select">
+                                                <input
+                                                    class="form-check-input queue-packing-check"
+                                                    type="checkbox"
+                                                    name="order_id"
+                                                    value="{{ order.pk }}"
+                                                >
+                                            </td>
+                                            <td data-label="Order ID">{{ order.shiprocket_order_id }}</td>
+                                            <td data-label="Customer">{{ order.display_shipping_address.name|default:"-" }}</td>
+                                            <td data-label="Phone">{{ order.display_shipping_address.phone|default:"-" }}</td>
+                                            <td data-label="City">{{ order.display_shipping_address.city|default:"-" }}</td>
+                                            <td data-label="Pincode">{{ order.display_shipping_address.pincode|default:"-" }}</td>
+                                            <td data-label="Order Date">{{ order.order_date|date:"Y-m-d H:i"|default:"-" }}</td>
+                                            <td class="queue-actions-cell" data-label="Actions">
+                                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener">View</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+                {% else %}
+                    <p class="mb-0 text-muted">No accepted orders available for packing.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("packingQueueForm");
+    if (!form) {
+        return;
+    }
+
+    const checks = Array.from(form.querySelectorAll(".queue-packing-check"));
+    const selectAllButton = document.getElementById("selectAllPackingButton");
+    const clearAllButton = document.getElementById("clearAllPackingButton");
+    const submitButton = document.getElementById("openPackingButton");
+    const summary = document.getElementById("packingSelectionSummary");
+
+    const refreshState = function () {
+        const selectedCount = checks.filter(function (checkbox) { return checkbox.checked; }).length;
+        submitButton.disabled = selectedCount === 0;
+        summary.textContent = selectedCount + " selected";
+    };
+
+    checks.forEach(function (checkbox) {
+        checkbox.addEventListener("change", refreshState);
+    });
+
+    selectAllButton.addEventListener("click", function () {
+        checks.forEach(function (checkbox) {
+            checkbox.checked = true;
+        });
+        refreshState();
+    });
+
+    clearAllButton.addEventListener("click", function () {
+        checks.forEach(function (checkbox) {
+            checkbox.checked = false;
+        });
+        refreshState();
+    });
+
+    refreshState();
+});
+</script>
+{% endblock %}

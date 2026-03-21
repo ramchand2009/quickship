@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+backups/
+logs/
+staticfiles/
+node_modules/
+django-datta-able-pro-v1.0.26/
+Project Summary - Mar 19.txt
+Thumbs.db

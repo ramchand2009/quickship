@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10">
+        <div class="responsive-form-actions mb-3">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'project_list' %}">Back to Projects</a>
+        </div>
+        <div class="card responsive-form-card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ project.name }}</h5>
+            </div>
+            <div class="card-block">
+                <p class="text-muted">Created on {{ project.created_at|date:"M d, Y" }}</p>
+                <div>{{ project.description|linebreaks }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

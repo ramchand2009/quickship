@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ram_codex1}
+      POSTGRES_USER: ${POSTGRES_USER:-ram_codex1}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ram_codex1}
+      POSTGRES_USER: ${POSTGRES_USER:-ram_codex1}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      RUN_MIGRATIONS: "1"
+      COLLECT_STATIC: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - app_logs:/app/logs
+      - app_backups:/app/backups
+
+  worker:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ram_codex1}
+      POSTGRES_USER: ${POSTGRES_USER:-ram_codex1}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      RUN_MIGRATIONS: "0"
+      COLLECT_STATIC: "0"
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+    command: ["python", "manage.py", "run_whatsapp_queue_worker", "--interval", "60", "--limit", "50", "--worker", "docker"]
+    volumes:
+      - app_logs:/app/logs
+      - app_backups:/app/backups
+
+volumes:
+  postgres_data:
+  app_logs:
+  app_backups:

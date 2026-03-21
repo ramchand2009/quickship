@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+
+{% block title %}Order {{ order.shiprocket_order_id }} | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2 order-detail-header">
+            <div>
+                <h4 class="m-b-10">Order {{ order.shiprocket_order_id }}</h4>
+                <p class="mb-0 text-muted">Channel Order ID: {{ order.channel_order_id|default:"-" }}</p>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
+                <h6 class="mb-2">Shiprocket Status</h6>
+                <h5 class="mb-0">{{ order.status|default:"Pending" }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
+                <h6 class="mb-2">Order Total</h6>
+                <h5 class="mb-0">{{ order.total }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
+                <h6 class="mb-2">Label Prints</h6>
+                <h5 class="mb-0">{{ order.label_print_count }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
+                <h6 class="mb-2">Order Date</h6>
+                <h5 class="mb-0">{{ order.order_date|date:"Y-m-d"|default:"-" }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
+                <h6 class="mb-2">Tracking Number</h6>
+                <h5 class="mb-0">{{ order.tracking_number|default:"-" }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
+                <h6 class="mb-2">Last WhatsApp Attempt</h6>
+                {% if latest_queue_job %}
+                    <h5 class="mb-0 text-capitalize">{{ latest_queue_job.status }}</h5>
+                    <div class="small text-muted mt-1">
+                        Tried: {{ latest_queue_job.updated_at|date:"Y-m-d H:i:s T" }}
+                    </div>
+                    <div class="small text-muted">
+                        Next Retry:
+                        {% if latest_queue_job.next_retry_at %}
+                            {{ latest_queue_job.next_retry_at|date:"Y-m-d H:i:s T" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <h5 class="mb-0">-</h5>
+                    <div class="small text-muted mt-1">No queue attempts yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xl-6">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Shipping Address</h5></div>
+            <div class="card-block">
+                <p class="mb-1 fw-semibold">{{ order.display_shipping_address.name|default:"-" }}</p>
+                <p class="mb-1 text-muted">{{ order.display_shipping_address.phone|default:"-" }}</p>
+                <p class="mb-1 text-muted">Alt: {{ order.display_shipping_address.alternate_phone|default:"-" }}</p>
+                <p class="mb-1 text-muted">{{ order.display_shipping_address.email|default:"-" }}</p>
+                <p class="mb-0">
+                    {{ order.display_shipping_address.address_1|default:"-" }}
+                    {% if order.display_shipping_address.address_2 %}<br>{{ order.display_shipping_address.address_2 }}{% endif %}
+                    <br>{{ order.display_shipping_address.city|default:"-" }}, {{ order.display_shipping_address.state|default:"-" }}
+                    <br>{{ order.display_shipping_address.country|default:"-" }} - {{ order.display_shipping_address.pincode|default:"-" }}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Billing Address</h5></div>
+            <div class="card-block">
+                <p class="mb-1 fw-semibold">{{ order.billing_address.name|default:"-" }}</p>
+                <p class="mb-1 text-muted">{{ order.billing_address.phone|default:"-" }}</p>
+                <p class="mb-1 text-muted">{{ order.billing_address.email|default:"-" }}</p>
+                <p class="mb-0">
+                    {{ order.billing_address.address_1|default:"-" }}
+                    {% if order.billing_address.address_2 %}<br>{{ order.billing_address.address_2 }}{% endif %}
+                    <br>{{ order.billing_address.city|default:"-" }}, {{ order.billing_address.state|default:"-" }}
+                    <br>{{ order.billing_address.country|default:"-" }} - {{ order.billing_address.pincode|default:"-" }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Products</h5>
+                <span class="text-muted small">Payment Method: {{ order.payment_method|default:"-" }}</span>
+            </div>
+            <div class="card-block">
+                {% if order.order_items %}
+                    <div class="table-responsive">
+                        <table class="table table-hover order-list-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th>Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.order_items %}
+                                    <tr>
+                                        <td>{{ item.name|default:"-" }}</td>
+                                        <td>{{ item.sku|default:"-" }}</td>
+                                        <td>{{ item.quantity|default:"-" }}</td>
+                                        <td>{{ item.price|default:"-" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No product lines were returned in the synced payload for this order.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Manual Contact Update</h5>
+                <div class="d-flex gap-2 flex-wrap order-detail-toolbar">
+                    {% if order.local_status == "order_accepted" %}
+                        <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener">Packing List</a>
+                    {% endif %}
+                    {% if order.local_status == "order_packed" %}
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener">Shipping Label ST-4</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-block">
+                {% if order.is_manual_edit_locked %}
+                    <p class="mb-0 text-muted">Manual shipping edits are locked after the order reaches shipped.</p>
+                {% elif can_edit_operations %}
+                    <form method="post" action="{% url 'update_shiprocket_order' order.pk %}">
+                        {% csrf_token %}
+                        <div class="row">
+                            {% for field in form %}
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                    {{ field }}
+                                    {% if field.errors %}
+                                        <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Manual Details</button>
+                    </form>
+                {% elif request.user.is_authenticated %}
+                    <p class="mb-0 text-muted">Your role is read-only for manual order edits.</p>
+                {% else %}
+                    <p class="mb-0 text-muted">Login is required to edit manual customer details.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Order Activity Timeline</h5></div>
+            <div class="card-block">
+                <form method="get" class="mb-3">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Event</label>
+                            <select class="form-control form-control-sm" name="activity_event">
+                                <option value="">All Events</option>
+                                {% for value, label in activity_event_choices %}
+                                    <option value="{{ value }}" {% if activity_filters.event == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">Result</label>
+                            <select class="form-control form-control-sm" name="activity_result">
+                                <option value="">All Results</option>
+                                <option value="success" {% if activity_filters.result == "success" %}selected{% endif %}>Success</option>
+                                <option value="failed" {% if activity_filters.result == "failed" %}selected{% endif %}>Failed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">From</label>
+                            <input type="date" class="form-control form-control-sm" name="activity_from" value="{{ activity_filters.from }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">To</label>
+                            <input type="date" class="form-control form-control-sm" name="activity_to" value="{{ activity_filters.to }}">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end gap-2 order-detail-filter-actions">
+                            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+                            <a href="{% url 'order_detail' order.pk %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                        </div>
+                    </div>
+                </form>
+                {% if activity_timeline %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Event</th>
+                                    <th>Status</th>
+                                    <th>Actor</th>
+                                    <th>Result</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in activity_timeline %}
+                                    <tr>
+                                        <td>{{ activity.created_at|date:"Y-m-d H:i:s T" }}</td>
+                                        <td>
+                                            <div class="fw-semibold">{{ activity.title|default:activity.get_event_type_display }}</div>
+                                            <div class="small text-muted">{{ activity.get_event_type_display }}</div>
+                                        </td>
+                                        <td>
+                                            {% if activity.previous_status or activity.current_status %}
+                                                <div class="small text-muted">{{ activity.previous_status|default:"-" }} -> {{ activity.current_status|default:"-" }}</div>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ activity.triggered_by|default:"system" }}</td>
+                                        <td>
+                                            {% if activity.is_success %}
+                                                <span class="badge badge-light-success bg-light-success">Success</span>
+                                            {% else %}
+                                                <span class="badge badge-light-danger bg-light-danger">Failed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if activity.description %}
+                                                <div class="small text-muted">{{ activity.description }}</div>
+                                            {% endif %}
+                                            {% if activity.metadata.job_id %}
+                                                <div class="small text-muted">Job: #{{ activity.metadata.job_id }}</div>
+                                            {% endif %}
+                                            {% if activity.metadata.phone_number %}
+                                                <div class="small text-muted">Phone: {{ activity.metadata.phone_number }}</div>
+                                            {% endif %}
+                                            {% if activity.metadata.template_name %}
+                                                <div class="small text-muted">Template: {{ activity.metadata.template_name }}</div>
+                                            {% endif %}
+                                            {% if activity.metadata.webhook_event_id %}
+                                                <div class="small text-muted">Webhook Event: {{ activity.metadata.webhook_event_id }}</div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No order activity recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">WhatsApp Timeline</h5></div>
+            <div class="card-block">
+                {% if whatsapp_timeline %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Trigger</th>
+                                    <th>Delivery Status</th>
+                                    <th>Phone</th>
+                                    <th>Template</th>
+                                    <th>Result</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in whatsapp_timeline %}
+                                    <tr>
+                                        <td>{{ log.created_at|date:"Y-m-d H:i:s T" }}</td>
+                                        <td>{{ log.get_trigger_display }}</td>
+                                        <td>{{ log.delivery_status|default:"-" }}</td>
+                                        <td>{{ log.phone_number|default:"-" }}</td>
+                                        <td>{{ log.template_name|default:"-" }}</td>
+                                        <td>
+                                            {% if log.is_success %}
+                                                <span class="badge badge-light-success bg-light-success">Success</span>
+                                            {% else %}
+                                                <span class="badge badge-light-danger bg-light-danger">Failed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if log.external_message_id %}
+                                                <div class="small text-muted">Message ID: {{ log.external_message_id }}</div>
+                                            {% endif %}
+                                            {% if log.error_message %}
+                                                <div class="small text-danger">{{ log.error_message }}</div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No WhatsApp activity for this order yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Raw Shiprocket Payload</h5></div>
+            <div class="card-block">
+                {% if can_view_raw_payload %}
+                    <pre class="bg-light p-3 mb-0 small" style="white-space: pre-wrap;">{{ order.raw_payload|pprint }}</pre>
+                {% else %}
+                    <p class="mb-0 text-muted">Payload visibility is restricted to admin role.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

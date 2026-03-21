@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# Local secrets and runtime files
+.env
+.env.local
+logs/
+backups/
+
+# SQLite and temporary DB files
+db.sqlite3
+db.sqlite3-*
+*.sqlite3
+*.sqlite3-journal
+data.json
+data.nobom.json
+staticfiles/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Local vendor/source bundle not used by the deployed app
+django-datta-able-pro-v1.0.26/

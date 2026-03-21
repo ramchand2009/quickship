@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Settings | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">WhatsApp API Settings</h5>
+            </div>
+            <div class="card-block">
+                <p class="text-muted">Configure your self-hosted Whatomate API link and API key for order update notifications.</p>
+                <div class="mb-3">
+                    {% if webhook_token_configured %}
+                        <span class="badge badge-light-success bg-light-success">Webhook Token: Configured</span>
+                    {% else %}
+                        <span class="badge badge-light-danger bg-light-danger">Webhook Token: Missing</span>
+                    {% endif %}
+                    <div class="text-muted small mt-1">Set <code>WHATOMATE_WEBHOOK_TOKEN</code> in <code>.env</code> for secure webhook signature validation.</div>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ settings_form.enabled }}
+                            <label class="form-check-label" for="{{ settings_form.enabled.id_for_label }}">{{ settings_form.enabled.label }}</label>
+                        </div>
+                        {% if settings_form.enabled.errors %}
+                            <div class="text-danger small mt-1">{{ settings_form.enabled.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ settings_form.api_base_url.id_for_label }}">{{ settings_form.api_base_url.label }}</label>
+                        {{ settings_form.api_base_url }}
+                        {% if settings_form.api_base_url.errors %}
+                            <div class="text-danger small mt-1">{{ settings_form.api_base_url.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ settings_form.api_key.id_for_label }}">{{ settings_form.api_key.label }}</label>
+                        {{ settings_form.api_key }}
+                        {% if settings_form.api_key.errors %}
+                            <div class="text-danger small mt-1">{{ settings_form.api_key.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="ops-settings-action-row">
+                        <button type="submit" name="action" value="save_settings" class="btn btn-primary">Save Settings</button>
+                        <button type="submit" name="action" value="check_connection" class="btn btn-outline-info">Check API</button>
+                        <button type="submit" name="action" value="sync_templates" class="btn btn-outline-secondary">Sync Templates</button>
+                        <button type="submit" name="action" value="send_webhook_test" class="btn btn-outline-warning">Send Webhook Test</button>
+                        <button type="submit" name="action" value="send_alert_test" class="btn btn-outline-danger">Send Queue Alert Test</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">Template Message Test</h5>
+            </div>
+            <div class="card-block">
+                <p class="text-muted">Send test messages using free text or a synced template with placeholders.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ message_form.test_phone_number.id_for_label }}">{{ message_form.test_phone_number.label }}</label>
+                        {{ message_form.test_phone_number }}
+                        {% if message_form.test_phone_number.errors %}
+                            <div class="text-danger small mt-1">{{ message_form.test_phone_number.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ message_form.test_message_text.id_for_label }}">{{ message_form.test_message_text.label }}</label>
+                        {{ message_form.test_message_text }}
+                        {% if message_form.test_message_text.errors %}
+                            <div class="text-danger small mt-1">{{ message_form.test_message_text.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ message_form.test_template_name.id_for_label }}">{{ message_form.test_template_name.label }}</label>
+                        {{ message_form.test_template_name }}
+                        {% if message_form.test_template_name.errors %}
+                            <div class="text-danger small mt-1">{{ message_form.test_template_name.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Detected Placeholders</label>
+                        <div id="templatePlaceholderInputs" class="border rounded p-2 bg-light"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ message_form.test_template_params.id_for_label }}">{{ message_form.test_template_params.label }}</label>
+                        {{ message_form.test_template_params }}
+                        <div class="text-muted small mt-1">Auto-filled from placeholder inputs. Example: {"name":"Mathukai","order_id":"SR123"}</div>
+                        {% if message_form.test_template_params.errors %}
+                            <div class="text-danger small mt-1">{{ message_form.test_template_params.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="ops-settings-action-row">
+                        <button type="submit" name="action" value="send_test_message" class="btn btn-outline-success">Send Sample Msg</button>
+                        <button type="submit" name="action" value="send_test_template" class="btn btn-outline-primary">Send Template Test</button>
+                        <a class="btn btn-outline-secondary" href="{% url 'home' %}">Back to Dashboard</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-12 mt-3">
+        <div class="card ops-admin-card">
+            <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <h5 class="mb-0">WhatsApp Diagnostics</h5>
+                {% if can_edit_operations %}
+                <form method="post" class="ops-admin-action-group mb-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="limit" value="20">
+                    <button type="submit" name="action" value="process_queue_once" class="btn btn-sm btn-outline-primary">Process Queue Once</button>
+                    <button type="submit" name="action" value="export_incident_snapshot" class="btn btn-sm btn-outline-secondary">Export Incident Snapshot</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="card-block">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 h-100">
+                            <div class="small text-muted text-uppercase">Queue Counts</div>
+                            <div class="small mt-2">Failed: <strong>{{ diagnostics.queue_counts.failed }}</strong></div>
+                            <div class="small">Pending: <strong>{{ diagnostics.queue_counts.pending }}</strong></div>
+                            <div class="small">Retrying: <strong>{{ diagnostics.queue_counts.retrying }}</strong></div>
+                            <div class="small">Processing: <strong>{{ diagnostics.queue_counts.processing }}</strong></div>
+                            <div class="small">Success: <strong>{{ diagnostics.queue_counts.success }}</strong></div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="border rounded p-3 h-100">
+                            <div class="small text-muted text-uppercase">Last API Error</div>
+                            {% if diagnostics.latest_error %}
+                                <div class="text-danger small mt-2">{{ diagnostics.latest_error }}</div>
+                                <div class="small text-muted mt-2">Source: {{ diagnostics.latest_error_source }}</div>
+                                <div class="small mt-2"><strong>Diagnosis:</strong> {{ diagnostics.diagnosis }}</div>
+                            {% else %}
+                                <div class="small text-muted mt-2">No recent API or queue failure detected.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="small text-muted text-uppercase">Timing</div>
+                            <div class="small mt-2">
+                                Last successful send:
+                                <strong>
+                                    {% if diagnostics.last_success_log %}
+                                        {{ diagnostics.last_success_log.created_at|date:"Y-m-d H:i:s T" }}
+                                    {% else %}
+                                        No success yet
+                                    {% endif %}
+                                </strong>
+                            </div>
+                            <div class="small mt-2">
+                                Oldest open queue job:
+                                <strong>
+                                    {% if diagnostics.oldest_open_job %}
+                                        {{ diagnostics.oldest_open_job.created_at|date:"Y-m-d H:i:s T" }}
+                                    {% else %}
+                                        No open jobs
+                                    {% endif %}
+                                </strong>
+                            </div>
+                            {% if diagnostics.oldest_open_job %}
+                            <div class="small text-muted mt-2">
+                                Job #{{ diagnostics.oldest_open_job.pk }} | {{ diagnostics.oldest_open_job.shiprocket_order_id|default:"-" }} | {{ diagnostics.oldest_open_job.status }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-xl-6">
+                        <div class="border rounded p-3 h-100 ops-settings-panel">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="small text-muted text-uppercase">Recent Queue Jobs</div>
+                                <a href="{% url 'whatsapp_delivery_logs' %}" class="small">Open Logs</a>
+                            </div>
+                            {% if diagnostics.recent_jobs %}
+                                <div class="table-responsive ops-admin-table-wrap">
+                                    <table class="table table-sm mb-0 ops-admin-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Job</th>
+                                                <th>Order</th>
+                                                <th>Status</th>
+                                                <th>Updated</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for job in diagnostics.recent_jobs %}
+                                                <tr>
+                                                    <td data-label="Job">#{{ job.pk }}</td>
+                                                    <td data-label="Order">{{ job.shiprocket_order_id|default:"-" }}</td>
+                                                    <td data-label="Status">{{ job.status }}</td>
+                                                    <td data-label="Updated">{{ job.updated_at|date:"Y-m-d H:i:s T" }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p class="small text-muted mb-0">No queue jobs yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-xl-6">
+                        <div class="border rounded p-3 h-100 ops-settings-panel">
+                            <div class="small text-muted text-uppercase mb-2">Recent Failures</div>
+                            {% if diagnostics.recent_failures %}
+                                <ul class="list-unstyled mb-0">
+                                    {% for log in diagnostics.recent_failures %}
+                                        <li class="{% if not forloop.last %}mb-3{% endif %}">
+                                            <div class="small fw-semibold">{{ log.shiprocket_order_id|default:"-" }} | {{ log.get_trigger_display }}</div>
+                                            <div class="small text-muted">{{ log.created_at|date:"Y-m-d H:i:s T" }}</div>
+                                            {% if log.error_message %}
+                                                <div class="small text-danger mt-1">{{ log.error_message }}</div>
+                                            {% endif %}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="small text-muted mb-0">No recent failed WhatsApp logs.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-12 mt-3">
+        <div class="card ops-admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">Synced Templates</h5>
+            </div>
+            <div class="card-block">
+                {% if templates %}
+                    <div class="table-responsive ops-admin-table-wrap">
+                        <table class="table table-sm table-hover mb-0 ops-admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Language</th>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                    <th>Last Synced</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in templates %}
+                                    <tr>
+                                        <td data-label="Name">{{ item.name }}</td>
+                                        <td data-label="Language">{{ item.language|default:"-" }}</td>
+                                        <td data-label="Category">{{ item.category|default:"-" }}</td>
+                                        <td data-label="Status">{{ item.status|default:"-" }}</td>
+                                        <td data-label="Last Synced">{{ item.synced_at|date:"Y-m-d H:i" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No templates synced yet. Click <strong>Sync Templates</strong>.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{{ template_placeholder_map|json_script:"template-placeholder-map" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const mapNode = document.getElementById("template-placeholder-map");
+        const templateSelect = document.querySelector("select[name='message-test_template_name']");
+        const paramsField = document.querySelector("textarea[name='message-test_template_params']");
+        const container = document.getElementById("templatePlaceholderInputs");
+        if (!mapNode || !templateSelect || !paramsField || !container) {
+            return;
+        }
+
+        let placeholderMap = {};
+        try {
+            placeholderMap = JSON.parse(mapNode.textContent || "{}");
+        } catch (error) {
+            placeholderMap = {};
+        }
+
+        paramsField.setAttribute("readonly", "readonly");
+
+        function getTokens() {
+            const value = templateSelect.value || "";
+            return placeholderMap[value] || [];
+        }
+
+        function parseCurrentParams() {
+            try {
+                return JSON.parse(paramsField.value || "{}");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function toInitialValue(parsed, token, index) {
+            if (Array.isArray(parsed)) {
+                return parsed[index] ?? "";
+            }
+            if (parsed && typeof parsed === "object") {
+                return parsed[token] ?? "";
+            }
+            return "";
+        }
+
+        function syncJsonFromInputs() {
+            const tokens = getTokens();
+            const inputs = Array.from(container.querySelectorAll("input[data-template-token]"));
+            if (!tokens.length || !inputs.length) {
+                paramsField.value = "{}";
+                return;
+            }
+
+            const isNumeric = tokens.every(token => /^\d+$/.test(String(token)));
+            if (isNumeric) {
+                const positionalPayload = {};
+                inputs.forEach((input) => {
+                    positionalPayload[input.dataset.templateToken] = input.value || "";
+                });
+                paramsField.value = JSON.stringify(positionalPayload);
+                return;
+            }
+
+            const payload = {};
+            inputs.forEach((input) => {
+                payload[input.dataset.templateToken] = input.value || "";
+            });
+            paramsField.value = JSON.stringify(payload);
+        }
+
+        function renderPlaceholderInputs() {
+            const tokens = getTokens();
+            const parsed = parseCurrentParams();
+            container.innerHTML = "";
+
+            if (!tokens.length) {
+                container.innerHTML = '<p class="text-muted small mb-0">No detected placeholders for this template.</p>';
+                paramsField.value = "{}";
+                return;
+            }
+
+            tokens.forEach((token, index) => {
+                const row = document.createElement("div");
+                row.className = "mb-2";
+
+                const label = document.createElement("label");
+                label.className = "form-label small mb-1";
+                label.textContent = "{" + "{" + " " + token + " " + "}" + "}";
+
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "form-control form-control-sm";
+                input.dataset.templateToken = token;
+                input.value = toInitialValue(parsed, token, index);
+
+                row.appendChild(label);
+                row.appendChild(input);
+                container.appendChild(row);
+            });
+
+            syncJsonFromInputs();
+        }
+
+        templateSelect.addEventListener("change", renderPlaceholderInputs);
+        container.addEventListener("input", (event) => {
+            if (event.target.matches("input[data-template-token]")) {
+                syncJsonFromInputs();
+            }
+        });
+
+        renderPlaceholderInputs();
+    })();
+</script>
+{% endblock %}

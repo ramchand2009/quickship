@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Print Queue | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-4 queue-screen-header">
+            <h4 class="m-b-10">Packed Orders Print Queue</h4>
+            <p class="mb-0 text-muted">Select exact orders and print ST-4 labels in bulk.</p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card Recent-Users ops-queue-card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Queue Filters</h5>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}?tab=order_packed">Back to Packed Tab</a>
+            </div>
+            <div class="card-block">
+                {% if orders %}
+                    <form id="queueFiltersForm" method="get" action="{% url 'print_queue' %}" class="order-toolbar queue-filter-toolbar mb-3">
+                        <div class="order-toolbar-left">
+                            <input
+                                type="text"
+                                class="form-control"
+                                name="q"
+                                value="{{ search_query }}"
+                                placeholder="Search order id / customer / phone / pincode"
+                            >
+                        </div>
+                        <div class="order-toolbar-right">
+                            <div class="form-check form-check-inline">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="skipPrintedToggle"
+                                    name="skip_printed"
+                                    value="1"
+                                    {% if skip_printed %}checked{% endif %}
+                                >
+                                <label class="form-check-label small" for="skipPrintedToggle">Skip Printed</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="readyOnlyToggle"
+                                    name="ready_only"
+                                    value="1"
+                                    {% if ready_only %}checked{% endif %}
+                                >
+                                <label class="form-check-label small" for="readyOnlyToggle">Ready Only</label>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+                        </div>
+                    </form>
+
+                    <form id="printQueueForm" method="get" action="{% url 'bulk_shipping_labels_4x6' %}" target="_blank">
+                        <div class="order-toolbar queue-bulk-toolbar mb-3">
+                            <div class="order-toolbar-right">
+                                <button type="button" class="btn btn-sm btn-outline-dark" id="selectAllButton">Select All</button>
+                                <button type="button" class="btn btn-sm btn-outline-dark" id="clearAllButton">Clear</button>
+                                <label for="startPositionSelect" class="small text-muted mb-0">Start Position</label>
+                                <select id="startPositionSelect" class="form-control form-control-sm" style="max-width: 180px;" name="start_position">
+                                    {% for value, label in start_position_choices %}
+                                        <option value="{{ value }}" {% if value == start_position %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button id="openPrintButton" type="submit" class="btn btn-sm btn-primary" disabled>
+                                    Open Selected Labels
+                                </button>
+                                <span class="small text-muted" id="selectionSummary">0 selected</span>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive queue-table-responsive">
+                            <table class="table table-hover order-list-table queue-results-table" id="queueTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 44px;"></th>
+                                        <th>Order ID</th>
+                                        <th>Customer</th>
+                                        <th>Phone</th>
+                                        <th>City</th>
+                                        <th>Pincode</th>
+                                        <th>Last Label Print</th>
+                                        <th>Print Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in orders %}
+                                        <tr>
+                                            <td class="queue-mobile-select-cell" data-label="Select">
+                                                <input
+                                                    class="form-check-input queue-order-check"
+                                                    type="checkbox"
+                                                    name="order_id"
+                                                    value="{{ order.pk }}"
+                                                >
+                                            </td>
+                                            <td data-label="Order ID">{{ order.shiprocket_order_id }}</td>
+                                            <td data-label="Customer">{{ order.display_shipping_address.name|default:"-" }}</td>
+                                            <td data-label="Phone">{{ order.display_shipping_address.phone|default:"-" }}</td>
+                                            <td data-label="City">{{ order.display_shipping_address.city|default:"-" }}</td>
+                                            <td data-label="Pincode">{{ order.display_shipping_address.pincode|default:"-" }}</td>
+                                            <td data-label="Last Label Print">{{ order.last_label_printed_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                                            <td data-label="Print Count">{{ order.label_print_count }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+                {% else %}
+                    <p class="mb-0 text-muted">No packed orders available in queue.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const filtersForm = document.getElementById("queueFiltersForm");
+    const skipPrintedToggle = document.getElementById("skipPrintedToggle");
+    const readyOnlyToggle = document.getElementById("readyOnlyToggle");
+    if (filtersForm && skipPrintedToggle && readyOnlyToggle) {
+        const submitFilters = function () {
+            filtersForm.submit();
+        };
+        skipPrintedToggle.addEventListener("change", submitFilters);
+        readyOnlyToggle.addEventListener("change", submitFilters);
+    }
+
+    const form = document.getElementById("printQueueForm");
+    if (!form) {
+        return;
+    }
+
+    const checks = Array.from(form.querySelectorAll(".queue-order-check"));
+    const selectAllButton = document.getElementById("selectAllButton");
+    const clearAllButton = document.getElementById("clearAllButton");
+    const submitButton = document.getElementById("openPrintButton");
+    const summary = document.getElementById("selectionSummary");
+
+    const refreshState = function () {
+        const selectedCount = checks.filter(function (checkbox) { return checkbox.checked; }).length;
+        submitButton.disabled = selectedCount === 0;
+        summary.textContent = selectedCount + " selected";
+    };
+
+    checks.forEach(function (checkbox) {
+        checkbox.addEventListener("change", refreshState);
+    });
+
+    selectAllButton.addEventListener("click", function () {
+        checks.forEach(function (checkbox) {
+            checkbox.checked = true;
+        });
+        refreshState();
+    });
+
+    clearAllButton.addEventListener("click", function () {
+        checks.forEach(function (checkbox) {
+            checkbox.checked = false;
+        });
+        refreshState();
+    });
+
+    refreshState();
+});
+</script>
+{% endblock %}

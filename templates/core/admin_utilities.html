@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Utilities | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Admin Utilities</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">Admin Utilities</li>
+        </ul>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Queue Operations</h5></div>
+            <div class="card-block">
+                <div class="small text-muted mb-3">
+                    Failed: {{ diagnostics.queue_counts.failed }} |
+                    Pending: {{ diagnostics.queue_counts.pending }} |
+                    Retrying: {{ diagnostics.queue_counts.retrying }} |
+                    Processing: {{ diagnostics.queue_counts.processing }}
+                </div>
+                {% if can_edit_operations %}
+                <form method="post" class="ops-admin-action-group">
+                    {% csrf_token %}
+                    <input type="hidden" name="limit" value="25">
+                    <button type="submit" name="action" value="process_queue_once" class="btn btn-outline-primary">Process Queue Once</button>
+                    <a href="{% url 'whatsapp_settings' %}" class="btn btn-outline-secondary">Open WhatsApp Settings</a>
+                    <a href="{% url 'whatsapp_delivery_logs' %}" class="btn btn-outline-dark">Open Delivery Logs</a>
+                </form>
+                {% endif %}
+                {% if diagnostics.oldest_open_job %}
+                    <div class="small text-muted mt-3">
+                        Oldest open job: #{{ diagnostics.oldest_open_job.pk }} |
+                        {{ diagnostics.oldest_open_job.shiprocket_order_id|default:"-" }} |
+                        {{ diagnostics.oldest_open_job.created_at|date:"Y-m-d H:i:s T" }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Webhook Operations</h5></div>
+            <div class="card-block">
+                <div class="small text-muted mb-3">
+                    Last webhook:
+                    {% if webhook_diagnostics.latest_webhook %}
+                        {{ webhook_diagnostics.latest_webhook.created_at|date:"Y-m-d H:i:s T" }}
+                    {% else %}
+                        No webhook yet
+                    {% endif %}
+                </div>
+                {% if can_edit_operations %}
+                <form method="post" class="ops-admin-action-group">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="send_webhook_test" class="btn btn-outline-warning">Send Webhook Test</button>
+                    <a href="{% url 'webhook_diagnostics' %}" class="btn btn-outline-secondary">Open Webhook Diagnostics</a>
+                </form>
+                {% endif %}
+                <div class="small text-muted mt-3">
+                    Token:
+                    {% if webhook_diagnostics.webhook_token_configured %}Configured{% else %}Missing{% endif %} |
+                    Unmatched recent rows: {{ webhook_diagnostics.unmatched_recent|length }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Incident Tools</h5></div>
+            <div class="card-block">
+                {% if can_edit_operations %}
+                <form method="post" class="ops-admin-action-group">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="export_incident_snapshot" class="btn btn-outline-primary">Export Incident Snapshot</button>
+                    <button type="submit" name="action" value="cleanup_runtime_dry_run" class="btn btn-outline-secondary">Cleanup Runtime Dry Run</button>
+                    <a href="{% url 'healthz' %}" class="btn btn-outline-dark">Health Endpoint</a>
+                </form>
+                {% endif %}
+                <div class="small text-muted mt-3">
+                    Use these actions before escalations or support handoffs to capture a safe state snapshot.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Demo Data Cleanup</h5></div>
+            <div class="card-block">
+                <div class="small text-muted mb-3">
+                    Orders: {{ demo_counts.orders }} |
+                    Activity Logs: {{ demo_counts.activity_logs }} |
+                    Queue Jobs: {{ demo_counts.queue_jobs }} |
+                    WhatsApp Logs: {{ demo_counts.whatsapp_logs }}
+                </div>
+                {% if can_edit_operations %}
+                <form method="post" class="ops-admin-action-group">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="clear_demo_data" class="btn btn-outline-danger" data-confirm="Delete all DEMO- records and related logs?">Clear Demo Data</button>
+                </form>
+                {% endif %}
+                <div class="small text-muted mt-3">
+                    Only records whose order id starts with <code>DEMO-</code> are removed.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

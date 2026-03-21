@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+{% load core_extras %}
+
+{% block title %}Orders Dashboard | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+    :root {
+        scroll-behavior: auto !important;
+    }
+
+    .orders-dashboard-shell {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .dashboard-card {
+        height: 100%;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .dashboard-card .card-body {
+        padding: 1.15rem;
+    }
+
+    .dashboard-card .metric-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .dashboard-tone-success {
+        border-top: 4px solid #28a745;
+    }
+
+    .dashboard-tone-warning {
+        border-top: 4px solid #f0ad4e;
+    }
+
+    .dashboard-tone-danger {
+        border-top: 4px solid #dc3545;
+    }
+
+    .dashboard-tone-primary {
+        border-top: 4px solid #007bff;
+    }
+
+    .dashboard-tone-info {
+        border-top: 4px solid #17a2b8;
+    }
+
+    .dashboard-tone-secondary {
+        border-top: 4px solid #6c757d;
+    }
+
+    .dashboard-tone-dark {
+        border-top: 4px solid #343a40;
+    }
+
+    .dashboard-alert {
+        border-left: 4px solid transparent;
+    }
+
+    .dashboard-alert-warning {
+        border-left-color: #f0ad4e;
+        background: #fff8e8;
+    }
+
+    .dashboard-alert-danger {
+        border-left-color: #dc3545;
+        background: #fff0f1;
+    }
+
+    .dashboard-shortcut {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        color: #334155;
+        background: #fff;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+
+    .dashboard-shortcut:hover {
+        text-decoration: none;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .dashboard-shortcut .badge {
+        min-width: 2rem;
+    }
+
+    .dashboard-panel-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .dashboard-inline-actions,
+    .dashboard-action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .dashboard-shortcuts-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .dashboard-insight-card {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 0.75rem;
+        padding: 0.9rem 1rem;
+        height: 100%;
+        background: #fff;
+    }
+
+    .queue-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .queue-list li + li {
+        border-top: 1px solid rgba(15, 23, 42, 0.08);
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+    }
+
+    .health-meta {
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 0.5rem 1rem;
+    }
+
+    .queue-list-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    @media (max-width: 991.98px) {
+        .dashboard-card .card-body {
+            padding: 1rem;
+        }
+
+        .dashboard-card .metric-value {
+            font-size: 1.55rem;
+        }
+
+        .dashboard-shortcut {
+            padding: 0.45rem 0.75rem;
+            font-size: 0.88rem;
+        }
+
+        .dashboard-insight-card {
+            padding: 0.8rem 0.9rem;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .orders-dashboard-shell {
+            gap: 0.65rem;
+        }
+
+        .dashboard-card .card-body {
+            padding: 0.9rem;
+        }
+
+        .dashboard-card .metric-value {
+            font-size: 1.4rem;
+        }
+
+        .dashboard-inline-actions,
+        .dashboard-action-buttons {
+            width: 100%;
+        }
+
+        .dashboard-inline-actions > *,
+        .dashboard-action-buttons > *,
+        .dashboard-action-buttons form,
+        .dashboard-inline-actions form {
+            flex: 1 1 100%;
+        }
+
+        .dashboard-inline-actions .btn,
+        .dashboard-action-buttons .btn {
+            width: 100%;
+        }
+
+        .dashboard-shortcuts-row {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 0.25rem;
+            margin-bottom: -0.25rem;
+            scrollbar-width: thin;
+        }
+
+        .dashboard-shortcut {
+            flex: 0 0 auto;
+        }
+
+        .queue-list-row,
+        .dashboard-panel-head {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .health-meta {
+            grid-template-columns: 1fr;
+            gap: 0.25rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if show_webhook_stale_banner %}
+<div class="alert alert-warning" role="alert">
+    Webhook is stale: last callback was {{ webhook_freshness_minutes }} minute(s) ago (threshold {{ webhook_stale_threshold_minutes }} minutes).
+</div>
+{% endif %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Orders Dashboard</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="#!"><i class="feather icon-home"></i></a></li>
+            <li class="breadcrumb-item">Dashboard</li>
+            <li class="breadcrumb-item">Orders</li>
+        </ul>
+    </div>
+</div>
+
+<div class="orders-dashboard-shell">
+<div class="row g-3 mb-2">
+    {% for card in action_cards %}
+    <div class="col-md-6 col-xl">
+        <div class="card dashboard-card dashboard-tone-{{ card.tone }}">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">{{ card.title }}</div>
+                <div class="metric-value mt-2">{{ card.count }}</div>
+                <div class="text-muted small mt-2">{{ card.description }}</div>
+                <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-primary mt-3">{{ card.action_label }}</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-3 mb-2">
+    {% for card in daily_whatsapp_cards %}
+    <div class="col-md-4">
+        <div class="card dashboard-card dashboard-tone-{{ card.tone }}">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">{{ card.title }}</div>
+                <div class="metric-value mt-2">{{ card.count }}</div>
+                <div class="text-muted small mt-2">{{ card.delta }}</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if dashboard_alerts %}
+<div class="row g-3 mb-2">
+    {% for alert in dashboard_alerts %}
+    <div class="col-md-6">
+        <div class="card dashboard-card dashboard-alert dashboard-alert-{{ alert.tone }}">
+            <div class="card-body">
+                <div class="dashboard-panel-head">
+                    <div>
+                        <h5 class="mb-1">{{ alert.title }}</h5>
+                        <div class="text-muted small">{{ alert.message }}</div>
+                    </div>
+                    <a href="{{ alert.action_url }}" class="btn btn-sm btn-outline-secondary">{{ alert.action_label }}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="row g-3 mb-2">
+    {% for item in health_snapshot %}
+    <div class="col-md-4">
+        <div class="card dashboard-card dashboard-tone-{{ item.tone }}">
+            <div class="card-body">
+                <div class="dashboard-panel-head">
+                    <h5 class="mb-0">{{ item.title }}</h5>
+                    <span class="badge rounded-pill bg-light text-dark">{{ item.status }}</span>
+                </div>
+                <div class="small text-muted mt-3">{{ item.primary }}</div>
+                <div class="small text-muted mt-2">{{ item.secondary }}</div>
+                {% if item.title == "System Status" %}
+                <div class="health-meta small mt-3">
+                    <span class="text-muted">Worker</span>
+                    <span>{{ system_status.worker.last_run_text }}</span>
+                    <span class="text-muted">Alerts</span>
+                    <span>{{ system_status.alerts.last_run_text }}</span>
+                    <span class="text-muted">Backups</span>
+                    <span>{{ system_status.backup.last_run_text }}</span>
+                </div>
+                {% endif %}
+                {% if item.title == "Queue Health" and can_edit_operations %}
+                <div class="dashboard-inline-actions mt-3">
+                    <form method="post" action="{% url 'process_whatsapp_queue_now' %}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="return_to" value="home">
+                        <input type="hidden" name="limit" value="20">
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Process Queue Once</button>
+                    </form>
+                    {% if failed_queue_count %}
+                    <form method="post" action="{% url 'retry_failed_whatsapp_queue' %}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="return_to" value="home">
+                        <input type="hidden" name="limit" value="50">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Retry Failed Queue</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% else %}
+                <a href="{{ item.action_url }}" class="btn btn-sm btn-outline-secondary mt-3">{{ item.action_label }}</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row mb-2">
+    <div class="col-12">
+        <div class="card dashboard-card">
+            <div class="card-body">
+                <div class="dashboard-panel-head">
+                    <div>
+                        <h5 class="mb-1">Status Shortcuts</h5>
+                        <p class="mb-0 text-muted">Jump straight into the tab that needs attention.</p>
+                    </div>
+                    <div class="small text-muted">Last successful send: {{ last_successful_send_text }}</div>
+                </div>
+                <div class="dashboard-shortcuts-row mt-3">
+                    {% for tab in shortcut_tabs %}
+                    <a href="{{ tab.url }}" class="dashboard-shortcut">
+                        <span>{{ tab.label }}</span>
+                        <span class="badge rounded-pill bg-light text-dark">{{ tab.count }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-6">
+                        <div class="dashboard-insight-card">
+                            <div class="small text-muted text-uppercase">Oldest Open Queue Job</div>
+                            {% if whatsapp_diagnostics.oldest_open_job %}
+                                <div class="fw-semibold mt-2">
+                                    {{ whatsapp_diagnostics.oldest_open_job.shiprocket_order_id|default:"-" }}
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Job #{{ whatsapp_diagnostics.oldest_open_job.pk }} |
+                                    {{ whatsapp_diagnostics.oldest_open_job.status }} |
+                                    {{ whatsapp_diagnostics.oldest_open_age_text }}
+                                </div>
+                            {% else %}
+                                <div class="small text-muted mt-2">No pending, retrying, or processing jobs.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="dashboard-insight-card">
+                            <div class="small text-muted text-uppercase">Top Failure Reasons (24h)</div>
+                            {% if whatsapp_diagnostics.top_failure_reasons %}
+                                <ul class="mb-0 mt-2 small">
+                                    {% for reason, count in whatsapp_diagnostics.top_failure_reasons %}
+                                        <li>({{ count }}) {{ reason }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <div class="small text-muted mt-2">No recent failure reasons recorded.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-2">
+    {% for queue in dashboard_work_queues %}
+    <div class="col-md-6">
+        <div class="card dashboard-card">
+            <div class="card-body">
+                <div class="dashboard-panel-head">
+                    <div>
+                        <h5 class="mb-1">{{ queue.title }}</h5>
+                        <div class="small text-muted">{{ queue.count }} item(s)</div>
+                    </div>
+                    <a href="{{ queue.action_url }}" class="btn btn-sm btn-outline-primary">{{ queue.action_label }}</a>
+                </div>
+                {% if queue.items %}
+                <ul class="queue-list mt-3">
+                    {% for item in queue.items %}
+                    <li>
+                        <div class="queue-list-row">
+                            <div>
+                                <a href="{{ item.url }}" class="fw-semibold">{{ item.order_id }}</a>
+                                <div class="small text-muted">{{ item.customer_name }} | {{ item.phone }}</div>
+                                {% if item.note %}
+                                <div class="small text-muted mt-1">{{ item.note }}</div>
+                                {% endif %}
+                            </div>
+                            <span class="badge rounded-pill bg-light text-dark">{{ item.status_label }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="small text-muted mt-3 mb-0">{{ queue.empty_text }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card dashboard-card">
+            <div class="card-body">
+                <div class="dashboard-panel-head">
+                    <div>
+                        <h5 class="mb-1">Action Center</h5>
+                        <p class="mb-0 text-muted">Use the dedicated operations pages for status moves, packing, labels, WhatsApp logs, and configuration.</p>
+                    </div>
+                    <a href="{% url 'order_management' %}" class="btn btn-primary">Open Order Management</a>
+                </div>
+                <div class="dashboard-action-buttons mt-3">
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'print_queue' %}">Print Queue</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'whatsapp_delivery_logs' %}">WhatsApp Logs</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'webhook_diagnostics' %}">Webhook Diagnostics</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'whatsapp_settings' %}">WhatsApp Settings</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_utilities' %}">Admin Utilities</a>
+                    {% if status_counts.order_packed %}
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'bulk_shipping_labels_4x6' %}?status=order_packed" target="_blank" rel="noopener">Bulk Label ST-4</a>
+                    {% endif %}
+                </div>
+                <div class="small text-muted mt-3">
+                    Total Orders: {{ status_counts.total }} | New Orders: {{ status_counts.new_order }} | Packed Orders: {{ status_counts.order_packed }} | Delivered: {{ status_counts.delivered }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Projects | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2 responsive-page-header">
+            <div>
+                <h4 class="m-b-10">Projects</h4>
+                <p class="mb-0 text-muted">Browse all projects stored in the application.</p>
+            </div>
+            <a class="btn btn-primary" href="/admin/core/project/add/">Add Project</a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for project in projects %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card responsive-project-card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ project.name }}</h5>
+                </div>
+                <div class="card-block">
+                    <p class="text-muted">{{ project.description|truncatewords:24|default:"No description yet." }}</p>
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'project_detail' project.pk %}">View Details</a>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info mb-0">
+                No projects yet. Add your first one in the admin panel.
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

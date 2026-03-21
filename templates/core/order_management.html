@@ -1,0 +1,979 @@
+{% extends "base.html" %}
+{% load core_extras %}
+
+{% block title %}Order Management | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+    :root {
+        scroll-behavior: auto !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Order Management</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="#!"><i class="feather icon-home"></i></a></li>
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">Order Management</li>
+        </ul>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card code-table order-management-card" id="order-management-section">
+            <div class="card-header">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <h5>Order Management</h5>
+                    <span class="webhook-health-pill {% if webhook_is_stale %}is-stale{% else %}is-healthy{% endif %}" title="Last webhook callback time">
+                        <span class="webhook-health-dot"></span>
+                        {% if webhook_is_stale %}Webhook stale{% else %}Webhook healthy{% endif %}
+                    </span>
+                </div>
+                <div class="small text-muted">
+                    Last callback:
+                    {% if last_webhook_received_at %}
+                        {{ last_webhook_received_at|date:"Y-m-d H:i:s T" }}
+                    {% else %}
+                        No webhook yet
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-block pb-0">
+                {% if undo_context %}
+                    <div class="alert alert-warning d-flex flex-wrap gap-2 align-items-center justify-content-between order-management-undo-alert">
+                        <div class="small">
+                            <strong>Undo available:</strong>
+                            {{ undo_context.order_count }} order(s).
+                            {% if undo_context.summary %}{{ undo_context.summary }}.{% endif %}
+                            <span class="text-muted">Window: <span data-undo-timer data-undo-seconds="{{ undo_context.seconds_left }}">{{ undo_context.seconds_left }}s</span></span>
+                        </div>
+                        {% if can_edit_operations %}
+                            <form method="post" action="{% url 'order_management_undo_last_action' %}" class="m-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                <input type="hidden" name="return_to" value="order_management">
+                                <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                <input type="hidden" name="undo_token" value="{{ undo_context.token }}">
+                                <button type="submit" class="btn btn-sm btn-warning" data-undo-button>Undo Last Action</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                <div class="order-management-sticky mb-3">
+                    <div class="card-header-right order-management-actions d-flex gap-2 align-items-center mb-2">
+                        {% if can_edit_operations %}
+                            <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="return_to" value="order_management">
+                                <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Sync Orders</button>
+                            </form>
+                        {% elif request.user.is_authenticated %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Read-only role</button>
+                        {% else %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'login' %}">Login to Sync</a>
+                        {% endif %}
+
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'print_queue' %}">Print Queue</a>
+                        {% if active_tab == "order_accepted" %}
+                            <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_queue' %}">Packing Queue</a>
+                        {% endif %}
+                        {% if active_tab == "order_packed" and tab_filter_count %}
+                            <a class="btn btn-sm btn-primary" href="{% url 'bulk_shipping_labels_4x6' %}?status=order_packed" target="_blank" rel="noopener">Bulk Label ST-4</a>
+                        {% endif %}
+
+                        <form method="get" action="{% url 'order_management_export_csv' %}" class="d-flex">
+                            <input type="hidden" name="tab" value="{{ active_tab }}">
+                            <input type="hidden" name="q" value="{{ filters.q }}">
+                            <input type="hidden" name="order_id" value="{{ filters.order_id }}">
+                            <input type="hidden" name="phone" value="{{ filters.phone }}">
+                            <input type="hidden" name="from_date" value="{{ filters.from_date }}">
+                            <input type="hidden" name="to_date" value="{{ filters.to_date }}">
+                            <input type="hidden" name="shiprocket_status" value="{{ filters.shiprocket_status }}">
+                            <input type="hidden" name="per_page" value="{{ filters.per_page }}">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Export Current Tab CSV</button>
+                        </form>
+
+                        <div class="order-auto-refresh ms-auto d-flex align-items-center gap-2">
+                            <label for="autoRefreshSelect" class="small text-muted mb-0">Auto Refresh</label>
+                            <select id="autoRefreshSelect" class="form-select form-select-sm">
+                                <option value="0" {% if not filters.auto_refresh_seconds %}selected{% endif %}>Off</option>
+                                <option value="15" {% if filters.auto_refresh_seconds == 15 %}selected{% endif %}>15s</option>
+                                <option value="30" {% if filters.auto_refresh_seconds == 30 %}selected{% endif %}>30s</option>
+                                <option value="60" {% if filters.auto_refresh_seconds == 60 %}selected{% endif %}>60s</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="order-management-quick-stats mb-2">
+                        <span class="stats-chip"><strong>{{ tab_filter_count }}</strong> filtered orders</span>
+                        <span class="stats-chip">Total amount: <strong>{{ tab_filter_total_amount|floatformat:2 }}</strong></span>
+                        <span class="stats-chip text-muted">Keyboard: `/` search, `Up/Down` rows, `Ctrl+Enter` submit</span>
+                    </div>
+
+                    <form method="get" action="{% url 'order_management' %}" class="order-management-filter-form d-flex flex-wrap gap-2 align-items-center mb-2">
+                        <input type="hidden" name="tab" value="{{ active_tab }}">
+                        <input type="hidden" name="auto_refresh" value="{{ filters.auto_refresh_seconds }}" id="autoRefreshHiddenInput">
+                        <input type="hidden" name="order_id" value="{{ filters.order_id }}">
+                        <input type="hidden" name="phone" value="{{ filters.phone }}">
+                        <input type="hidden" name="shiprocket_status" value="{{ filters.shiprocket_status }}">
+                        <input type="hidden" name="from_date" value="{{ filters.from_date }}">
+                        <input type="hidden" name="to_date" value="{{ filters.to_date }}">
+                        <input type="hidden" name="per_page" value="{{ filters.per_page }}">
+                        <input type="text" id="orderSearchInput" name="q" value="{{ filters.q }}" class="form-control form-control-sm" placeholder="Search any field">
+                        <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+                        <button type="button" id="advancedFiltersToggle" class="btn btn-sm btn-outline-primary" aria-expanded="{% if advanced_filters_active %}true{% else %}false{% endif %}">
+                            Advanced Filters
+                        </button>
+                        <a href="{% url 'order_management' %}?tab={{ active_tab }}#order-management-section" class="btn btn-sm btn-outline-secondary">Reset</a>
+                    </form>
+
+                    {% if can_edit_operations %}
+                        <div class="order-management-saved-views mb-2">
+                            <form method="post" action="{% url 'order_management_save_view' %}" class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                <input type="hidden" name="return_to" value="order_management">
+                                <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                <input type="hidden" name="q" value="{{ filters.q }}">
+                                <input type="hidden" name="order_id" value="{{ filters.order_id }}">
+                                <input type="hidden" name="phone" value="{{ filters.phone }}">
+                                <input type="hidden" name="shiprocket_status" value="{{ filters.shiprocket_status }}">
+                                <input type="hidden" name="from_date" value="{{ filters.from_date }}">
+                                <input type="hidden" name="to_date" value="{{ filters.to_date }}">
+                                <input type="hidden" name="per_page" value="{{ filters.per_page }}">
+                                <input type="hidden" name="auto_refresh" value="{{ filters.auto_refresh_seconds }}">
+                                <input type="text" name="view_name" class="form-control form-control-sm" placeholder="Save this view as...">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Save View</button>
+                            </form>
+                            {% if saved_view_rows %}
+                                <div class="saved-view-chip-list">
+                                    {% for view_row in saved_view_rows %}
+                                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'order_management' %}?{{ view_row.query }}#order-management-section">{{ view_row.name }}</a>
+                                        <form method="post" action="{% url 'order_management_delete_view' %}" class="d-inline-block m-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                            <input type="hidden" name="return_to" value="order_management">
+                                            <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                            <input type="hidden" name="view_name" value="{{ view_row.name }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete saved view {{ view_row.name }}">x</button>
+                                        </form>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div id="advancedFiltersPanel" class="order-management-advanced-panel {% if advanced_filters_active %}is-open{% endif %}">
+                        <form method="get" action="{% url 'order_management' %}" class="order-management-filter-form d-flex flex-wrap gap-2 align-items-center mb-2">
+                            <input type="hidden" name="tab" value="{{ active_tab }}">
+                            <input type="hidden" name="auto_refresh" value="{{ filters.auto_refresh_seconds }}">
+                            <input type="hidden" name="q" value="{{ filters.q }}">
+                            <input type="text" name="order_id" value="{{ filters.order_id }}" class="form-control form-control-sm" placeholder="Order / Channel ID">
+                            <input type="text" name="phone" value="{{ filters.phone }}" class="form-control form-control-sm" placeholder="Phone">
+                            <select name="shiprocket_status" class="form-select form-select-sm">
+                                <option value="">All Shiprocket Status</option>
+                                {% for value in shiprocket_status_values %}
+                                    <option value="{{ value }}" {% if filters.shiprocket_status == value %}selected{% endif %}>{{ value }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="date" name="from_date" value="{{ filters.from_date }}" class="form-control form-control-sm" title="From date">
+                            <input type="date" name="to_date" value="{{ filters.to_date }}" class="form-control form-control-sm" title="To date">
+                            <select name="per_page" class="form-select form-select-sm" title="Rows per page">
+                                <option value="25" {% if filters.per_page == 25 %}selected{% endif %}>25 / page</option>
+                                <option value="50" {% if filters.per_page == 50 %}selected{% endif %}>50 / page</option>
+                                <option value="100" {% if filters.per_page == 100 %}selected{% endif %}>100 / page</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Apply Advanced</button>
+                        </form>
+
+                        {% if can_edit_operations %}
+                            <form method="post" action="{% url 'bulk_update_shiprocket_order_status' %}" id="bulkStatusForm" class="order-management-bulk-form d-flex flex-wrap gap-2 align-items-center">
+                                {% csrf_token %}
+                                <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                <input type="hidden" name="return_to" value="order_management">
+                                <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                <select id="bulkTargetStatus" name="bulk_local_status" class="form-select form-select-sm" required>
+                                    <option value="">Bulk target status</option>
+                                    {% for key, label in bulk_target_statuses %}
+                                        <option value="{{ key }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="text" id="bulkPhoneInput" name="bulk_manual_customer_phone" class="form-control form-control-sm" placeholder="Customer phone (for Accept)">
+                                <input type="text" id="bulkTrackingInput" name="bulk_tracking_number" class="form-control form-control-sm" placeholder="Tracking (13 chars for Shipped)">
+                                <select id="bulkCancelReasonInput" name="bulk_cancellation_reason" class="form-select form-select-sm">
+                                    <option value="">Cancel reason (if cancelling)</option>
+                                    {% for key, label in bulk_cancel_reason_choices %}
+                                        <option value="{{ key }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="text" name="bulk_cancellation_note" class="form-control form-control-sm" placeholder="Cancel note (optional)">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Apply bulk status update to selected orders?">Apply Bulk Update</button>
+                                <span id="bulkSelectedCountChip" class="small text-muted">0 selected</span>
+                                <span class="small text-muted">Select rows below, then apply.</span>
+                            </form>
+                            <form method="post" action="{% url 'bulk_resend_shiprocket_order_whatsapp' %}" id="bulkResendForm" class="order-management-bulk-form d-flex flex-wrap gap-2 align-items-center mt-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                <input type="hidden" name="return_to" value="order_management">
+                                <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                <button type="submit" class="btn btn-sm btn-outline-success" data-confirm="Resend WhatsApp update for selected orders?">Bulk Resend WhatsApp</button>
+                                <span class="small text-muted">Uses the selected rows from this page.</span>
+                            </form>
+                            <div id="bulkTargetHint" class="small text-muted mt-2">Choose target status to see required fields.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs profile-tabs mb-3 order-status-tabs" role="tablist">
+                    {% for tab in status_tabs %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if tab.key == active_tab %}active{% endif %}" href="{% url 'order_management' %}?tab={{ tab.key }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}#order-management-section">
+                                {{ tab.label }}
+                                <span class="badge rounded-pill bg-light text-dark ms-1">{{ status_counts|get_item:tab.key }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+
+                {% if tab_orders %}
+                    <div class="table-responsive order-table-wrap">
+                        <table class="table table-hover order-list-table" id="ordersTable">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 38px;">
+                                        {% if can_edit_operations %}
+                                            <input type="checkbox" id="bulkSelectAll" title="Select all rows on this page">
+                                        {% endif %}
+                                    </th>
+                                    <th>Order ID</th>
+                                    <th>Customer</th>
+                                    <th>Total</th>
+                                    <th>Date</th>
+                                    <th>Age</th>
+                                    <th>Move Order</th>
+                                    <th class="text-end actions-col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in tab_orders %}
+                                    <tr class="order-data-row" data-order-row="{{ item.order.pk }}" data-row-index="{{ forloop.counter0 }}" tabindex="-1">
+                                        <td class="text-center align-middle order-mobile-select-cell" data-label="Select">
+                                            {% if can_edit_operations %}
+                                                <input type="checkbox" class="bulk-order-checkbox" value="{{ item.order.pk }}">
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Order ID">
+                                            <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.shiprocket_order_id }}</a>
+                                            <div class="text-muted small mt-1">Channel: {{ item.order.channel_order_id|default:"-" }}</div>
+                                            <div class="text-muted small mt-1">Workflow: {{ item.order.get_local_status_display }}</div>
+                                            {% if item.order.tracking_number %}
+                                                <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number }}</div>
+                                            {% endif %}
+                                            {% if item.missing_packing_fields %}
+                                                <div class="small mt-1">
+                                                    <span class="fw-semibold">Packing Checklist</span>:
+                                                    <span class="text-warning">Pending</span>
+                                                    <span class="text-muted">({{ item.missing_packing_fields|join:", " }})</span>
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Customer">
+                                            <div class="fw-semibold">{{ item.order.customer_name|default:"Unknown" }}</div>
+                                            <div class="text-muted small">{{ item.order.customer_email|default:"-" }}</div>
+                                            <div class="text-muted small">{{ item.order.display_shipping_address.phone|default:"-" }}</div>
+                                        </td>
+                                        <td data-label="Total">{{ item.order.total|default:"-" }}</td>
+                                        <td data-label="Date">{{ item.order.order_date|date:"Y-m-d H:i"|default:"-" }}</td>
+                                        <td data-label="Age">
+                                            {% if item.order.order_date %}
+                                                <span class="order-age-cell">{{ item.order.order_date|timesince }} ago</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="order-move-cell" data-label="Move Order">
+                                            {% if item.order.local_status == "completed" or item.order.local_status == "order_cancelled" %}
+                                                <span class="text-muted small">Status locked</span>
+                                            {% elif can_edit_operations %}
+                                                <form method="post" action="{% url 'update_shiprocket_order_status' item.order.pk %}" class="d-flex flex-column gap-2 status-update-form" data-row-update-form>
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                                    <input type="hidden" name="return_to" value="order_management">
+                                                    <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                                    {{ item.status_form.local_status }}
+                                                    <div class="d-none" data-accepted-fields>
+                                                        {{ item.status_form.manual_customer_phone }}
+                                                    </div>
+                                                    <div class="d-none shipped-entry-panel" data-shipped-fields>
+                                                        <div class="tracking-entry-row">
+                                                            {{ item.status_form.tracking_number }}
+                                                            <button type="button" class="btn btn-sm btn-outline-primary" data-scan-start>Scan Barcode</button>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger d-none" data-scan-stop>Stop Scan</button>
+                                                        </div>
+                                                        <div class="small text-muted mt-1 d-none" data-scan-status>Enter tracking number manually or use barcode scan.</div>
+                                                        <div class="tracking-scanner-panel d-none mt-2" data-scanner-panel>
+                                                            <video class="tracking-scanner-video" data-scanner-video playsinline muted></video>
+                                                        </div>
+                                                    </div>
+                                                    <div class="d-flex flex-wrap gap-2 d-none" data-cancel-fields>
+                                                        {{ item.status_form.cancellation_reason }}
+                                                        {{ item.status_form.cancellation_note }}
+                                                    </div>
+                                                    <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                                                </form>
+                                            {% elif request.user.is_authenticated %}
+                                                <span class="text-muted small">Read-only role</span>
+                                            {% else %}
+                                                <a class="btn btn-sm btn-outline-primary" href="{% url 'login' %}">Login</a>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end actions-cell" data-label="Actions">
+                                            <div class="order-actions-wrap">
+                                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'order_detail' item.order.pk %}">View</a>
+                                                {% if can_edit_operations %}
+                                                    <form method="post" action="{% url 'resend_shiprocket_order_whatsapp' item.order.pk %}" class="m-0">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                                        <input type="hidden" name="return_to" value="order_management">
+                                                        <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Resend WhatsApp">Resend</button>
+                                                    </form>
+                                                {% elif request.user.is_authenticated %}
+                                                    <span class="text-muted small ms-1">Read-only</span>
+                                                {% endif %}
+                                                <button type="button" class="btn btn-sm btn-outline-info" data-activity-toggle="{{ item.order.pk }}">Activity</button>
+                                                {% if active_tab == "order_accepted" %}
+                                                    <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_list' item.order.pk %}" target="_blank" rel="noopener">Packing</a>
+                                                {% endif %}
+                                                {% if item.order.local_status == "order_packed" %}
+                                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' item.order.pk %}" target="_blank" rel="noopener">Label</a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="order-activity-row d-none" data-activity-row-for="{{ item.order.pk }}">
+                                        <td colspan="8">
+                                            <div class="activity-drawer">
+                                                <div class="small fw-semibold mb-2">Recent Activity</div>
+                                                {% with logs=activity_by_order_id|get_item:item.order.pk %}
+                                                    {% if logs %}
+                                                        <ul class="order-activity-list mb-0">
+                                                            {% for log in logs %}
+                                                                <li>
+                                                                    <div class="small fw-semibold">{{ log.created_at|date:"Y-m-d H:i:s T" }} - {{ log.get_event_type_display }}</div>
+                                                                    <div class="small">{{ log.title }}</div>
+                                                                    {% if log.description %}
+                                                                        <div class="small text-muted">{{ log.description }}</div>
+                                                                    {% endif %}
+                                                                </li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% else %}
+                                                        <div class="small text-muted">No recent activity for this order.</div>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                        <div class="small text-muted">
+                            Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} filtered order(s).
+                        </div>
+                        {% if page_obj.paginator.num_pages > 1 %}
+                            <nav aria-label="Order pagination">
+                                <ul class="pagination pagination-sm mb-0">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{% url 'order_management' %}?{{ page_base_query }}&page={{ page_obj.previous_page_number }}#order-management-section">Previous</a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                                    {% endif %}
+                                    {% for page_number in pagination_numbers %}
+                                        {% if page_number == page_obj.number %}
+                                            <li class="page-item active"><span class="page-link">{{ page_number }}</span></li>
+                                        {% else %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="{% url 'order_management' %}?{{ page_base_query }}&page={{ page_number }}#order-management-section">{{ page_number }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{% url 'order_management' %}?{{ page_base_query }}&page={{ page_obj.next_page_number }}#order-management-section">Next</a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No orders matched this tab and filter combination.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const supportsBarcodeDetector = "BarcodeDetector" in window;
+    const hasCameraAPI = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const scannerSupported = supportsBarcodeDetector && hasCameraAPI;
+
+    const autoRefreshSelect = document.getElementById("autoRefreshSelect");
+    const autoRefreshHiddenInput = document.getElementById("autoRefreshHiddenInput");
+    const orderSearchInput = document.getElementById("orderSearchInput");
+    const AUTO_REFRESH_STORAGE_KEY = "orderManagementAutoRefresh";
+    let autoRefreshTimer = null;
+
+    const setAutoRefresh = function (secondsText) {
+        const parsed = parseInt(secondsText || "0", 10);
+        const seconds = Number.isFinite(parsed) ? parsed : 0;
+        if (autoRefreshTimer) {
+            clearTimeout(autoRefreshTimer);
+            autoRefreshTimer = null;
+        }
+        if (seconds > 0) {
+            autoRefreshTimer = setTimeout(function () {
+                window.location.reload();
+            }, seconds * 1000);
+        }
+    };
+
+    if (autoRefreshSelect) {
+        const saved = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
+        if (saved && ["0", "15", "30", "60"].includes(saved)) {
+            autoRefreshSelect.value = saved;
+        }
+        if (autoRefreshHiddenInput) {
+            autoRefreshHiddenInput.value = autoRefreshSelect.value;
+        }
+        autoRefreshSelect.addEventListener("change", function () {
+            const current = autoRefreshSelect.value;
+            localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, current);
+            if (autoRefreshHiddenInput) {
+                autoRefreshHiddenInput.value = current;
+            }
+            setAutoRefresh(current);
+        });
+        setAutoRefresh(autoRefreshSelect.value);
+    }
+
+    const undoTimerElement = document.querySelector("[data-undo-timer]");
+    const undoButton = document.querySelector("[data-undo-button]");
+    if (undoTimerElement) {
+        let secondsRemaining = parseInt(undoTimerElement.getAttribute("data-undo-seconds") || "0", 10);
+        if (!Number.isFinite(secondsRemaining) || secondsRemaining < 0) {
+            secondsRemaining = 0;
+        }
+        const refreshUndoTimer = function () {
+            undoTimerElement.textContent = secondsRemaining + "s";
+            if (undoButton) {
+                undoButton.disabled = secondsRemaining <= 0;
+            }
+        };
+        refreshUndoTimer();
+        const undoInterval = window.setInterval(function () {
+            secondsRemaining -= 1;
+            if (secondsRemaining <= 0) {
+                secondsRemaining = 0;
+                refreshUndoTimer();
+                window.clearInterval(undoInterval);
+                return;
+            }
+            refreshUndoTimer();
+        }, 1000);
+    }
+
+    document.addEventListener("click", function (event) {
+        const clickable = event.target.closest("[data-confirm]");
+        if (!clickable) {
+            return;
+        }
+        const message = clickable.getAttribute("data-confirm") || "Are you sure?";
+        if (!window.confirm(message)) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    });
+
+    const advancedFiltersToggle = document.getElementById("advancedFiltersToggle");
+    const advancedFiltersPanel = document.getElementById("advancedFiltersPanel");
+    if (advancedFiltersToggle && advancedFiltersPanel) {
+        advancedFiltersToggle.addEventListener("click", function () {
+            const isOpen = advancedFiltersPanel.classList.toggle("is-open");
+            advancedFiltersToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        });
+    }
+
+    const bulkSelectAll = document.getElementById("bulkSelectAll");
+    const bulkCheckboxes = Array.from(document.querySelectorAll(".bulk-order-checkbox"));
+    const bulkSelectedCountChip = document.getElementById("bulkSelectedCountChip");
+    const updateSelectedCount = function () {
+        if (!bulkSelectedCountChip) {
+            return;
+        }
+        const count = bulkCheckboxes.filter(function (checkbox) {
+            return checkbox.checked;
+        }).length;
+        bulkSelectedCountChip.textContent = count + " selected";
+    };
+    if (bulkSelectAll && bulkCheckboxes.length) {
+        bulkSelectAll.addEventListener("change", function () {
+            bulkCheckboxes.forEach(function (checkbox) {
+                checkbox.checked = bulkSelectAll.checked;
+            });
+            updateSelectedCount();
+        });
+    }
+    bulkCheckboxes.forEach(function (checkbox) {
+        checkbox.addEventListener("change", function () {
+            updateSelectedCount();
+            if (bulkSelectAll) {
+                const checkedCount = bulkCheckboxes.filter(function (item) {
+                    return item.checked;
+                }).length;
+                bulkSelectAll.checked = checkedCount === bulkCheckboxes.length && bulkCheckboxes.length > 0;
+            }
+        });
+    });
+    updateSelectedCount();
+
+    const bulkForm = document.getElementById("bulkStatusForm");
+    const bulkResendForm = document.getElementById("bulkResendForm");
+    const bulkTargetStatusField = document.getElementById("bulkTargetStatus");
+    const bulkPhoneInput = document.getElementById("bulkPhoneInput");
+    const bulkTrackingInput = document.getElementById("bulkTrackingInput");
+    const bulkCancelReasonInput = document.getElementById("bulkCancelReasonInput");
+    const bulkTargetHint = document.getElementById("bulkTargetHint");
+
+    const updateBulkHints = function () {
+        if (!bulkTargetStatusField || !bulkTargetHint) {
+            return;
+        }
+        const selected = bulkTargetStatusField.value;
+        if (bulkPhoneInput) {
+            bulkPhoneInput.required = selected === "order_accepted";
+        }
+        if (bulkTrackingInput) {
+            bulkTrackingInput.required = selected === "shipped";
+        }
+        if (bulkCancelReasonInput) {
+            bulkCancelReasonInput.required = selected === "order_cancelled";
+        }
+
+        if (selected === "order_accepted") {
+            bulkTargetHint.textContent = "Hint: Customer phone is required to move New Order to Order Accepted.";
+        } else if (selected === "shipped") {
+            bulkTargetHint.textContent = "Hint: Tracking number is required and must be exactly 13 characters for Shipped.";
+        } else if (selected === "order_cancelled") {
+            bulkTargetHint.textContent = "Hint: Cancellation reason is required before moving orders to Cancelled.";
+        } else if (selected === "order_packed") {
+            bulkTargetHint.textContent = "Hint: Orders missing packing checklist fields may fail validation.";
+        } else if (selected) {
+            bulkTargetHint.textContent = "Hint: Select rows and apply bulk update.";
+        } else {
+            bulkTargetHint.textContent = "Choose target status to see required fields.";
+        }
+    };
+
+    if (bulkTargetStatusField) {
+        bulkTargetStatusField.addEventListener("change", updateBulkHints);
+        updateBulkHints();
+    }
+
+    const syncBulkSelection = function (targetForm) {
+        if (!targetForm) {
+            return;
+        }
+        Array.from(targetForm.querySelectorAll("input[data-generated-order-id='true']")).forEach(function (input) {
+            input.remove();
+        });
+        bulkCheckboxes.forEach(function (checkbox) {
+            if (!checkbox.checked) {
+                return;
+            }
+            const hidden = document.createElement("input");
+            hidden.type = "hidden";
+            hidden.name = "order_ids";
+            hidden.value = checkbox.value;
+            hidden.setAttribute("data-generated-order-id", "true");
+            targetForm.appendChild(hidden);
+        });
+    };
+
+    if (bulkForm) {
+        bulkForm.addEventListener("submit", function (event) {
+            const checked = bulkCheckboxes.filter(function (checkbox) {
+                return checkbox.checked;
+            }).length;
+            if (!checked) {
+                event.preventDefault();
+                window.alert("Select at least one order for bulk update.");
+                return;
+            }
+            syncBulkSelection(bulkForm);
+            if (bulkTrackingInput) {
+                bulkTrackingInput.value = String(bulkTrackingInput.value || "")
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "")
+                    .trim();
+            }
+        });
+    }
+
+    if (bulkResendForm) {
+        bulkResendForm.addEventListener("submit", function (event) {
+            const checked = bulkCheckboxes.filter(function (checkbox) {
+                return checkbox.checked;
+            }).length;
+            if (!checked) {
+                event.preventDefault();
+                window.alert("Select at least one order for bulk resend.");
+                return;
+            }
+            syncBulkSelection(bulkResendForm);
+        });
+    }
+
+    const normalizeTrackingNumber = function (rawValue) {
+        return String(rawValue || "")
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "")
+            .trim();
+    };
+
+    const orderRows = Array.from(document.querySelectorAll(".order-data-row"));
+    const activityToggleButtons = Array.from(document.querySelectorAll("[data-activity-toggle]"));
+    let focusedRowIndex = orderRows.length ? 0 : -1;
+
+    const setFocusedRow = function (index, shouldScroll) {
+        if (!orderRows.length) {
+            return;
+        }
+        const bounded = Math.max(0, Math.min(index, orderRows.length - 1));
+        focusedRowIndex = bounded;
+        orderRows.forEach(function (row, rowIndex) {
+            const isFocused = rowIndex === focusedRowIndex;
+            row.classList.toggle("is-row-focused", isFocused);
+            if (isFocused && shouldScroll) {
+                row.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+            }
+        });
+    };
+
+    const isTypingTarget = function (element) {
+        if (!element) {
+            return false;
+        }
+        return !!element.closest("input, textarea, select, [contenteditable='true']");
+    };
+
+    orderRows.forEach(function (row, rowIndex) {
+        row.addEventListener("click", function () {
+            setFocusedRow(rowIndex, false);
+        });
+    });
+    if (orderRows.length) {
+        setFocusedRow(0, false);
+    }
+
+    activityToggleButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            const orderId = button.getAttribute("data-activity-toggle");
+            if (!orderId) {
+                return;
+            }
+            const activityRow = document.querySelector("[data-activity-row-for='" + orderId + "']");
+            if (!activityRow) {
+                return;
+            }
+            const shouldOpen = activityRow.classList.contains("d-none");
+            activityRow.classList.toggle("d-none", !shouldOpen);
+            button.textContent = shouldOpen ? "Hide Activity" : "Activity";
+        });
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.ctrlKey && event.key === "Enter") {
+            const activeForm = document.activeElement ? document.activeElement.closest("form") : null;
+            const fallbackForm = focusedRowIndex >= 0 && orderRows[focusedRowIndex]
+                ? orderRows[focusedRowIndex].querySelector("[data-row-update-form]")
+                : null;
+            const formToSubmit = activeForm || fallbackForm || bulkForm;
+            if (formToSubmit) {
+                event.preventDefault();
+                if (typeof formToSubmit.requestSubmit === "function") {
+                    formToSubmit.requestSubmit();
+                } else {
+                    formToSubmit.submit();
+                }
+            }
+            return;
+        }
+
+        if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !isTypingTarget(event.target)) {
+            if (orderSearchInput) {
+                event.preventDefault();
+                orderSearchInput.focus();
+                orderSearchInput.select();
+            }
+            return;
+        }
+
+        if (!orderRows.length || isTypingTarget(event.target)) {
+            return;
+        }
+
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setFocusedRow(focusedRowIndex + 1, true);
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setFocusedRow(focusedRowIndex - 1, true);
+        } else if (event.key === " ") {
+            const focusedRow = focusedRowIndex >= 0 ? orderRows[focusedRowIndex] : null;
+            const rowCheckbox = focusedRow ? focusedRow.querySelector(".bulk-order-checkbox") : null;
+            if (rowCheckbox) {
+                event.preventDefault();
+                rowCheckbox.checked = !rowCheckbox.checked;
+                rowCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        }
+    });
+
+    const forms = document.querySelectorAll(".status-update-form");
+    forms.forEach(function (form) {
+        const statusField = form.querySelector("select[name$='-local_status']");
+        const acceptedPhoneField = form.querySelector("input[name$='-manual_customer_phone']");
+        const acceptedFields = form.querySelector("[data-accepted-fields]");
+        const trackingField = form.querySelector("input[name$='-tracking_number']");
+        const shippedFields = form.querySelector("[data-shipped-fields]");
+        const scanStartButton = form.querySelector("[data-scan-start]");
+        const scanStopButton = form.querySelector("[data-scan-stop]");
+        const scanStatus = form.querySelector("[data-scan-status]");
+        const scannerPanel = form.querySelector("[data-scanner-panel]");
+        const scannerVideo = form.querySelector("[data-scanner-video]");
+        const cancelFields = form.querySelector("[data-cancel-fields]");
+        let barcodeDetector = null;
+        let scannerStream = null;
+        let scannerLoopFrame = null;
+        if (!statusField) {
+            return;
+        }
+
+        const setScanStatus = function (message, isError) {
+            if (!scanStatus) {
+                return;
+            }
+            scanStatus.textContent = message;
+            scanStatus.classList.remove("d-none");
+            scanStatus.classList.toggle("text-danger", !!isError);
+            scanStatus.classList.toggle("text-success", !isError && /captured|updated|sent|filled/i.test(message));
+        };
+
+        const stopScanner = function () {
+            if (scannerLoopFrame) {
+                cancelAnimationFrame(scannerLoopFrame);
+                scannerLoopFrame = null;
+            }
+            if (scannerVideo) {
+                scannerVideo.pause();
+                scannerVideo.srcObject = null;
+            }
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(function (track) {
+                    track.stop();
+                });
+                scannerStream = null;
+            }
+            if (scannerPanel) {
+                scannerPanel.classList.add("d-none");
+            }
+            if (scanStartButton) {
+                scanStartButton.classList.remove("d-none");
+            }
+            if (scanStopButton) {
+                scanStopButton.classList.add("d-none");
+            }
+        };
+
+        const applyTrackingValue = function (rawValue) {
+            if (!trackingField) {
+                return false;
+            }
+            const normalized = normalizeTrackingNumber(rawValue);
+            if (!normalized) {
+                return false;
+            }
+            trackingField.value = normalized;
+            trackingField.dispatchEvent(new Event("input", { bubbles: true }));
+            trackingField.dispatchEvent(new Event("change", { bubbles: true }));
+            return true;
+        };
+
+        const scanLoop = async function () {
+            if (!barcodeDetector || !scannerVideo || !scannerStream) {
+                return;
+            }
+            try {
+                const barcodes = await barcodeDetector.detect(scannerVideo);
+                if (Array.isArray(barcodes) && barcodes.length) {
+                    const detected = barcodes
+                        .map(function (code) {
+                            return code.rawValue || "";
+                        })
+                        .find(function (value) {
+                            return !!normalizeTrackingNumber(value);
+                        });
+                    if (detected && applyTrackingValue(detected)) {
+                        setScanStatus("Barcode captured. Tracking number updated.", false);
+                        stopScanner();
+                        return;
+                    }
+                }
+            } catch (error) {
+                setScanStatus("Scanner is active, but no readable barcode yet.", false);
+            }
+            scannerLoopFrame = requestAnimationFrame(scanLoop);
+        };
+
+        const startScanner = async function () {
+            if (!trackingField) {
+                return;
+            }
+            if (!scannerSupported) {
+                setScanStatus("Camera barcode scan is not supported here. Use manual entry or USB scanner.", true);
+                trackingField.focus();
+                return;
+            }
+            if (!barcodeDetector) {
+                try {
+                    barcodeDetector = new BarcodeDetector({
+                        formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "itf", "codabar"],
+                    });
+                } catch (error) {
+                    setScanStatus("Barcode scanner initialization failed. Use manual entry.", true);
+                    trackingField.focus();
+                    return;
+                }
+            }
+            stopScanner();
+            try {
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" } },
+                    audio: false,
+                });
+                if (scannerVideo) {
+                    scannerVideo.srcObject = scannerStream;
+                    await scannerVideo.play();
+                }
+                if (scannerPanel) {
+                    scannerPanel.classList.remove("d-none");
+                }
+                if (scanStartButton) {
+                    scanStartButton.classList.add("d-none");
+                }
+                if (scanStopButton) {
+                    scanStopButton.classList.remove("d-none");
+                }
+                setScanStatus("Scanner is ready. Point camera at tracking barcode.", false);
+                scannerLoopFrame = requestAnimationFrame(scanLoop);
+            } catch (error) {
+                stopScanner();
+                setScanStatus("Unable to open camera. Allow permission or use manual entry.", true);
+                trackingField.focus();
+            }
+        };
+
+        if (trackingField) {
+            trackingField.addEventListener("change", function () {
+                trackingField.value = normalizeTrackingNumber(trackingField.value);
+            });
+        }
+
+        if (scanStartButton) {
+            scanStartButton.addEventListener("click", function () {
+                startScanner();
+            });
+        }
+        if (scanStopButton) {
+            scanStopButton.addEventListener("click", function () {
+                stopScanner();
+                setScanStatus("Scanner stopped. You can continue manual entry.", false);
+            });
+        }
+        const toggleConditionalFields = function () {
+            const showAccepted = statusField.value === "order_accepted";
+            const showCancel = statusField.value === "order_cancelled";
+            const showShipped = statusField.value === "shipped";
+            if (acceptedFields) {
+                acceptedFields.classList.toggle("d-none", !showAccepted);
+            }
+            if (acceptedPhoneField) {
+                acceptedPhoneField.required = showAccepted;
+            }
+            if (shippedFields) {
+                shippedFields.classList.toggle("d-none", !showShipped);
+            }
+            if (trackingField) {
+                trackingField.required = showShipped;
+            }
+            if (scanStatus) {
+                scanStatus.classList.toggle("d-none", !showShipped);
+                if (showShipped) {
+                    scanStatus.textContent = "Enter tracking manually or scan barcode.";
+                    scanStatus.classList.remove("text-danger", "text-success");
+                }
+            }
+            if (!showShipped) {
+                stopScanner();
+            }
+            if (!cancelFields) {
+                return;
+            }
+            cancelFields.classList.toggle("d-none", !showCancel);
+        };
+        statusField.addEventListener("change", toggleConditionalFields);
+        toggleConditionalFields();
+
+        form.addEventListener("submit", function (event) {
+            const selectedStatus = statusField.value;
+            if (selectedStatus === "order_cancelled") {
+                const shouldContinue = window.confirm("Move this order to Cancelled status?");
+                if (!shouldContinue) {
+                    event.preventDefault();
+                    return;
+                }
+            }
+
+            stopScanner();
+            if (trackingField) {
+                trackingField.value = normalizeTrackingNumber(trackingField.value);
+            }
+            const submitButton = form.querySelector("button[type='submit']");
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = "Updating...";
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

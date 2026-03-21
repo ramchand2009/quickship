@@ -1,0 +1,907 @@
+/* Project-level overrides for Datta Able PRO theme */
+
+.navbar-dark .pcoded-inner-navbar li.active > a,
+.navbar-dark .pcoded-inner-navbar li.pcoded-trigger > a {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+.custom-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.brand-logo-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 0;
+    object-fit: contain;
+    background: transparent;
+    padding: 0;
+    display: block;
+}
+
+.m-header .brand-logo-img {
+    width: 34px;
+    height: 34px;
+}
+
+.page-header-title h4 {
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+
+.breadcrumb {
+    background: transparent;
+    padding: 0;
+}
+
+.order-stat-card .card-block {
+    padding: 1rem 1.15rem;
+}
+
+.order-stat-card h6 {
+    color: #6c757d;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.order-stat-card h3 {
+    font-size: 1.85rem;
+    font-weight: 700;
+}
+
+.order-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.order-toolbar-left {
+    flex: 1 1 260px;
+    max-width: 420px;
+}
+
+.order-toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.order-management-card .card-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.order-management-card .card-header h5 {
+    margin: 0;
+    padding-top: 0.25rem;
+}
+
+.order-management-card .card-header .order-management-actions {
+    position: static;
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    max-width: 100%;
+}
+
+.order-management-card .card-header .order-management-actions form {
+    margin: 0;
+}
+
+.order-management-card .card-header .order-management-actions .btn {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.order-management-card .card-header .order-management-actions .form-control {
+    min-width: 140px;
+}
+
+.order-management-sticky {
+    position: sticky;
+    top: 72px;
+    z-index: 5;
+    background: #fff;
+    border: 1px solid #eef1f5;
+    border-radius: 8px;
+    padding: 0.65rem;
+}
+
+.order-management-filter-form .form-control,
+.order-management-filter-form .form-select,
+.order-management-bulk-form .form-control,
+.order-management-bulk-form .form-select {
+    min-width: 150px;
+}
+
+.order-management-filter-form,
+.order-management-bulk-form {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    align-items: center;
+}
+
+.order-management-filter-form .form-control,
+.order-management-filter-form .form-select,
+.order-management-bulk-form .form-control,
+.order-management-bulk-form .form-select {
+    width: 100%;
+    min-width: 0;
+}
+
+.order-management-filter-form .btn,
+.order-management-bulk-form .btn {
+    width: auto;
+    justify-self: start;
+}
+
+.order-management-advanced-panel {
+    display: none;
+}
+
+.order-management-advanced-panel.is-open {
+    display: block;
+}
+
+.order-management-undo-alert {
+    margin-bottom: 0.75rem;
+}
+
+.order-management-quick-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.order-management-quick-stats .stats-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid #e4e8ef;
+    border-radius: 999px;
+    background: #f8fafc;
+    font-size: 0.78rem;
+}
+
+.order-management-saved-views .form-control {
+    max-width: 260px;
+}
+
+.order-status-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding-bottom: 0.15rem;
+}
+
+.order-status-tabs .nav-item {
+    flex: 0 0 auto;
+}
+
+.order-status-tabs .nav-link {
+    white-space: nowrap;
+}
+
+.saved-view-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.order-auto-refresh .form-select {
+    min-width: 92px;
+}
+
+.webhook-health-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.webhook-health-pill.is-healthy {
+    background: #e8f7ee;
+    color: #146c43;
+}
+
+.webhook-health-pill.is-stale {
+    background: #fdecec;
+    color: #b42318;
+}
+
+.webhook-health-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    background: currentColor;
+}
+
+.order-list-table th {
+    white-space: nowrap;
+}
+
+.order-table-wrap {
+    max-height: 68vh;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    padding-right: 0.25rem;
+}
+
+.order-table-wrap .order-list-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+}
+
+.order-list-table .order-id-link {
+    font-weight: 600;
+}
+
+.order-list-table td {
+    vertical-align: middle;
+}
+
+.order-list-table .actions-col {
+    min-width: 320px;
+}
+
+.order-list-table .actions-cell {
+    min-width: 320px;
+    padding-right: 0.3rem;
+}
+
+.order-list-table .is-row-focused td {
+    background: #eef6ff;
+}
+
+.order-move-cell {
+    min-width: 180px;
+    max-width: 220px;
+    vertical-align: top !important;
+}
+
+.order-age-cell {
+    color: #495057;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.status-update-form .form-select,
+.status-update-form .form-control {
+    min-width: 130px;
+}
+
+.status-update-form {
+    gap: 0.35rem !important;
+}
+
+.status-update-form .btn {
+    padding: 0.3rem 0.55rem;
+}
+
+.order-actions-wrap {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    justify-content: flex-end;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.order-actions-wrap form {
+    margin: 0;
+}
+
+.order-actions-wrap .btn {
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.78rem;
+}
+
+.order-activity-row td {
+    background: #fbfcfe;
+}
+
+.activity-drawer {
+    border: 1px solid #edf0f5;
+    border-radius: 6px;
+    padding: 0.65rem;
+}
+
+.order-activity-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.order-activity-list li + li {
+    margin-top: 0.55rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid #edf0f5;
+}
+
+.shipped-entry-panel .tracking-entry-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.shipped-entry-panel .tracking-entry-row .form-control {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.shipped-entry-panel .tracking-entry-row .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.tracking-scanner-panel {
+    border: 1px dashed #cdd4e2;
+    border-radius: 6px;
+    padding: 0.4rem;
+    background: #f8f9fb;
+}
+
+.tracking-scanner-video {
+    width: 100%;
+    max-width: 240px;
+    border-radius: 4px;
+    background: #111;
+    display: block;
+}
+
+.pcoded-header .dropdown-toggle::after {
+    margin-left: 0.35rem;
+}
+
+.pcoded-header .navbar-nav > li > a.nav-link,
+.pcoded-header .navbar-nav > li > a {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ops-log-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.ops-log-filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.ops-log-filter-form .form-select {
+    min-width: 160px;
+}
+
+.queue-results-table td,
+.whatsapp-log-table td {
+    vertical-align: middle;
+}
+
+.whatsapp-log-table pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ops-admin-action-group,
+.ops-settings-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.ops-settings-panel {
+    background: #fff;
+}
+
+.ops-admin-table td {
+    vertical-align: middle;
+}
+
+.ops-admin-table pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.responsive-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.responsive-project-card .card-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.auth-only-layout {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.auth-box {
+    width: 100%;
+    max-width: 520px;
+}
+
+body.no-sidebar-layout .pcoded-navbar {
+    display: none !important;
+}
+
+body.no-sidebar-layout .pcoded-header {
+    left: 0;
+    width: 100%;
+}
+
+body.no-sidebar-layout .pcoded-main-container {
+    margin-left: 0;
+}
+
+body.no-sidebar-layout .m-header .mobile-menu {
+    display: none;
+}
+
+@media (max-width: 991.98px) {
+    .page-header-title h4 {
+        font-size: 1.4rem;
+    }
+
+    .order-stat-card .card-block {
+        padding: 0.9rem 1rem;
+    }
+
+    .order-management-card .card-block {
+        padding: 1rem;
+    }
+
+    .order-management-sticky {
+        top: 60px;
+        padding: 0.55rem;
+    }
+
+    .order-management-filter-form,
+    .order-management-bulk-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .order-management-filter-form .btn,
+    .order-management-bulk-form .btn {
+        width: 100%;
+        justify-self: stretch;
+    }
+
+    .order-management-quick-stats .stats-chip {
+        font-size: 0.74rem;
+    }
+
+    .order-table-wrap {
+        max-height: none;
+    }
+
+    .order-list-table {
+        font-size: 0.88rem;
+    }
+
+    .order-list-table .actions-col,
+    .order-list-table .actions-cell {
+        min-width: 250px;
+    }
+
+    .queue-bulk-toolbar .order-toolbar-right,
+    .queue-filter-toolbar .order-toolbar-right,
+    .ops-log-header-actions {
+        justify-content: flex-start;
+    }
+
+    .ops-log-filter-form .form-select {
+        min-width: 140px;
+    }
+
+    .ops-admin-action-group,
+    .ops-settings-action-row {
+        justify-content: flex-start;
+    }
+
+    .responsive-form-actions {
+        justify-content: flex-start;
+    }
+
+    .order-move-cell {
+        min-width: 220px;
+        max-width: none;
+    }
+
+    .order-actions-wrap {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        white-space: normal;
+    }
+
+    .status-update-form .btn {
+        width: 100%;
+    }
+
+    .shipped-entry-panel .tracking-entry-row {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .page-header-title h4 {
+        font-size: 1.25rem;
+    }
+
+    .order-stat-card .card-block {
+        padding: 0.85rem 0.95rem;
+    }
+
+    .order-toolbar-left {
+        max-width: none;
+    }
+
+    .order-management-card .card-header .order-management-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .order-management-card .card-header .order-management-actions > *,
+    .order-management-card .card-header .order-management-actions form {
+        width: 100%;
+    }
+
+    .order-management-card .card-header .order-management-actions .btn,
+    .order-management-card .card-header .order-management-actions .form-control,
+    .order-management-card .card-header .order-management-actions .form-select {
+        width: 100%;
+    }
+
+    .ops-queue-card .card-header,
+    .ops-log-card .card-header,
+    .ops-admin-card .card-header {
+        align-items: stretch !important;
+    }
+
+    .ops-queue-card .card-header > *,
+    .ops-log-card .card-header > *,
+    .ops-admin-card .card-header > * {
+        width: 100%;
+    }
+
+    .order-auto-refresh {
+        margin-left: 0 !important;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .order-management-sticky {
+        position: static;
+        top: auto;
+        padding: 0.5rem;
+    }
+
+    .order-management-filter-form,
+    .order-management-bulk-form {
+        grid-template-columns: 1fr;
+    }
+
+    .order-management-quick-stats .stats-chip {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .order-management-saved-views .form-control {
+        max-width: none;
+    }
+
+    .queue-filter-toolbar,
+    .queue-bulk-toolbar,
+    .ops-log-filter-form,
+    .ops-log-header-actions,
+    .ops-admin-action-group,
+    .ops-settings-action-row,
+    .responsive-form-actions {
+        width: 100%;
+    }
+
+    .queue-filter-toolbar .order-toolbar-left,
+    .queue-filter-toolbar .order-toolbar-right,
+    .queue-bulk-toolbar .order-toolbar-right {
+        width: 100%;
+    }
+
+    .queue-filter-toolbar .order-toolbar-right,
+    .queue-bulk-toolbar .order-toolbar-right,
+    .ops-log-header-actions,
+    .ops-log-filter-form,
+    .ops-admin-action-group,
+    .ops-settings-action-row,
+    .responsive-form-actions {
+        gap: 0.5rem;
+    }
+
+    .queue-filter-toolbar .btn,
+    .queue-bulk-toolbar .btn,
+    .queue-bulk-toolbar .form-control,
+    .queue-bulk-toolbar .form-select,
+    .ops-log-header-actions .btn,
+    .ops-log-filter-form .btn,
+    .ops-log-filter-form .form-select,
+    .ops-admin-action-group .btn,
+    .ops-settings-action-row .btn,
+    .ops-settings-action-row .form-control,
+    .ops-settings-action-row .form-select,
+    .responsive-form-actions .btn {
+        width: 100%;
+    }
+
+    .responsive-page-header {
+        align-items: stretch !important;
+    }
+
+    .responsive-page-header > * {
+        width: 100%;
+    }
+
+    .queue-bulk-toolbar label {
+        width: 100%;
+        margin-bottom: 0;
+    }
+
+    .queue-table-responsive,
+    .ops-log-table-wrap,
+    .ops-admin-table-wrap {
+        overflow: visible;
+    }
+
+    .queue-results-table,
+    .whatsapp-log-table,
+    .ops-admin-table {
+        min-width: 0;
+        border-collapse: separate;
+        border-spacing: 0 0.75rem;
+    }
+
+    .queue-results-table thead,
+    .whatsapp-log-table thead,
+    .ops-admin-table thead {
+        display: none;
+    }
+
+    .queue-results-table tbody,
+    .whatsapp-log-table tbody,
+    .ops-admin-table tbody {
+        display: block;
+    }
+
+    .queue-results-table tr,
+    .whatsapp-log-table tr,
+    .ops-admin-table tr {
+        display: block;
+        border: 1px solid #e4e8ef;
+        border-radius: 12px;
+        background: #fff;
+        padding: 0.15rem 0.8rem 0.55rem;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+        margin-bottom: 0.75rem;
+    }
+
+    .queue-results-table td,
+    .whatsapp-log-table td,
+    .ops-admin-table td {
+        display: block;
+        width: 100%;
+        padding: 0.45rem 0;
+        border: 0;
+        min-width: 0 !important;
+        text-align: left !important;
+    }
+
+    .queue-results-table td::before,
+    .whatsapp-log-table td::before,
+    .ops-admin-table td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 0.25rem;
+        color: #6c757d;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .queue-results-table .queue-mobile-select-cell {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding-top: 0.55rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid #eef1f5;
+        margin-bottom: 0.15rem;
+    }
+
+    .queue-results-table .queue-mobile-select-cell::before {
+        margin-bottom: 0;
+    }
+
+    .queue-results-table .queue-actions-cell .btn {
+        width: 100%;
+    }
+
+    .whatsapp-log-table .badge {
+        white-space: normal;
+    }
+
+    .whatsapp-log-table details summary {
+        cursor: pointer;
+    }
+
+    .whatsapp-log-table .log-details-cell {
+        padding-bottom: 0.2rem;
+    }
+
+    .ops-admin-table .badge {
+        white-space: normal;
+    }
+
+    .ops-admin-table details summary {
+        cursor: pointer;
+    }
+
+    .order-status-tabs {
+        margin-right: -0.25rem;
+        padding-bottom: 0.35rem;
+    }
+
+    .order-table-wrap {
+        overflow: visible;
+        padding-right: 0;
+    }
+
+    .order-management-card .order-list-table {
+        min-width: 0;
+        border-collapse: separate;
+        border-spacing: 0 0.75rem;
+    }
+
+    .order-management-card .order-list-table thead {
+        display: none;
+    }
+
+    .order-management-card .order-list-table tbody {
+        display: block;
+    }
+
+    .order-management-card .order-list-table .order-data-row,
+    .order-management-card .order-list-table .order-activity-row {
+        display: block;
+    }
+
+    .order-management-card .order-list-table .order-data-row {
+        border: 1px solid #e4e8ef;
+        border-radius: 12px;
+        background: #fff;
+        padding: 0.15rem 0.8rem 0.55rem;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+    }
+
+    .order-management-card .order-list-table .order-data-row td {
+        display: block;
+        width: 100%;
+        padding: 0.45rem 0;
+        border: 0;
+        min-width: 0 !important;
+        text-align: left !important;
+    }
+
+    .order-management-card .order-list-table .order-data-row td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 0.25rem;
+        color: #6c757d;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .order-management-card .order-list-table .order-mobile-select-cell {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding-top: 0.55rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid #eef1f5;
+        margin-bottom: 0.15rem;
+    }
+
+    .order-management-card .order-list-table .order-mobile-select-cell::before {
+        margin-bottom: 0;
+    }
+
+    .order-management-card .order-list-table .actions-cell,
+    .order-management-card .order-list-table .actions-col,
+    .order-management-card .order-list-table .order-move-cell {
+        min-width: 0;
+        max-width: none;
+    }
+
+    .order-management-card .order-list-table .order-activity-row td {
+        display: block;
+        padding: 0 0.35rem 0.65rem;
+        border: 0;
+        background: transparent;
+    }
+
+    .order-management-card .order-actions-wrap {
+        gap: 0.35rem;
+    }
+
+    .order-management-card .order-actions-wrap > *,
+    .order-management-card .order-actions-wrap form {
+        flex: 1 1 calc(50% - 0.35rem);
+    }
+
+    .order-management-card .order-actions-wrap .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .order-management-card .status-update-form .form-select,
+    .order-management-card .status-update-form .form-control {
+        width: 100%;
+    }
+
+    .order-detail-header {
+        align-items: stretch !important;
+    }
+
+    .order-detail-header > * {
+        width: 100%;
+    }
+
+    .order-detail-toolbar,
+    .order-detail-filter-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .order-detail-toolbar .btn,
+    .order-detail-filter-actions .btn {
+        flex: 1 1 100%;
+    }
+}

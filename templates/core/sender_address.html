@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Sender Address | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-xl-8">
+        <div class="card responsive-form-card">
+            <div class="card-header">
+                <h5 class="mb-0">Sender Address</h5>
+            </div>
+            <div class="card-block">
+                <p class="text-muted">This address is printed as the default sender on all 4x6 shipping labels.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row">
+                        {% for field in form %}
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="responsive-form-actions">
+                        <button type="submit" class="btn btn-primary">Save Sender Address</button>
+                        <a class="btn btn-outline-secondary" href="{% url 'home' %}">Back to Dashboard</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

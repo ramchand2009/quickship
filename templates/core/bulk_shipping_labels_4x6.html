@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Shipping Labels ST-4 ({{ selected_status_label }})</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            background: #f3f4f6;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            color: #111;
+            font-size: 10px;
+            line-height: 1.2;
+        }
+
+        .actions {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .actions button,
+        .actions a,
+        .actions span,
+        .actions select {
+            border: 1px solid #111;
+            background: #fff;
+            color: #111;
+            padding: 6px 10px;
+            font-size: 12px;
+            text-decoration: none;
+        }
+
+        .actions button,
+        .actions select {
+            cursor: pointer;
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+            padding: 16px 0;
+        }
+
+        .sheet {
+            width: 210mm;
+            height: 297mm;
+            padding: 9.5mm 5.9mm;
+            display: grid;
+            grid-template-columns: repeat(2, 99.1mm);
+            grid-template-rows: repeat(2, 139mm);
+            gap: 0;
+            background: #fff;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+            page-break-after: always;
+            break-after: page;
+        }
+
+        .sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+        }
+
+        .label {
+            border: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+            gap: 1.8mm;
+            padding: 2.2mm;
+            overflow: hidden;
+        }
+
+        .label.empty {
+            border: 0;
+            background: transparent;
+        }
+
+        .box {
+            border: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .label .box + .box {
+            border-top: 1px solid #000;
+            padding-top: 1.6mm;
+        }
+
+        .title {
+            font-size: 10px;
+            font-weight: 700;
+            margin: 0 0 1.5mm 0;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .company {
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 1.2mm;
+        }
+
+        .meta {
+            font-size: 9px;
+        }
+
+        .meta strong {
+            font-weight: 700;
+        }
+
+        .box p {
+            margin: 0 0 1.1mm 0;
+        }
+
+        .name {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .phone {
+            font-weight: 700;
+        }
+
+        .empty {
+            max-width: 600px;
+            margin: 84px auto 0;
+            padding: 24px;
+            border: 1px solid #111;
+            background: #fff;
+            text-align: center;
+        }
+
+        @media screen {
+            .stack {
+                min-height: 100vh;
+            }
+        }
+
+        @media print {
+            .actions {
+                display: none;
+            }
+
+            .stack {
+                padding: 0;
+                gap: 0;
+            }
+
+            .sheet {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="actions">
+        <select id="startPositionSelect" aria-label="Start position">
+            {% for value, label in start_position_choices %}
+                <option value="{{ value }}" {% if value == start_position %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <span>{{ selected_status_label }}: {{ orders|length }} labels</span>
+        <button
+            type="button"
+            id="bulkPrintButton"
+            data-track-url="{% url 'track_bulk_shipping_labels_print' %}"
+        >
+            Print ST-4 (A4)
+        </button>
+        <a href="{% url 'home' %}">Back</a>
+        <span>Use A4 + Actual Size + 1 page per sheet</span>
+    </div>
+    <input type="hidden" id="csrfToken" value="{{ csrf_token }}">
+    <div id="bulkOrderIds" style="display: none;">
+        {% for order in orders %}
+            <input type="hidden" name="order_id" value="{{ order.pk }}">
+        {% endfor %}
+    </div>
+
+    {% if orders %}
+        <div class="stack">
+            {% for page in pages %}
+                <div class="sheet">
+                    {% for slot_order in page.slots %}
+                        {% if slot_order %}
+                            <div class="label">
+                                <div class="box">
+                                    <p class="title">From</p>
+                                    <div class="company">{{ sender.name|default:"Mathukai Organic" }}</div>
+                                    {% if sender.phone %}<div class="meta"><strong>Phone:</strong> {{ sender.phone }}</div>{% endif %}
+                                    {% if sender.email %}<div class="meta"><strong>Email:</strong> {{ sender.email }}</div>{% endif %}
+                                    <div class="meta">{{ sender.address_1|default:"-" }}</div>
+                                    {% if sender.address_2 %}<div class="meta">{{ sender.address_2 }}</div>{% endif %}
+                                    <div class="meta">
+                                        {{ sender.city|default:"-" }}, {{ sender.state|default:"-" }}
+                                        {% if sender.pincode %} - {{ sender.pincode }}{% endif %}
+                                    </div>
+                                    <div class="meta">{{ sender.country|default:"-" }}</div>
+                                </div>
+
+                                <div class="box to-address">
+                                    <p class="title">Ship To</p>
+                                    <p class="name">{{ slot_order.display_shipping_address.name|default:"-" }}</p>
+                                    <p class="phone">{{ slot_order.display_shipping_address.phone|default:"-" }}</p>
+                                    {% if slot_order.display_shipping_address.alternate_phone %}
+                                        <p>Alt: {{ slot_order.display_shipping_address.alternate_phone }}</p>
+                                    {% endif %}
+                                    <p>{{ slot_order.display_shipping_address.address_1|default:"-" }}</p>
+                                    {% if slot_order.display_shipping_address.address_2 %}
+                                        <p>{{ slot_order.display_shipping_address.address_2 }}</p>
+                                    {% endif %}
+                                    <p>
+                                        {{ slot_order.display_shipping_address.city|default:"-" }},
+                                        {{ slot_order.display_shipping_address.state|default:"-" }}
+                                    </p>
+                                    <p>
+                                        {{ slot_order.display_shipping_address.country|default:"-" }}
+                                        - {{ slot_order.display_shipping_address.pincode|default:"-" }}
+                                    </p>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="label empty"></div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty">
+            <p>No orders found for bulk label printing.</p>
+        </div>
+    {% endif %}
+    <script>
+    (function () {
+        const printButton = document.getElementById("bulkPrintButton");
+        const startPositionSelect = document.getElementById("startPositionSelect");
+        const csrfTokenInput = document.getElementById("csrfToken");
+        const orderInputs = document.querySelectorAll("#bulkOrderIds input[name='order_id']");
+        if (!printButton || !csrfTokenInput) {
+            return;
+        }
+
+        if (startPositionSelect) {
+            startPositionSelect.addEventListener("change", function () {
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set("start_position", startPositionSelect.value);
+                window.location.href = nextUrl.toString();
+            });
+        }
+
+        printButton.addEventListener("click", async function () {
+            const trackUrl = printButton.getAttribute("data-track-url");
+            const csrfToken = csrfTokenInput.value;
+            const payload = new URLSearchParams();
+            orderInputs.forEach(function (input) {
+                payload.append("order_id", input.value);
+            });
+
+            try {
+                await fetch(trackUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                        "X-CSRFToken": csrfToken,
+                    },
+                    body: payload.toString(),
+                });
+            } catch (error) {
+                console.warn("Bulk label print tracking failed.", error);
+            }
+            window.print();
+        });
+    })();
+    </script>
+</body>
+</html>

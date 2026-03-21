@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+
+{% block title %}Order Notification Config | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .order-notification-config-table {
+        min-width: 1520px;
+    }
+
+    .ops-config-action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .order-notification-config-table .status-col {
+        min-width: 180px;
+    }
+
+    .order-notification-config-table .enable-col {
+        min-width: 100px;
+    }
+
+    .order-notification-config-table .template-name-col {
+        min-width: 300px;
+    }
+
+    .order-notification-config-table .template-id-col {
+        min-width: 320px;
+    }
+
+    .order-notification-config-table .mapping-col {
+        min-width: 480px;
+    }
+
+    .order-notification-config-table .template-name-cell .form-select {
+        min-width: 280px;
+    }
+
+    .order-notification-config-table .template-id-cell .form-control {
+        min-width: 300px;
+    }
+
+    .order-notification-config-table .placeholder-preview {
+        min-width: 360px;
+    }
+    
+    @media (max-width: 991.98px) {
+        .order-notification-config-table {
+            min-width: 1360px;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .order-notification-config-table {
+            min-width: 0;
+            border-collapse: separate;
+            border-spacing: 0 0.75rem;
+        }
+
+        .order-notification-config-table thead {
+            display: none;
+        }
+
+        .order-notification-config-table tbody {
+            display: block;
+        }
+
+        .order-notification-config-table tr[data-status-config-row] {
+            display: block;
+            border: 1px solid #e4e8ef;
+            border-radius: 12px;
+            background: #fff;
+            padding: 0.35rem 0.8rem 0.65rem;
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+            margin-bottom: 0.75rem;
+        }
+
+        .order-notification-config-table tr[data-status-config-row] td {
+            display: block;
+            width: 100%;
+            padding: 0.5rem 0;
+            border: 0;
+        }
+
+        .order-notification-config-table tr[data-status-config-row] td::before {
+            content: attr(data-label);
+            display: block;
+            margin-bottom: 0.25rem;
+            color: #6c757d;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .order-notification-config-table .template-name-cell .form-select,
+        .order-notification-config-table .template-id-cell .form-control,
+        .order-notification-config-table .placeholder-preview,
+        .order-notification-config-table .placeholder-preview .form-control,
+        .order-notification-config-table .placeholder-preview .form-select {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .ops-config-action-row {
+            width: 100%;
+        }
+
+        .ops-config-action-row .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card ops-admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">Order Status Notification Templates</h5>
+            </div>
+            <div class="card-block">
+                <p class="text-muted">
+                    Configure which WhatsApp template should be sent for each order status.
+                    Synced templates available: <strong>{{ template_count }}</strong>.
+                </p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="table-responsive ops-config-table-wrap">
+                        <table class="table table-sm table-hover align-middle order-notification-config-table">
+                            <thead>
+                                <tr>
+                                    <th class="status-col">Order Status</th>
+                                    <th class="enable-col">Enable</th>
+                                    <th class="template-name-col">Template Name</th>
+                                    <th class="template-id-col">Template ID (Optional)</th>
+                                    <th class="mapping-col">Template Placeholder Mapping</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in status_rows %}
+                                    <tr data-status-config-row data-status-key="{{ row.status_key }}">
+                                        <td data-label="Order Status">
+                                            <strong>{{ row.status_label }}</strong>
+                                        </td>
+                                        <td data-label="Enable">
+                                            <div class="form-check mb-0">
+                                                {{ row.form.enabled }}
+                                            </div>
+                                            {% if row.form.enabled.errors %}
+                                                <div class="text-danger small mt-1">{{ row.form.enabled.errors|join:", " }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="template-name-cell" data-label="Template Name">
+                                            {{ row.form.template_name }}
+                                            {% if row.form.template_name.errors %}
+                                                <div class="text-danger small mt-1">{{ row.form.template_name.errors|join:", " }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="template-id-cell" data-label="Template ID">
+                                            {{ row.form.template_id }}
+                                            {% if row.form.template_id.errors %}
+                                                <div class="text-danger small mt-1">{{ row.form.template_id.errors|join:", " }}</div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="placeholder-preview" data-label="Placeholder Mapping">
+                                            {{ row.form.template_param_mapping }}
+                                            <div class="small text-muted mb-1">Map each placeholder to order data field. Leave empty for auto mapping.</div>
+                                            <div class="border rounded p-2 bg-light" data-placeholder-container></div>
+                                            <div class="mt-2">
+                                                <div class="small fw-semibold mb-1">Template Preview</div>
+                                                <div class="small text-muted mb-1" data-preview-meta></div>
+                                                <pre class="small border rounded bg-white p-2 mb-0" data-preview-container style="white-space: pre-wrap;">Select a template to preview.</pre>
+                                            </div>
+                                            {% if row.form.template_param_mapping.errors %}
+                                                <div class="text-danger small mt-1">{{ row.form.template_param_mapping.errors|join:", " }}</div>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="ops-config-action-row mt-3">
+                        <button type="submit" class="btn btn-primary">Save Notification Config</button>
+                        <a href="{% url 'whatsapp_settings' %}" class="btn btn-outline-secondary">Go to WhatsApp Settings</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{{ template_placeholder_map|json_script:"status-template-placeholder-map" }}
+{{ template_preview_text_map|json_script:"status-template-preview-text-map" }}
+{{ status_sample_context_map|json_script:"status-sample-context-map" }}
+{{ status_sample_info_map|json_script:"status-sample-info-map" }}
+{{ order_field_choices|json_script:"status-template-order-field-choices" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const placeholderMapNode = document.getElementById("status-template-placeholder-map");
+        const previewTextMapNode = document.getElementById("status-template-preview-text-map");
+        const sampleContextMapNode = document.getElementById("status-sample-context-map");
+        const sampleInfoMapNode = document.getElementById("status-sample-info-map");
+        const fieldChoicesNode = document.getElementById("status-template-order-field-choices");
+        if (!placeholderMapNode || !previewTextMapNode || !sampleContextMapNode || !sampleInfoMapNode || !fieldChoicesNode) {
+            return;
+        }
+
+        let placeholderMap = {};
+        let previewTextMap = {};
+        let sampleContextMap = {};
+        let sampleInfoMap = {};
+        let fieldChoices = [];
+        try {
+            placeholderMap = JSON.parse(placeholderMapNode.textContent || "{}");
+        } catch (error) {
+            placeholderMap = {};
+        }
+        try {
+            previewTextMap = JSON.parse(previewTextMapNode.textContent || "{}");
+        } catch (error) {
+            previewTextMap = {};
+        }
+        try {
+            sampleContextMap = JSON.parse(sampleContextMapNode.textContent || "{}");
+        } catch (error) {
+            sampleContextMap = {};
+        }
+        try {
+            sampleInfoMap = JSON.parse(sampleInfoMapNode.textContent || "{}");
+        } catch (error) {
+            sampleInfoMap = {};
+        }
+        try {
+            fieldChoices = JSON.parse(fieldChoicesNode.textContent || "[]");
+        } catch (error) {
+            fieldChoices = [];
+        }
+
+        const positionalKeys = [
+            "customer_name",
+            "order_id",
+            "tracking_number",
+            "status",
+            "order_date",
+            "phone",
+            "channel_order_id",
+            "total",
+        ];
+        const aliases = {
+            customer: "customer_name",
+            mobile: "phone",
+            awb: "tracking_number",
+            waybill: "tracking_number",
+            order_no: "order_id",
+            order_number: "order_id",
+            date: "order_date",
+        };
+
+        function parseMapping(rawValue) {
+            if (!rawValue) {
+                return {};
+            }
+            try {
+                const parsed = JSON.parse(rawValue);
+                return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+            } catch (error) {
+                return {};
+            }
+        }
+
+        function buildOption(value, label, selected) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = label;
+            if (selected && selected === value) {
+                option.selected = true;
+            }
+            return option;
+        }
+
+        function renderRow(row) {
+            const templateSelect = row.querySelector("select[name$='-template_name']");
+            const mappingInput = row.querySelector("input[name$='-template_param_mapping']");
+            const placeholderContainer = row.querySelector("[data-placeholder-container]");
+            const previewContainer = row.querySelector("[data-preview-container]");
+            const previewMeta = row.querySelector("[data-preview-meta]");
+            const statusKey = row.dataset.statusKey || "";
+            const sampleContext = sampleContextMap[statusKey] || {};
+            const sampleInfo = sampleInfoMap[statusKey] || {};
+            if (!templateSelect || !mappingInput || !placeholderContainer || !previewContainer || !previewMeta) {
+                return;
+            }
+
+            const selectedTemplate = templateSelect.value || "";
+            const tokens = placeholderMap[selectedTemplate] || [];
+            const existingMapping = parseMapping(mappingInput.value);
+            placeholderContainer.innerHTML = "";
+
+            function renderPreview() {
+                const templateName = templateSelect.value || "";
+                const baseText = String(previewTextMap[templateName] || "").trim();
+                if (!templateName) {
+                    previewContainer.textContent = "Select a template to preview.";
+                    previewMeta.textContent = "";
+                    return;
+                }
+                if (!baseText) {
+                    previewContainer.textContent = "Preview text unavailable for this template payload.";
+                } else {
+                    let rendered = baseText;
+                    const tokenMapping = {};
+                    placeholderContainer.querySelectorAll("select[data-template-token]").forEach((select) => {
+                        tokenMapping[select.dataset.templateToken] = (select.value || "").trim();
+                    });
+                    tokens.forEach((token) => {
+                        const value = resolveValueForToken(token, tokenMapping[token]);
+                        const pattern = new RegExp("\\{\\{\\s*" + String(token).replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&") + "\\s*\\}\\}", "g");
+                        rendered = rendered.replace(pattern, value || " ");
+                    });
+                    previewContainer.textContent = rendered;
+                }
+
+                if (sampleInfo.has_real_order && sampleInfo.order_id) {
+                    const customer = sampleInfo.customer_name ? " / " + sampleInfo.customer_name : "";
+                    previewMeta.textContent = "Using live sample order: " + sampleInfo.order_id + customer;
+                } else {
+                    previewMeta.textContent = "Using fallback sample data (no live order in this status).";
+                }
+            }
+
+            if (!tokens.length) {
+                placeholderContainer.innerHTML = '<div class="text-muted small">No detected placeholders for selected template.</div>';
+                mappingInput.value = "{}";
+                renderPreview();
+                return;
+            }
+
+            tokens.forEach((token) => {
+                const wrapper = document.createElement("div");
+                wrapper.className = "mb-2";
+
+                const label = document.createElement("label");
+                label.className = "form-label small mb-1";
+                label.textContent = "{" + "{" + " " + token + " " + "}" + "}";
+
+                const select = document.createElement("select");
+                select.className = "form-select form-select-sm";
+                select.dataset.templateToken = token;
+                select.appendChild(buildOption("", "Auto mapping", existingMapping[token]));
+
+                fieldChoices.forEach((choice) => {
+                    const value = Array.isArray(choice) ? choice[0] : "";
+                    const text = Array.isArray(choice) ? choice[1] : value;
+                    if (!value) {
+                        return;
+                    }
+                    select.appendChild(buildOption(value, text, existingMapping[token]));
+                });
+
+                wrapper.appendChild(label);
+                wrapper.appendChild(select);
+                placeholderContainer.appendChild(wrapper);
+            });
+
+            const syncHiddenMapping = function () {
+                const payload = {};
+                placeholderContainer.querySelectorAll("select[data-template-token]").forEach((select) => {
+                    const token = select.dataset.templateToken;
+                    const value = (select.value || "").trim();
+                    if (token && value) {
+                        payload[token] = value;
+                    }
+                });
+                mappingInput.value = JSON.stringify(payload);
+                renderPreview();
+            };
+
+            const resolveDefaultField = function (token) {
+                const tokenText = String(token || "").trim();
+                if (/^\d+$/.test(tokenText)) {
+                    const index = Number(tokenText) - 1;
+                    return positionalKeys[index] || "";
+                }
+                const normalized = tokenText.toLowerCase().replace(/[-\s]+/g, "_");
+                if (Object.prototype.hasOwnProperty.call(sampleContext, normalized)) {
+                    return normalized;
+                }
+                return aliases[normalized] || "";
+            };
+
+            const resolveValueForToken = function (token, explicitField) {
+                const mappedField = (explicitField || "").trim() || resolveDefaultField(token);
+                if (!mappedField) {
+                    return "";
+                }
+                const value = sampleContext[mappedField];
+                return value === undefined || value === null ? "" : String(value);
+            };
+
+            placeholderContainer.querySelectorAll("select[data-template-token]").forEach((select) => {
+                select.addEventListener("change", syncHiddenMapping);
+            });
+            syncHiddenMapping();
+            renderPreview();
+        }
+
+        document.querySelectorAll("[data-status-config-row]").forEach((row) => {
+            const templateSelect = row.querySelector("select[name$='-template_name']");
+            const enabledCheckbox = row.querySelector("input[type='checkbox'][name$='-enabled']");
+            if (!templateSelect) {
+                return;
+            }
+            templateSelect.addEventListener("change", function () {
+                if (enabledCheckbox && (templateSelect.value || "").trim()) {
+                    enabledCheckbox.checked = true;
+                }
+                renderRow(row);
+            });
+            renderRow(row);
+        });
+    })();
+</script>
+{% endblock %}

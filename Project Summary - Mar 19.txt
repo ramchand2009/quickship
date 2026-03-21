@@ -1,0 +1,73 @@
+Project Summary (as of March 19, 2026, IST)
+
+This is a Django operations app for order workflow + WhatsApp notifications, with:
+
+Shiprocket sync/status flow
+WhatsApp (Whatomate) send, resend, queue/retry
+Delivery webhook tracking/logs
+Packing/print workflows
+Admin/ops tooling, health, backups, diagnostics
+Everything Completed Today
+
+1) Core flow fixes
+
+Fixed WhatsApp resend not sending in some cases.
+Fixed WhatsApp logs visibility/filter behavior.
+Fixed delivery status display fallback (shows sent until webhook updates).
+Fixed webhook test failures (host handling issue causing HTTP 400).
+Corrected timezone/log display consistency to IST.
+2) Order operations UX
+
+Added tracking-number entry + barcode scanner flow in order status move.
+Added “Retry Failed Queue” action from dashboard.
+Added KPI cards for today’s WhatsApp sent / failed / retried.
+3) Access control
+
+Implemented role-based access:
+admin (full operational access)
+ops_viewer (read-only)
+Enforced read-only restrictions on mutating actions.
+Added admin shortcut for user/role management.
+4) WhatsApp settings & diagnostics
+
+Added webhook token configured/missing badge.
+Added “Send Webhook Test” button.
+Added “Send Queue Alert Test” button.
+Added template sync/check API actions and improved error messages.
+5) Logging, health, and observability
+
+Added rotating file logs (logs/app.log).
+Added /healthz endpoint.
+Added /metrics endpoint (Prometheus-style text metrics).
+Added stale webhook warning banner for admin users when callbacks are old.
+6) Backup, restore, and runtime maintenance
+
+Added nightly local backup command/script.
+Added restore command with safe dry-run and confirmation mode.
+Added dashboard “Run Restore Dry-Run” action.
+Added runtime cleanup command (old heartbeats/rotated logs).
+Added startup preflight check command (preflight_check).
+7) Incident/ops tooling
+
+Added integration smoke command + dashboard trigger.
+Added error digest command (console + optional email).
+Added incident snapshot export command (health + recent queue/log/activity JSON).
+Added audit CSV export with date filters.
+8) Security hardening
+
+Moved major security/runtime controls to .env:
+DJANGO_DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS
+secure cookies flags
+proxy SSL header option
+Added login brute-force lockout/rate limiting.
+9) Documentation
+
+Expanded OPERATIONS.md with runbooks for worker, smoke, backup/restore, alerts, metrics, digest, snapshot, and preflight.
+Current Quality Status
+
+manage.py check passes.
+Full test suite passes: 89 tests OK.
+Multiple smoke commands were run successfully during implementation.
+If you want, I can also generate a one-page “team handover note” from this summary (with exact daily run commands and env checklist).
+
+

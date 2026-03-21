@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Packing Lists</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 18px;
+            font-family: Arial, sans-serif;
+            color: #1f2937;
+            background: #f5f7fb;
+        }
+
+        .actions {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .actions button,
+        .actions a {
+            border: 1px solid #1f2937;
+            background: #fff;
+            color: #111827;
+            padding: 7px 12px;
+            text-decoration: none;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .sheet {
+            max-width: 980px;
+            margin: 0 auto 14px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            padding: 18px;
+            page-break-after: always;
+            break-after: page;
+        }
+
+        .sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid #d1d5db;
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+        }
+
+        .meta p {
+            margin: 3px 0;
+            font-size: 13px;
+        }
+
+        .address-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .box {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            min-height: 120px;
+        }
+
+        .box h2 {
+            margin: 0 0 8px;
+            font-size: 15px;
+        }
+
+        .box p {
+            margin: 3px 0;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+        }
+
+        th,
+        td {
+            border: 1px solid #d1d5db;
+            padding: 8px;
+            font-size: 13px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f3f4f6;
+            font-weight: 700;
+        }
+
+        .check-cell {
+            width: 110px;
+        }
+
+        .check-box {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #374151;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .notes {
+            margin-top: 14px;
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            min-height: 110px;
+        }
+
+        .notes h3 {
+            margin: 0 0 8px;
+            font-size: 14px;
+        }
+
+        .empty {
+            max-width: 780px;
+            margin: 90px auto 0;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            padding: 22px;
+            text-align: center;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+                padding: 0;
+            }
+
+            .actions {
+                display: none;
+            }
+
+            .sheet {
+                max-width: none;
+                margin: 0;
+                border: 0;
+                padding: 10mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="actions">
+        <button type="button" onclick="window.print()">Print Packing Lists</button>
+        <a href="{% url 'packing_queue' %}">Back</a>
+    </div>
+
+    {% if orders %}
+        {% for order in orders %}
+            <div class="sheet">
+                <div class="header">
+                    <div>
+                        <h1>Packing List</h1>
+                        <div class="meta">
+                            <p><strong>Order ID:</strong> {{ order.shiprocket_order_id }}</p>
+                            <p><strong>Channel ID:</strong> {{ order.channel_order_id|default:"-" }}</p>
+                            <p><strong>Status:</strong> {{ order.get_local_status_display }}</p>
+                            <p><strong>Order Date:</strong> {{ order.order_date|date:"Y-m-d H:i"|default:"-" }}</p>
+                            <p><strong>Tracking Number:</strong> {{ order.tracking_number|default:"-" }}</p>
+                        </div>
+                    </div>
+                    <div class="meta">
+                        <p><strong>Seller:</strong> {{ sender.name|default:"Mathukai Organic" }}</p>
+                        <p><strong>Phone:</strong> {{ sender.phone|default:"-" }}</p>
+                    </div>
+                </div>
+
+                <div class="address-grid">
+                    <div class="box">
+                        <h2>Ship To</h2>
+                        <p><strong>{{ order.display_shipping_address.name|default:"-" }}</strong></p>
+                        <p>{{ order.display_shipping_address.phone|default:"-" }}</p>
+                        {% if order.display_shipping_address.alternate_phone %}
+                            <p>Alt: {{ order.display_shipping_address.alternate_phone }}</p>
+                        {% endif %}
+                        <p>{{ order.display_shipping_address.address_1|default:"-" }}</p>
+                        {% if order.display_shipping_address.address_2 %}
+                            <p>{{ order.display_shipping_address.address_2 }}</p>
+                        {% endif %}
+                        <p>{{ order.display_shipping_address.city|default:"-" }}, {{ order.display_shipping_address.state|default:"-" }}</p>
+                        <p>{{ order.display_shipping_address.country|default:"-" }} - {{ order.display_shipping_address.pincode|default:"-" }}</p>
+                    </div>
+                    <div class="box">
+                        <h2>Packing Checklist</h2>
+                        {% with missing=order.missing_fields_for_packing %}
+                            {% if missing %}
+                                <p><strong>Missing Fields:</strong> {{ missing|join:", " }}</p>
+                            {% else %}
+                                <p><strong>Address Details:</strong> Complete</p>
+                            {% endif %}
+                        {% endwith %}
+                        <p><strong>Customer Mobile:</strong> {{ order.display_shipping_address.phone|default:"-" }}</p>
+                        <p><strong>Payment:</strong> {{ order.payment_method|default:"-" }}</p>
+                        <p><strong>Total:</strong> {{ order.total|default:"-" }}</p>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th class="check-cell">Packed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order.order_items %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ item.name|default:"-" }}</td>
+                                <td>{{ item.sku|default:"-" }}</td>
+                                <td>{{ item.quantity|default:"-" }}</td>
+                                <td>{{ item.price|default:"-" }}</td>
+                                <td class="check-cell"><span class="check-box"></span></td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6">No product lines found for this order.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div class="notes">
+                    <h3>Packing Notes</h3>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty">
+            <p>No accepted orders found for bulk packing list printing.</p>
+        </div>
+    {% endif %}
+</body>
+</html>

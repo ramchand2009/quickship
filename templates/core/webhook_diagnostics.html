@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Webhook Diagnostics | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Webhook Diagnostics</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">Webhook Diagnostics</li>
+        </ul>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Webhook Health</h5></div>
+            <div class="card-block">
+                <div class="small text-muted">Last received</div>
+                <div class="fw-semibold mt-1">
+                    {% if diagnostics.latest_webhook %}
+                        {{ diagnostics.latest_webhook.created_at|date:"Y-m-d H:i:s T" }}
+                    {% else %}
+                        No webhook yet
+                    {% endif %}
+                </div>
+                <div class="small text-muted mt-3">Freshness</div>
+                <div class="fw-semibold mt-1">
+                    {% if diagnostics.health.freshness_minutes >= 0 %}
+                        {{ diagnostics.health.freshness_minutes }} minute(s)
+                    {% else %}
+                        Unknown
+                    {% endif %}
+                </div>
+                <div class="small text-muted mt-3">Token</div>
+                <div class="fw-semibold mt-1">
+                    {% if diagnostics.webhook_token_configured %}Configured{% else %}Missing{% endif %}
+                </div>
+                <div class="small text-muted mt-3">Last delivery status</div>
+                <div class="fw-semibold mt-1">{{ diagnostics.health.last_delivery_status|default:"-" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Mapping Summary</h5></div>
+            <div class="card-block">
+                <div class="small text-muted">Recent webhook rows</div>
+                <div class="fw-semibold mt-1">{{ diagnostics.recent_webhooks|length }}</div>
+                <div class="small text-muted mt-3">Unmatched recent rows</div>
+                <div class="fw-semibold mt-1">{{ diagnostics.unmatched_recent|length }}</div>
+                <div class="small text-muted mt-3">
+                    Unmatched rows are callbacks that were stored but not linked to a local order.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Quick Actions</h5></div>
+            <div class="card-block ops-admin-action-group">
+                <a href="{% url 'whatsapp_settings' %}" class="btn btn-sm btn-outline-primary mb-2">Open WhatsApp Settings</a>
+                <a href="{% url 'whatsapp_delivery_logs' %}?trigger=webhook_status" class="btn btn-sm btn-outline-secondary mb-2">Filter Delivery Logs</a>
+                <a href="{% url 'admin_utilities' %}" class="btn btn-sm btn-outline-dark mb-2">Open Admin Utilities</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card ops-admin-card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Webhook Events</h5>
+            </div>
+            <div class="card-block">
+                {% if diagnostics.recent_webhooks %}
+                    <div class="table-responsive ops-admin-table-wrap">
+                        <table class="table table-sm table-hover align-middle ops-admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Order</th>
+                                    <th>Event ID</th>
+                                    <th>Delivery Status</th>
+                                    <th>Result</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in diagnostics.recent_webhooks %}
+                                    <tr>
+                                        <td data-label="Time">{{ log.created_at|date:"Y-m-d H:i:s T" }}</td>
+                                        <td data-label="Order">
+                                            {% if log.order %}
+                                                <a href="{% url 'order_detail' log.order.pk %}">{{ log.shiprocket_order_id|default:"-" }}</a>
+                                            {% else %}
+                                                {{ log.shiprocket_order_id|default:"-" }}
+                                                <div class="small text-warning">Unmatched</div>
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Event ID">{{ log.webhook_event_id|default:"-" }}</td>
+                                        <td data-label="Delivery Status">{{ log.delivery_status|default:"-" }}</td>
+                                        <td data-label="Result">
+                                            {% if log.is_success %}
+                                                <span class="badge badge-light-success bg-light-success">Success</span>
+                                            {% else %}
+                                                <span class="badge badge-light-danger bg-light-danger">Failed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Details">
+                                            {% if log.error_message %}
+                                                <div class="small text-danger mb-1">{{ log.error_message }}</div>
+                                            {% endif %}
+                                            {% if can_view_raw_payload and log.request_payload %}
+                                                <details>
+                                                    <summary class="small">Payload</summary>
+                                                    <pre class="small mb-0 mt-1">{{ log.request_payload }}</pre>
+                                                </details>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No webhook callbacks stored yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
