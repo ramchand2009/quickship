@@ -16,7 +16,7 @@
     {% block extrastyle %}{% endblock %}
 </head>
 {% with current=request.resolver_match.url_name %}
-<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}">
+<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' %} no-sidebar-layout ops-mobile-layout{% endif %}">
     {% if current != "login" and current != "signup" %}
         <nav class="pcoded-navbar menupos-fixed navbar-dark brand-dark">
             <div class="navbar-wrapper">
@@ -32,80 +32,87 @@
                         <li class="nav-item pcoded-menu-caption">
                             <label>Operations</label>
                         </li>
-
-                        <li class="nav-item {% if current == 'home' %}active{% endif %}">
-                            <a href="{% url 'home' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-home"></i></span>
-                                <span class="pcoded-mtext">Orders Dashboard</span>
-                            </a>
-                        </li>
                         <li class="nav-item {% if current == 'order_management' %}active{% endif %}">
                             <a href="{% url 'order_management' %}" class="nav-link">
                                 <span class="pcoded-micon"><i class="feather icon-layers"></i></span>
                                 <span class="pcoded-mtext">Order Management</span>
                             </a>
                         </li>
-                        <li class="nav-item {% if current == 'print_queue' %}active{% endif %}">
-                            <a href="{% url 'print_queue' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-printer"></i></span>
-                                <span class="pcoded-mtext">Print Queue</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'sender_address' %}active{% endif %}">
-                            <a href="{% url 'sender_address' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-map-pin"></i></span>
-                                <span class="pcoded-mtext">Sender Address</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'whatsapp_settings' %}active{% endif %}">
-                            <a href="{% url 'whatsapp_settings' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-message-circle"></i></span>
-                                <span class="pcoded-mtext">WhatsApp Settings</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'whatsapp_delivery_logs' %}active{% endif %}">
-                            <a href="{% url 'whatsapp_delivery_logs' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-list"></i></span>
-                                <span class="pcoded-mtext">WhatsApp Logs</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'webhook_diagnostics' %}active{% endif %}">
-                            <a href="{% url 'webhook_diagnostics' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-radio"></i></span>
-                                <span class="pcoded-mtext">Webhook Diagnostics</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'order_notification_config' %}active{% endif %}">
-                            <a href="{% url 'order_notification_config' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-bell"></i></span>
-                                <span class="pcoded-mtext">Order Notification Config</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'admin_utilities' %}active{% endif %}">
-                            <a href="{% url 'admin_utilities' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-tool"></i></span>
-                                <span class="pcoded-mtext">Admin Utilities</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'project_list' or current == 'project_detail' %}active{% endif %}">
-                            <a href="{% url 'project_list' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-grid"></i></span>
-                                <span class="pcoded-mtext">Projects</span>
-                            </a>
-                        </li>
-                        <li class="nav-item {% if current == 'contact' %}active{% endif %}">
-                            <a href="{% url 'contact' %}" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-mail"></i></span>
-                                <span class="pcoded-mtext">Contact</span>
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a href="/admin/" class="nav-link">
-                                <span class="pcoded-micon"><i class="feather icon-shield"></i></span>
-                                <span class="pcoded-mtext">Admin</span>
-                            </a>
-                        </li>
-                        {% if request.user.is_authenticated %}
+                        {% if not viewer_order_management_only %}
+                            <li class="nav-item {% if current == 'home' %}active{% endif %}">
+                                <a href="{% url 'home' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-home"></i></span>
+                                    <span class="pcoded-mtext">Orders Dashboard</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'stock_management' %}active{% endif %}">
+                                <a href="{% url 'stock_management' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-package"></i></span>
+                                    <span class="pcoded-mtext">Stock Management</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'print_queue' %}active{% endif %}">
+                                <a href="{% url 'print_queue' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-printer"></i></span>
+                                    <span class="pcoded-mtext">Print Queue</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'sender_address' %}active{% endif %}">
+                                <a href="{% url 'sender_address' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-map-pin"></i></span>
+                                    <span class="pcoded-mtext">Sender Address</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'whatsapp_settings' %}active{% endif %}">
+                                <a href="{% url 'whatsapp_settings' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-message-circle"></i></span>
+                                    <span class="pcoded-mtext">WhatsApp Settings</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'whatsapp_delivery_logs' %}active{% endif %}">
+                                <a href="{% url 'whatsapp_delivery_logs' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-list"></i></span>
+                                    <span class="pcoded-mtext">WhatsApp Logs</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'webhook_diagnostics' %}active{% endif %}">
+                                <a href="{% url 'webhook_diagnostics' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-radio"></i></span>
+                                    <span class="pcoded-mtext">Webhook Diagnostics</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'order_notification_config' %}active{% endif %}">
+                                <a href="{% url 'order_notification_config' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-bell"></i></span>
+                                    <span class="pcoded-mtext">Order Notification Config</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'admin_utilities' %}active{% endif %}">
+                                <a href="{% url 'admin_utilities' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-tool"></i></span>
+                                    <span class="pcoded-mtext">Admin Utilities</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'project_list' or current == 'project_detail' %}active{% endif %}">
+                                <a href="{% url 'project_list' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-grid"></i></span>
+                                    <span class="pcoded-mtext">Projects</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'contact' %}active{% endif %}">
+                                <a href="{% url 'contact' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-mail"></i></span>
+                                    <span class="pcoded-mtext">Contact</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="/admin/" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-shield"></i></span>
+                                    <span class="pcoded-mtext">Admin</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if request.user.is_authenticated and is_ops_admin %}
                             <li class="nav-item">
                                 <a href="/admin/auth/user/" class="nav-link">
                                     <span class="pcoded-micon"><i class="feather icon-users"></i></span>

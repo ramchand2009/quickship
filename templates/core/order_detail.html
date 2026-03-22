@@ -10,7 +10,11 @@
                 <h4 class="m-b-10">Order {{ order.shiprocket_order_id }}</h4>
                 <p class="mb-0 text-muted">Channel Order ID: {{ order.channel_order_id|default:"-" }}</p>
             </div>
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">Back to Dashboard</a>
+            {% if is_ops_admin %}
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}">Back to Dashboard</a>
+            {% else %}
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'order_management' %}">Back to Order Management</a>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -163,10 +167,10 @@
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Manual Contact Update</h5>
                 <div class="d-flex gap-2 flex-wrap order-detail-toolbar">
-                    {% if order.local_status == "order_accepted" %}
+                    {% if is_ops_admin and order.local_status == "order_accepted" %}
                         <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener">Packing List</a>
                     {% endif %}
-                    {% if order.local_status == "order_packed" %}
+                    {% if is_ops_admin and order.local_status == "order_packed" %}
                         <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener">Shipping Label ST-4</a>
                     {% endif %}
                 </div>

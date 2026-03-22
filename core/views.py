@@ -29,12 +29,21 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
+from .access import (
+    can_edit_operations,
+    can_sync_orders,
+    can_update_order_status,
+    is_ops_admin,
+    is_ops_viewer,
+)
 from .forms import (
     ContactForm,
+    ProductForm,
     SenderAddressForm,
     ShiprocketOrderManualUpdateForm,
     ShiprocketOrderStatusForm,
     SignUpForm,
+    StockAdjustmentForm,
     WhatsAppApiSettingsForm,
     WhatsAppMessageTestForm,
     WhatsAppStatusTemplateConfigForm,
@@ -44,14 +53,22 @@ from .monitoring import build_health_payload, get_operational_counters
 from .models import (
     ContactMessage,
     OrderActivityLog,
+    Product,
     Project,
     SenderAddress,
     ShiprocketOrder,
+    StockMovement,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
+)
+from .stock import (
+    apply_manual_stock_movement,
+    find_product_by_lookup,
+    set_manual_stock_quantity,
+    sync_stock_for_status_transition,
 )
 from .queue_alerts import send_queue_alert_test
 from .shiprocket import ShiprocketAPIError, sync_orders
@@ -78,14 +95,16 @@ START_POSITION_CHOICES = [
     (START_POSITION_BOTTOM_RIGHT, "Bottom Right"),
 ]
 START_POSITION_FLOW = [value for value, _ in START_POSITION_CHOICES]
-OPS_ADMIN_GROUP = "admin"
-OPS_VIEWER_GROUP = "ops_viewer"
 STATUS_UPDATE_SOFT_LOCK_SECONDS = 8
 ORDER_MANAGEMENT_PER_PAGE_CHOICES = (25, 50, 100)
 ORDER_MANAGEMENT_AUTO_REFRESH_CHOICES = (0, 15, 30, 60)
 ORDER_MANAGEMENT_SAVED_VIEWS_SESSION_KEY = "order_management_saved_views"
 ORDER_MANAGEMENT_UNDO_SESSION_KEY = "order_management_last_action"
 ORDER_MANAGEMENT_UNDO_WINDOW_SECONDS = 10
+OPS_VIEWER_TAB_ALL = "all"
+OPS_VIEWER_TAB_PENDING = "pending"
+OPS_VIEWER_TAB_ACCEPTED = "accepted"
+OPS_VIEWER_TAB_SHIPPED = "shipped"
 
 
 def _resolve_start_position(raw_value):
@@ -283,37 +302,32 @@ def _request_actor(request):
     return ""
 
 
-def _user_group_names(user):
-    if not getattr(user, "is_authenticated", False):
-        return set()
-    return set(user.groups.values_list("name", flat=True))
-
-
 def _is_ops_admin(user):
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if user.is_superuser or user.is_staff:
-        return True
-    group_names = _user_group_names(user)
-    if OPS_ADMIN_GROUP in group_names:
-        return True
-    if OPS_VIEWER_GROUP in group_names:
-        return False
-    # Backward compatible default for existing users without explicit role assignment.
-    return True
+    return is_ops_admin(user)
 
 
 def _is_ops_viewer(user):
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if user.is_superuser or user.is_staff:
-        return False
-    group_names = _user_group_names(user)
-    return OPS_VIEWER_GROUP in group_names and OPS_ADMIN_GROUP not in group_names
+    return is_ops_viewer(user)
 
 
 def _can_edit_operations(user):
-    return _is_ops_admin(user)
+    return can_edit_operations(user)
+
+
+def _can_sync_orders(user):
+    return can_sync_orders(user)
+
+
+def _can_update_order_status(user):
+    return can_update_order_status(user)
+
+
+def _redirect_ops_viewer_to_order_management(request, *, include_message=True):
+    if not _is_ops_viewer(getattr(request, "user", None)):
+        return None
+    if include_message:
+        messages.error(request, "Your role can access only Order Management.")
+    return redirect("order_management")
 
 
 def _status_update_soft_lock_key(*, order_id, actor, target_status, session_key=""):
@@ -393,6 +407,24 @@ def _describe_recent_timestamp(dt):
     else:
         relative = localized.strftime("%Y-%m-%d %H:%M:%S %Z")
     return f"{localized.strftime('%Y-%m-%d %H:%M:%S %Z')} ({relative})"
+
+
+def _emit_stock_sync_messages(request, stock_result, *, context_label="Order"):
+    if not stock_result or not stock_result.get("mode"):
+        return
+
+    mode = stock_result.get("mode")
+    action_label = "deducted" if mode == "deduct" else "restored"
+    movement_count = int(stock_result.get("movement_count") or 0)
+    missing_skus = stock_result.get("missing_skus") or []
+
+    if movement_count:
+        messages.info(request, f"{context_label}: stock {action_label} for {movement_count} SKU(s).")
+    if missing_skus:
+        messages.warning(
+            request,
+            f"{context_label}: no product mapping found for SKU(s): {', '.join(missing_skus)}.",
+        )
 
 
 def _dashboard_order_row(order, *, note="", url_name="order_detail"):
@@ -856,6 +888,100 @@ def _order_status_tabs():
     ]
 
 
+def _ops_viewer_status_tabs():
+    return [
+        {"key": OPS_VIEWER_TAB_ALL, "label": "All"},
+        {"key": OPS_VIEWER_TAB_PENDING, "label": "Pending"},
+        {"key": OPS_VIEWER_TAB_ACCEPTED, "label": "Accepted"},
+        {"key": OPS_VIEWER_TAB_SHIPPED, "label": "Shipped"},
+    ]
+
+
+def _ops_viewer_filter_queryset(queryset, active_tab):
+    if active_tab == OPS_VIEWER_TAB_PENDING:
+        return queryset.filter(local_status=ShiprocketOrder.STATUS_NEW)
+    if active_tab == OPS_VIEWER_TAB_ACCEPTED:
+        return queryset.filter(
+            local_status__in=[ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED]
+        )
+    if active_tab == OPS_VIEWER_TAB_SHIPPED:
+        return queryset.filter(
+            local_status__in=[
+                ShiprocketOrder.STATUS_SHIPPED,
+                ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+                ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+                ShiprocketOrder.STATUS_DELIVERED,
+                ShiprocketOrder.STATUS_COMPLETED,
+            ]
+        )
+    return queryset.exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
+
+
+def _build_ops_viewer_status_counts():
+    base_queryset = ShiprocketOrder.objects.all()
+    return {
+        OPS_VIEWER_TAB_ALL: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ALL).count(),
+        OPS_VIEWER_TAB_PENDING: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_PENDING).count(),
+        OPS_VIEWER_TAB_ACCEPTED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ACCEPTED).count(),
+        OPS_VIEWER_TAB_SHIPPED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_SHIPPED).count(),
+    }
+
+
+def _ops_viewer_stage_key(status_value):
+    if status_value in {ShiprocketOrder.STATUS_NEW, ShiprocketOrder.STATUS_CANCELLED}:
+        return "pending"
+    if status_value in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
+        return "accepted"
+    if status_value in {
+        ShiprocketOrder.STATUS_SHIPPED,
+        ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+    }:
+        return "shipped"
+    return "delivered"
+
+
+def _ops_viewer_action_label(status_value, fallback_label):
+    label_map = {
+        ShiprocketOrder.STATUS_ACCEPTED: "Accept Order",
+        ShiprocketOrder.STATUS_PACKED: "Pack Order",
+        ShiprocketOrder.STATUS_SHIPPED: "Ship Order",
+        ShiprocketOrder.STATUS_DELIVERY_ISSUE: "Mark Delivery Issue",
+        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY: "Out For Delivery",
+        ShiprocketOrder.STATUS_DELIVERED: "Mark Delivered",
+        ShiprocketOrder.STATUS_COMPLETED: "Complete Order",
+        ShiprocketOrder.STATUS_CANCELLED: "Reject Order",
+    }
+    return label_map.get(status_value, fallback_label)
+
+
+def _build_ops_viewer_detail_actions(order, status_form):
+    actions = []
+    for status_value, fallback_label in status_form.fields["local_status"].choices:
+        actions.append(
+            {
+                "value": status_value,
+                "label": _ops_viewer_action_label(status_value, fallback_label),
+                "tone": "secondary" if status_value == ShiprocketOrder.STATUS_CANCELLED else "primary",
+                "requires_phone": (
+                    status_value == ShiprocketOrder.STATUS_ACCEPTED
+                    and order.local_status == ShiprocketOrder.STATUS_NEW
+                ),
+                "requires_tracking": status_value == ShiprocketOrder.STATUS_SHIPPED,
+                "is_cancel": status_value == ShiprocketOrder.STATUS_CANCELLED,
+            }
+        )
+    return actions
+
+
+def _build_ops_viewer_primary_action(order, status_form):
+    actions = _build_ops_viewer_detail_actions(order, status_form)
+    for action in actions:
+        if not action["is_cancel"]:
+            return action
+    return actions[0] if actions else None
+
+
 def _safe_int_choice(raw_value, choices, default_value):
     try:
         parsed = int(raw_value)
@@ -1209,6 +1335,21 @@ def _build_orders_dashboard_context(request):
         },
     ]
 
+    low_stock_count = Product.objects.filter(
+        is_active=True,
+        stock_quantity__lte=F("reorder_level"),
+    ).count()
+    action_cards.append(
+        {
+            "title": "Low Stock Items",
+            "count": low_stock_count,
+            "description": "Products at or below reorder level that need a stock check.",
+            "action_label": "Open Stock Management",
+            "action_url": reverse("stock_management"),
+            "tone": "danger" if low_stock_count else "success",
+        }
+    )
+
     dashboard_alerts = []
     if webhook_is_stale:
         dashboard_alerts.append(
@@ -1330,24 +1471,33 @@ def _build_orders_dashboard_context(request):
 
 
 def home(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request, include_message=False)
+    if restricted_response:
+        return restricted_response
     context = _build_orders_dashboard_context(request)
     return render(request, "core/home.html", context)
 
 
 def order_management(request):
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
-    status_tabs = _order_status_tabs()
+    can_sync_orders = _can_sync_orders(getattr(request, "user", None))
+    can_update_order_status = _can_update_order_status(getattr(request, "user", None))
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    status_tabs = _ops_viewer_status_tabs() if ops_mobile_mode else _order_status_tabs()
     active_tab = _resolve_active_tab(request, status_tabs)
     filters = _get_order_management_filters(request)
-    status_counts = _build_status_counts(status_tabs)
+    status_counts = _build_ops_viewer_status_counts() if ops_mobile_mode else _build_status_counts(status_tabs)
     counters = get_operational_counters()
     system_status = get_dashboard_system_status()
 
-    base_queryset = (
-        ShiprocketOrder.objects.filter(local_status=active_tab)
-        .defer("raw_payload", "order_items", "billing_address")
-        .order_by("-order_date", "-updated_at")
+    base_queryset = ShiprocketOrder.objects.defer("raw_payload", "order_items", "billing_address").order_by(
+        "-order_date",
+        "-updated_at",
     )
+    if ops_mobile_mode:
+        base_queryset = _ops_viewer_filter_queryset(base_queryset, active_tab)
+    else:
+        base_queryset = base_queryset.filter(local_status=active_tab)
     filtered_queryset = _filter_order_management_queryset(base_queryset, filters)
     quick_stats = filtered_queryset.aggregate(
         filtered_count=Count("id"),
@@ -1356,14 +1506,17 @@ def order_management(request):
 
     paginator = Paginator(filtered_queryset, filters["per_page"])
     page_obj = paginator.get_page(request.GET.get("page"))
-    tab_orders = [
-        {
-            "order": order,
-            "status_form": ShiprocketOrderStatusForm(instance=order, prefix=f"order-{order.pk}"),
-            "missing_packing_fields": order.missing_fields_for_packing(),
-        }
-        for order in page_obj.object_list
-    ]
+    tab_orders = []
+    for order in page_obj.object_list:
+        status_form = ShiprocketOrderStatusForm(instance=order, prefix=f"order-{order.pk}")
+        tab_orders.append(
+            {
+                "order": order,
+                "status_form": status_form,
+                "missing_packing_fields": order.missing_fields_for_packing(),
+                "primary_action": _build_ops_viewer_primary_action(order, status_form) if ops_mobile_mode else None,
+            }
+        )
     visible_order_ids = [order.pk for order in page_obj.object_list]
     activity_by_order_id = {}
     if visible_order_ids:
@@ -1428,6 +1581,9 @@ def order_management(request):
         "filters": filters,
         "shiprocket_status_values": list(shiprocket_status_values)[:100],
         "can_edit_operations": can_edit_operations,
+        "can_sync_orders": can_sync_orders,
+        "can_update_order_status": can_update_order_status,
+        "ops_mobile_mode": ops_mobile_mode,
         "failed_queue_count": counters["failed_queue_count"],
         "pending_queue_count": counters["pending_queue_count"],
         "last_webhook_received_at": counters["last_webhook_received_at"],
@@ -1449,7 +1605,8 @@ def order_management(request):
             or filters.get("per_page") != ORDER_MANAGEMENT_PER_PAGE_CHOICES[0]
         ),
     }
-    return render(request, "core/order_management.html", context)
+    template_name = "core/order_management_ops.html" if ops_mobile_mode else "core/order_management.html"
+    return render(request, template_name, context)
 
 
 @login_required
@@ -1686,6 +1843,8 @@ def bulk_update_shiprocket_order_status(request):
     success_samples = []
     failed_samples = []
     undo_entries = []
+    stock_adjusted_count = 0
+    missing_stock_skus = set()
 
     status_label_map = dict(ShiprocketOrder.STATUS_CHOICES)
 
@@ -1718,8 +1877,17 @@ def bulk_update_shiprocket_order_status(request):
         success_count += 1
         if len(success_samples) < 5:
             success_samples.append(str(updated_order.shiprocket_order_id or "").strip())
+        stock_result = {}
 
         if previous_status != updated_order.local_status:
+            stock_result = sync_stock_for_status_transition(
+                order=updated_order,
+                previous_status=previous_status,
+                current_status=updated_order.local_status,
+                actor=actor,
+            )
+            stock_adjusted_count += int(stock_result.get("movement_count") or 0)
+            missing_stock_skus.update(stock_result.get("missing_skus") or [])
             undo_entries.append(
                 {
                     "order_id": updated_order.pk,
@@ -1793,7 +1961,8 @@ def bulk_update_shiprocket_order_status(request):
             request,
             (
                 f"Bulk update done. Updated {success_count} order(s). "
-                f"WhatsApp queued for {queued_count} order(s).{examples_text}"
+                f"WhatsApp queued for {queued_count} order(s). "
+                f"Stock adjusted for {stock_adjusted_count} SKU movement(s).{examples_text}"
             ),
         )
     if failed_count:
@@ -1805,6 +1974,11 @@ def bulk_update_shiprocket_order_status(request):
             )
         else:
             messages.warning(request, f"Skipped/failed {failed_count} order(s).")
+    if missing_stock_skus:
+        messages.warning(
+            request,
+            f"Stock mapping missing for SKU(s): {', '.join(sorted(missing_stock_skus))}.",
+        )
     if not success_count and not failed_count:
         messages.info(request, "No updates were applied.")
 
@@ -1812,10 +1986,16 @@ def bulk_update_shiprocket_order_status(request):
 
 
 def project_list(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     return render(request, "core/project_list.html", {"projects": Project.objects.all()})
 
 
 def project_detail(request, pk):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     project = get_object_or_404(Project, pk=pk)
     return render(request, "core/project_detail.html", {"project": project})
 
@@ -1824,7 +2004,10 @@ def order_detail(request, pk):
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     form = ShiprocketOrderManualUpdateForm(instance=order)
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
+    can_update_order_status = _can_update_order_status(getattr(request, "user", None))
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     can_view_raw_payload = _is_ops_admin(getattr(request, "user", None))
+    status_form = ShiprocketOrderStatusForm(instance=order, prefix=f"order-{order.pk}")
     whatsapp_timeline = order.whatsapp_logs.order_by("-created_at")[:100]
     latest_queue_job = order.whatsapp_queue_jobs.order_by("-updated_at", "-created_at").first()
     activity_queryset = order.activity_logs.all()
@@ -1852,16 +2035,22 @@ def order_detail(request, pk):
     activity_timeline = activity_queryset.order_by("-created_at")[:200]
     return render(
         request,
-        "core/order_detail.html",
+        "core/order_detail_ops.html" if ops_mobile_mode else "core/order_detail.html",
         {
             "order": order,
             "form": form,
+            "status_form": status_form,
             "whatsapp_timeline": whatsapp_timeline,
             "latest_queue_job": latest_queue_job,
             "activity_timeline": activity_timeline,
             "activity_event_choices": OrderActivityLog.EVENT_CHOICES,
             "can_edit_operations": can_edit_operations,
+            "can_update_order_status": can_update_order_status,
             "can_view_raw_payload": can_view_raw_payload,
+            "ops_mobile_mode": ops_mobile_mode,
+            "ops_mobile_stage_key": _ops_viewer_stage_key(order.local_status),
+            "ops_mobile_actions": _build_ops_viewer_detail_actions(order, status_form),
+            "return_tab": (request.GET.get("tab") or "").strip(),
             "activity_filters": {
                 "event": activity_event if activity_event in valid_events else "",
                 "result": activity_result if activity_result in {"success", "failed"} else "",
@@ -1873,6 +2062,9 @@ def order_detail(request, pk):
 
 
 def packing_list(request, pk):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     sender = SenderAddress.get_default()
     context = {
@@ -1883,6 +2075,9 @@ def packing_list(request, pk):
 
 
 def packing_queue(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     search_query = (request.GET.get("q") or "").strip()
     orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED).order_by(
         "-order_date",
@@ -1917,6 +2112,9 @@ def packing_queue(request):
 
 
 def bulk_packing_lists(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     sender = SenderAddress.get_default()
     orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED).order_by(
         "-order_date",
@@ -1936,6 +2134,9 @@ def bulk_packing_lists(request):
 
 
 def shipping_label_4x6(request, pk):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     if order.local_status != ShiprocketOrder.STATUS_PACKED:
         messages.error(request, "Shipping label is available only for packed orders.")
@@ -1959,6 +2160,9 @@ def shipping_label_4x6(request, pk):
 
 
 def bulk_shipping_labels_4x6(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     sender = SenderAddress.get_default()
     orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_PACKED).order_by(
         "-order_date",
@@ -1986,6 +2190,9 @@ def bulk_shipping_labels_4x6(request):
 
 
 def print_queue(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     skip_printed = _is_truthy(request.GET.get("skip_printed"))
     ready_only = _is_truthy(request.GET.get("ready_only"))
     search_query = (request.GET.get("q") or "").strip()
@@ -2034,6 +2241,9 @@ def print_queue(request):
 
 @login_required
 def sender_address(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     if request.method == "POST" and not _can_edit_operations(request.user):
         messages.error(request, "Your role has read-only access for operational settings.")
         return redirect("sender_address")
@@ -2051,7 +2261,133 @@ def sender_address(request):
 
 
 @login_required
+def stock_management(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
+    can_edit_operations = _can_edit_operations(request.user)
+    actor = _request_actor(request)
+    search_query = str(request.GET.get("q") or "").strip()
+    low_only = _is_truthy(request.GET.get("low"))
+    edit_product = None
+    edit_pk = str(request.GET.get("edit") or "").strip()
+    if edit_pk.isdigit():
+        edit_product = Product.objects.filter(pk=int(edit_pk)).first()
+
+    if request.method == "POST" and not can_edit_operations:
+        messages.error(request, "Your role has read-only access for stock management.")
+        return redirect("stock_management")
+
+    product_form = ProductForm(instance=edit_product)
+    stock_form = StockAdjustmentForm()
+
+    if request.method == "POST":
+        action = str(request.POST.get("form_action") or "").strip()
+        if action == "save_product":
+            product_id = str(request.POST.get("product_id") or "").strip()
+            instance = Product.objects.filter(pk=int(product_id)).first() if product_id.isdigit() else None
+            product_form = ProductForm(request.POST, instance=instance)
+            if product_form.is_valid():
+                product = product_form.save()
+                messages.success(request, f"Saved product {product.name} ({product.sku}).")
+                return redirect("stock_management")
+            messages.error(request, "Unable to save product. Check the product fields.")
+        elif action == "adjust_stock":
+            stock_form = StockAdjustmentForm(request.POST)
+            if stock_form.is_valid():
+                lookup_value = stock_form.cleaned_data["lookup_value"]
+                product = find_product_by_lookup(lookup_value)
+                if not product:
+                    messages.error(request, f"No product found for '{lookup_value}'.")
+                else:
+                    quantity = int(stock_form.cleaned_data["quantity"] or 0)
+                    notes = stock_form.cleaned_data["notes"]
+                    movement_action = stock_form.cleaned_data["action"]
+                    if movement_action == StockAdjustmentForm.ACTION_SET:
+                        movement, _ = set_manual_stock_quantity(
+                            product=product,
+                            target_quantity=quantity,
+                            actor=actor,
+                            notes=notes,
+                        )
+                        if movement:
+                            messages.success(
+                                request,
+                                (
+                                    f"Set stock for {product.name} ({product.sku}) to {movement.quantity_after}. "
+                                    f"Previous stock was {movement.quantity_before}."
+                                ),
+                            )
+                        else:
+                            messages.info(
+                                request,
+                                f"Stock for {product.name} ({product.sku}) is already {quantity}. No change needed.",
+                            )
+                    else:
+                        movement_type = (
+                            StockMovement.TYPE_MANUAL_ADD
+                            if movement_action == StockAdjustmentForm.ACTION_ADD
+                            else StockMovement.TYPE_MANUAL_REMOVE
+                        )
+                        movement, _ = apply_manual_stock_movement(
+                            product=product,
+                            movement_type=movement_type,
+                            quantity=quantity,
+                            actor=actor,
+                            notes=notes,
+                        )
+                        direction = "added to" if movement.quantity_delta >= 0 else "removed from"
+                        messages.success(
+                            request,
+                            (
+                                f"{abs(movement.quantity_delta)} unit(s) {direction} {product.name} ({product.sku}). "
+                                f"Stock is now {movement.quantity_after}."
+                            ),
+                        )
+                    return redirect("stock_management")
+            messages.error(request, "Unable to adjust stock. Check the stock form fields.")
+        else:
+            messages.error(request, "Invalid stock action.")
+            return redirect("stock_management")
+
+    products = Product.objects.all().order_by("name", "sku")
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query)
+            | Q(sku__icontains=search_query)
+            | Q(barcode__icontains=search_query)
+        )
+    if low_only:
+        products = products.filter(stock_quantity__lte=F("reorder_level"))
+
+    low_stock_products = (
+        Product.objects.filter(is_active=True, stock_quantity__lte=F("reorder_level"))
+        .order_by("stock_quantity", "name")[:10]
+    )
+    recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
+
+    return render(
+        request,
+        "core/stock_management.html",
+        {
+            "product_form": product_form,
+            "stock_form": stock_form,
+            "products": products[:200],
+            "low_stock_products": low_stock_products,
+            "recent_movements": recent_movements,
+            "search_query": search_query,
+            "low_only": low_only,
+            "editing_product": edit_product,
+            "can_edit_operations": can_edit_operations,
+        },
+    )
+
+
+@login_required
 def whatsapp_settings(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     can_edit_operations = _can_edit_operations(request.user)
     webhook_token_configured = bool(str(getattr(settings, "WHATOMATE_WEBHOOK_TOKEN", "") or "").strip())
     settings_row = WhatsAppSettings.get_default()
@@ -2335,6 +2671,9 @@ def _filtered_whatsapp_notification_logs(result_filter, trigger_filter):
 
 @login_required
 def whatsapp_delivery_logs(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     can_view_raw_payload = _is_ops_admin(request.user)
     result_filter = (request.GET.get("result") or "").strip().lower()
     trigger_filter = (request.GET.get("trigger") or "").strip()
@@ -2353,6 +2692,9 @@ def whatsapp_delivery_logs(request):
 
 @login_required
 def webhook_diagnostics(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     diagnostics = _build_webhook_diagnostics()
     can_view_raw_payload = _is_ops_admin(request.user)
     return render(
@@ -2367,6 +2709,9 @@ def webhook_diagnostics(request):
 
 @login_required
 def admin_utilities(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     if request.method == "POST" and not _can_edit_operations(request.user):
         messages.error(request, "Your role has read-only access and cannot run admin utilities.")
         return redirect("admin_utilities")
@@ -2468,6 +2813,9 @@ def admin_utilities(request):
 
 @login_required
 def whatsapp_delivery_logs_csv(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     can_view_raw_payload = _is_ops_admin(request.user)
     result_filter = (request.GET.get("result") or "").strip().lower()
     trigger_filter = (request.GET.get("trigger") or "").strip()
@@ -2533,6 +2881,9 @@ def whatsapp_delivery_logs_csv(request):
 
 @login_required
 def audit_export_csv(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     from_date_raw = (request.GET.get("from_date") or "").strip()
     to_date_raw = (request.GET.get("to_date") or "").strip()
     from_date = parse_date(from_date_raw) if from_date_raw else None
@@ -2847,6 +3198,9 @@ def whatomate_webhook(request):
 
 @login_required
 def order_notification_config(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     can_edit_operations = _can_edit_operations(request.user)
     template_rows = list(WhatsAppTemplate.objects.all()[:200])
     template_choices = [
@@ -2944,6 +3298,9 @@ def order_notification_config(request):
 
 
 def contact(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
     if request.method == "POST":
         form = ContactForm(request.POST)
         if form.is_valid():
@@ -2976,8 +3333,8 @@ def signup(request):
 @login_required
 def sync_shiprocket_orders(request):
     redirect_url = _resolve_ops_redirect(request, default_name="home")
-    if not _can_edit_operations(request.user):
-        messages.error(request, "Your role has read-only access and cannot run sync.")
+    if not _can_sync_orders(request.user):
+        messages.error(request, "Your role cannot run Shiprocket sync.")
         return redirect(redirect_url)
     if request.method != "POST":
         return redirect(redirect_url)
@@ -3048,8 +3405,8 @@ def update_shiprocket_order_status(request, pk):
 
     if request.method != "POST":
         return redirect(redirect_url)
-    if not _can_edit_operations(request.user):
-        messages.error(request, "Your role has read-only access and cannot move order status.")
+    if not _can_update_order_status(request.user):
+        messages.error(request, "Your role cannot move order status.")
         return redirect(redirect_url)
 
     requested_status = str(request.POST.get(f"order-{order.pk}-local_status") or "").strip()
@@ -3086,7 +3443,14 @@ def update_shiprocket_order_status(request, pk):
         updated_order = _apply_status_timestamps(updated_order)
         updated_order.save()
         success_message = "Order moved to the selected tab."
+        stock_result = {}
         if previous_status != updated_order.local_status:
+            stock_result = sync_stock_for_status_transition(
+                order=updated_order,
+                previous_status=previous_status,
+                current_status=updated_order.local_status,
+                actor=actor,
+            )
             status_label_map = dict(ShiprocketOrder.STATUS_CHOICES)
             now = timezone.now()
             _set_order_management_undo_payload(
@@ -3202,6 +3566,7 @@ def update_shiprocket_order_status(request, pk):
         else:
             _clear_order_management_undo_payload(request)
         messages.success(request, success_message)
+        _emit_stock_sync_messages(request, stock_result, context_label=f"Order {updated_order.shiprocket_order_id}")
     else:
         first_error = None
         for errors in form.errors.values():

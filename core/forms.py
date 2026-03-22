@@ -9,6 +9,7 @@ from django.core.cache import cache
 
 from .models import (
     ContactMessage,
+    Product,
     SenderAddress,
     ShiprocketOrder,
     WhatsAppSettings,
@@ -254,6 +255,56 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
             cleaned_data["cancellation_note"] = ""
 
         return cleaned_data
+
+
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ["name", "sku", "barcode", "stock_quantity", "reorder_level", "is_active"]
+        labels = {
+            "stock_quantity": "Opening Stock",
+            "reorder_level": "Low Stock Threshold",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ["name", "sku", "barcode", "stock_quantity", "reorder_level"]:
+            self.fields[name].widget.attrs["class"] = "form-control"
+        self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
+        self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
+        self.fields["name"].widget.attrs["placeholder"] = "Product name"
+        self.fields["is_active"].widget.attrs["class"] = "form-check-input"
+
+
+class StockAdjustmentForm(forms.Form):
+    ACTION_ADD = "add"
+    ACTION_REMOVE = "remove"
+    ACTION_SET = "set"
+    ACTION_CHOICES = [
+        (ACTION_ADD, "Add Stock"),
+        (ACTION_REMOVE, "Remove Stock"),
+        (ACTION_SET, "Set Exact Qty"),
+    ]
+
+    lookup_value = forms.CharField(label="Barcode or SKU", max_length=120)
+    action = forms.ChoiceField(choices=ACTION_CHOICES)
+    quantity = forms.IntegerField(min_value=0)
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["lookup_value"].widget.attrs["class"] = "form-control"
+        self.fields["lookup_value"].widget.attrs["placeholder"] = "Scan barcode or type SKU"
+        self.fields["action"].widget.attrs["class"] = "form-select"
+        self.fields["quantity"].widget.attrs["class"] = "form-control"
+        self.fields["notes"].widget.attrs["class"] = "form-control"
+
+    def clean_lookup_value(self):
+        value = str(self.cleaned_data.get("lookup_value") or "").strip()
+        if not value:
+            raise forms.ValidationError("Scan or enter a barcode/SKU.")
+        return value
 
 
 class WhatsAppApiSettingsForm(forms.ModelForm):

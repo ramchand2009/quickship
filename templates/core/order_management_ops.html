@@ -1,0 +1,968 @@
+{% extends "base.html" %}
+{% load core_extras %}
+
+{% block title %}My Orders | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+    body.ops-mobile-layout .pcoded-header,
+    body.ops-mobile-layout .pcoded-navbar {
+        display: none !important;
+    }
+
+    body.ops-mobile-layout .pcoded-main-container {
+        margin-left: 0;
+        padding-top: 0;
+    }
+
+    body.ops-mobile-layout .pcoded-content,
+    body.ops-mobile-layout .page-wrapper {
+        padding: 0;
+    }
+
+    .ops-orders-shell {
+        min-height: 100vh;
+        background:
+            radial-gradient(circle at top left, rgba(73, 190, 219, 0.16), transparent 32%),
+            linear-gradient(180deg, #f8fbff 0%, #eef3f8 100%);
+    }
+
+    .ops-desktop-shell {
+        display: none;
+        padding: 2rem;
+    }
+
+    .ops-desktop-topbar {
+        display: flex;
+        justify-content: flex-end;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .ops-desktop-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 0.5rem 0.85rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .ops-desktop-brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #e1f8ee 0%, #b8efd5 100%);
+        color: #1d684a;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+    }
+
+    .ops-desktop-brand-name,
+    .ops-desktop-customer-name,
+    .ops-desktop-address-label,
+    .ops-desktop-shipping-label,
+    .ops-desktop-product-name {
+        font-weight: 700;
+        color: #111827;
+    }
+
+    .ops-desktop-header {
+        padding: 2rem 0 1.5rem;
+    }
+
+    .ops-desktop-header h1 {
+        margin: 0;
+        font-size: 3rem;
+        color: #0f172a;
+    }
+
+    .ops-desktop-header p {
+        margin: 0.65rem 0 0;
+        color: #4b5563;
+        font-size: 1.02rem;
+    }
+
+    .ops-desktop-header a,
+    .ops-desktop-order-link,
+    .ops-desktop-detail-link {
+        color: #1f6ea0;
+        text-decoration: none;
+    }
+
+    .ops-desktop-panel {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 1.5rem;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+    }
+
+    .ops-desktop-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        padding: 0 1.5rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .ops-desktop-tab {
+        position: relative;
+        min-width: 6rem;
+        padding: 1.2rem 0.2rem 1rem;
+        text-align: center;
+        color: #465468;
+        text-decoration: none;
+    }
+
+    .ops-desktop-tab strong {
+        display: block;
+        font-size: 0.98rem;
+        font-weight: 500;
+    }
+
+    .ops-desktop-tab span {
+        display: inline-flex;
+        margin-top: 0.4rem;
+        padding: 0.22rem 0.6rem;
+        border-radius: 999px;
+        background: #eef2f7;
+        color: #5b6677;
+        font-size: 0.82rem;
+    }
+
+    .ops-desktop-tab.is-active::after {
+        content: "";
+        position: absolute;
+        left: 0.8rem;
+        right: 0.8rem;
+        bottom: 0;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2c89be 0%, #1f6ea0 100%);
+    }
+
+    .ops-desktop-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.6rem 1.5rem 1.25rem;
+    }
+
+    .ops-desktop-search-form {
+        display: flex;
+        align-items: center;
+        width: min(100%, 410px);
+        border: 1px solid #b5c1ce;
+        border-radius: 0.85rem;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .ops-desktop-search-form input {
+        flex: 1 1 auto;
+        border: 0;
+        padding: 0.92rem 1rem;
+        color: #172330;
+    }
+
+    .ops-desktop-search-form button {
+        width: 56px;
+        border: 0;
+        border-left: 1px solid #cfd8e3;
+        background: #fff;
+        color: #16213a;
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+
+    .ops-desktop-toolbar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.8rem;
+    }
+
+    .ops-desktop-toolbar-btn,
+    .ops-desktop-toolbar-chip,
+    .ops-desktop-primary-action,
+    .ops-desktop-secondary-action {
+        border-radius: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+    }
+
+    .ops-desktop-toolbar-btn,
+    .ops-desktop-toolbar-chip {
+        border: 2px solid #2a73a6;
+        background: #fff;
+        color: #2a73a6;
+        padding: 0.78rem 1.15rem;
+    }
+
+    .ops-desktop-toolbar-chip {
+        min-width: 220px;
+    }
+
+    .ops-desktop-toolbar-btn[disabled] {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .ops-desktop-table {
+        padding: 0 1.5rem 1.5rem;
+    }
+
+    .ops-desktop-table-head,
+    .ops-desktop-row {
+        display: grid;
+        grid-template-columns: 1.25fr 2fr 0.95fr 1.15fr 1.7fr 1fr 1.15fr;
+        gap: 1rem;
+    }
+
+    .ops-desktop-table-head {
+        padding: 1.15rem 1.1rem;
+        background: #f7f9fc;
+        border-radius: 1rem 1rem 0 0;
+        font-weight: 800;
+        color: #101828;
+    }
+
+    .ops-desktop-row {
+        padding: 1.25rem 1.1rem;
+        background: #fff;
+        border-top: 1px solid rgba(15, 23, 42, 0.08);
+        align-items: start;
+    }
+
+    .ops-desktop-cell {
+        min-width: 0;
+        color: #334155;
+    }
+
+    .ops-desktop-status-pill {
+        display: inline-flex;
+        padding: 0.26rem 0.58rem;
+        border-radius: 0.55rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+
+    .ops-status-pending,
+    .ops-status-accepted {
+        background: #dff3fb;
+        color: #0d7ea8;
+    }
+
+    .ops-status-shipped {
+        background: #f1dcff;
+        color: #8b3fc4;
+    }
+
+    .ops-status-delivered {
+        background: #ddf7d7;
+        color: #4b8c15;
+    }
+
+    .ops-status-cancelled {
+        background: #fde4e4;
+        color: #bb3131;
+    }
+
+    .ops-status-default {
+        background: #eef2f7;
+        color: #52606d;
+    }
+
+    .ops-desktop-order-link {
+        font-weight: 800;
+        font-size: 1.05rem;
+        word-break: break-word;
+    }
+
+    .ops-desktop-subtext,
+    .ops-desktop-product-meta,
+    .ops-desktop-contact,
+    .ops-desktop-address-text,
+    .ops-desktop-shipping-text {
+        display: block;
+        margin-top: 0.3rem;
+        color: #5f6c7b;
+        font-size: 0.94rem;
+        word-break: break-word;
+    }
+
+    .ops-desktop-detail-link {
+        display: inline-flex;
+        margin-top: 0.65rem;
+        font-weight: 600;
+    }
+
+    .ops-desktop-products {
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .ops-desktop-product {
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr);
+        gap: 0.75rem;
+    }
+
+    .ops-desktop-product-thumb {
+        width: 56px;
+        height: 56px;
+        border-radius: 0.8rem;
+        background: linear-gradient(135deg, #21c2f2 0%, #038fb1 100%);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-weight: 800;
+    }
+
+    .ops-desktop-product-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .ops-desktop-customer-badge {
+        display: inline-flex;
+        margin-left: 0.45rem;
+        padding: 0.16rem 0.45rem;
+        border-radius: 0.4rem;
+        background: #eef2f7;
+        color: #5f6c7b;
+        font-size: 0.75rem;
+    }
+
+    .ops-desktop-payment-total {
+        margin-top: 0.25rem;
+        color: #16213a;
+        font-size: 1.02rem;
+        font-weight: 800;
+    }
+
+    .ops-desktop-actions {
+        display: grid;
+        gap: 0.65rem;
+        justify-items: end;
+    }
+
+    .ops-desktop-inline-form {
+        width: 100%;
+        max-width: 170px;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .ops-desktop-inline-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.75rem;
+        padding: 0.7rem 0.8rem;
+        background: #fff;
+        color: #172330;
+        font-size: 0.92rem;
+    }
+
+    .ops-desktop-input-hint {
+        width: 100%;
+        max-width: 170px;
+        color: #64748b;
+        font-size: 0.8rem;
+        line-height: 1.35;
+        text-align: left;
+    }
+
+    .ops-desktop-primary-action,
+    .ops-desktop-secondary-action {
+        width: 100%;
+        max-width: 170px;
+        border: 0;
+        padding: 0.78rem 1rem;
+        text-align: center;
+    }
+
+    .ops-desktop-primary-action {
+        background: linear-gradient(135deg, #1a7ea8 0%, #185f8a 100%);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(25, 95, 138, 0.22);
+    }
+
+    .ops-desktop-secondary-action {
+        background: #eef4f9;
+        color: #24435b;
+    }
+
+    .ops-desktop-empty {
+        padding: 3rem 1.5rem;
+        text-align: center;
+        color: #52606d;
+    }
+
+    .ops-mobile-shell {
+        display: block;
+        padding-bottom: 5.5rem;
+    }
+
+    .ops-mobile-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        padding: 1.1rem 1rem 0.9rem;
+    }
+
+    .ops-mobile-topbar h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        text-align: center;
+        color: #14181f;
+    }
+
+    .ops-mobile-toolbar,
+    .ops-order-card-head,
+    .ops-order-card-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .ops-mobile-toolbar {
+        align-items: center;
+        margin-top: 0.9rem;
+    }
+
+    .ops-mobile-search {
+        flex: 1 1 auto;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1rem;
+        background: #f1f4fa;
+        color: #243042;
+    }
+
+    .ops-mobile-sync-btn {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.78rem 1.05rem;
+        background: #0b84a5;
+        color: #fff;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .ops-mobile-sync-btn.is-secondary {
+        background: #d9e2ec;
+        color: #52606d;
+    }
+
+    .ops-mobile-tabs {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.35rem;
+        padding: 0.8rem 0.7rem 0;
+        background: rgba(255, 255, 255, 0.96);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .ops-mobile-tab {
+        position: relative;
+        padding: 0.7rem 0.2rem 0.95rem;
+        text-align: center;
+        color: #4a5568;
+        text-decoration: none;
+    }
+
+    .ops-mobile-tab strong {
+        display: block;
+        font-weight: 500;
+    }
+
+    .ops-mobile-tab span {
+        display: inline-flex;
+        margin-top: 0.35rem;
+        font-size: 0.82rem;
+        color: #6b7280;
+    }
+
+    .ops-mobile-tab.is-active::after {
+        content: "";
+        position: absolute;
+        left: 14%;
+        right: 14%;
+        bottom: 0;
+        height: 4px;
+        border-radius: 999px;
+        background: #1697b7;
+    }
+
+    .ops-order-list {
+        padding: 0.9rem 0.7rem 1rem;
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .ops-order-card,
+    .ops-order-empty {
+        background: #fff;
+        border-radius: 1.25rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(15, 23, 42, 0.05);
+    }
+
+    .ops-order-card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        overflow: hidden;
+    }
+
+    .ops-order-card-body {
+        padding: 1.1rem 1rem 0.95rem;
+    }
+
+    .ops-order-id,
+    .ops-order-address,
+    .ops-order-card-meta {
+        color: #6b7280;
+    }
+
+    .ops-order-id {
+        margin-bottom: 0.55rem;
+    }
+
+    .ops-order-customer {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f2933;
+        margin-bottom: 0.35rem;
+    }
+
+    .ops-order-status {
+        font-weight: 700;
+        color: #0a8aa6;
+        text-align: right;
+    }
+
+    .ops-order-items,
+    .ops-order-total {
+        display: block;
+        text-align: right;
+        color: #1f2933;
+    }
+
+    .ops-order-total,
+    .ops-order-payment {
+        font-weight: 700;
+    }
+
+    .ops-order-payment {
+        display: inline-flex;
+        margin-top: 0.95rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.7rem;
+        background: #f7d7f0;
+        color: #9b2480;
+        font-size: 0.92rem;
+    }
+
+    .ops-order-card-meta {
+        align-items: center;
+        margin-top: 1rem;
+        padding-top: 0.95rem;
+        border-top: 2px dashed rgba(148, 163, 184, 0.35);
+    }
+
+    .ops-order-card-meta strong {
+        color: #c026a1;
+    }
+
+    .ops-order-empty {
+        margin: 1rem 0.7rem 0;
+        padding: 2rem 1.2rem;
+        text-align: center;
+    }
+
+    .ops-mobile-bottomnav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 30;
+        background: rgba(255, 255, 255, 0.98);
+        border-top: 1px solid rgba(15, 23, 42, 0.08);
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.4rem;
+        padding: 0.6rem 0.6rem calc(0.7rem + env(safe-area-inset-bottom));
+    }
+
+    .ops-mobile-bottomnav a,
+    .ops-mobile-bottomnav button {
+        border: 0;
+        background: transparent;
+        text-align: center;
+        color: #7b8794;
+        text-decoration: none;
+        padding: 0.3rem;
+    }
+
+    .ops-mobile-bottomnav .is-active {
+        color: #0b84a5;
+        font-weight: 700;
+    }
+
+    .ops-mobile-bottomnav-label {
+        display: block;
+        margin-top: 0.2rem;
+    }
+
+    @media (min-width: 992px) {
+        .ops-desktop-shell {
+            display: block;
+        }
+
+        .ops-mobile-shell {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-orders-shell">
+    <section class="ops-desktop-shell">
+        <div class="ops-desktop-topbar">
+            <div class="ops-desktop-brand">
+                <span class="ops-desktop-brand-mark">MO</span>
+                <span class="ops-desktop-brand-name">Mathukai Organic</span>
+            </div>
+        </div>
+
+        <div class="ops-desktop-header">
+            <h1>Orders</h1>
+            <p>
+                Effortlessly track and manage your orders.
+                <a href="{% url 'order_management' %}?tab={{ active_tab }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}">Refresh View</a>
+            </p>
+        </div>
+
+        <div class="ops-desktop-panel">
+            <div class="ops-desktop-tabs">
+                {% for tab in status_tabs %}
+                    <a href="{% url 'order_management' %}?tab={{ tab.key }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}" class="ops-desktop-tab {% if active_tab == tab.key %}is-active{% endif %}">
+                        <strong>{{ tab.label }}</strong>
+                        <span>{{ status_counts|get_item:tab.key }}</span>
+                    </a>
+                {% endfor %}
+            </div>
+
+            <div class="ops-desktop-toolbar">
+                <form method="get" action="{% url 'order_management' %}" class="ops-desktop-search-form">
+                    <input type="hidden" name="tab" value="{{ active_tab }}">
+                    <input type="text" name="q" value="{{ filters.q }}" placeholder="Search for Order ID, SKU &amp; Customer">
+                    <button type="submit" aria-label="Search">&#128269;</button>
+                </form>
+
+                <div class="ops-desktop-toolbar-actions">
+                    {% if can_sync_orders %}
+                        <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="return_to" value="order_management">
+                            <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                            <button type="submit" class="ops-desktop-toolbar-btn">Sync Orders</button>
+                        </form>
+                    {% else %}
+                        <button type="button" class="ops-desktop-toolbar-btn" disabled>Sync Orders</button>
+                    {% endif %}
+                    <button type="button" class="ops-desktop-toolbar-btn" disabled title="Visual desktop placeholder">Columns</button>
+                    <button type="button" class="ops-desktop-toolbar-btn" disabled title="Visual desktop placeholder">Filter</button>
+                    <span class="ops-desktop-toolbar-chip">Sort by: Latest Order</span>
+                </div>
+            </div>
+
+            <div class="ops-desktop-table">
+                <div class="ops-desktop-table-head">
+                    <div>Order</div>
+                    <div>Product</div>
+                    <div>Payment</div>
+                    <div>Customer</div>
+                    <div>Address</div>
+                    <div>Shipping</div>
+                    <div>Actions</div>
+                </div>
+
+                {% if tab_orders %}
+                    {% for item in tab_orders %}
+                        {% with order=item.order address=item.order.display_shipping_address action=item.primary_action %}
+                            <div class="ops-desktop-row">
+                                <div class="ops-desktop-cell">
+                                    {% with status_value=order.local_status %}
+                                        <span class="ops-desktop-status-pill {% if status_value == 'new_order' %}ops-status-pending{% elif status_value == 'order_accepted' or status_value == 'order_packed' %}ops-status-accepted{% elif status_value == 'shipped' or status_value == 'out_for_delivery' %}ops-status-shipped{% elif status_value == 'delivered' or status_value == 'completed' %}ops-status-delivered{% elif status_value == 'order_cancelled' %}ops-status-cancelled{% else %}ops-status-default{% endif %}">
+                                            {{ order.get_local_status_display }}
+                                        </span>
+                                    {% endwith %}
+                                    <a class="ops-desktop-order-link" href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}">{{ order.shiprocket_order_id }}</a>
+                                    <span class="ops-desktop-subtext">{{ order.order_date|date:"d M y H:i"|default:"-" }}</span>
+                                    <span class="ops-desktop-subtext">Channel: {{ order.channel_order_id|default:"NA" }}</span>
+                                    <a class="ops-desktop-detail-link" href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}">Details &#8250;</a>
+                                </div>
+
+                                <div class="ops-desktop-cell">
+                                    <div class="ops-desktop-products">
+                                        {% for product in order.order_items|slice:":2" %}
+                                            <div class="ops-desktop-product">
+                                                <div class="ops-desktop-product-thumb">
+                                                    {% if product.image or product.image_url %}
+                                                        <img src="{{ product.image|default:product.image_url }}" alt="{{ product.name|default:'Product' }}">
+                                                    {% else %}
+                                                        {{ product.name|default:"P"|slice:":1"|upper }}
+                                                    {% endif %}
+                                                </div>
+                                                <div>
+                                                    <div class="ops-desktop-product-name">{{ product.name|default:"Product"|truncatechars:34 }}</div>
+                                                    <div class="ops-desktop-product-meta">{{ product.sku|default:"Variant unavailable"|truncatechars:18 }}</div>
+                                                    <div class="ops-desktop-product-meta">{{ product.quantity|default:"1" }} x Rs {{ product.price|default:"0" }}</div>
+                                                </div>
+                                            </div>
+                                        {% empty %}
+                                            <div class="ops-desktop-product-meta">No items available.</div>
+                                        {% endfor %}
+                                        {% if order.order_items|length > 2 %}
+                                            <div class="ops-desktop-product-meta">+{{ order.order_items|length|add:"-2" }} more item{{ order.order_items|length|add:"-2"|pluralize }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="ops-desktop-cell">
+                                    <div>Mode: {{ order.payment_method|default:"COD" }}</div>
+                                    <div class="ops-desktop-payment-total">Total: Rs {{ order.total|floatformat:0 }}</div>
+                                </div>
+
+                                <div class="ops-desktop-cell">
+                                    <div class="ops-desktop-customer-name">
+                                        {{ address.name|default:order.customer_name|default:"Unknown Customer" }}
+                                        <span class="ops-desktop-customer-badge">New</span>
+                                    </div>
+                                    {% if address.email or order.customer_email %}
+                                        <span class="ops-desktop-contact">{{ address.email|default:order.customer_email|truncatechars:28 }}</span>
+                                    {% endif %}
+                                    <span class="ops-desktop-contact">{{ address.phone|default:order.manual_customer_phone|default:"Phone not available" }}</span>
+                                </div>
+
+                                <div class="ops-desktop-cell">
+                                    <div class="ops-desktop-address-label">Delivery</div>
+                                    <div class="ops-desktop-address-text">
+                                        {{ address.address_1|default:"Address not available" }}
+                                        {% if address.address_2 %}<br>{{ address.address_2 }}{% endif %}
+                                        {% if address.city %}<br>{{ address.city }}{% endif %}
+                                        {% if address.state %}, {{ address.state }}{% endif %}
+                                        {% if address.pincode %}<br>{{ address.pincode }}{% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="ops-desktop-cell">
+                                    <div class="ops-desktop-shipping-label">{{ order.courier_name|default:"Self-Ship" }}</div>
+                                    <div class="ops-desktop-shipping-text">
+                                        {% if order.tracking_number %}
+                                            Tracking: {{ order.tracking_number }}
+                                        {% else %}
+                                            Tracking not added
+                                        {% endif %}
+                                    </div>
+                                    {% if order.status %}
+                                        <div class="ops-desktop-shipping-text">SR Status: {{ order.status }}</div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="ops-desktop-cell">
+                                    <div class="ops-desktop-actions">
+                                        {% if action and can_update_order_status %}
+                                            {% if action.requires_phone or action.requires_tracking %}
+                                                <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" class="ops-desktop-inline-form">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                                    <input type="hidden" name="return_to" value="order_management">
+                                                    <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-local_status" value="{{ action.value }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" value="">
+                                                    <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
+                                                    {% if action.requires_phone %}
+                                                        <input
+                                                            type="tel"
+                                                            name="order-{{ order.pk }}-manual_customer_phone"
+                                                            value="{{ address.phone|default:order.manual_customer_phone }}"
+                                                            class="ops-desktop-inline-input"
+                                                            placeholder="Customer phone for Accept action"
+                                                            minlength="10"
+                                                            required
+                                                        >
+                                                        <input type="hidden" name="order-{{ order.pk }}-tracking_number" value="{{ order.tracking_number }}">
+                                                    {% endif %}
+                                                    {% if action.requires_tracking %}
+                                                        <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone }}">
+                                                        <input
+                                                            type="text"
+                                                            name="order-{{ order.pk }}-tracking_number"
+                                                            value="{{ order.tracking_number }}"
+                                                            class="ops-desktop-inline-input"
+                                                            placeholder="Tracking number for Ship action"
+                                                            maxlength="13"
+                                                            required
+                                                        >
+                                                    {% endif %}
+                                                    <button type="submit" class="ops-desktop-primary-action">{{ action.label }}</button>
+                                                </form>
+                                                <div class="ops-desktop-input-hint">
+                                                    {% if action.requires_phone %}
+                                                        Enter customer phone, then accept the order.
+                                                    {% elif action.requires_tracking %}
+                                                        Enter the 13 character tracking number to ship this order.
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" class="w-100">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                                                    <input type="hidden" name="return_to" value="order_management">
+                                                    <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-local_status" value="{{ action.value }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-tracking_number" value="{{ order.tracking_number }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" value="">
+                                                    <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
+                                                    <button type="submit" class="ops-desktop-primary-action">{{ action.label }}</button>
+                                                </form>
+                                            {% endif %}
+                                        {% else %}
+                                            <button type="button" class="ops-desktop-primary-action" disabled>No Action</button>
+                                        {% endif %}
+                                        <a href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}" class="ops-desktop-secondary-action">Open Details</a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endwith %}
+                    {% endfor %}
+                {% else %}
+                    <div class="ops-desktop-empty">
+                        <h5 class="mb-2">No orders found</h5>
+                        <p class="mb-0">Try another tab or search term.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <section class="ops-mobile-shell">
+        <div class="ops-mobile-topbar">
+            <h1>My Orders</h1>
+            <div class="ops-mobile-toolbar">
+                <form method="get" action="{% url 'order_management' %}" class="flex-grow-1">
+                    <input type="hidden" name="tab" value="{{ active_tab }}">
+                    <input type="text" name="q" value="{{ filters.q }}" class="ops-mobile-search" placeholder="Search order, customer, or phone">
+                </form>
+                {% if can_sync_orders %}
+                    <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="return_to" value="order_management">
+                        <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                        <button type="submit" class="ops-mobile-sync-btn">Sync</button>
+                    </form>
+                {% else %}
+                    <button type="button" class="ops-mobile-sync-btn is-secondary" disabled>Sync</button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="ops-mobile-tabs">
+            {% for tab in status_tabs %}
+                <a href="{% url 'order_management' %}?tab={{ tab.key }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}" class="ops-mobile-tab {% if active_tab == tab.key %}is-active{% endif %}">
+                    <strong>{{ tab.label }}</strong>
+                    <span>{{ status_counts|get_item:tab.key }}</span>
+                </a>
+            {% endfor %}
+        </div>
+
+        {% if tab_orders %}
+            <div class="ops-order-list">
+                {% for item in tab_orders %}
+                    <a href="{% url 'order_detail' item.order.pk %}?tab={{ active_tab }}" class="ops-order-card">
+                        <div class="ops-order-card-body">
+                            <div class="ops-order-card-head">
+                                <div>
+                                    <div class="ops-order-id">Order Id: #{{ item.order.shiprocket_order_id }}</div>
+                                    <div class="ops-order-customer">{{ item.order.display_shipping_address.name|default:item.order.customer_name|default:"Unknown Customer" }}</div>
+                                    <div class="ops-order-address">{{ item.order.display_shipping_address.address_1|default:"Address not available"|truncatechars:42 }}</div>
+                                </div>
+                                <div>
+                                    <div class="ops-order-status">{{ item.order.get_local_status_display }}</div>
+                                    <span class="ops-order-items">{{ item.order.order_items|length }} Item{{ item.order.order_items|length|pluralize }}</span>
+                                    <span class="ops-order-total">Rs {{ item.order.total|floatformat:0 }}</span>
+                                </div>
+                            </div>
+                            <div class="ops-order-payment">{{ item.order.payment_method|default:"Cash on Delivery" }}</div>
+                            <div class="ops-order-card-meta">
+                                <div>
+                                    {{ item.order.order_date|date:"d-m-Y g:i a" }}
+                                    <strong class="ms-1">Delivery</strong>
+                                </div>
+                                <div>
+                                    Details <span class="ops-order-card-chevron">&#8250;</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="ops-order-empty">
+                <h5 class="mb-2">No orders found</h5>
+                <p class="mb-0">Try a different tab or search term.</p>
+            </div>
+        {% endif %}
+
+        <div class="ops-mobile-bottomnav">
+            <a href="{% url 'order_management' %}" class="is-active">
+                <span class="ops-mobile-bottomnav-label">My Orders</span>
+            </a>
+            {% if can_sync_orders %}
+                <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="return_to" value="order_management">
+                    <input type="hidden" name="return_query" value="{{ page_base_query }}">
+                    <button type="submit">
+                        <span class="ops-mobile-bottomnav-label">Sync</span>
+                    </button>
+                </form>
+            {% else %}
+                <button type="button" disabled>
+                    <span class="ops-mobile-bottomnav-label">Sync</span>
+                </button>
+            {% endif %}
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit">
+                    <span class="ops-mobile-bottomnav-label">Logout</span>
+                </button>
+            </form>
+        </div>
+    </section>
+</div>
+{% endblock %}

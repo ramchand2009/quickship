@@ -1,6 +1,14 @@
 from django.db import models
 
 
+def normalize_sku(value):
+    return str(value or "").strip().upper()
+
+
+def normalize_barcode(value):
+    return str(value or "").strip()
+
+
 class Project(models.Model):
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
@@ -275,6 +283,79 @@ class ShiprocketOrder(models.Model):
         }
 
 
+class Product(models.Model):
+    name = models.CharField(max_length=160)
+    sku = models.CharField(max_length=120, unique=True)
+    barcode = models.CharField(max_length=120, blank=True, null=True, unique=True)
+    stock_quantity = models.IntegerField(default=0)
+    reorder_level = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "sku"]
+
+    def __str__(self):
+        return f"{self.name} ({self.sku})"
+
+    @property
+    def is_low_stock(self):
+        return self.stock_quantity <= int(self.reorder_level or 0)
+
+    def save(self, *args, **kwargs):
+        self.sku = normalize_sku(self.sku)
+        barcode_value = normalize_barcode(self.barcode)
+        self.barcode = barcode_value or None
+        super().save(*args, **kwargs)
+
+
+class StockMovement(models.Model):
+    TYPE_MANUAL_ADD = "manual_add"
+    TYPE_MANUAL_REMOVE = "manual_remove"
+    TYPE_MANUAL_SET = "manual_set"
+    TYPE_ORDER_ACCEPTED = "order_accepted"
+    TYPE_ORDER_CANCELLED = "order_cancelled"
+    TYPE_CHOICES = [
+        (TYPE_MANUAL_ADD, "Manual Add"),
+        (TYPE_MANUAL_REMOVE, "Manual Remove"),
+        (TYPE_MANUAL_SET, "Manual Set"),
+        (TYPE_ORDER_ACCEPTED, "Order Accepted Deduction"),
+        (TYPE_ORDER_CANCELLED, "Order Cancelled Restore"),
+    ]
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="stock_movements",
+    )
+    order = models.ForeignKey(
+        ShiprocketOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="stock_movements",
+    )
+    shiprocket_order_id = models.CharField(max_length=64, blank=True)
+    movement_type = models.CharField(max_length=32, choices=TYPE_CHOICES)
+    quantity_delta = models.IntegerField()
+    quantity_before = models.IntegerField(default=0)
+    quantity_after = models.IntegerField(default=0)
+    sku_snapshot = models.CharField(max_length=120, blank=True)
+    barcode_snapshot = models.CharField(max_length=120, blank=True)
+    reference_key = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    notes = models.TextField(blank=True)
+    triggered_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        direction = "+" if self.quantity_delta >= 0 else ""
+        return f"{self.product.sku} | {direction}{self.quantity_delta} | {self.movement_type}"
+
+
 class OrderActivityLog(models.Model):
     EVENT_STATUS_CHANGE = "status_change"
     EVENT_MANUAL_UPDATE = "manual_update"
@@ -285,6 +366,9 @@ class OrderActivityLog(models.Model):
     EVENT_WHATSAPP_QUEUE_SKIPPED = "whatsapp_queue_skipped"
     EVENT_WHATSAPP_WEBHOOK = "whatsapp_webhook"
     EVENT_LABEL_PRINTED = "label_printed"
+    EVENT_STOCK_DEDUCTED = "stock_deducted"
+    EVENT_STOCK_RESTORED = "stock_restored"
+    EVENT_STOCK_WARNING = "stock_warning"
     EVENT_CHOICES = [
         (EVENT_STATUS_CHANGE, "Status Change"),
         (EVENT_MANUAL_UPDATE, "Manual Update"),
@@ -295,6 +379,9 @@ class OrderActivityLog(models.Model):
         (EVENT_WHATSAPP_QUEUE_SKIPPED, "WhatsApp Skipped"),
         (EVENT_WHATSAPP_WEBHOOK, "WhatsApp Webhook"),
         (EVENT_LABEL_PRINTED, "Label Printed"),
+        (EVENT_STOCK_DEDUCTED, "Stock Deducted"),
+        (EVENT_STOCK_RESTORED, "Stock Restored"),
+        (EVENT_STOCK_WARNING, "Stock Warning"),
     ]
 
     order = models.ForeignKey(

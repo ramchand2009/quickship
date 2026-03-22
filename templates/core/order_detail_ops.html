@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+
+{% block title %}Order Details | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+    body.ops-mobile-layout .pcoded-header,
+    body.ops-mobile-layout .pcoded-navbar {
+        display: none !important;
+    }
+
+    body.ops-mobile-layout .pcoded-main-container {
+        margin-left: 0;
+        padding-top: 0;
+    }
+
+    body.ops-mobile-layout .pcoded-content,
+    body.ops-mobile-layout .page-wrapper {
+        padding: 0;
+    }
+
+    .ops-detail-shell {
+        min-height: 100vh;
+        background: linear-gradient(180deg, #f7f8fb 0%, #eef1f7 100%);
+        padding-bottom: 6rem;
+    }
+
+    .ops-detail-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        padding: 0.9rem 1rem 1rem;
+        display: grid;
+        grid-template-columns: 56px 1fr 56px;
+        align-items: center;
+    }
+
+    .ops-detail-topbar h1 {
+        margin: 0;
+        text-align: center;
+        font-size: 1.95rem;
+        font-weight: 700;
+        color: #161b22;
+    }
+
+    .ops-detail-back {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        color: #1f2933;
+        text-decoration: none;
+        font-size: 1.8rem;
+    }
+
+    .ops-detail-stepper {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.7rem;
+        padding: 1rem 1rem 0.4rem;
+    }
+
+    .ops-detail-step {
+        position: relative;
+        text-align: center;
+        background: #e7eaee;
+        color: #2f3b52;
+        font-weight: 600;
+        padding: 1rem 0.25rem;
+        clip-path: polygon(0 0, 84% 0, 100% 50%, 84% 100%, 0 100%, 12% 50%);
+    }
+
+    .ops-detail-step.is-active,
+    .ops-detail-step.is-complete {
+        background: #a8e9fb;
+        color: #172330;
+    }
+
+    .ops-detail-body {
+        padding: 0.8rem 0.8rem 1rem;
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .ops-detail-card {
+        background: #fff;
+        border-radius: 1.2rem;
+        padding: 1.2rem 1rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(15, 23, 42, 0.05);
+    }
+
+    .ops-detail-headline {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        color: #7b8794;
+        font-size: 1rem;
+    }
+
+    .ops-detail-order-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        margin-top: 0.9rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px dashed rgba(148, 163, 184, 0.35);
+    }
+
+    .ops-detail-order-row h2 {
+        margin: 0;
+        font-size: 1rem;
+        color: #4b5563;
+        font-weight: 500;
+    }
+
+    .ops-detail-status-badge {
+        color: #057a91;
+        font-size: 1.05rem;
+        font-weight: 800;
+        text-align: right;
+    }
+
+    .ops-detail-section-title {
+        margin: 1.05rem 0 0.8rem;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #243042;
+    }
+
+    .ops-detail-address {
+        color: #4b5563;
+        font-size: 1rem;
+        line-height: 1.55;
+    }
+
+    .ops-detail-contact-actions {
+        display: flex;
+        gap: 0.7rem;
+        margin-top: 1rem;
+    }
+
+    .ops-detail-contact-actions a {
+        width: 52px;
+        height: 52px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        text-decoration: none;
+        font-size: 1.3rem;
+        font-weight: 700;
+    }
+
+    .ops-detail-contact-actions .is-whatsapp {
+        background: #15c45a;
+        color: #fff;
+    }
+
+    .ops-detail-contact-actions .is-phone {
+        background: #eef2f6;
+        color: #213247;
+    }
+
+    .ops-detail-inline-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        padding: 1rem 0;
+        border-top: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .ops-detail-pill {
+        display: inline-flex;
+        padding: 0.5rem 0.85rem;
+        border-radius: 0.7rem;
+        background: #f7d7f0;
+        color: #9b2480;
+        font-weight: 700;
+    }
+
+    .ops-detail-items-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .ops-detail-item {
+        display: grid;
+        grid-template-columns: 88px minmax(0, 1fr) auto;
+        gap: 0.9rem;
+        align-items: start;
+        padding: 1rem 0 0;
+    }
+
+    .ops-detail-thumb {
+        width: 88px;
+        height: 88px;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, #20c0f3 0%, #0496b7 100%);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.4rem;
+        overflow: hidden;
+    }
+
+    .ops-detail-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .ops-detail-item-name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #1f2933;
+        margin-bottom: 0.45rem;
+    }
+
+    .ops-detail-item-variant {
+        color: #6b7280;
+        font-size: 0.98rem;
+    }
+
+    .ops-detail-item-price {
+        text-align: right;
+        color: #1f2933;
+        font-weight: 700;
+        font-size: 1rem;
+    }
+
+    .ops-detail-item-qty {
+        display: inline-flex;
+        margin-top: 0.75rem;
+        padding: 0.4rem 0.7rem;
+        border-radius: 0.75rem;
+        background: #eef2f5;
+        color: #4b5563;
+        font-weight: 700;
+    }
+
+    .ops-detail-actions-card input[type="tel"],
+    .ops-detail-actions-card input[type="text"] {
+        width: 100%;
+        border: 0;
+        background: #f1f4fa;
+        border-radius: 0.9rem;
+        padding: 0.92rem 1rem;
+        font-size: 1rem;
+        margin-top: 0.8rem;
+    }
+
+    .ops-detail-action-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+        margin-top: 1rem;
+    }
+
+    .ops-detail-action-btn {
+        border: 0;
+        border-radius: 0.9rem;
+        padding: 0.95rem 0.8rem;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .ops-detail-action-btn.is-primary {
+        background: #0b84a5;
+        color: #fff;
+    }
+
+    .ops-detail-action-btn.is-secondary {
+        background: #e7eaee;
+        color: #334155;
+    }
+
+    .ops-detail-empty-actions {
+        color: #6b7280;
+        margin-top: 0.8rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-detail-shell">
+    <div class="ops-detail-topbar">
+        <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-detail-back">&#8592;</a>
+        <h1>Order Details</h1>
+        <span></span>
+    </div>
+
+    <div class="ops-detail-stepper">
+        <div class="ops-detail-step {% if ops_mobile_stage_key == 'pending' or ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'pending' %}is-active{% endif %}">Pending</div>
+        <div class="ops-detail-step {% if ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'accepted' %}is-active{% endif %}">Accepted</div>
+        <div class="ops-detail-step {% if ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'shipped' %}is-active{% endif %}">Shipped</div>
+        <div class="ops-detail-step {% if ops_mobile_stage_key == 'delivered' %}is-active is-complete{% endif %}">Delivered</div>
+    </div>
+
+    <div class="ops-detail-body">
+        <div class="ops-detail-card">
+            <div class="ops-detail-headline">
+                <span>{{ order.order_date|date:"d-m-Y g:i a" }}</span>
+                <span>{{ order.channel_order_id|default:"" }}</span>
+            </div>
+            <div class="ops-detail-order-row">
+                <h2>Order Id: {{ order.shiprocket_order_id }}</h2>
+                <div class="ops-detail-status-badge">{{ order.get_local_status_display }}</div>
+            </div>
+
+            <div class="ops-detail-section-title">Delivery Details</div>
+            <div class="ops-detail-address">
+                <div>{{ order.display_shipping_address.name|default:"-" }}</div>
+                <div>{{ order.display_shipping_address.phone|default:"-" }}</div>
+                <div>{{ order.display_shipping_address.email|default:"-" }}</div>
+                <div class="mt-2">
+                    {{ order.display_shipping_address.address_1|default:"-" }}
+                    {% if order.display_shipping_address.address_2 %}<br>{{ order.display_shipping_address.address_2 }}{% endif %}
+                    <br>{{ order.display_shipping_address.city|default:"-" }}
+                    {% if order.display_shipping_address.state %}<br>{{ order.display_shipping_address.state }}{% endif %}
+                    {% if order.display_shipping_address.pincode %} {{ order.display_shipping_address.pincode }}{% endif %}
+                </div>
+            </div>
+
+            <div class="ops-detail-contact-actions">
+                {% if order.display_shipping_address.phone %}
+                    <a href="https://wa.me/{{ order.display_shipping_address.phone|cut:'+' }}" target="_blank" rel="noopener" class="is-whatsapp">W</a>
+                    <a href="tel:{{ order.display_shipping_address.phone }}" class="is-phone">C</a>
+                {% endif %}
+            </div>
+
+            <div class="ops-detail-inline-row">
+                <div>
+                    <div class="fw-semibold">Payment Method</div>
+                </div>
+                <div class="ops-detail-pill">{{ order.payment_method|default:"Cash on Delivery" }}</div>
+            </div>
+        </div>
+
+        <div class="ops-detail-card">
+            <div class="ops-detail-items-head">
+                <h5 class="mb-0">Order Details</h5>
+                <span>{{ order.order_items|length }} Items</span>
+            </div>
+
+            {% for item in order.order_items %}
+                <div class="ops-detail-item">
+                    <div class="ops-detail-thumb">
+                        {% if item.image or item.image_url %}
+                            <img src="{{ item.image|default:item.image_url }}" alt="{{ item.name|default:'Product' }}">
+                        {% else %}
+                            {{ item.name|default:"P"|slice:":1"|upper }}
+                        {% endif %}
+                    </div>
+                    <div>
+                        <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
+                        <div class="ops-detail-item-variant">{{ item.sku|default:"" }}</div>
+                        <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
+                    </div>
+                    <div class="ops-detail-item-price">
+                        Rs {{ item.price|default:"0" }}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="mb-0 mt-3 text-muted">No order items available.</p>
+            {% endfor %}
+        </div>
+
+        <div class="ops-detail-card ops-detail-actions-card">
+            <h5 class="mb-0">Update Order</h5>
+            {% if can_update_order_status and ops_mobile_actions %}
+                <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" id="opsDetailStatusForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="active_tab" value="{{ return_tab|default:'all' }}">
+                    <input type="hidden" name="return_to" value="order_management">
+                    <input type="hidden" name="return_query" value="tab={{ return_tab|default:'all' }}">
+                    <input type="hidden" name="order-{{ order.pk }}-local_status" id="opsStatusTargetInput">
+                    <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput">
+                    <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
+                    <input type="tel" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone }}" placeholder="Customer phone for Accept action">
+                    <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Tracking number for Ship action">
+                    <div class="ops-detail-action-grid">
+                        {% for action in ops_mobile_actions %}
+                            <button
+                                type="submit"
+                                class="ops-detail-action-btn is-{{ action.tone }}"
+                                data-status-action
+                                data-status-value="{{ action.value }}"
+                                data-requires-phone="{% if action.requires_phone %}true{% else %}false{% endif %}"
+                                data-requires-tracking="{% if action.requires_tracking %}true{% else %}false{% endif %}"
+                                data-is-cancel="{% if action.is_cancel %}true{% else %}false{% endif %}"
+                            >
+                                {{ action.label }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                </form>
+            {% else %}
+                <div class="ops-detail-empty-actions">This order has no further status actions.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("opsDetailStatusForm");
+    if (!form) {
+        return;
+    }
+
+    const statusTargetInput = document.getElementById("opsStatusTargetInput");
+    const cancelReasonInput = document.getElementById("opsCancelReasonInput");
+    const phoneInput = document.getElementById("opsPhoneInput");
+    const trackingInput = document.getElementById("opsTrackingInput");
+    const buttons = Array.from(form.querySelectorAll("[data-status-action]"));
+
+    const normalizeTrackingNumber = function (rawValue) {
+        return String(rawValue || "")
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "")
+            .trim();
+    };
+
+    const setFieldVisibility = function (button) {
+        const needsPhone = button.getAttribute("data-requires-phone") === "true";
+        const needsTracking = button.getAttribute("data-requires-tracking") === "true";
+        if (phoneInput) {
+            phoneInput.style.display = needsPhone ? "block" : "none";
+            phoneInput.required = needsPhone;
+        }
+        if (trackingInput) {
+            trackingInput.style.display = needsTracking ? "block" : "none";
+            trackingInput.required = needsTracking;
+        }
+    };
+
+    buttons.forEach(function (button, index) {
+        if (index === 0) {
+            setFieldVisibility(button);
+        }
+        button.addEventListener("click", function (event) {
+            const targetStatus = button.getAttribute("data-status-value") || "";
+            const needsPhone = button.getAttribute("data-requires-phone") === "true";
+            const needsTracking = button.getAttribute("data-requires-tracking") === "true";
+            const isCancel = button.getAttribute("data-is-cancel") === "true";
+            setFieldVisibility(button);
+            if (statusTargetInput) {
+                statusTargetInput.value = targetStatus;
+            }
+            if (cancelReasonInput) {
+                cancelReasonInput.value = isCancel ? "other" : "";
+            }
+            if (phoneInput && needsPhone) {
+                const digits = String(phoneInput.value || "").replace(/\D/g, "");
+                if (digits.length < 10) {
+                    event.preventDefault();
+                    phoneInput.focus();
+                    window.alert("Enter customer phone before accepting the order.");
+                    return;
+                }
+            }
+            if (trackingInput && needsTracking) {
+                trackingInput.value = normalizeTrackingNumber(trackingInput.value);
+                if (trackingInput.value.length !== 13) {
+                    event.preventDefault();
+                    trackingInput.focus();
+                    window.alert("Enter a 13 character tracking number before shipping.");
+                    return;
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

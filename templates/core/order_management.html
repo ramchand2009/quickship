@@ -18,7 +18,9 @@
         </div>
         <ul class="breadcrumb mb-4">
             <li class="breadcrumb-item"><a href="#!"><i class="feather icon-home"></i></a></li>
-            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            {% if is_ops_admin %}
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            {% endif %}
             <li class="breadcrumb-item">Order Management</li>
         </ul>
     </div>
@@ -68,7 +70,7 @@
 
                 <div class="order-management-sticky mb-3">
                     <div class="card-header-right order-management-actions d-flex gap-2 align-items-center mb-2">
-                        {% if can_edit_operations %}
+                        {% if can_sync_orders %}
                             <form method="post" action="{% url 'sync_shiprocket_orders' %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="return_to" value="order_management">
@@ -81,12 +83,14 @@
                             <a class="btn btn-sm btn-outline-primary" href="{% url 'login' %}">Login to Sync</a>
                         {% endif %}
 
+                        {% if is_ops_admin %}
                         <a class="btn btn-sm btn-outline-secondary" href="{% url 'print_queue' %}">Print Queue</a>
                         {% if active_tab == "order_accepted" %}
                             <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_queue' %}">Packing Queue</a>
                         {% endif %}
                         {% if active_tab == "order_packed" and tab_filter_count %}
                             <a class="btn btn-sm btn-primary" href="{% url 'bulk_shipping_labels_4x6' %}?status=order_packed" target="_blank" rel="noopener">Bulk Label ST-4</a>
+                        {% endif %}
                         {% endif %}
 
                         <form method="get" action="{% url 'order_management_export_csv' %}" class="d-flex">
@@ -266,9 +270,9 @@
                                 {% for item in tab_orders %}
                                     <tr class="order-data-row" data-order-row="{{ item.order.pk }}" data-row-index="{{ forloop.counter0 }}" tabindex="-1">
                                         <td class="text-center align-middle order-mobile-select-cell" data-label="Select">
-                                            {% if can_edit_operations %}
-                                                <input type="checkbox" class="bulk-order-checkbox" value="{{ item.order.pk }}">
-                                            {% endif %}
+                                        {% if can_update_order_status %}
+                                            <input type="checkbox" class="bulk-order-checkbox" value="{{ item.order.pk }}">
+                                        {% endif %}
                                         </td>
                                         <td data-label="Order ID">
                                             <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.shiprocket_order_id }}</a>
@@ -302,7 +306,7 @@
                                         <td class="order-move-cell" data-label="Move Order">
                                             {% if item.order.local_status == "completed" or item.order.local_status == "order_cancelled" %}
                                                 <span class="text-muted small">Status locked</span>
-                                            {% elif can_edit_operations %}
+                                            {% elif can_update_order_status %}
                                                 <form method="post" action="{% url 'update_shiprocket_order_status' item.order.pk %}" class="d-flex flex-column gap-2 status-update-form" data-row-update-form>
                                                     {% csrf_token %}
                                                     <input type="hidden" name="active_tab" value="{{ active_tab }}">
@@ -350,10 +354,10 @@
                                                     <span class="text-muted small ms-1">Read-only</span>
                                                 {% endif %}
                                                 <button type="button" class="btn btn-sm btn-outline-info" data-activity-toggle="{{ item.order.pk }}">Activity</button>
-                                                {% if active_tab == "order_accepted" %}
+                                                {% if is_ops_admin and active_tab == "order_accepted" %}
                                                     <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_list' item.order.pk %}" target="_blank" rel="noopener">Packing</a>
                                                 {% endif %}
-                                                {% if item.order.local_status == "order_packed" %}
+                                                {% if is_ops_admin and item.order.local_status == "order_packed" %}
                                                     <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' item.order.pk %}" target="_blank" rel="noopener">Label</a>
                                                 {% endif %}
                                             </div>

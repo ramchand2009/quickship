@@ -14,12 +14,14 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .forms import ShiprocketOrderStatusForm
+from .forms import ShiprocketOrderStatusForm, StockAdjustmentForm
 from .models import (
     OrderActivityLog,
+    Product,
     Project,
     SenderAddress,
     ShiprocketOrder,
+    StockMovement,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -151,6 +153,141 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
                 previous_status=ShiprocketOrder.STATUS_NEW,
                 current_status=ShiprocketOrder.STATUS_ACCEPTED,
                 is_success=True,
+            ).exists()
+        )
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_accept_status_deducts_stock_by_matching_sku(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        product = Product.objects.create(
+            name="Moringa Powder",
+            sku="SKU-ACCEPT-1",
+            barcode="890000000001",
+            stock_quantity=12,
+            reorder_level=2,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STOCK-ACCEPT-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            order_items=[
+                {"sku": "sku-accept-1", "quantity": 3},
+                {"sku": "SKU-ACCEPT-1", "quantity": 2},
+            ],
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertEqual(product.stock_quantity, 7)
+        movement = StockMovement.objects.get(
+            order=order,
+            product=product,
+            movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+        )
+        self.assertEqual(movement.quantity_delta, -5)
+        self.assertContains(response, "stock deducted for 1 SKU")
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_cancelled_status_restores_stock_after_previous_accept(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        product = Product.objects.create(
+            name="Cold Pressed Oil",
+            sku="SKU-CANCEL-1",
+            barcode="890000000002",
+            stock_quantity=20,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STOCK-CANCEL-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            order_items=[{"sku": "SKU-CANCEL-1", "quantity": 4}],
+        )
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_CANCELLED,
+                f"order-{order.pk}-cancellation_reason": ShiprocketOrder.CANCEL_REASON_CUSTOMER_REQUEST,
+            },
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_CANCELLED)
+        self.assertEqual(product.stock_quantity, 20)
+        self.assertTrue(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_CANCELLED,
+                quantity_delta=4,
+            ).exists()
+        )
+        self.assertContains(response, "stock restored for 1 SKU")
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_cancel_from_new_order_does_not_restore_without_prior_accept(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        product = Product.objects.create(
+            name="Turmeric",
+            sku="SKU-CANCEL-NEW-1",
+            stock_quantity=9,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STOCK-CANCEL-NEW-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            order_items=[{"sku": "SKU-CANCEL-NEW-1", "quantity": 2}],
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_CANCELLED,
+                f"order-{order.pk}-cancellation_reason": ShiprocketOrder.CANCEL_REASON_CUSTOMER_REQUEST,
+            },
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(product.stock_quantity, 9)
+        self.assertFalse(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_CANCELLED,
             ).exists()
         )
 
@@ -843,6 +980,12 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertNotContains(response, "Never")
 
     def test_home_shows_action_sections_and_work_queues(self):
+        Product.objects.create(
+            name="Low Stock Powder",
+            sku="SKU-HOME-LOW-1",
+            stock_quantity=2,
+            reorder_level=5,
+        )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-HOME-NEW-1",
             local_status=ShiprocketOrder.STATUS_NEW,
@@ -880,6 +1023,8 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, "Status Shortcuts")
         self.assertContains(response, "Action Center")
         self.assertContains(response, "Needs Acceptance")
+        self.assertContains(response, "Low Stock Items")
+        self.assertContains(response, "Open Stock Management")
         self.assertContains(response, "Packing Checklist Blockers")
         self.assertContains(response, "Ready to Print")
         self.assertContains(response, "SR-HOME-NEW-1")
@@ -889,6 +1034,7 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, packed_order.shiprocket_order_id)
         self.assertContains(response, "orders-dashboard-shell")
         self.assertContains(response, "dashboard-shortcuts-row")
+        self.assertContains(response, reverse("stock_management"))
 
     def test_home_shows_queue_diagnostics_widgets(self):
         WhatsAppNotificationQueue.objects.create(
@@ -2228,7 +2374,13 @@ class RoleAccessTests(TestCase):
         self.admin = get_user_model().objects.create_user(username="opsadmin", password="testpass123")
         self.admin.groups.add(self.admin_group)
 
-    def test_ops_viewer_cannot_update_order_status(self):
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_ops_viewer_can_update_order_status(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-1",
             local_status=ShiprocketOrder.STATUS_NEW,
@@ -2245,8 +2397,8 @@ class RoleAccessTests(TestCase):
         )
 
         order.refresh_from_db()
-        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
-        self.assertContains(response, "read-only access")
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertContains(response, "Order moved to the selected tab.")
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_admin_group_can_update_order_status(self, mock_enqueue_whatsapp_notification):
@@ -2272,6 +2424,251 @@ class RoleAccessTests(TestCase):
 
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+
+    def test_ops_viewer_home_redirects_to_order_management(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertRedirects(response, reverse("order_management"))
+
+    def test_ops_viewer_sidebar_only_shows_order_management(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-LIST-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            customer_name="Viewer Mobile",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Viewer Mobile", "address_1": "Sample Street 1"},
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("order_management"))
+        self.assertContains(response, "My Orders")
+        self.assertContains(response, "ops-desktop-shell")
+        self.assertContains(response, "Sort by: Latest Order")
+        self.assertContains(response, f'order-{order.pk}-manual_customer_phone')
+        self.assertContains(response, "Customer phone for Accept action")
+        self.assertContains(response, "ops-order-card")
+        self.assertContains(response, reverse("order_detail", args=[order.pk]))
+        self.assertNotContains(response, 'data-row-update-form', html=False)
+        self.assertNotContains(response, reverse("stock_management"))
+        self.assertNotContains(response, reverse("print_queue"))
+        self.assertNotContains(response, reverse("admin_utilities"))
+
+    def test_ops_viewer_order_detail_uses_mobile_workflow_ui(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Mobile Detail",
+                "phone": "9876543210",
+                "email": "mobile@example.com",
+                "address_1": "42 Demo Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Soap Bar", "quantity": 2, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "pending"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Order Details")
+        self.assertContains(response, "ops-detail-step")
+        self.assertContains(response, "Accept Order")
+        self.assertContains(response, "Reject Order")
+
+    def test_ops_viewer_cannot_access_stock_management_screen(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("stock_management"), follow=True)
+
+        self.assertRedirects(response, reverse("order_management"))
+        self.assertContains(response, "only Order Management")
+
+    def test_admin_sidebar_shows_full_navigation(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("stock_management"))
+        self.assertContains(response, reverse("print_queue"))
+        self.assertContains(response, reverse("admin_utilities"))
+
+    @patch("core.views.sync_orders")
+    def test_ops_viewer_can_run_shiprocket_sync_from_order_management(self, mock_sync_orders):
+        mock_sync_orders.return_value = 3
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("sync_shiprocket_orders"),
+            {
+                "return_to": "order_management",
+                "return_query": "tab=new_order",
+            },
+            follow=True,
+        )
+
+        mock_sync_orders.assert_called_once()
+        self.assertRedirects(response, f"{reverse('order_management')}?tab=new_order#order-management-section")
+        self.assertContains(response, "Shiprocket sync completed. 3 orders refreshed.")
+
+    def test_ops_viewer_sees_sync_button_on_order_management(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sync")
+
+
+class StockManagementViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="stockuser", password="testpass123")
+        self.client.force_login(self.user)
+
+    def test_stock_management_can_create_product(self):
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "save_product",
+                "name": "Amla Juice",
+                "sku": "sku-create-1",
+                "barcode": "890000000010",
+                "stock_quantity": 14,
+                "reorder_level": 3,
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        product = Product.objects.get(sku="SKU-CREATE-1")
+        self.assertEqual(product.barcode, "890000000010")
+        self.assertEqual(product.stock_quantity, 14)
+        self.assertContains(response, "Saved product Amla Juice")
+
+    def test_stock_management_can_adjust_stock_by_barcode(self):
+        product = Product.objects.create(
+            name="Neem Powder",
+            sku="SKU-BARCODE-1",
+            barcode="890000000011",
+            stock_quantity=5,
+        )
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "890000000011",
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 4,
+                "notes": "Barcode scan add",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 9)
+        self.assertContains(response, "4 unit(s) added to Neem Powder")
+
+    def test_stock_management_add_remove_and_set_by_lookup(self):
+        product = Product.objects.create(
+            name="Herbal Tea",
+            sku="SKU-LOOKUP-1",
+            barcode="890000000012",
+            stock_quantity=8,
+        )
+
+        add_response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "SKU-LOOKUP-1",
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 3,
+                "notes": "Manual inbound",
+            },
+            follow=True,
+        )
+        self.assertRedirects(add_response, reverse("stock_management"))
+
+        remove_response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "890000000012",
+                "action": StockAdjustmentForm.ACTION_REMOVE,
+                "quantity": 2,
+                "notes": "Damaged units",
+            },
+            follow=True,
+        )
+        self.assertRedirects(remove_response, reverse("stock_management"))
+
+        set_response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "SKU-LOOKUP-1",
+                "action": StockAdjustmentForm.ACTION_SET,
+                "quantity": 15,
+                "notes": "Cycle count",
+            },
+            follow=True,
+        )
+        self.assertRedirects(set_response, reverse("stock_management"))
+
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 15)
+        self.assertContains(add_response, "3 unit(s) added to Herbal Tea")
+        self.assertContains(remove_response, "2 unit(s) removed from Herbal Tea")
+        self.assertContains(set_response, "Set stock for Herbal Tea")
+        self.assertEqual(
+            list(
+                StockMovement.objects.filter(product=product).values_list("movement_type", flat=True)
+            ),
+            [
+                StockMovement.TYPE_MANUAL_SET,
+                StockMovement.TYPE_MANUAL_REMOVE,
+                StockMovement.TYPE_MANUAL_ADD,
+            ],
+        )
+
+    def test_stock_management_set_same_quantity_shows_no_change_message(self):
+        product = Product.objects.create(
+            name="Spice Mix",
+            sku="SKU-NOCHANGE-1",
+            stock_quantity=6,
+        )
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "SKU-NOCHANGE-1",
+                "action": StockAdjustmentForm.ACTION_SET,
+                "quantity": 6,
+                "notes": "Cycle count no-op",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 6)
+        self.assertFalse(StockMovement.objects.filter(product=product).exists())
+        self.assertContains(response, "already 6. No change needed")
 
 
 class IntegrationSmokeTriggerViewTests(TestCase):

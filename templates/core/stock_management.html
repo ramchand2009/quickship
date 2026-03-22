@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+
+{% block title %}Stock Management{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Stock Management</h5>
+                            <p class="mb-0 text-muted">Manage products, scan barcodes, and keep stock in sync with accepted and cancelled orders.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                        <form method="get" class="d-inline-flex gap-2 align-items-center">
+                            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search name, SKU, barcode">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1" name="low" id="lowOnly" {% if low_only %}checked{% endif %}>
+                                <label class="form-check-label" for="lowOnly">Low only</label>
+                            </div>
+                            <button type="submit" class="btn btn-outline-primary">Filter</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xl-5 col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>{% if editing_product %}Edit Product{% else %}Add Product{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="save_product">
+                    <input type="hidden" name="product_id" value="{% if editing_product %}{{ editing_product.pk }}{% endif %}">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        {{ product_form.name }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SKU</label>
+                        {{ product_form.sku }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Barcode</label>
+                        <div class="input-group">
+                            {{ product_form.barcode }}
+                            <button type="button" class="btn btn-outline-secondary" data-scan-target="id_barcode">Scan</button>
+                        </div>
+                        <div class="form-text">Use camera scan or USB barcode scanner for quick entry.</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Opening Stock</label>
+                            {{ product_form.stock_quantity }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Low Stock Threshold</label>
+                            {{ product_form.reorder_level }}
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        {{ product_form.is_active }}
+                        <label class="form-check-label" for="{{ product_form.is_active.id_for_label }}">Active product</label>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" {% if not can_edit_operations %}disabled{% endif %}>Save Product</button>
+                        {% if editing_product %}
+                            <a href="{% url 'stock_management' %}" class="btn btn-outline-secondary">Cancel</a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Stock Update</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="adjust_stock">
+                    <div class="mb-3">
+                        <label class="form-label">Barcode or SKU</label>
+                        <div class="input-group">
+                            {{ stock_form.lookup_value }}
+                            <button type="button" class="btn btn-outline-secondary" data-scan-target="id_lookup_value">Scan</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Action</label>
+                            {{ stock_form.action }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Quantity</label>
+                            {{ stock_form.quantity }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        {{ stock_form.notes }}
+                    </div>
+                    <button type="submit" class="btn btn-success" {% if not can_edit_operations %}disabled{% endif %}>Apply Stock Update</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-7 col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Low Stock Products</h5>
+                <span class="badge bg-warning text-dark">{{ low_stock_products|length }}</span>
+            </div>
+            <div class="card-body">
+                {% if low_stock_products %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>SKU</th>
+                                    <th>Stock</th>
+                                    <th>Threshold</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in low_stock_products %}
+                                    <tr>
+                                        <td>{{ product.name }}</td>
+                                        <td>{{ product.sku }}</td>
+                                        <td>{{ product.stock_quantity }}</td>
+                                        <td>{{ product.reorder_level }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No products are currently at or below the low stock threshold.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Products</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>SKU</th>
+                                <th>Barcode</th>
+                                <th>Stock</th>
+                                <th>Threshold</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in products %}
+                                <tr>
+                                    <td>{{ product.name }}</td>
+                                    <td>{{ product.sku }}</td>
+                                    <td>{{ product.barcode|default:"-" }}</td>
+                                    <td>
+                                        <span class="{% if product.is_low_stock %}text-danger fw-bold{% endif %}">
+                                            {{ product.stock_quantity }}
+                                        </span>
+                                    </td>
+                                    <td>{{ product.reorder_level }}</td>
+                                    <td>
+                                        {% if product.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'stock_management' %}?edit={{ product.pk }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-muted">No products found.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Stock Movements</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Product</th>
+                                <th>Type</th>
+                                <th>Delta</th>
+                                <th>After</th>
+                                <th>Order</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movement in recent_movements %}
+                                <tr>
+                                    <td>{{ movement.created_at|date:"Y-m-d H:i" }}</td>
+                                    <td>{{ movement.product.name }}<div class="small text-muted">{{ movement.product.sku }}</div></td>
+                                    <td>{{ movement.get_movement_type_display }}</td>
+                                    <td>
+                                        <span class="{% if movement.quantity_delta < 0 %}text-danger{% else %}text-success{% endif %}">
+                                            {% if movement.quantity_delta > 0 %}+{% endif %}{{ movement.quantity_delta }}
+                                        </span>
+                                    </td>
+                                    <td>{{ movement.quantity_after }}</td>
+                                    <td>{{ movement.shiprocket_order_id|default:"-" }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-muted">No stock movements recorded yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const scanButtons = Array.from(document.querySelectorAll("[data-scan-target]"));
+    const scannerSupported = "mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices && "BarcodeDetector" in window;
+
+    const startScanForInput = async function (input) {
+        if (!input) {
+            return;
+        }
+        if (!scannerSupported) {
+            window.alert("Camera barcode scan is not supported here. Use a USB barcode scanner or type the code manually.");
+            input.focus();
+            return;
+        }
+
+        let detector;
+        try {
+            detector = new BarcodeDetector({
+                formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "itf", "codabar"],
+            });
+        } catch (error) {
+            window.alert("Unable to initialize barcode scanner in this browser.");
+            input.focus();
+            return;
+        }
+
+        let stream;
+        const overlay = document.createElement("div");
+        overlay.style.position = "fixed";
+        overlay.style.inset = "0";
+        overlay.style.background = "rgba(17, 24, 39, 0.86)";
+        overlay.style.zIndex = "2000";
+        overlay.style.display = "flex";
+        overlay.style.flexDirection = "column";
+        overlay.style.alignItems = "center";
+        overlay.style.justifyContent = "center";
+        overlay.style.padding = "16px";
+
+        const title = document.createElement("div");
+        title.textContent = "Point the camera at the barcode";
+        title.style.color = "#fff";
+        title.style.marginBottom = "12px";
+
+        const video = document.createElement("video");
+        video.setAttribute("autoplay", "autoplay");
+        video.setAttribute("playsinline", "playsinline");
+        video.style.width = "min(92vw, 520px)";
+        video.style.borderRadius = "12px";
+        video.style.background = "#000";
+
+        const stopButton = document.createElement("button");
+        stopButton.type = "button";
+        stopButton.className = "btn btn-outline-light mt-3";
+        stopButton.textContent = "Cancel Scan";
+
+        overlay.appendChild(title);
+        overlay.appendChild(video);
+        overlay.appendChild(stopButton);
+        document.body.appendChild(overlay);
+
+        const stop = function () {
+            if (stream) {
+                stream.getTracks().forEach(function (track) {
+                    track.stop();
+                });
+            }
+            overlay.remove();
+        };
+
+        stopButton.addEventListener("click", stop);
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } },
+                audio: false,
+            });
+            video.srcObject = stream;
+            await video.play();
+
+            const scanLoop = async function () {
+                try {
+                    const codes = await detector.detect(video);
+                    if (Array.isArray(codes) && codes.length && codes[0].rawValue) {
+                        input.value = codes[0].rawValue.trim();
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                        input.dispatchEvent(new Event("change", { bubbles: true }));
+                        stop();
+                        input.focus();
+                        return;
+                    }
+                } catch (error) {
+                    // Keep scanning until a code is found or user cancels.
+                }
+                if (document.body.contains(overlay)) {
+                    requestAnimationFrame(scanLoop);
+                }
+            };
+            requestAnimationFrame(scanLoop);
+        } catch (error) {
+            stop();
+            window.alert("Unable to access the camera. Use a USB barcode scanner or type the code manually.");
+            input.focus();
+        }
+    };
+
+    scanButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            const input = document.getElementById(button.getAttribute("data-scan-target"));
+            startScanForInput(input);
+        });
+    });
+});
+</script>
+{% endblock %}
