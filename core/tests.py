@@ -202,6 +202,52 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertContains(response, "stock deducted for 1 SKU")
 
     @patch("core.views.enqueue_whatsapp_notification")
+    def test_accept_status_deducts_stock_by_matching_smartbiz_product_id(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        product = Product.objects.create(
+            name="Goat Milk Soap",
+            sku="MTHKS01",
+            smartbiz_product_id="06d3d905-2768-4f8c-8ce5-22c7fed3c54d",
+            stock_quantity=10,
+            reorder_level=2,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STOCK-SMARTBIZ-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            order_items=[
+                {"sku": "06d3d905-2768-4f8c-8ce5-22c7fed3c54d", "quantity": 2},
+            ],
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertEqual(product.stock_quantity, 8)
+        self.assertTrue(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+                quantity_delta=-2,
+            ).exists()
+        )
+        self.assertContains(response, "stock deducted for 1 SKU")
+
+    @patch("core.views.enqueue_whatsapp_notification")
     def test_cancelled_status_restores_stock_after_previous_accept(self, mock_enqueue_whatsapp_notification):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": False,
@@ -2432,7 +2478,7 @@ class RoleAccessTests(TestCase):
 
         self.assertRedirects(response, reverse("order_management"))
 
-    def test_ops_viewer_sidebar_only_shows_order_management(self):
+    def test_ops_viewer_sidebar_shows_order_management_and_stock_management_only(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-LIST-1",
             local_status=ShiprocketOrder.STATUS_NEW,
@@ -2449,12 +2495,14 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "My Orders")
         self.assertContains(response, "ops-desktop-shell")
         self.assertContains(response, "Sort by: Latest Order")
+        self.assertContains(response, "Completed")
         self.assertContains(response, f'order-{order.pk}-manual_customer_phone')
         self.assertContains(response, "Customer phone for Accept action")
         self.assertContains(response, "ops-order-card")
         self.assertContains(response, reverse("order_detail", args=[order.pk]))
         self.assertNotContains(response, 'data-row-update-form', html=False)
-        self.assertNotContains(response, reverse("stock_management"))
+        self.assertContains(response, reverse("stock_management"))
+        self.assertContains(response, "Stock Management")
         self.assertNotContains(response, reverse("print_queue"))
         self.assertNotContains(response, reverse("admin_utilities"))
 
@@ -2486,13 +2534,76 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
 
-    def test_ops_viewer_cannot_access_stock_management_screen(self):
+    def test_ops_viewer_can_access_stock_management_screen(self):
         self.client.force_login(self.viewer)
 
-        response = self.client.get(reverse("stock_management"), follow=True)
+        response = self.client.get(reverse("stock_management"))
 
-        self.assertRedirects(response, reverse("order_management"))
-        self.assertContains(response, "only Order Management")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Stock Management")
+        self.assertContains(response, "Stock List")
+        self.assertContains(response, "Manage Stock")
+        self.assertContains(response, "ops-stock-shell")
+        self.assertContains(response, "Low Stock Products")
+        self.assertContains(response, "Stock Qty Table")
+
+    def test_ops_viewer_manage_stock_tab_shows_management_tools(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("stock_management"), {"view": "manage"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quick Stock Update")
+        self.assertContains(response, "Reconcile Accepted Orders")
+        self.assertContains(response, 'name="return_view" value="manage"', html=False)
+
+    def test_ops_viewer_completed_tab_shows_delivered_orders(self):
+        delivered_order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-COMPLETE-1",
+            local_status=ShiprocketOrder.STATUS_DELIVERED,
+            customer_name="Completed Customer",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Completed Customer", "address_1": "Completed Street"},
+        )
+        shipped_order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-SHIPPED-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            customer_name="Shipped Customer",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Shipped Customer", "address_1": "Shipped Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"), {"tab": "completed"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, delivered_order.shiprocket_order_id)
+        self.assertNotContains(response, shipped_order.shiprocket_order_id)
+
+    def test_ops_viewer_can_update_stock_from_stock_management(self):
+        product = Product.objects.create(
+            name="Viewer Stock Product",
+            sku="VIEW-STOCK-1",
+            stock_quantity=5,
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "VIEW-STOCK-1",
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 2,
+                "notes": "viewer stock update",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 7)
+        self.assertContains(response, "2 unit(s) added to Viewer Stock Product")
 
     def test_admin_sidebar_shows_full_navigation(self):
         self.client.force_login(self.admin)
@@ -2543,6 +2654,7 @@ class StockManagementViewTests(TestCase):
                 "form_action": "save_product",
                 "name": "Amla Juice",
                 "sku": "sku-create-1",
+                "smartbiz_product_id": "smartbiz-product-1",
                 "barcode": "890000000010",
                 "stock_quantity": 14,
                 "reorder_level": 3,
@@ -2554,6 +2666,7 @@ class StockManagementViewTests(TestCase):
         self.assertRedirects(response, reverse("stock_management"))
         product = Product.objects.get(sku="SKU-CREATE-1")
         self.assertEqual(product.barcode, "890000000010")
+        self.assertEqual(product.smartbiz_product_id, "smartbiz-product-1")
         self.assertEqual(product.stock_quantity, 14)
         self.assertContains(response, "Saved product Amla Juice")
 
@@ -2581,6 +2694,96 @@ class StockManagementViewTests(TestCase):
         product.refresh_from_db()
         self.assertEqual(product.stock_quantity, 9)
         self.assertContains(response, "4 unit(s) added to Neem Powder")
+
+    def test_stock_management_can_adjust_stock_by_smartbiz_product_id(self):
+        product = Product.objects.create(
+            name="SmartBiz Product",
+            sku="SKU-SMARTBIZ-1",
+            smartbiz_product_id="06d3d905-2768-4f8c-8ce5-22c7fed3c54d",
+            stock_quantity=7,
+        )
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "06d3d905-2768-4f8c-8ce5-22c7fed3c54d",
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 2,
+                "notes": "SmartBiz mapping lookup",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 9)
+        self.assertContains(response, "2 unit(s) added to SmartBiz Product")
+
+    def test_stock_management_can_bulk_map_smartbiz_ids_by_sku(self):
+        first_product = Product.objects.create(
+            name="Goat Milk Soap",
+            sku="MTHKS01",
+            stock_quantity=5,
+        )
+        second_product = Product.objects.create(
+            name="Aloe Vera Soap",
+            sku="MTHKS02",
+            stock_quantity=6,
+        )
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "bulk_map_smartbiz",
+                "mapping_text": (
+                    "MTHKS01,06d3d905-2768-4f8c-8ce5-22c7fed3c54d\n"
+                    "MTHKS02\tsecond-smartbiz-id"
+                ),
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        first_product.refresh_from_db()
+        second_product.refresh_from_db()
+        self.assertEqual(first_product.smartbiz_product_id, "06d3d905-2768-4f8c-8ce5-22c7fed3c54d")
+        self.assertEqual(second_product.smartbiz_product_id, "second-smartbiz-id")
+        self.assertContains(response, "Updated SmartBiz mapping for 2 product(s).")
+
+    def test_stock_management_can_reconcile_missing_stock_deduction_for_accepted_order(self):
+        product = Product.objects.create(
+            name="Goat Milk Soap",
+            sku="MTHKS01",
+            smartbiz_product_id="06d3d905-2768-4f8c-8ce5-22c7fed3c54d",
+            stock_quantity=10,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-RECON-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            order_items=[
+                {"sku": "06d3d905-2768-4f8c-8ce5-22c7fed3c54d", "quantity": 2},
+            ],
+        )
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {"form_action": "reconcile_stock"},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 8)
+        self.assertTrue(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+                quantity_delta=-2,
+            ).exists()
+        )
+        self.assertContains(response, "Reconciled missing stock deductions for 1 order(s).")
 
     def test_stock_management_add_remove_and_set_by_lookup(self):
         product = Product.objects.create(

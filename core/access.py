@@ -45,3 +45,9 @@ def can_update_order_status(user):
     if not getattr(user, "is_authenticated", False):
         return False
     return is_ops_admin(user) or is_ops_viewer(user)
+
+
+def can_manage_stock(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return is_ops_admin(user) or is_ops_viewer(user)

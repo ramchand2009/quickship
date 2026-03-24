@@ -260,8 +260,9 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ["name", "sku", "barcode", "stock_quantity", "reorder_level", "is_active"]
+        fields = ["name", "sku", "smartbiz_product_id", "barcode", "stock_quantity", "reorder_level", "is_active"]
         labels = {
+            "smartbiz_product_id": "SmartBiz Product/Variant ID",
             "stock_quantity": "Opening Stock",
             "reorder_level": "Low Stock Threshold",
             "is_active": "Active",
@@ -269,10 +270,11 @@ class ProductForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ["name", "sku", "barcode", "stock_quantity", "reorder_level"]:
+        for name in ["name", "sku", "smartbiz_product_id", "barcode", "stock_quantity", "reorder_level"]:
             self.fields[name].widget.attrs["class"] = "form-control"
         self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
         self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
+        self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "06d3d905-2768-4f8c-8ce5-22c7fed3c54d"
         self.fields["name"].widget.attrs["placeholder"] = "Product name"
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
 
@@ -287,7 +289,7 @@ class StockAdjustmentForm(forms.Form):
         (ACTION_SET, "Set Exact Qty"),
     ]
 
-    lookup_value = forms.CharField(label="Barcode or SKU", max_length=120)
+    lookup_value = forms.CharField(label="Barcode, SKU, or SmartBiz ID", max_length=160)
     action = forms.ChoiceField(choices=ACTION_CHOICES)
     quantity = forms.IntegerField(min_value=0)
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
@@ -295,7 +297,7 @@ class StockAdjustmentForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["lookup_value"].widget.attrs["class"] = "form-control"
-        self.fields["lookup_value"].widget.attrs["placeholder"] = "Scan barcode or type SKU"
+        self.fields["lookup_value"].widget.attrs["placeholder"] = "Scan barcode or type SKU / SmartBiz ID"
         self.fields["action"].widget.attrs["class"] = "form-select"
         self.fields["quantity"].widget.attrs["class"] = "form-control"
         self.fields["notes"].widget.attrs["class"] = "form-control"
@@ -303,8 +305,50 @@ class StockAdjustmentForm(forms.Form):
     def clean_lookup_value(self):
         value = str(self.cleaned_data.get("lookup_value") or "").strip()
         if not value:
-            raise forms.ValidationError("Scan or enter a barcode/SKU.")
+            raise forms.ValidationError("Scan or enter a barcode, SKU, or SmartBiz ID.")
         return value
+
+
+class BulkSmartbizMappingForm(forms.Form):
+    mapping_text = forms.CharField(
+        label="Bulk SmartBiz Mapping",
+        widget=forms.Textarea(attrs={"rows": 8}),
+        help_text="Paste one mapping per line in SKU,SmartBiz ID format.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["mapping_text"].widget.attrs["class"] = "form-control"
+        self.fields["mapping_text"].widget.attrs["placeholder"] = (
+            "MTHKS01,06d3d905-2768-4f8c-8ce5-22c7fed3c54d\n"
+            "MTHKS02,smartbiz-second-id"
+        )
+
+    def clean_mapping_text(self):
+        raw_value = str(self.cleaned_data.get("mapping_text") or "").strip()
+        if not raw_value:
+            raise forms.ValidationError("Paste at least one SKU to SmartBiz ID mapping.")
+        return raw_value
+
+    def parse_rows(self):
+        raw_value = self.cleaned_data.get("mapping_text") or ""
+        rows = []
+        for index, raw_line in enumerate(str(raw_value).splitlines(), start=1):
+            line = str(raw_line or "").strip()
+            if not line:
+                continue
+            if "\t" in line:
+                parts = [part.strip() for part in line.split("\t") if str(part).strip()]
+            else:
+                parts = [part.strip() for part in line.split(",") if str(part).strip()]
+            if len(parts) < 2:
+                raise forms.ValidationError(
+                    f"Line {index} is invalid. Use SKU,SmartBiz ID or tab-separated values."
+                )
+            rows.append({"sku": parts[0], "smartbiz_product_id": parts[1]})
+        if not rows:
+            raise forms.ValidationError("Paste at least one valid mapping row.")
+        return rows
 
 
 class WhatsAppApiSettingsForm(forms.ModelForm):

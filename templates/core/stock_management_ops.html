@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Stock Management | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+.ops-stock-shell { min-height:100vh; padding:0.45rem 0.85rem 6rem; background:radial-gradient(circle at top left, rgba(73,190,219,.16), transparent 32%), linear-gradient(180deg,#f8fbff 0%,#eef3f8 100%); display:flex; flex-direction:column; }
+.ops-stock-topbar, .ops-stock-actions, .ops-stock-card-head, .ops-stock-item-head, .ops-stock-bottomnav { display:flex; }
+.ops-stock-topbar, .ops-stock-card-head, .ops-stock-item-head { justify-content:space-between; align-items:flex-start; gap:.75rem; }
+.ops-stock-topbar { align-items:center; padding:.1rem 0 .65rem; border-bottom:1px solid rgba(15,23,42,.08); }
+.ops-stock-brand, .ops-stock-pill, .ops-stock-card, .ops-stock-summary-card, .ops-stock-item, .ops-stock-movement { background:rgba(255,255,255,.96); border:1px solid rgba(15,23,42,.08); box-shadow:0 14px 28px rgba(15,23,42,.06); }
+.ops-stock-brand, .ops-stock-pill { border-radius:999px; }
+.ops-stock-brand { display:inline-flex; align-items:center; gap:.7rem; padding:.48rem .8rem; }
+.ops-stock-brand-mark { width:38px; height:38px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#e1f8ee 0%,#b8efd5 100%); color:#1d684a; font-weight:800; }
+.ops-stock-brand-name { font-weight:700; color:#111827; }
+.ops-stock-actions { gap:.55rem; flex-wrap:wrap; justify-content:flex-end; }
+.ops-stock-pill, .ops-stock-actions button, .ops-stock-btn, .ops-stock-link-btn { padding:.8rem .95rem; text-decoration:none; font-weight:700; border-radius:.9rem; }
+.ops-stock-pill, .ops-stock-actions button { border:1px solid rgba(15,23,42,.1); color:#334155; }
+.ops-stock-header { padding:.7rem 0 .9rem; }
+.ops-stock-header h1 { margin:0; font-size:clamp(2rem,4vw,3rem); color:#0f172a; }
+.ops-stock-header p { margin:.45rem 0 0; color:#4b5563; }
+.ops-stock-header a { color:#1f6ea0; text-decoration:none; }
+.ops-stock-viewtabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; margin-bottom:1rem; }
+.ops-stock-viewtab { display:inline-flex; align-items:center; justify-content:center; padding:.85rem 1rem; border-radius:1rem; border:1px solid rgba(15,23,42,.08); background:rgba(255,255,255,.92); color:#475569; text-decoration:none; font-weight:700; box-shadow:0 12px 24px rgba(15,23,42,.05); }
+.ops-stock-viewtab.is-active { background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; border-color:transparent; }
+.ops-stock-summary, .ops-stock-main, .ops-stock-grid, .ops-stock-list, .ops-stock-row-2, .ops-stock-details { display:grid; gap:.9rem; }
+.ops-stock-summary { grid-template-columns:repeat(2, minmax(0,1fr)); margin-bottom:1rem; }
+.ops-stock-summary-card { border-radius:1.1rem; padding:.95rem 1rem; }
+.ops-stock-summary-card span { display:block; color:#64748b; font-size:.82rem; }
+.ops-stock-summary-card strong { display:block; margin-top:.25rem; font-size:1.4rem; color:#0f172a; }
+.ops-stock-card { border-radius:1.2rem; overflow:hidden; }
+.ops-stock-hero { background:linear-gradient(135deg, rgba(43,137,190,.12) 0%, rgba(255,255,255,.98) 65%); }
+.ops-stock-card-head { padding:.95rem 1rem .8rem; border-bottom:1px solid rgba(15,23,42,.06); }
+.ops-stock-card-head h3 { margin:0; font-size:1.04rem; color:#0f172a; }
+.ops-stock-card-head p { margin:.28rem 0 0; color:#64748b; font-size:.88rem; }
+.ops-stock-badge { display:inline-flex; align-items:center; justify-content:center; min-width:2.2rem; padding:.3rem .62rem; border-radius:999px; background:#eef2f7; color:#465468; font-size:.82rem; font-weight:700; }
+.ops-stock-badge.is-warning { background:#fff3c4; color:#8a5f00; }
+.ops-stock-card-body { padding:1rem; }
+.ops-stock-table-wrap { overflow-x:auto; }
+.ops-stock-table { width:100%; min-width:560px; border-collapse:collapse; }
+.ops-stock-table th, .ops-stock-table td { padding:.78rem .75rem; border-bottom:1px solid rgba(15,23,42,.08); text-align:left; vertical-align:top; }
+.ops-stock-table th { color:#475569; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; background:#f8fbff; }
+.ops-stock-table td { color:#172330; font-size:.94rem; }
+.ops-stock-table td strong { color:#0f172a; }
+.ops-stock-table tr:last-child td { border-bottom:0; }
+.ops-stock-table-status { display:inline-flex; align-items:center; padding:.24rem .58rem; border-radius:999px; background:#dcf4e9; color:#1d684a; font-size:.76rem; font-weight:700; }
+.ops-stock-table-status.is-inactive { background:#e7eaee; color:#52606d; }
+.ops-stock-table-stock.is-low { color:#c2410c; font-weight:800; }
+.ops-stock-field { margin-bottom:.85rem; }
+.ops-stock-field label { display:block; margin-bottom:.35rem; font-weight:700; color:#334155; }
+.ops-stock-field .form-control, .ops-stock-field .form-select { min-height:46px; border-radius:.85rem; border-color:#d4dbe5; }
+.ops-stock-field textarea.form-control { min-height:88px; }
+.ops-stock-row-2 { grid-template-columns:repeat(2, minmax(0,1fr)); }
+.ops-stock-check { display:inline-flex; align-items:center; gap:.55rem; padding:.8rem .95rem; border-radius:.9rem; background:#f8fafc; border:1px solid rgba(148,163,184,.35); color:#334155; font-weight:600; }
+.ops-stock-btn { border:0; width:100%; cursor:pointer; background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; }
+.ops-stock-link-btn { display:inline-flex; align-items:center; justify-content:center; border:2px solid #2a73a6; background:#fff; color:#2a73a6; width:100%; }
+.ops-stock-note { padding:.9rem 1rem; border-radius:1rem; background:#fff8df; color:#7c5a00; font-size:.9rem; }
+.ops-stock-item, .ops-stock-movement { border-radius:1rem; padding:.95rem 1rem; }
+.ops-stock-item-head h4 { margin:0; font-size:1.01rem; font-weight:700; color:#0f172a; }
+.ops-stock-meta { margin-top:.22rem; color:#475569; font-size:.9rem; word-break:break-word; }
+.ops-stock-qty { min-width:4.8rem; text-align:right; }
+.ops-stock-qty strong { display:block; font-size:1.5rem; color:#0f172a; line-height:1; }
+.ops-stock-qty span { display:block; margin-top:.2rem; color:#64748b; font-size:.84rem; }
+.ops-stock-qty.is-low strong { color:#c2410c; }
+.ops-stock-details { grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:.75rem; }
+.ops-stock-details span { display:block; color:#64748b; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+.ops-stock-details strong, .ops-stock-details code { display:block; margin-top:.12rem; color:#172330; word-break:break-word; }
+.ops-stock-chip { display:inline-flex; align-items:center; padding:.28rem .62rem; border-radius:999px; background:#dcf4e9; color:#1d684a; font-size:.79rem; font-weight:700; }
+.ops-stock-chip.is-inactive { background:#e7eaee; color:#52606d; }
+.ops-stock-card-actions { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.65rem; margin-top:.85rem; }
+.ops-stock-delta { font-weight:800; font-size:1rem; }
+.ops-stock-delta.is-positive { color:#15803d; }
+.ops-stock-delta.is-negative { color:#dc2626; }
+.ops-stock-empty { padding:1rem; border-radius:1rem; background:#f8fbff; color:#64748b; }
+.ops-stock-bottomnav { position:fixed; left:0; right:0; bottom:0; z-index:30; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.4rem; padding:.6rem .6rem calc(.7rem + env(safe-area-inset-bottom)); background:rgba(255,255,255,.98); border-top:1px solid rgba(15,23,42,.08); }
+.ops-stock-bottomnav a, .ops-stock-bottomnav button { border:0; background:transparent; text-align:center; color:#7b8794; text-decoration:none; padding:.3rem; }
+.ops-stock-bottomnav .is-active { color:#0b84a5; font-weight:700; }
+.ops-stock-bottomnav-label { display:block; margin-top:.2rem; }
+.ops-stock-topbar { order:1; }
+.ops-stock-header { order:2; }
+.ops-stock-viewtabs { order:3; }
+#opsQuickStockCard { order:4; }
+.ops-stock-summary { order:5; }
+.ops-stock-search-card { order:6; }
+.ops-stock-main { order:7; }
+.ops-stock-bottomnav { order:8; }
+@media (min-width: 1200px) { .ops-stock-shell { padding:.35rem 1.5rem 2rem; } .ops-stock-topbar { justify-content:flex-end; } .ops-stock-main { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); } .ops-stock-bottomnav { display:none; } }
+@media (max-width: 767px) { .ops-stock-summary, .ops-stock-row-2, .ops-stock-details, .ops-stock-card-actions { grid-template-columns:1fr; } .ops-stock-topbar, .ops-stock-item-head { flex-direction:column; align-items:stretch; } .ops-stock-actions { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .ops-stock-pill, .ops-stock-actions form, .ops-stock-actions form button { width:100%; } .ops-stock-qty { text-align:left; } .ops-stock-card-body { padding:.9rem; } .ops-stock-shell { padding:.4rem .7rem 6rem; } .ops-stock-header { padding:.55rem 0 .75rem; } .ops-stock-header p { margin-top:.35rem; } .ops-stock-check { padding:.65rem .8rem; } .ops-stock-viewtabs { gap:.55rem; } .ops-stock-viewtab { padding:.78rem .8rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-stock-shell">
+    <div class="ops-stock-topbar">
+        <div class="ops-stock-brand"><span class="ops-stock-brand-mark">MO</span><span class="ops-stock-brand-name">Mathukai Organic</span></div>
+        <div class="ops-stock-actions">
+            <a href="{% url 'order_management' %}" class="ops-stock-pill">Orders</a>
+            <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Logout</button></form>
+        </div>
+    </div>
+
+    <div class="ops-stock-header">
+        <h1>Stock</h1>
+        <p>Manage products, stock updates, and SmartBiz mappings with a simpler ops view. <a href="{% url 'stock_management' %}">Refresh View</a></p>
+    </div>
+
+    <div class="ops-stock-viewtabs">
+        <a href="{% url 'stock_management' %}?view=list" class="ops-stock-viewtab {% if active_view == 'list' %}is-active{% endif %}">Stock List</a>
+        <a href="{% url 'stock_management' %}?view=manage{% if editing_product %}&edit={{ editing_product.pk }}{% endif %}" class="ops-stock-viewtab {% if active_view == 'manage' %}is-active{% endif %}">Manage Stock</a>
+    </div>
+
+    {% if active_view == 'list' %}
+    <div class="ops-stock-card ops-stock-search-card">
+        <div class="ops-stock-card-head"><div><h3>Search Stock</h3><p>Filter by name, SKU, barcode, or SmartBiz ID.</p></div></div>
+        <div class="ops-stock-card-body">
+            <form method="get" action="{% url 'stock_management' %}">
+                <input type="hidden" name="view" value="list">
+                <div class="ops-stock-row-2">
+                    <div class="ops-stock-field"><label for="opsStockSearch">Search</label><input id="opsStockSearch" type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search stock"></div>
+                    <div class="ops-stock-field"><label for="lowOnlyStock">Filter</label><label class="ops-stock-check"><input id="lowOnlyStock" type="checkbox" name="low" value="1" {% if low_only %}checked{% endif %}>Low only</label></div>
+                </div>
+                <div class="ops-stock-row-2">
+                    <button type="submit" class="ops-stock-btn">Apply Filter</button>
+                    <a href="{% url 'stock_management' %}?view=list" class="ops-stock-link-btn">Clear Filter</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if active_view == 'manage' %}
+    <div id="opsQuickStockCard" class="ops-stock-card ops-stock-hero mt-3">
+        <div class="ops-stock-card-head"><div><h3>Quick Stock Update</h3><p>Use this first for daily stock changes. It is the fastest way to add, remove, or set quantity.</p></div></div>
+        <div class="ops-stock-card-body">
+            <form method="post">
+                {% csrf_token %}<input type="hidden" name="form_action" value="adjust_stock"><input type="hidden" name="return_view" value="manage">
+                <div class="ops-stock-field"><label for="{{ stock_form.lookup_value.id_for_label }}">Barcode, SKU, or SmartBiz ID</label>{{ stock_form.lookup_value }}</div>
+                <div class="ops-stock-row-2">
+                    <div class="ops-stock-field"><label for="{{ stock_form.action.id_for_label }}">Action</label>{{ stock_form.action }}</div>
+                    <div class="ops-stock-field"><label for="{{ stock_form.quantity.id_for_label }}">Quantity</label>{{ stock_form.quantity }}</div>
+                </div>
+                <div class="ops-stock-field"><label for="{{ stock_form.notes.id_for_label }}">Notes</label>{{ stock_form.notes }}</div>
+                <button type="submit" class="ops-stock-btn" {% if not can_edit_operations %}disabled{% endif %}>Apply Stock Update</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="ops-stock-summary">
+        <div class="ops-stock-summary-card"><span>Total products</span><strong>{{ products|length }}</strong></div>
+        <div class="ops-stock-summary-card"><span>Low stock items</span><strong>{{ low_stock_products|length }}</strong></div>
+    </div>
+
+    <div class="ops-stock-main mt-3">
+        {% if active_view == 'manage' %}
+        <div class="ops-stock-grid">
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>{% if editing_product %}Edit Product{% else %}Add Product{% endif %}</h3><p>Create products and keep SKU and SmartBiz mapping ready.</p></div></div>
+                <div class="ops-stock-card-body">
+                    <form method="post">
+                        {% csrf_token %}<input type="hidden" name="form_action" value="save_product"><input type="hidden" name="return_view" value="manage"><input type="hidden" name="product_id" value="{% if editing_product %}{{ editing_product.pk }}{% endif %}">
+                        <div class="ops-stock-field"><label for="{{ product_form.name.id_for_label }}">Name</label>{{ product_form.name }}</div>
+                        <div class="ops-stock-row-2">
+                            <div class="ops-stock-field"><label for="{{ product_form.sku.id_for_label }}">SKU</label>{{ product_form.sku }}</div>
+                            <div class="ops-stock-field"><label for="{{ product_form.smartbiz_product_id.id_for_label }}">SmartBiz Product/Variant ID</label>{{ product_form.smartbiz_product_id }}</div>
+                        </div>
+                        <div class="ops-stock-field"><label for="{{ product_form.barcode.id_for_label }}">Barcode</label>{{ product_form.barcode }}</div>
+                        <div class="ops-stock-row-2">
+                            <div class="ops-stock-field"><label for="{{ product_form.stock_quantity.id_for_label }}">Opening Stock</label>{{ product_form.stock_quantity }}</div>
+                            <div class="ops-stock-field"><label for="{{ product_form.reorder_level.id_for_label }}">Low Stock Threshold</label>{{ product_form.reorder_level }}</div>
+                        </div>
+                        <label class="ops-stock-check">{{ product_form.is_active }}Active product</label>
+                        <div class="ops-stock-row-2">
+                            <button type="submit" class="ops-stock-btn" {% if not can_edit_operations %}disabled{% endif %}>Save Product</button>
+                            {% if editing_product %}<a href="{% url 'stock_management' %}?view=manage" class="ops-stock-link-btn">Cancel Edit</a>{% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>Bulk SmartBiz Mapping</h3><p>Paste `SKU,SmartBiz ID` rows or spreadsheet columns.</p></div></div>
+                <div class="ops-stock-card-body">
+                    <form method="post">
+                        {% csrf_token %}<input type="hidden" name="form_action" value="bulk_map_smartbiz"><input type="hidden" name="return_view" value="manage">
+                        <div class="ops-stock-field"><label for="{{ mapping_form.mapping_text.id_for_label }}">Paste mapping rows</label>{{ mapping_form.mapping_text }}</div>
+                        <button type="submit" class="ops-stock-link-btn" {% if not can_edit_operations %}disabled{% endif %}>Update SmartBiz Mapping</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>Reconcile Accepted Orders</h3><p>Backfill missed stock deductions after new mappings are added.</p></div></div>
+                <div class="ops-stock-card-body">
+                    <div class="ops-stock-note">This creates missing deductions once and skips orders that already have stock movements.</div>
+                    <form method="post" class="mt-3">{% csrf_token %}<input type="hidden" name="form_action" value="reconcile_stock"><input type="hidden" name="return_view" value="manage"><button type="submit" class="ops-stock-link-btn" {% if not can_edit_operations %}disabled{% endif %}>Reconcile Missing Stock Deductions</button></form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="ops-stock-grid">
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>Stock Qty Table</h3><p>Quick list view for SKU, quantity, threshold, and status.</p></div></div>
+                <div class="ops-stock-card-body">
+                    {% if products %}
+                        <div class="ops-stock-table-wrap">
+                            <table class="ops-stock-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>SKU</th>
+                                        <th>Stock Qty</th>
+                                        <th>Threshold</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for product in products %}
+                                        <tr>
+                                            <td><strong>{{ product.name }}</strong></td>
+                                            <td>{{ product.sku }}</td>
+                                            <td class="ops-stock-table-stock {% if product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</td>
+                                            <td>{{ product.reorder_level }}</td>
+                                            <td>
+                                                {% if product.is_active %}
+                                                    <span class="ops-stock-table-status">Active</span>
+                                                {% else %}
+                                                    <span class="ops-stock-table-status is-inactive">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="ops-stock-empty">No products available for table view.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>Low Stock Products</h3><p>Items already at or below threshold.</p></div><span class="ops-stock-badge is-warning">{{ low_stock_products|length }}</span></div>
+                <div class="ops-stock-card-body">
+                    {% if low_stock_products %}
+                        <div class="ops-stock-list">
+                            {% for product in low_stock_products %}
+                                <div class="ops-stock-item">
+                                    <div class="ops-stock-item-head">
+                                        <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">SKU: {{ product.sku }}</div></div>
+                                        <div class="ops-stock-qty is-low"><strong>{{ product.stock_quantity }}</strong><span>Threshold {{ product.reorder_level }}</span></div>
+                                    </div>
+                                    <div class="ops-stock-details">
+                                        <div><span>SmartBiz ID</span><code>{{ product.smartbiz_product_id|default:"-" }}</code></div>
+                                        <div><span>Barcode</span><strong>{{ product.barcode|default:"-" }}</strong></div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}<div class="ops-stock-empty">No products are currently at or below the low stock threshold.</div>{% endif %}
+                </div>
+            </div>
+
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>Products</h3><p>Review stock, mapping, and edit products quickly.</p></div><span class="ops-stock-badge">{{ products|length }}</span></div>
+                <div class="ops-stock-card-body">
+                    {% if products %}
+                        <div class="ops-stock-list">
+                            {% for product in products %}
+                                <div class="ops-stock-item">
+                                    <div class="ops-stock-item-head">
+                                        <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">SKU: {{ product.sku }}</div><div class="ops-stock-meta">Barcode: {{ product.barcode|default:"-" }}</div></div>
+                                        <div class="ops-stock-qty {% if product.is_low_stock %}is-low{% endif %}"><strong>{{ product.stock_quantity }}</strong><span>Threshold {{ product.reorder_level }}</span></div>
+                                    </div>
+                                    <div class="ops-stock-details">
+                                        <div><span>SmartBiz ID</span><code>{{ product.smartbiz_product_id|default:"-" }}</code></div>
+                                        <div><span>Status</span><strong>{% if product.is_active %}<span class="ops-stock-chip">Active</span>{% else %}<span class="ops-stock-chip is-inactive">Inactive</span>{% endif %}</strong></div>
+                                    </div>
+                                    <div class="ops-stock-card-actions">
+                                        <a href="{% url 'stock_management' %}?view=manage" class="ops-stock-link-btn">Quick Update</a>
+                                        <a href="{% url 'stock_management' %}?view=manage&edit={{ product.pk }}" class="ops-stock-link-btn">Edit Product</a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}<div class="ops-stock-empty">No products found for the current filter.</div>{% endif %}
+                </div>
+            </div>
+
+            <div class="ops-stock-card">
+                <div class="ops-stock-card-head"><div><h3>Recent Stock Movements</h3><p>Latest automatic and manual changes.</p></div></div>
+                <div class="ops-stock-card-body">
+                    {% if recent_movements %}
+                        <div class="ops-stock-list">
+                            {% for movement in recent_movements %}
+                                <div class="ops-stock-movement">
+                                    <div class="ops-stock-item-head">
+                                        <div><div><strong>{{ movement.get_movement_type_display }}</strong></div><div class="ops-stock-meta">{{ movement.product.name }} | {{ movement.product.sku }}</div><div class="ops-stock-meta">{{ movement.created_at|date:"Y-m-d H:i" }}</div></div>
+                                        <div class="ops-stock-delta {% if movement.quantity_delta < 0 %}is-negative{% else %}is-positive{% endif %}">{% if movement.quantity_delta > 0 %}+{% endif %}{{ movement.quantity_delta }}</div>
+                                    </div>
+                                    <div class="ops-stock-details">
+                                        <div><span>After</span><strong>{{ movement.quantity_after }}</strong></div>
+                                        <div><span>Order</span><strong>{{ movement.shiprocket_order_id|default:"-" }}</strong></div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}<div class="ops-stock-empty">No stock movements recorded yet.</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ops-stock-bottomnav">
+        <a href="{% url 'order_management' %}"><span class="ops-stock-bottomnav-label">Orders</span></a>
+        <a href="{% url 'stock_management' %}" class="is-active"><span class="ops-stock-bottomnav-label">Stock</span></a>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><span class="ops-stock-bottomnav-label">Logout</span></button></form>
+    </div>
+</div>
+{% endblock %}

@@ -111,6 +111,14 @@ def _extract_items(item):
             {
                 "name": product.get("name") or product.get("product_name") or "",
                 "sku": product.get("sku") or product.get("channel_sku") or "",
+                "channel_sku": product.get("channel_sku") or "",
+                "channel_product_id": (
+                    product.get("channel_product_id")
+                    or product.get("product_id")
+                    or product.get("variant_id")
+                    or product.get("id")
+                    or ""
+                ),
                 "quantity": product.get("units") or product.get("quantity") or 0,
                 "price": str(_to_decimal(product.get("selling_price") or product.get("price"))),
             }

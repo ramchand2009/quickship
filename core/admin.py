@@ -64,9 +64,18 @@ class SenderAddressAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "sku", "barcode", "stock_quantity", "reorder_level", "is_active", "updated_at")
+    list_display = (
+        "name",
+        "sku",
+        "smartbiz_product_id",
+        "barcode",
+        "stock_quantity",
+        "reorder_level",
+        "is_active",
+        "updated_at",
+    )
     list_filter = ("is_active",)
-    search_fields = ("name", "sku", "barcode")
+    search_fields = ("name", "sku", "smartbiz_product_id", "barcode")
 
 
 @admin.register(StockMovement)

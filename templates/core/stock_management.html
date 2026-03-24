@@ -16,7 +16,7 @@
                     </div>
                     <div class="col-md-4 text-md-end mt-3 mt-md-0">
                         <form method="get" class="d-inline-flex gap-2 align-items-center">
-                            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search name, SKU, barcode">
+                            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search name, SKU, barcode, SmartBiz ID">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" value="1" name="low" id="lowOnly" {% if low_only %}checked{% endif %}>
                                 <label class="form-check-label" for="lowOnly">Low only</label>
@@ -56,6 +56,11 @@
                             <button type="button" class="btn btn-outline-secondary" data-scan-target="id_barcode">Scan</button>
                         </div>
                         <div class="form-text">Use camera scan or USB barcode scanner for quick entry.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SmartBiz Product/Variant ID</label>
+                        {{ product_form.smartbiz_product_id }}
+                        <div class="form-text">Map the SmartBiz internal product or variant ID from the product URL/order item so stock can match incoming orders.</div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -114,6 +119,43 @@
                 </form>
             </div>
         </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Bulk SmartBiz Mapping</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="bulk_map_smartbiz">
+                    <div class="mb-3">
+                        <label class="form-label">Paste SKU and SmartBiz ID</label>
+                        {{ mapping_form.mapping_text }}
+                        <div class="form-text">Use one line per product: <code>SKU,SmartBiz ID</code> or paste two columns from a spreadsheet.</div>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary" {% if not can_edit_operations %}disabled{% endif %}>Update SmartBiz Mapping</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Reconcile Accepted Orders</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Use this after adding SmartBiz mappings for products that already had accepted or completed orders.
+                    It backfills missing stock deductions once and skips orders that were already deducted.
+                </p>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="reconcile_stock">
+                    <button type="submit" class="btn btn-outline-warning" {% if not can_edit_operations %}disabled{% endif %}>
+                        Reconcile Missing Stock Deductions
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <div class="col-xl-7 col-md-12">
@@ -130,6 +172,7 @@
                                 <tr>
                                     <th>Product</th>
                                     <th>SKU</th>
+                                    <th>SmartBiz ID</th>
                                     <th>Stock</th>
                                     <th>Threshold</th>
                                 </tr>
@@ -139,6 +182,7 @@
                                     <tr>
                                         <td>{{ product.name }}</td>
                                         <td>{{ product.sku }}</td>
+                                        <td><code>{{ product.smartbiz_product_id|default:"-" }}</code></td>
                                         <td>{{ product.stock_quantity }}</td>
                                         <td>{{ product.reorder_level }}</td>
                                     </tr>
@@ -163,6 +207,7 @@
                             <tr>
                                 <th>Name</th>
                                 <th>SKU</th>
+                                <th>SmartBiz ID</th>
                                 <th>Barcode</th>
                                 <th>Stock</th>
                                 <th>Threshold</th>
@@ -175,6 +220,7 @@
                                 <tr>
                                     <td>{{ product.name }}</td>
                                     <td>{{ product.sku }}</td>
+                                    <td><code>{{ product.smartbiz_product_id|default:"-" }}</code></td>
                                     <td>{{ product.barcode|default:"-" }}</td>
                                     <td>
                                         <span class="{% if product.is_low_stock %}text-danger fw-bold{% endif %}">
@@ -195,7 +241,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-muted">No products found.</td>
+                                    <td colspan="8" class="text-muted">No products found.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

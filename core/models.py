@@ -9,6 +9,10 @@ def normalize_barcode(value):
     return str(value or "").strip()
 
 
+def normalize_channel_product_id(value):
+    return str(value or "").strip()
+
+
 class Project(models.Model):
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
@@ -287,6 +291,7 @@ class Product(models.Model):
     name = models.CharField(max_length=160)
     sku = models.CharField(max_length=120, unique=True)
     barcode = models.CharField(max_length=120, blank=True, null=True, unique=True)
+    smartbiz_product_id = models.CharField(max_length=160, blank=True, null=True, unique=True)
     stock_quantity = models.IntegerField(default=0)
     reorder_level = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -307,6 +312,8 @@ class Product(models.Model):
         self.sku = normalize_sku(self.sku)
         barcode_value = normalize_barcode(self.barcode)
         self.barcode = barcode_value or None
+        smartbiz_product_id = normalize_channel_product_id(self.smartbiz_product_id)
+        self.smartbiz_product_id = smartbiz_product_id or None
         super().save(*args, **kwargs)
 
 

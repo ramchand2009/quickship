@@ -30,6 +30,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .access import (
+    can_manage_stock,
     can_edit_operations,
     can_sync_orders,
     can_update_order_status,
@@ -37,6 +38,7 @@ from .access import (
     is_ops_viewer,
 )
 from .forms import (
+    BulkSmartbizMappingForm,
     ContactForm,
     ProductForm,
     SenderAddressForm,
@@ -67,6 +69,7 @@ from .models import (
 from .stock import (
     apply_manual_stock_movement,
     find_product_by_lookup,
+    reconcile_missed_stock_deductions,
     set_manual_stock_quantity,
     sync_stock_for_status_transition,
 )
@@ -105,6 +108,7 @@ OPS_VIEWER_TAB_ALL = "all"
 OPS_VIEWER_TAB_PENDING = "pending"
 OPS_VIEWER_TAB_ACCEPTED = "accepted"
 OPS_VIEWER_TAB_SHIPPED = "shipped"
+OPS_VIEWER_TAB_COMPLETED = "completed"
 
 
 def _resolve_start_position(raw_value):
@@ -322,11 +326,15 @@ def _can_update_order_status(user):
     return can_update_order_status(user)
 
 
+def _can_manage_stock(user):
+    return can_manage_stock(user)
+
+
 def _redirect_ops_viewer_to_order_management(request, *, include_message=True):
     if not _is_ops_viewer(getattr(request, "user", None)):
         return None
     if include_message:
-        messages.error(request, "Your role can access only Order Management.")
+        messages.error(request, "Your role can access only Order Management and Stock Management.")
     return redirect("order_management")
 
 
@@ -423,7 +431,7 @@ def _emit_stock_sync_messages(request, stock_result, *, context_label="Order"):
     if missing_skus:
         messages.warning(
             request,
-            f"{context_label}: no product mapping found for SKU(s): {', '.join(missing_skus)}.",
+            f"{context_label}: no product mapping found for item identifier(s): {', '.join(missing_skus)}.",
         )
 
 
@@ -894,6 +902,7 @@ def _ops_viewer_status_tabs():
         {"key": OPS_VIEWER_TAB_PENDING, "label": "Pending"},
         {"key": OPS_VIEWER_TAB_ACCEPTED, "label": "Accepted"},
         {"key": OPS_VIEWER_TAB_SHIPPED, "label": "Shipped"},
+        {"key": OPS_VIEWER_TAB_COMPLETED, "label": "Completed"},
     ]
 
 
@@ -910,6 +919,11 @@ def _ops_viewer_filter_queryset(queryset, active_tab):
                 ShiprocketOrder.STATUS_SHIPPED,
                 ShiprocketOrder.STATUS_DELIVERY_ISSUE,
                 ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+            ]
+        )
+    if active_tab == OPS_VIEWER_TAB_COMPLETED:
+        return queryset.filter(
+            local_status__in=[
                 ShiprocketOrder.STATUS_DELIVERED,
                 ShiprocketOrder.STATUS_COMPLETED,
             ]
@@ -924,6 +938,7 @@ def _build_ops_viewer_status_counts():
         OPS_VIEWER_TAB_PENDING: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_PENDING).count(),
         OPS_VIEWER_TAB_ACCEPTED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ACCEPTED).count(),
         OPS_VIEWER_TAB_SHIPPED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_SHIPPED).count(),
+        OPS_VIEWER_TAB_COMPLETED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_COMPLETED).count(),
     }
 
 
@@ -2262,17 +2277,22 @@ def sender_address(request):
 
 @login_required
 def stock_management(request):
-    restricted_response = _redirect_ops_viewer_to_order_management(request)
-    if restricted_response:
-        return restricted_response
-    can_edit_operations = _can_edit_operations(request.user)
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access stock management.")
+        return redirect("order_management")
+    can_edit_operations = _can_manage_stock(request.user)
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     actor = _request_actor(request)
     search_query = str(request.GET.get("q") or "").strip()
     low_only = _is_truthy(request.GET.get("low"))
+    active_view = str(request.GET.get("view") or "list").strip().lower()
+    if active_view not in {"list", "manage"}:
+        active_view = "list"
     edit_product = None
     edit_pk = str(request.GET.get("edit") or "").strip()
     if edit_pk.isdigit():
         edit_product = Product.objects.filter(pk=int(edit_pk)).first()
+        active_view = "manage"
 
     if request.method == "POST" and not can_edit_operations:
         messages.error(request, "Your role has read-only access for stock management.")
@@ -2280,9 +2300,16 @@ def stock_management(request):
 
     product_form = ProductForm(instance=edit_product)
     stock_form = StockAdjustmentForm()
+    mapping_form = BulkSmartbizMappingForm()
 
     if request.method == "POST":
         action = str(request.POST.get("form_action") or "").strip()
+        return_view = str(request.POST.get("return_view") or "").strip().lower()
+        if return_view not in {"list", "manage"}:
+            return_view = ""
+        redirect_url = reverse("stock_management")
+        if return_view == "manage":
+            redirect_url = f"{redirect_url}?view={return_view}"
         if action == "save_product":
             product_id = str(request.POST.get("product_id") or "").strip()
             instance = Product.objects.filter(pk=int(product_id)).first() if product_id.isdigit() else None
@@ -2290,7 +2317,7 @@ def stock_management(request):
             if product_form.is_valid():
                 product = product_form.save()
                 messages.success(request, f"Saved product {product.name} ({product.sku}).")
-                return redirect("stock_management")
+                return redirect(redirect_url)
             messages.error(request, "Unable to save product. Check the product fields.")
         elif action == "adjust_stock":
             stock_form = StockAdjustmentForm(request.POST)
@@ -2344,11 +2371,72 @@ def stock_management(request):
                                 f"Stock is now {movement.quantity_after}."
                             ),
                         )
-                    return redirect("stock_management")
+                    return redirect(redirect_url)
             messages.error(request, "Unable to adjust stock. Check the stock form fields.")
+        elif action == "bulk_map_smartbiz":
+            mapping_form = BulkSmartbizMappingForm(request.POST)
+            if mapping_form.is_valid():
+                updated_count = 0
+                missing_skus = []
+                duplicate_ids = []
+                for row in mapping_form.parse_rows():
+                    sku = str(row["sku"] or "").strip().upper()
+                    smartbiz_product_id = str(row["smartbiz_product_id"] or "").strip()
+                    product = Product.objects.filter(sku=sku).first()
+                    if not product:
+                        missing_skus.append(sku)
+                        continue
+                    conflict = (
+                        Product.objects.exclude(pk=product.pk)
+                        .filter(smartbiz_product_id__iexact=smartbiz_product_id)
+                        .first()
+                    )
+                    if conflict:
+                        duplicate_ids.append(f"{smartbiz_product_id} -> {conflict.sku}")
+                        continue
+                    if product.smartbiz_product_id != smartbiz_product_id:
+                        product.smartbiz_product_id = smartbiz_product_id
+                        product.save(update_fields=["smartbiz_product_id", "updated_at"])
+                        updated_count += 1
+                if updated_count:
+                    messages.success(request, f"Updated SmartBiz mapping for {updated_count} product(s).")
+                if missing_skus:
+                    messages.warning(request, f"SKU not found: {', '.join(missing_skus)}.")
+                if duplicate_ids:
+                    messages.warning(
+                        request,
+                        f"SmartBiz ID already mapped to another product: {', '.join(duplicate_ids)}.",
+                    )
+                if not updated_count and not missing_skus and not duplicate_ids:
+                    messages.info(request, "No SmartBiz mappings needed updating.")
+                return redirect(redirect_url)
+            messages.error(request, "Unable to apply bulk SmartBiz mappings. Check the pasted rows.")
+        elif action == "reconcile_stock":
+            summary = reconcile_missed_stock_deductions(actor=actor)
+            if summary["movement_count"]:
+                messages.success(
+                    request,
+                    (
+                        f"Reconciled missing stock deductions for {summary['orders_changed']} order(s). "
+                        f"Created {summary['movement_count']} stock movement(s)."
+                    ),
+                )
+            else:
+                messages.info(
+                    request,
+                    f"No missing stock deductions were found across {summary['orders_scanned']} eligible order(s).",
+                )
+            if summary["missing_skus"]:
+                messages.warning(
+                    request,
+                    "Stock reconciliation still has unmapped item identifier(s): "
+                    + ", ".join(summary["missing_skus"])
+                    + ".",
+                )
+            return redirect(redirect_url)
         else:
             messages.error(request, "Invalid stock action.")
-            return redirect("stock_management")
+            return redirect(redirect_url)
 
     products = Product.objects.all().order_by("name", "sku")
     if search_query:
@@ -2356,6 +2444,7 @@ def stock_management(request):
             Q(name__icontains=search_query)
             | Q(sku__icontains=search_query)
             | Q(barcode__icontains=search_query)
+            | Q(smartbiz_product_id__icontains=search_query)
         )
     if low_only:
         products = products.filter(stock_quantity__lte=F("reorder_level"))
@@ -2366,19 +2455,23 @@ def stock_management(request):
     )
     recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
 
+    template_name = "core/stock_management_ops.html" if ops_mobile_mode else "core/stock_management.html"
     return render(
         request,
-        "core/stock_management.html",
+        template_name,
         {
             "product_form": product_form,
             "stock_form": stock_form,
+            "mapping_form": mapping_form,
             "products": products[:200],
             "low_stock_products": low_stock_products,
             "recent_movements": recent_movements,
             "search_query": search_query,
             "low_only": low_only,
+            "active_view": active_view,
             "editing_product": edit_product,
             "can_edit_operations": can_edit_operations,
+            "ops_mobile_mode": ops_mobile_mode,
         },
     )
 

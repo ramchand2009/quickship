@@ -1,4 +1,4 @@
-from .access import can_sync_orders, can_update_order_status, is_ops_admin, is_ops_viewer
+from .access import can_manage_stock, can_sync_orders, can_update_order_status, is_ops_admin, is_ops_viewer
 
 
 def role_flags(request):
@@ -10,4 +10,5 @@ def role_flags(request):
         "viewer_order_management_only": viewer_only_access,
         "can_sync_orders": can_sync_orders(user),
         "can_update_order_status": can_update_order_status(user),
+        "can_manage_stock": can_manage_stock(user),
     }

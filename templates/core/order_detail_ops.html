@@ -13,8 +13,16 @@
         padding-top: 0;
     }
 
+    body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container {
+        padding-top: 0 !important;
+    }
+
+    body.ops-mobile-layout .pcoded-wrapper,
+    body.ops-mobile-layout .pcoded-inner-content,
+    body.ops-mobile-layout .main-body,
     body.ops-mobile-layout .pcoded-content,
     body.ops-mobile-layout .page-wrapper {
+        margin-top: 0;
         padding: 0;
     }
 
@@ -55,6 +63,24 @@
         color: #1f2933;
         text-decoration: none;
         font-size: 1.8rem;
+    }
+
+    .ops-detail-logout {
+        justify-self: end;
+        display: inline-flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .ops-detail-stock-link,
+    .ops-detail-logout button {
+        border: 0;
+        background: #eef2f6;
+        color: #213247;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.55rem 0.85rem;
+        text-decoration: none;
     }
 
     .ops-detail-stepper {
@@ -297,7 +323,13 @@
     <div class="ops-detail-topbar">
         <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-detail-back">&#8592;</a>
         <h1>Order Details</h1>
-        <span></span>
+        <div class="ops-detail-logout">
+            <a href="{% url 'stock_management' %}" class="ops-detail-stock-link">Stock</a>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit">Logout</button>
+            </form>
+        </div>
     </div>
 
     <div class="ops-detail-stepper">

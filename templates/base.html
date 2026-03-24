@@ -16,7 +16,7 @@
     {% block extrastyle %}{% endblock %}
 </head>
 {% with current=request.resolver_match.url_name %}
-<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' %} no-sidebar-layout ops-mobile-layout{% endif %}">
+<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' or viewer_order_management_only and current == 'stock_management' %} no-sidebar-layout ops-mobile-layout{% endif %}">
     {% if current != "login" and current != "signup" %}
         <nav class="pcoded-navbar menupos-fixed navbar-dark brand-dark">
             <div class="navbar-wrapper">
@@ -38,17 +38,19 @@
                                 <span class="pcoded-mtext">Order Management</span>
                             </a>
                         </li>
+                        {% if can_manage_stock %}
+                            <li class="nav-item {% if current == 'stock_management' %}active{% endif %}">
+                                <a href="{% url 'stock_management' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-package"></i></span>
+                                    <span class="pcoded-mtext">Stock Management</span>
+                                </a>
+                            </li>
+                        {% endif %}
                         {% if not viewer_order_management_only %}
                             <li class="nav-item {% if current == 'home' %}active{% endif %}">
                                 <a href="{% url 'home' %}" class="nav-link">
                                     <span class="pcoded-micon"><i class="feather icon-home"></i></span>
                                     <span class="pcoded-mtext">Orders Dashboard</span>
-                                </a>
-                            </li>
-                            <li class="nav-item {% if current == 'stock_management' %}active{% endif %}">
-                                <a href="{% url 'stock_management' %}" class="nav-link">
-                                    <span class="pcoded-micon"><i class="feather icon-package"></i></span>
-                                    <span class="pcoded-mtext">Stock Management</span>
                                 </a>
                             </li>
                             <li class="nav-item {% if current == 'print_queue' %}active{% endif %}">
