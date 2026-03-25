@@ -2289,7 +2289,7 @@ def stock_management(request):
     low_only = _is_truthy(request.GET.get("low"))
     selected_category_id = str(request.GET.get("category") or "").strip()
     active_view = str(request.GET.get("view") or "list").strip().lower()
-    if active_view not in {"list", "manage"}:
+    if active_view not in {"list", "manage", "more"}:
         active_view = "list"
     edit_product = None
     edit_pk = str(request.GET.get("edit") or "").strip()
@@ -2308,11 +2308,14 @@ def stock_management(request):
     if request.method == "POST":
         action = str(request.POST.get("form_action") or "").strip()
         return_view = str(request.POST.get("return_view") or "").strip().lower()
-        if return_view not in {"list", "manage"}:
+        return_query = str(request.POST.get("return_query") or "").strip()
+        if return_view not in {"list", "manage", "more"}:
             return_view = ""
         redirect_url = reverse("stock_management")
         if return_view == "manage":
             redirect_url = f"{redirect_url}?view={return_view}"
+        elif return_query:
+            redirect_url = f"{redirect_url}?{return_query}"
         if action == "save_product":
             product_id = str(request.POST.get("product_id") or "").strip()
             instance = Product.objects.filter(pk=int(product_id)).first() if product_id.isdigit() else None
@@ -2478,6 +2481,7 @@ def stock_management(request):
             "low_only": low_only,
             "selected_category_id": selected_category_id,
             "product_categories": product_categories,
+            "current_query_string": request.GET.urlencode(),
             "active_view": active_view,
             "editing_product": edit_product,
             "can_edit_operations": can_edit_operations,

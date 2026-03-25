@@ -23,7 +23,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-header h1 { margin:0; font-size:clamp(2rem,4vw,3rem); color:#0f172a; }
 .ops-stock-header p { margin:.45rem 0 0; color:#4b5563; }
 .ops-stock-header a { color:#1f6ea0; text-decoration:none; }
-.ops-stock-viewtabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; margin-bottom:1rem; }
+.ops-stock-viewtabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin-bottom:1rem; }
 .ops-stock-viewtab { display:inline-flex; align-items:center; justify-content:center; padding:.85rem 1rem; border-radius:1rem; border:1px solid rgba(15,23,42,.08); background:rgba(255,255,255,.92); color:#475569; text-decoration:none; font-weight:700; box-shadow:0 12px 24px rgba(15,23,42,.05); }
 .ops-stock-viewtab.is-active { background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; border-color:transparent; }
 .ops-stock-summary, .ops-stock-main, .ops-stock-grid, .ops-stock-list, .ops-stock-row-2, .ops-stock-details { display:grid; gap:.9rem; }
@@ -49,6 +49,11 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-table-status { display:inline-flex; align-items:center; padding:.24rem .58rem; border-radius:999px; background:#dcf4e9; color:#1d684a; font-size:.76rem; font-weight:700; }
 .ops-stock-table-status.is-inactive { background:#e7eaee; color:#52606d; }
 .ops-stock-table-stock.is-low { color:#c2410c; font-weight:800; }
+.ops-stock-table-actions { min-width:210px; }
+.ops-stock-inline-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.45rem; align-items:center; }
+.ops-stock-inline-form .form-control { min-height:40px; border-radius:.8rem; }
+.ops-stock-inline-form button { border:0; border-radius:.8rem; padding:.72rem .8rem; background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; font-weight:700; white-space:nowrap; }
+.ops-stock-inline-help { margin-top:.32rem; color:#64748b; font-size:.78rem; }
 .ops-stock-field { margin-bottom:.85rem; }
 .ops-stock-field label { display:block; margin-bottom:.35rem; font-weight:700; color:#334155; }
 .ops-stock-field .form-control, .ops-stock-field .form-select { min-height:46px; border-radius:.85rem; border-color:#d4dbe5; }
@@ -110,6 +115,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="ops-stock-viewtabs">
         <a href="{% url 'stock_management' %}?view=list" class="ops-stock-viewtab {% if active_view == 'list' %}is-active{% endif %}">Stock List</a>
         <a href="{% url 'stock_management' %}?view=manage{% if editing_product %}&edit={{ editing_product.pk }}{% endif %}" class="ops-stock-viewtab {% if active_view == 'manage' %}is-active{% endif %}">Manage Stock</a>
+        <a href="{% url 'stock_management' %}?view=more" class="ops-stock-viewtab {% if active_view == 'more' %}is-active{% endif %}">More</a>
     </div>
 
     {% if active_view == 'list' %}
@@ -158,6 +164,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         <div class="ops-stock-summary-card"><span>Low stock items</span><strong>{{ low_stock_products|length }}</strong></div>
     </div>
 
+    {% if active_view == 'list' or active_view == 'manage' %}
     <div class="ops-stock-main mt-3">
         {% if active_view == 'manage' %}
         <div class="ops-stock-grid">
@@ -209,6 +216,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         </div>
         {% endif %}
 
+        {% if active_view == 'list' %}
         <div class="ops-stock-grid">
             <div class="ops-stock-card">
                 <div class="ops-stock-card-head"><div><h3>Stock Qty Table</h3><p>Quick list view for SKU, quantity, threshold, and status.</p></div></div>
@@ -224,6 +232,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                         <th>Stock Qty</th>
                                         <th>Threshold</th>
                                         <th>Status</th>
+                                        <th>Update Qty</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -240,6 +249,20 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                                 {% else %}
                                                     <span class="ops-stock-table-status is-inactive">Inactive</span>
                                                 {% endif %}
+                                            </td>
+                                            <td class="ops-stock-table-actions">
+                                                <form method="post" class="ops-stock-inline-form">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="form_action" value="adjust_stock">
+                                                    <input type="hidden" name="return_view" value="list">
+                                                    <input type="hidden" name="return_query" value="{{ current_query_string }}">
+                                                    <input type="hidden" name="lookup_value" value="{{ product.sku }}">
+                                                    <input type="hidden" name="action" value="set">
+                                                    <input type="hidden" name="notes" value="Updated from stock table">
+                                                    <input type="number" name="quantity" value="{{ product.stock_quantity }}" min="0" class="form-control" aria-label="Set stock quantity for {{ product.name }}">
+                                                    <button type="submit" {% if not can_edit_operations %}disabled{% endif %}>Set Qty</button>
+                                                </form>
+                                                <div class="ops-stock-inline-help">Use this to update stock directly from the table.</div>
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -274,6 +297,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </div>
             </div>
 
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if active_view == 'more' %}
+    <div class="ops-stock-main mt-3">
+        <div class="ops-stock-grid">
             <div class="ops-stock-card">
                 <div class="ops-stock-card-head"><div><h3>Products</h3><p>Review stock, mapping, and edit products quickly.</p></div><span class="ops-stock-badge">{{ products|length }}</span></div>
                 <div class="ops-stock-card-body">
@@ -323,6 +354,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             </div>
         </div>
     </div>
+    {% endif %}
 
     <div class="ops-stock-bottomnav">
         <a href="{% url 'order_management' %}"><span class="ops-stock-bottomnav-label">Orders</span></a>

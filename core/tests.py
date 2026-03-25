@@ -2544,9 +2544,12 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Stock Management")
         self.assertContains(response, "Stock List")
         self.assertContains(response, "Manage Stock")
+        self.assertContains(response, "More")
         self.assertContains(response, "ops-stock-shell")
         self.assertContains(response, "Low Stock Products")
         self.assertContains(response, "Stock Qty Table")
+        self.assertNotContains(response, "Recent Stock Movements")
+        self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
 
     def test_ops_viewer_manage_stock_tab_shows_management_tools(self):
         self.client.force_login(self.viewer)
@@ -2557,6 +2560,21 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Quick Stock Update")
         self.assertContains(response, "Reconcile Accepted Orders")
         self.assertContains(response, 'name="return_view" value="manage"', html=False)
+
+    def test_ops_viewer_more_tab_shows_products_and_recent_movements(self):
+        Product.objects.create(
+            name="More Tab Product",
+            sku="MORE-TAB-1",
+            stock_quantity=6,
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("stock_management"), {"view": "more"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Products")
+        self.assertContains(response, "Recent Stock Movements")
+        self.assertContains(response, "More Tab Product")
 
     def test_ops_viewer_completed_tab_shows_delivered_orders(self):
         delivered_order = ShiprocketOrder.objects.create(
@@ -2605,6 +2623,33 @@ class RoleAccessTests(TestCase):
         product.refresh_from_db()
         self.assertEqual(product.stock_quantity, 7)
         self.assertContains(response, "2 unit(s) added to Viewer Stock Product")
+
+    def test_ops_viewer_can_set_stock_qty_from_stock_table(self):
+        product = Product.objects.create(
+            name="Viewer Table Product",
+            sku="VIEW-TABLE-1",
+            stock_quantity=5,
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "return_view": "list",
+                "return_query": "view=list",
+                "lookup_value": "VIEW-TABLE-1",
+                "action": StockAdjustmentForm.ACTION_SET,
+                "quantity": 11,
+                "notes": "Updated from stock table",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, f"{reverse('stock_management')}?view=list")
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 11)
+        self.assertContains(response, "Set stock for Viewer Table Product (VIEW-TABLE-1) to 11.")
 
     def test_admin_sidebar_shows_full_navigation(self):
         self.client.force_login(self.admin)
