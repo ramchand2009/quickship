@@ -2546,8 +2546,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Manage Stock")
         self.assertContains(response, "More")
         self.assertContains(response, "ops-stock-shell")
-        self.assertContains(response, "Low Stock Products")
         self.assertContains(response, "Stock Qty Table")
+        self.assertNotContains(response, "Low Stock Products")
         self.assertNotContains(response, "Recent Stock Movements")
         self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
 
@@ -2572,6 +2572,7 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"), {"view": "more"})
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Low Stock Products")
         self.assertContains(response, "Products")
         self.assertContains(response, "Recent Stock Movements")
         self.assertContains(response, "More Tab Product")

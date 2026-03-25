@@ -230,7 +230,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                         <th>Category</th>
                                         <th>SKU</th>
                                         <th>Stock Qty</th>
-                                        <th>Threshold</th>
                                         <th>Status</th>
                                         <th>Update Qty</th>
                                     </tr>
@@ -242,7 +241,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                             <td>{{ product.category_label|default:"-" }}</td>
                                             <td>{{ product.sku }}</td>
                                             <td class="ops-stock-table-stock {% if product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</td>
-                                            <td>{{ product.reorder_level }}</td>
                                             <td>
                                                 {% if product.is_active %}
                                                     <span class="ops-stock-table-status">Active</span>
@@ -274,7 +272,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     {% endif %}
                 </div>
             </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
+    {% if active_view == 'more' %}
+    <div class="ops-stock-main mt-3">
+        <div class="ops-stock-grid">
             <div class="ops-stock-card">
                 <div class="ops-stock-card-head"><div><h3>Low Stock Products</h3><p>Items already at or below threshold.</p></div><span class="ops-stock-badge is-warning">{{ low_stock_products|length }}</span></div>
                 <div class="ops-stock-card-body">
@@ -297,14 +302,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </div>
             </div>
 
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if active_view == 'more' %}
-    <div class="ops-stock-main mt-3">
-        <div class="ops-stock-grid">
             <div class="ops-stock-card">
                 <div class="ops-stock-card-head"><div><h3>Products</h3><p>Review stock, mapping, and edit products quickly.</p></div><span class="ops-stock-badge">{{ products|length }}</span></div>
                 <div class="ops-stock-card-body">
