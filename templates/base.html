@@ -46,6 +46,14 @@
                                 </a>
                             </li>
                         {% endif %}
+                        {% if request.user.is_authenticated and is_ops_admin %}
+                            <li class="nav-item {% if current == 'product_categories' %}active{% endif %}">
+                                <a href="{% url 'product_categories' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-tag"></i></span>
+                                    <span class="pcoded-mtext">Product Categories</span>
+                                </a>
+                            </li>
+                        {% endif %}
                         {% if not viewer_order_management_only %}
                             <li class="nav-item {% if current == 'home' %}active{% endif %}">
                                 <a href="{% url 'home' %}" class="nav-link">

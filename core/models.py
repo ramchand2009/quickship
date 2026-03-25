@@ -287,8 +287,31 @@ class ShiprocketOrder(models.Model):
         }
 
 
+class ProductCategory(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Product Category"
+        verbose_name_plural = "Product Categories"
+
+    def __str__(self):
+        return self.name
+
+
 class Product(models.Model):
     name = models.CharField(max_length=160)
+    category = models.CharField(max_length=120, blank=True)
+    category_master = models.ForeignKey(
+        ProductCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+    )
     sku = models.CharField(max_length=120, unique=True)
     barcode = models.CharField(max_length=120, blank=True, null=True, unique=True)
     smartbiz_product_id = models.CharField(max_length=160, blank=True, null=True, unique=True)
@@ -308,7 +331,16 @@ class Product(models.Model):
     def is_low_stock(self):
         return self.stock_quantity <= int(self.reorder_level or 0)
 
+    @property
+    def category_label(self):
+        if self.category_master_id and self.category_master:
+            return self.category_master.name
+        return str(self.category or "").strip()
+
     def save(self, *args, **kwargs):
+        if self.category_master_id and self.category_master:
+            self.category = self.category_master.name
+        self.category = str(self.category or "").strip()
         self.sku = normalize_sku(self.sku)
         barcode_value = normalize_barcode(self.barcode)
         self.barcode = barcode_value or None

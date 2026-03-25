@@ -4,6 +4,7 @@ from .models import (
     ContactMessage,
     OrderActivityLog,
     Product,
+    ProductCategory,
     Project,
     SenderAddress,
     ShiprocketOrder,
@@ -66,6 +67,7 @@ class SenderAddressAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     list_display = (
         "name",
+        "category_name",
         "sku",
         "smartbiz_product_id",
         "barcode",
@@ -74,8 +76,19 @@ class ProductAdmin(admin.ModelAdmin):
         "is_active",
         "updated_at",
     )
+    list_filter = ("is_active", "category_master")
+    search_fields = ("name", "category", "category_master__name", "sku", "smartbiz_product_id", "barcode")
+
+    @admin.display(description="Category")
+    def category_name(self, obj):
+        return obj.category_label or "-"
+
+
+@admin.register(ProductCategory)
+class ProductCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "updated_at")
     list_filter = ("is_active",)
-    search_fields = ("name", "sku", "smartbiz_product_id", "barcode")
+    search_fields = ("name",)
 
 
 @admin.register(StockMovement)

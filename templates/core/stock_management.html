@@ -15,8 +15,14 @@
                         </div>
                     </div>
                     <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                        <form method="get" class="d-inline-flex gap-2 align-items-center">
+                        <form method="get" class="d-inline-flex gap-2 align-items-center flex-wrap">
                             <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search name, SKU, barcode, SmartBiz ID">
+                            <select name="category" class="form-select">
+                                <option value="">All categories</option>
+                                {% for category in product_categories %}
+                                    <option value="{{ category.pk }}" {% if selected_category_id == category.pk|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" value="1" name="low" id="lowOnly" {% if low_only %}checked{% endif %}>
                                 <label class="form-check-label" for="lowOnly">Low only</label>
@@ -48,6 +54,10 @@
                     <div class="mb-3">
                         <label class="form-label">SKU</label>
                         {{ product_form.sku }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        {{ product_form.category_master }}
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Barcode</label>
@@ -171,6 +181,7 @@
                             <thead>
                                 <tr>
                                     <th>Product</th>
+                                    <th>Category</th>
                                     <th>SKU</th>
                                     <th>SmartBiz ID</th>
                                     <th>Stock</th>
@@ -181,6 +192,7 @@
                                 {% for product in low_stock_products %}
                                     <tr>
                                         <td>{{ product.name }}</td>
+                                        <td>{{ product.category_label|default:"-" }}</td>
                                         <td>{{ product.sku }}</td>
                                         <td><code>{{ product.smartbiz_product_id|default:"-" }}</code></td>
                                         <td>{{ product.stock_quantity }}</td>
@@ -204,11 +216,12 @@
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>SKU</th>
-                                <th>SmartBiz ID</th>
-                                <th>Barcode</th>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Category</th>
+                                    <th>SKU</th>
+                                    <th>SmartBiz ID</th>
+                                    <th>Barcode</th>
                                 <th>Stock</th>
                                 <th>Threshold</th>
                                 <th>Status</th>
@@ -219,6 +232,7 @@
                             {% for product in products %}
                                 <tr>
                                     <td>{{ product.name }}</td>
+                                    <td>{{ product.category_label|default:"-" }}</td>
                                     <td>{{ product.sku }}</td>
                                     <td><code>{{ product.smartbiz_product_id|default:"-" }}</code></td>
                                     <td>{{ product.barcode|default:"-" }}</td>
@@ -241,7 +255,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="8" class="text-muted">No products found.</td>
+                                    <td colspan="9" class="text-muted">No products found.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

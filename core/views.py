@@ -41,6 +41,7 @@ from .forms import (
     BulkSmartbizMappingForm,
     ContactForm,
     ProductForm,
+    ProductCategoryForm,
     SenderAddressForm,
     ShiprocketOrderManualUpdateForm,
     ShiprocketOrderStatusForm,
@@ -56,6 +57,7 @@ from .models import (
     ContactMessage,
     OrderActivityLog,
     Product,
+    ProductCategory,
     Project,
     SenderAddress,
     ShiprocketOrder,
@@ -2285,6 +2287,7 @@ def stock_management(request):
     actor = _request_actor(request)
     search_query = str(request.GET.get("q") or "").strip()
     low_only = _is_truthy(request.GET.get("low"))
+    selected_category_id = str(request.GET.get("category") or "").strip()
     active_view = str(request.GET.get("view") or "list").strip().lower()
     if active_view not in {"list", "manage"}:
         active_view = "list"
@@ -2442,10 +2445,14 @@ def stock_management(request):
     if search_query:
         products = products.filter(
             Q(name__icontains=search_query)
+            | Q(category__icontains=search_query)
+            | Q(category_master__name__icontains=search_query)
             | Q(sku__icontains=search_query)
             | Q(barcode__icontains=search_query)
             | Q(smartbiz_product_id__icontains=search_query)
         )
+    if selected_category_id.isdigit():
+        products = products.filter(category_master_id=int(selected_category_id))
     if low_only:
         products = products.filter(stock_quantity__lte=F("reorder_level"))
 
@@ -2454,6 +2461,7 @@ def stock_management(request):
         .order_by("stock_quantity", "name")[:10]
     )
     recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
+    product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
 
     template_name = "core/stock_management_ops.html" if ops_mobile_mode else "core/stock_management.html"
     return render(
@@ -2468,10 +2476,56 @@ def stock_management(request):
             "recent_movements": recent_movements,
             "search_query": search_query,
             "low_only": low_only,
+            "selected_category_id": selected_category_id,
+            "product_categories": product_categories,
             "active_view": active_view,
             "editing_product": edit_product,
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": ops_mobile_mode,
+        },
+    )
+
+
+@login_required
+def product_categories(request):
+    if not _is_ops_admin(request.user):
+        messages.error(request, "Your role cannot access product categories.")
+        return redirect("order_management")
+
+    edit_category = None
+    edit_pk = str(request.GET.get("edit") or "").strip()
+    if edit_pk.isdigit():
+        edit_category = ProductCategory.objects.filter(pk=int(edit_pk)).first()
+
+    form = ProductCategoryForm(instance=edit_category)
+
+    if request.method == "POST":
+        action = str(request.POST.get("form_action") or "").strip()
+        if action != "save_category":
+            messages.error(request, "Invalid category action.")
+            return redirect("product_categories")
+
+        category_id = str(request.POST.get("category_id") or "").strip()
+        instance = ProductCategory.objects.filter(pk=int(category_id)).first() if category_id.isdigit() else None
+        form = ProductCategoryForm(request.POST, instance=instance)
+        if form.is_valid():
+            category = form.save()
+            messages.success(request, f"Saved product category {category.name}.")
+            return redirect("product_categories")
+        messages.error(request, "Unable to save product category. Check the form fields.")
+
+    categories = ProductCategory.objects.annotate(product_count=Count("products")).order_by("name")
+    active_count = categories.filter(is_active=True).count()
+
+    return render(
+        request,
+        "core/product_categories.html",
+        {
+            "form": form,
+            "editing_category": edit_category,
+            "categories": categories,
+            "active_count": active_count,
+            "total_count": categories.count(),
         },
     )
 

@@ -114,13 +114,17 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
     {% if active_view == 'list' %}
     <div class="ops-stock-card ops-stock-search-card">
-        <div class="ops-stock-card-head"><div><h3>Search Stock</h3><p>Filter by name, SKU, barcode, or SmartBiz ID.</p></div></div>
+        <div class="ops-stock-card-head"><div><h3>Search Stock</h3><p>Filter by name, category, SKU, barcode, or SmartBiz ID.</p></div></div>
         <div class="ops-stock-card-body">
             <form method="get" action="{% url 'stock_management' %}">
                 <input type="hidden" name="view" value="list">
                 <div class="ops-stock-row-2">
                     <div class="ops-stock-field"><label for="opsStockSearch">Search</label><input id="opsStockSearch" type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search stock"></div>
+                    <div class="ops-stock-field"><label for="opsCategoryFilter">Category</label><select id="opsCategoryFilter" name="category" class="form-select"><option value="">All categories</option>{% for category in product_categories %}<option value="{{ category.pk }}" {% if selected_category_id == category.pk|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+                </div>
+                <div class="ops-stock-row-2">
                     <div class="ops-stock-field"><label for="lowOnlyStock">Filter</label><label class="ops-stock-check"><input id="lowOnlyStock" type="checkbox" name="low" value="1" {% if low_only %}checked{% endif %}>Low only</label></div>
+                    <div></div>
                 </div>
                 <div class="ops-stock-row-2">
                     <button type="submit" class="ops-stock-btn">Apply Filter</button>
@@ -164,10 +168,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                         {% csrf_token %}<input type="hidden" name="form_action" value="save_product"><input type="hidden" name="return_view" value="manage"><input type="hidden" name="product_id" value="{% if editing_product %}{{ editing_product.pk }}{% endif %}">
                         <div class="ops-stock-field"><label for="{{ product_form.name.id_for_label }}">Name</label>{{ product_form.name }}</div>
                         <div class="ops-stock-row-2">
+                            <div class="ops-stock-field"><label for="{{ product_form.category_master.id_for_label }}">Category</label>{{ product_form.category_master }}</div>
                             <div class="ops-stock-field"><label for="{{ product_form.sku.id_for_label }}">SKU</label>{{ product_form.sku }}</div>
-                            <div class="ops-stock-field"><label for="{{ product_form.smartbiz_product_id.id_for_label }}">SmartBiz Product/Variant ID</label>{{ product_form.smartbiz_product_id }}</div>
                         </div>
-                        <div class="ops-stock-field"><label for="{{ product_form.barcode.id_for_label }}">Barcode</label>{{ product_form.barcode }}</div>
+                        <div class="ops-stock-row-2">
+                            <div class="ops-stock-field"><label for="{{ product_form.smartbiz_product_id.id_for_label }}">SmartBiz Product/Variant ID</label>{{ product_form.smartbiz_product_id }}</div>
+                            <div class="ops-stock-field"><label for="{{ product_form.barcode.id_for_label }}">Barcode</label>{{ product_form.barcode }}</div>
+                        </div>
                         <div class="ops-stock-row-2">
                             <div class="ops-stock-field"><label for="{{ product_form.stock_quantity.id_for_label }}">Opening Stock</label>{{ product_form.stock_quantity }}</div>
                             <div class="ops-stock-field"><label for="{{ product_form.reorder_level.id_for_label }}">Low Stock Threshold</label>{{ product_form.reorder_level }}</div>
@@ -212,6 +219,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <thead>
                                     <tr>
                                         <th>Product</th>
+                                        <th>Category</th>
                                         <th>SKU</th>
                                         <th>Stock Qty</th>
                                         <th>Threshold</th>
@@ -222,6 +230,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                     {% for product in products %}
                                         <tr>
                                             <td><strong>{{ product.name }}</strong></td>
+                                            <td>{{ product.category_label|default:"-" }}</td>
                                             <td>{{ product.sku }}</td>
                                             <td class="ops-stock-table-stock {% if product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</td>
                                             <td>{{ product.reorder_level }}</td>
@@ -251,7 +260,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                             {% for product in low_stock_products %}
                                 <div class="ops-stock-item">
                                     <div class="ops-stock-item-head">
-                                        <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">SKU: {{ product.sku }}</div></div>
+                                        <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">Category: {{ product.category_label|default:"-" }}</div><div class="ops-stock-meta">SKU: {{ product.sku }}</div></div>
                                         <div class="ops-stock-qty is-low"><strong>{{ product.stock_quantity }}</strong><span>Threshold {{ product.reorder_level }}</span></div>
                                     </div>
                                     <div class="ops-stock-details">
@@ -273,7 +282,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                             {% for product in products %}
                                 <div class="ops-stock-item">
                                     <div class="ops-stock-item-head">
-                                        <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">SKU: {{ product.sku }}</div><div class="ops-stock-meta">Barcode: {{ product.barcode|default:"-" }}</div></div>
+                                        <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">Category: {{ product.category_label|default:"-" }}</div><div class="ops-stock-meta">SKU: {{ product.sku }}</div><div class="ops-stock-meta">Barcode: {{ product.barcode|default:"-" }}</div></div>
                                         <div class="ops-stock-qty {% if product.is_low_stock %}is-low{% endif %}"><strong>{{ product.stock_quantity }}</strong><span>Threshold {{ product.reorder_level }}</span></div>
                                     </div>
                                     <div class="ops-stock-details">

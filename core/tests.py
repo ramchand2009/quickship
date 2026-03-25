@@ -18,6 +18,7 @@ from .forms import ShiprocketOrderStatusForm, StockAdjustmentForm
 from .models import (
     OrderActivityLog,
     Product,
+    ProductCategory,
     Project,
     SenderAddress,
     ShiprocketOrder,
@@ -2612,8 +2613,35 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("stock_management"))
+        self.assertContains(response, reverse("product_categories"))
+        self.assertContains(response, "Product Categories")
         self.assertContains(response, reverse("print_queue"))
         self.assertContains(response, reverse("admin_utilities"))
+
+    def test_admin_can_manage_product_categories_in_app_ui(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("product_categories"),
+            {
+                "form_action": "save_category",
+                "name": "Soap",
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("product_categories"))
+        self.assertTrue(ProductCategory.objects.filter(name="Soap", is_active=True).exists())
+        self.assertContains(response, "Saved product category Soap.")
+
+    def test_ops_viewer_cannot_access_product_categories(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("product_categories"), follow=True)
+
+        self.assertRedirects(response, reverse("order_management"))
+        self.assertContains(response, "cannot access product categories")
 
     @patch("core.views.sync_orders")
     def test_ops_viewer_can_run_shiprocket_sync_from_order_management(self, mock_sync_orders):
@@ -2648,11 +2676,13 @@ class StockManagementViewTests(TestCase):
         self.client.force_login(self.user)
 
     def test_stock_management_can_create_product(self):
+        category = ProductCategory.objects.create(name="Herbal Drink")
         response = self.client.post(
             reverse("stock_management"),
             {
                 "form_action": "save_product",
                 "name": "Amla Juice",
+                "category_master": category.pk,
                 "sku": "sku-create-1",
                 "smartbiz_product_id": "smartbiz-product-1",
                 "barcode": "890000000010",
@@ -2665,10 +2695,48 @@ class StockManagementViewTests(TestCase):
 
         self.assertRedirects(response, reverse("stock_management"))
         product = Product.objects.get(sku="SKU-CREATE-1")
+        self.assertEqual(product.category_master, category)
+        self.assertEqual(product.category, "Herbal Drink")
         self.assertEqual(product.barcode, "890000000010")
         self.assertEqual(product.smartbiz_product_id, "smartbiz-product-1")
         self.assertEqual(product.stock_quantity, 14)
         self.assertContains(response, "Saved product Amla Juice")
+
+    def test_stock_management_shows_category_in_product_table(self):
+        Product.objects.create(
+            name="Goat Milk Soap",
+            category="Soap",
+            sku="SKU-CATEGORY-1",
+            stock_quantity=8,
+        )
+
+        response = self.client.get(reverse("stock_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Category")
+        self.assertContains(response, "Soap")
+
+    def test_stock_management_can_filter_products_by_category(self):
+        soap = ProductCategory.objects.create(name="Soap")
+        drink = ProductCategory.objects.create(name="Drink")
+        Product.objects.create(
+            name="Goat Milk Soap",
+            category_master=soap,
+            sku="SKU-SOAP-1",
+            stock_quantity=8,
+        )
+        Product.objects.create(
+            name="Amla Juice",
+            category_master=drink,
+            sku="SKU-DRINK-1",
+            stock_quantity=5,
+        )
+
+        response = self.client.get(reverse("stock_management"), {"category": soap.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Goat Milk Soap")
+        self.assertNotContains(response, "Amla Juice")
 
     def test_stock_management_can_adjust_stock_by_barcode(self):
         product = Product.objects.create(
