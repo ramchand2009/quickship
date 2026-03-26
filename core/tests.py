@@ -2535,6 +2535,33 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
 
+    def test_ops_viewer_order_detail_shipped_action_shows_barcode_scanner_ui(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-SHIP-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Packed Detail",
+                "phone": "9876543210",
+                "email": "packed@example.com",
+                "address_1": "55 Packed Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Soap Bar", "quantity": 1, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "shipped"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ship Order")
+        self.assertContains(response, "Scan Barcode")
+        self.assertContains(response, "opsScannerPanel")
+
     def test_ops_viewer_can_access_stock_management_screen(self):
         self.client.force_login(self.viewer)
 

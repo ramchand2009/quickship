@@ -286,6 +286,76 @@
         margin-top: 0.8rem;
     }
 
+    .ops-detail-tracking-wrap {
+        margin-top: 0.8rem;
+    }
+
+    .ops-detail-scanner-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 0.6rem;
+        align-items: center;
+    }
+
+    .ops-detail-scanner-row input[type="text"] {
+        margin-top: 0;
+    }
+
+    .ops-detail-scan-btn {
+        border: 0;
+        border-radius: 0.9rem;
+        padding: 0.9rem 0.85rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .ops-detail-scan-btn.is-primary {
+        background: #e0f2fe;
+        color: #0c6b8c;
+    }
+
+    .ops-detail-scan-btn.is-danger {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .ops-detail-scan-status {
+        margin-top: 0.6rem;
+        color: #64748b;
+        font-size: 0.92rem;
+        line-height: 1.4;
+    }
+
+    .ops-detail-scan-status.is-error {
+        color: #b91c1c;
+    }
+
+    .ops-detail-scan-status.is-success {
+        color: #15803d;
+    }
+
+    .ops-detail-scanner-panel {
+        display: none;
+        margin-top: 0.75rem;
+        border-radius: 1rem;
+        overflow: hidden;
+        background: #0f172a;
+        min-height: 220px;
+        position: relative;
+    }
+
+    .ops-detail-scanner-panel.is-visible {
+        display: block;
+    }
+
+    .ops-detail-scanner-video {
+        width: 100%;
+        min-height: 220px;
+        object-fit: cover;
+        display: block;
+        background: #0f172a;
+    }
+
     .ops-detail-action-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -420,7 +490,17 @@
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput">
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
                     <input type="tel" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone }}" placeholder="Customer phone for Accept action">
-                    <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Tracking number for Ship action">
+                    <div id="opsTrackingWrap" class="ops-detail-tracking-wrap">
+                        <div class="ops-detail-scanner-row">
+                            <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Tracking number for Ship action">
+                            <button type="button" id="opsScanStartButton" class="ops-detail-scan-btn is-primary">Scan Barcode</button>
+                            <button type="button" id="opsScanStopButton" class="ops-detail-scan-btn is-danger" style="display:none;">Stop Scan</button>
+                        </div>
+                        <div id="opsScanStatus" class="ops-detail-scan-status">Enter tracking manually or use barcode scan.</div>
+                        <div id="opsScannerPanel" class="ops-detail-scanner-panel">
+                            <video id="opsScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
+                        </div>
+                    </div>
                     <div class="ops-detail-action-grid">
                         {% for action in ops_mobile_actions %}
                             <button
@@ -454,14 +534,152 @@ document.addEventListener("DOMContentLoaded", function () {
     const statusTargetInput = document.getElementById("opsStatusTargetInput");
     const cancelReasonInput = document.getElementById("opsCancelReasonInput");
     const phoneInput = document.getElementById("opsPhoneInput");
+    const trackingWrap = document.getElementById("opsTrackingWrap");
     const trackingInput = document.getElementById("opsTrackingInput");
+    const scanStartButton = document.getElementById("opsScanStartButton");
+    const scanStopButton = document.getElementById("opsScanStopButton");
+    const scanStatus = document.getElementById("opsScanStatus");
+    const scannerPanel = document.getElementById("opsScannerPanel");
+    const scannerVideo = document.getElementById("opsScannerVideo");
     const buttons = Array.from(form.querySelectorAll("[data-status-action]"));
+    const scannerSupported = "mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices && "BarcodeDetector" in window;
+    let barcodeDetector = null;
+    let scannerStream = null;
+    let scannerLoopFrame = null;
 
     const normalizeTrackingNumber = function (rawValue) {
         return String(rawValue || "")
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, "")
             .trim();
+    };
+
+    const setScanStatus = function (message, tone) {
+        if (!scanStatus) {
+            return;
+        }
+        scanStatus.textContent = message;
+        scanStatus.classList.remove("is-error", "is-success");
+        if (tone === "error") {
+            scanStatus.classList.add("is-error");
+        } else if (tone === "success") {
+            scanStatus.classList.add("is-success");
+        }
+    };
+
+    const stopScanner = function () {
+        if (scannerLoopFrame) {
+            cancelAnimationFrame(scannerLoopFrame);
+            scannerLoopFrame = null;
+        }
+        if (scannerVideo) {
+            scannerVideo.pause();
+            scannerVideo.srcObject = null;
+        }
+        if (scannerStream) {
+            scannerStream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+            scannerStream = null;
+        }
+        if (scannerPanel) {
+            scannerPanel.classList.remove("is-visible");
+        }
+        if (scanStartButton) {
+            scanStartButton.style.display = "";
+        }
+        if (scanStopButton) {
+            scanStopButton.style.display = "none";
+        }
+    };
+
+    const fillTrackingCode = function (code) {
+        if (!trackingInput) {
+            return;
+        }
+        const normalized = normalizeTrackingNumber(code);
+        if (!normalized) {
+            return;
+        }
+        trackingInput.value = normalized;
+        trackingInput.dispatchEvent(new Event("input", { bubbles: true }));
+        trackingInput.dispatchEvent(new Event("change", { bubbles: true }));
+        trackingInput.focus();
+    };
+
+    const scanLoop = async function () {
+        if (!barcodeDetector || !scannerVideo || !scannerStream) {
+            return;
+        }
+        try {
+            const barcodes = await barcodeDetector.detect(scannerVideo);
+            if (Array.isArray(barcodes) && barcodes.length) {
+                const detected = barcodes
+                    .map(function (item) {
+                        return normalizeTrackingNumber(item.rawValue || "");
+                    })
+                    .find(function (value) {
+                        return value.length >= 10;
+                    });
+                if (detected) {
+                    fillTrackingCode(detected);
+                    setScanStatus("Tracking number captured from barcode.", "success");
+                    stopScanner();
+                    return;
+                }
+            }
+        } catch (error) {
+            setScanStatus("Scanner is active, but no readable barcode yet.", null);
+        }
+        scannerLoopFrame = requestAnimationFrame(scanLoop);
+    };
+
+    const startScanner = async function () {
+        if (!trackingInput) {
+            return;
+        }
+        if (!scannerSupported) {
+            setScanStatus("Camera barcode scan is not supported here. Use manual entry or a USB scanner.", "error");
+            trackingInput.focus();
+            return;
+        }
+        if (!barcodeDetector) {
+            try {
+                barcodeDetector = new BarcodeDetector({
+                    formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"],
+                });
+            } catch (error) {
+                setScanStatus("Barcode scanner initialization failed. Use manual entry.", "error");
+                trackingInput.focus();
+                return;
+            }
+        }
+
+        try {
+            scannerStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } },
+                audio: false,
+            });
+            if (scannerVideo) {
+                scannerVideo.srcObject = scannerStream;
+                await scannerVideo.play();
+            }
+            if (scannerPanel) {
+                scannerPanel.classList.add("is-visible");
+            }
+            if (scanStartButton) {
+                scanStartButton.style.display = "none";
+            }
+            if (scanStopButton) {
+                scanStopButton.style.display = "";
+            }
+            setScanStatus("Scanner is ready. Point the camera at the tracking barcode.", null);
+            scannerLoopFrame = requestAnimationFrame(scanLoop);
+        } catch (error) {
+            stopScanner();
+            setScanStatus("Unable to access the camera. Use manual entry or a USB scanner.", "error");
+            trackingInput.focus();
+        }
     };
 
     const setFieldVisibility = function (button) {
@@ -471,9 +689,17 @@ document.addEventListener("DOMContentLoaded", function () {
             phoneInput.style.display = needsPhone ? "block" : "none";
             phoneInput.required = needsPhone;
         }
+        if (trackingWrap) {
+            trackingWrap.style.display = needsTracking ? "block" : "none";
+        }
         if (trackingInput) {
-            trackingInput.style.display = needsTracking ? "block" : "none";
             trackingInput.required = needsTracking;
+        }
+        if (!needsTracking) {
+            stopScanner();
+        }
+        if (needsTracking) {
+            setScanStatus("Enter tracking manually or use barcode scan.", null);
         }
     };
 
@@ -512,6 +738,29 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
         });
+    });
+
+    if (trackingInput) {
+        trackingInput.addEventListener("change", function () {
+            trackingInput.value = normalizeTrackingNumber(trackingInput.value);
+        });
+    }
+
+    if (scanStartButton) {
+        scanStartButton.addEventListener("click", function () {
+            startScanner();
+        });
+    }
+
+    if (scanStopButton) {
+        scanStopButton.addEventListener("click", function () {
+            stopScanner();
+            setScanStatus("Scanner stopped. You can enter the tracking number manually.", null);
+        });
+    }
+
+    window.addEventListener("beforeunload", function () {
+        stopScanner();
     });
 });
 </script>
