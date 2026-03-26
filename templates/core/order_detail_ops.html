@@ -480,6 +480,11 @@
 
         <div class="ops-detail-card ops-detail-actions-card">
             <h5 class="mb-0">Update Order</h5>
+            {% if can_print_packing_list %}
+                <div class="ops-detail-action-grid">
+                    <a href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener" class="ops-detail-action-btn is-secondary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Print Packing List</a>
+                </div>
+            {% endif %}
             {% if can_update_order_status and ops_mobile_actions %}
                 <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" id="opsDetailStatusForm">
                     {% csrf_token %}

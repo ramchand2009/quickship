@@ -2067,6 +2067,10 @@ def order_detail(request, pk):
             "ops_mobile_mode": ops_mobile_mode,
             "ops_mobile_stage_key": _ops_viewer_stage_key(order.local_status),
             "ops_mobile_actions": _build_ops_viewer_detail_actions(order, status_form),
+            "can_print_packing_list": order.local_status in {
+                ShiprocketOrder.STATUS_ACCEPTED,
+                ShiprocketOrder.STATUS_PACKED,
+            },
             "return_tab": (request.GET.get("tab") or "").strip(),
             "activity_filters": {
                 "event": activity_event if activity_event in valid_events else "",
@@ -2079,9 +2083,11 @@ def order_detail(request, pk):
 
 
 def packing_list(request, pk):
-    restricted_response = _redirect_ops_viewer_to_order_management(request)
-    if restricted_response:
-        return restricted_response
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return redirect("login")
+    if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
+        messages.error(request, "Your role cannot access packing list.")
+        return redirect("order_management")
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     sender = SenderAddress.get_default()
     context = {

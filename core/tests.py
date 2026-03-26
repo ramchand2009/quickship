@@ -2535,6 +2535,32 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
 
+    def test_ops_viewer_accepted_order_detail_shows_packing_list_option(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-PACK-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Accepted Detail",
+                "phone": "9876543210",
+                "email": "accepted@example.com",
+                "address_1": "44 Packing Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Soap Bar", "quantity": 1, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "accepted"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Print Packing List")
+        self.assertContains(response, reverse("packing_list", args=[order.pk]))
+
     def test_ops_viewer_order_detail_shipped_action_shows_barcode_scanner_ui(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-SHIP-1",
@@ -2561,6 +2587,22 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Ship Order")
         self.assertContains(response, "Scan Barcode")
         self.assertContains(response, "opsScannerPanel")
+
+    def test_ops_viewer_can_open_packing_list(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-PACKING-LIST-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Packing Viewer",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Packing Viewer", "address_1": "Packing Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("packing_list", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Packing List")
+        self.assertContains(response, order.shiprocket_order_id)
 
     def test_ops_viewer_can_access_stock_management_screen(self):
         self.client.force_login(self.viewer)
