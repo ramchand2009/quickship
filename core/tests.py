@@ -2507,6 +2507,32 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, reverse("print_queue"))
         self.assertNotContains(response, reverse("admin_utilities"))
 
+    def test_ops_viewer_desktop_order_list_shows_packing_and_shipping_print_links(self):
+        accepted_order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DESKTOP-PACK-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Accepted Desktop",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Accepted Desktop", "address_1": "Accepted Street"},
+        )
+        packed_order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DESKTOP-LABEL-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            customer_name="Packed Desktop",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Packed Desktop", "address_1": "Packed Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"), {"tab": "accepted"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("packing_list", args=[accepted_order.pk]))
+        self.assertContains(response, reverse("packing_list", args=[packed_order.pk]))
+        self.assertContains(response, reverse("shipping_label_4x6", args=[packed_order.pk]))
+        self.assertContains(response, "Print Packing List")
+        self.assertContains(response, "Print Shipping Label")
+
     def test_ops_viewer_order_detail_uses_mobile_workflow_ui(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-1",
@@ -2561,6 +2587,170 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Print Packing List")
         self.assertContains(response, reverse("packing_list", args=[order.pk]))
 
+    def test_ops_viewer_accepted_order_detail_shows_packing_scan_ui(self):
+        Product.objects.create(
+            name="Packing Soap",
+            sku="PACK-SKU-UI-1",
+            barcode="8901234567890",
+            stock_quantity=10,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-PACK-SCAN-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Packing Detail",
+                "phone": "9876543210",
+                "email": "packscan@example.com",
+                "address_1": "88 Packing Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Packing Soap", "sku": "PACK-SKU-UI-1", "quantity": 2, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "accepted"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Packing Verification")
+        self.assertContains(response, "opsPackingScanPayload")
+        self.assertContains(response, "PACK-SKU-UI-1")
+        self.assertContains(response, "Scan SKU: PACK-SKU-UI-1")
+        self.assertContains(response, "0 / 2")
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_ops_viewer_cannot_pack_without_scanning_full_quantity(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        Product.objects.create(
+            name="Packing Soap",
+            sku="PACK-SKU-QTY-1",
+            barcode="8901234567891",
+            stock_quantity=10,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-PACK-QTY-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Packing Qty",
+                "phone": "9876543210",
+                "address_1": "90 Packing Street",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Packing Soap", "sku": "PACK-SKU-QTY-1", "quantity": 2, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                "active_tab": "accepted",
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_PACKED,
+                f"order-{order.pk}-packing_scan_payload": json.dumps(["PACK-SKU-QTY-1"]),
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertContains(response, "Scan all products before packing")
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_ops_viewer_cannot_pack_with_mismatched_barcode(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        Product.objects.create(
+            name="Packing Soap",
+            sku="PACK-SKU-MISMATCH-1",
+            barcode="8901234567892",
+            stock_quantity=10,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-PACK-MISMATCH-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Packing Mismatch",
+                "phone": "9876543210",
+                "address_1": "91 Packing Street",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Packing Soap", "sku": "PACK-SKU-MISMATCH-1", "quantity": 1, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                "active_tab": "accepted",
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_PACKED,
+                f"order-{order.pk}-packing_scan_payload": json.dumps(["WRONGSKU123"]),
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertContains(response, "Product is not matched for this order")
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_ops_viewer_can_pack_after_scanning_every_required_barcode(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        Product.objects.create(
+            name="Packing Soap",
+            sku="PACK-SKU-OK-1",
+            barcode="8901234567893",
+            stock_quantity=10,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-PACK-OK-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Packing Success",
+                "phone": "9876543210",
+                "address_1": "92 Packing Street",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Packing Soap", "sku": "PACK-SKU-OK-1", "quantity": 2, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                "active_tab": "accepted",
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_PACKED,
+                f"order-{order.pk}-packing_scan_payload": json.dumps(["PACK-SKU-OK-1", "PACK-SKU-OK-1"]),
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_PACKED)
+        self.assertContains(response, "Order moved to the selected tab.")
+
     def test_ops_viewer_order_detail_shipped_action_shows_barcode_scanner_ui(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-SHIP-1",
@@ -2588,6 +2778,32 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Scan Barcode")
         self.assertContains(response, "opsScannerPanel")
 
+    def test_ops_viewer_packed_order_detail_shows_shipping_label_option(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-LABEL-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Packed Label Detail",
+                "phone": "9876543210",
+                "email": "packedlabel@example.com",
+                "address_1": "77 Label Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Soap Bar", "quantity": 1, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "accepted"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Print Shipping Label")
+        self.assertContains(response, reverse("shipping_label_4x6", args=[order.pk]))
+
     def test_ops_viewer_can_open_packing_list(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-PACKING-LIST-1",
@@ -2602,6 +2818,30 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Packing List")
+        self.assertContains(response, order.shiprocket_order_id)
+
+    def test_ops_viewer_can_open_shipping_label(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-SHIPPING-LABEL-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            customer_name="Label Viewer",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Label Viewer", "address_1": "Label Street"},
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("shipping_label_4x6", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Shipping Label")
         self.assertContains(response, order.shiprocket_order_id)
 
     def test_ops_viewer_can_access_stock_management_screen(self):

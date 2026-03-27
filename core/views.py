@@ -70,10 +70,12 @@ from .models import (
 )
 from .stock import (
     apply_manual_stock_movement,
+    build_packing_scan_requirements,
     find_product_by_lookup,
     reconcile_missed_stock_deductions,
     set_manual_stock_quantity,
     sync_stock_for_status_transition,
+    validate_packing_scans,
 )
 from .queue_alerts import send_queue_alert_test
 from .shiprocket import ShiprocketAPIError, sync_orders
@@ -2050,6 +2052,12 @@ def order_detail(request, pk):
         activity_queryset = activity_queryset.filter(created_at__date__lte=parsed_to)
 
     activity_timeline = activity_queryset.order_by("-created_at")[:200]
+    ops_mobile_actions = _build_ops_viewer_detail_actions(order, status_form)
+    packing_scan_summary = build_packing_scan_requirements(order)
+    pack_action_available = any(
+        action.get("value") == ShiprocketOrder.STATUS_PACKED
+        for action in ops_mobile_actions
+    )
     return render(
         request,
         "core/order_detail_ops.html" if ops_mobile_mode else "core/order_detail.html",
@@ -2066,11 +2074,17 @@ def order_detail(request, pk):
             "can_view_raw_payload": can_view_raw_payload,
             "ops_mobile_mode": ops_mobile_mode,
             "ops_mobile_stage_key": _ops_viewer_stage_key(order.local_status),
-            "ops_mobile_actions": _build_ops_viewer_detail_actions(order, status_form),
+            "ops_mobile_actions": ops_mobile_actions,
+            "ops_pack_action_available": pack_action_available,
+            "packing_scan_requirements": packing_scan_summary["requirements"],
+            "packing_scan_unmatched_items": packing_scan_summary["unmatched_items"],
+            "packing_scan_missing_barcodes": packing_scan_summary["missing_barcodes"],
+            "packing_scan_total_expected_quantity": packing_scan_summary["total_expected_quantity"],
             "can_print_packing_list": order.local_status in {
                 ShiprocketOrder.STATUS_ACCEPTED,
                 ShiprocketOrder.STATUS_PACKED,
             },
+            "can_print_shipping_label": order.local_status == ShiprocketOrder.STATUS_PACKED,
             "return_tab": (request.GET.get("tab") or "").strip(),
             "activity_filters": {
                 "event": activity_event if activity_event in valid_events else "",
@@ -2157,9 +2171,11 @@ def bulk_packing_lists(request):
 
 
 def shipping_label_4x6(request, pk):
-    restricted_response = _redirect_ops_viewer_to_order_management(request)
-    if restricted_response:
-        return restricted_response
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return redirect("login")
+    if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
+        messages.error(request, "Your role cannot access shipping label.")
+        return redirect("order_management")
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     if order.local_status != ShiprocketOrder.STATUS_PACKED:
         messages.error(request, "Shipping label is available only for packed orders.")
@@ -3597,6 +3613,82 @@ def update_shiprocket_order_status(request, pk):
     if form.is_valid():
         updated_order = form.save(commit=False)
         target_status = updated_order.local_status
+        if (
+            _is_ops_viewer(request.user)
+            and previous_status == ShiprocketOrder.STATUS_ACCEPTED
+            and target_status == ShiprocketOrder.STATUS_PACKED
+        ):
+            raw_scan_payload = str(request.POST.get(f"order-{order.pk}-packing_scan_payload") or "").strip()
+            try:
+                scanned_barcodes = json.loads(raw_scan_payload) if raw_scan_payload else []
+            except json.JSONDecodeError:
+                scanned_barcodes = []
+
+            packing_validation = validate_packing_scans(order, scanned_barcodes)
+            validation_error = ""
+            if packing_validation["unmatched_items"]:
+                validation_error = (
+                    "Packing scan setup is incomplete. Product mapping missing for: "
+                    + ", ".join(
+                        f"{item['name']} x{item['quantity']}"
+                        for item in packing_validation["unmatched_items"][:5]
+                    )
+                    + "."
+                )
+            elif packing_validation["missing_barcodes"]:
+                validation_error = (
+                    "Packing scan setup is incomplete. SKU missing for: "
+                    + ", ".join(
+                        f"{item['sku']}"
+                        for item in packing_validation["missing_barcodes"][:5]
+                    )
+                    + "."
+                )
+            elif packing_validation["unexpected_barcodes"]:
+                validation_error = (
+                    "Product is not matched for this order. Unexpected barcode(s): "
+                    + ", ".join(packing_validation["unexpected_barcodes"][:5])
+                    + "."
+                )
+            elif packing_validation["over_scanned"]:
+                validation_error = (
+                    "Some products were scanned more times than ordered: "
+                    + ", ".join(
+                        f"{item['sku']} ({item['scanned_quantity']}/{item['expected_quantity']})"
+                        for item in packing_validation["over_scanned"][:5]
+                    )
+                    + "."
+                )
+            elif packing_validation["missing_scans"]:
+                validation_error = (
+                    "Scan all products before packing. Remaining: "
+                    + ", ".join(
+                        f"{item['sku']} x{item['remaining_quantity']}"
+                        for item in packing_validation["missing_scans"][:5]
+                    )
+                    + "."
+                )
+
+            if validation_error:
+                log_order_activity(
+                    order=order,
+                    event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
+                    title="Packing verification failed",
+                    description=validation_error,
+                    previous_status=order.local_status,
+                    current_status=order.local_status,
+                    metadata={
+                        "packing_scan_validation": packing_validation,
+                    },
+                    is_success=False,
+                    triggered_by=actor,
+                )
+                messages.error(request, validation_error)
+                detail_redirect_url = reverse("order_detail", args=[order.pk])
+                if redirect_tab:
+                    detail_redirect_url = f"{detail_redirect_url}?tab={redirect_tab}"
+                return redirect(detail_redirect_url)
+
         updated_order = _apply_status_timestamps(updated_order)
         updated_order.save()
         success_message = "Order moved to the selected tab."
@@ -3644,6 +3736,11 @@ def update_shiprocket_order_status(request, pk):
                     "tracking_number": updated_order.tracking_number,
                     "cancellation_reason": updated_order.cancellation_reason,
                     "cancellation_note": updated_order.cancellation_note,
+                    "packing_scan_verified": (
+                        _is_ops_viewer(request.user)
+                        and previous_status == ShiprocketOrder.STATUS_ACCEPTED
+                        and updated_order.local_status == ShiprocketOrder.STATUS_PACKED
+                    ),
                 },
                 is_success=True,
                 triggered_by=actor,

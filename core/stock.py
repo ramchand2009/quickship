@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from django.db import transaction
 
@@ -12,6 +12,18 @@ from .models import (
     normalize_channel_product_id,
     normalize_sku,
 )
+
+
+def _build_packing_scan_aliases(product):
+    aliases = []
+    sku_value = normalize_sku(getattr(product, "sku", ""))
+    barcode_value = normalize_barcode(getattr(product, "barcode", ""))
+    if sku_value:
+        aliases.append(sku_value)
+    if barcode_value and barcode_value not in aliases:
+        aliases.append(barcode_value)
+    return aliases
+
 
 def summarize_order_items_by_product(order):
     product_totals = defaultdict(int)
@@ -51,6 +63,165 @@ def summarize_order_items_by_product(order):
         "products": dict(product_totals),
         "matched_identifiers": dict(matched_identifiers),
         "missing_identifiers": missing_identifiers,
+    }
+
+
+def build_packing_scan_requirements(order):
+    grouped_requirements = {}
+    unmatched_items = []
+    missing_barcodes = []
+    total_expected_quantity = 0
+    items = order.order_items if isinstance(order.order_items, list) else []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            quantity = int(item.get("quantity") or 0)
+        except (TypeError, ValueError):
+            quantity = 0
+        if quantity <= 0:
+            continue
+
+        product, matched_identifier = find_product_for_order_item(item)
+        if not product:
+            unmatched_identifier = (
+                normalize_channel_product_id(
+                    item.get("smartbiz_product_id")
+                    or item.get("channel_product_id")
+                    or item.get("product_id")
+                    or item.get("variant_id")
+                    or item.get("id")
+                    or item.get("sku")
+                    or item.get("channel_sku")
+                )
+                or str(item.get("name") or "").strip()
+                or "Unknown item"
+            )
+            unmatched_items.append(
+                {
+                    "name": str(item.get("name") or "Unknown item").strip(),
+                    "identifier": str(unmatched_identifier).strip(),
+                    "quantity": quantity,
+                }
+            )
+            continue
+
+        requirement = grouped_requirements.setdefault(
+            product.pk,
+            {
+                "product_id": product.pk,
+                "name": product.name,
+                "sku": product.sku,
+                "scan_code": normalize_sku(product.sku),
+                "barcode": normalize_barcode(product.barcode),
+                "scan_aliases": _build_packing_scan_aliases(product),
+                "expected_quantity": 0,
+                "matched_identifiers": [],
+            },
+        )
+        requirement["expected_quantity"] += quantity
+        total_expected_quantity += quantity
+        if matched_identifier and matched_identifier not in requirement["matched_identifiers"]:
+            requirement["matched_identifiers"].append(matched_identifier)
+
+    requirements = sorted(grouped_requirements.values(), key=lambda value: (value["name"], value["sku"]))
+    for requirement in requirements:
+        if not requirement["scan_code"]:
+            missing_barcodes.append(
+                {
+                    "name": requirement["name"],
+                    "sku": requirement["sku"],
+                    "expected_quantity": requirement["expected_quantity"],
+                }
+            )
+
+    return {
+        "requirements": requirements,
+        "unmatched_items": unmatched_items,
+        "missing_barcodes": missing_barcodes,
+        "total_expected_quantity": total_expected_quantity,
+    }
+
+
+def validate_packing_scans(order, scanned_barcodes):
+    summary = build_packing_scan_requirements(order)
+    normalized_scans = []
+    if isinstance(scanned_barcodes, list):
+        for raw_value in scanned_barcodes:
+            normalized = normalize_sku(raw_value)
+            if normalized:
+                normalized_scans.append(normalized)
+
+    scanned_counts = Counter(normalized_scans)
+    requirement_by_alias = {}
+    product_scanned_counts = Counter()
+    missing_scans = []
+    unexpected_barcodes = []
+    over_scanned = []
+
+    for requirement in summary["requirements"]:
+        for alias in requirement.get("scan_aliases") or []:
+            requirement_by_alias[alias] = requirement
+
+    for barcode, count in scanned_counts.items():
+        requirement = requirement_by_alias.get(barcode)
+        if not requirement:
+            unexpected_barcodes.append(barcode)
+            continue
+        product_scanned_counts[requirement["product_id"]] += int(count or 0)
+
+    for requirement in summary["requirements"]:
+        scanned_quantity = int(product_scanned_counts.get(requirement["product_id"], 0))
+        if scanned_quantity > int(requirement["expected_quantity"] or 0):
+            over_scanned.append(
+                {
+                    "barcode": requirement["scan_code"] or requirement["barcode"],
+                    "name": requirement["name"],
+                    "sku": requirement["sku"],
+                    "expected_quantity": int(requirement["expected_quantity"] or 0),
+                    "scanned_quantity": scanned_quantity,
+                }
+            )
+
+    scanned_totals = {}
+    for requirement in summary["requirements"]:
+        barcode = requirement["scan_code"] or requirement["barcode"]
+        scanned_quantity = int(product_scanned_counts.get(requirement["product_id"], 0))
+        scanned_totals[requirement["sku"]] = scanned_quantity
+        if barcode and scanned_quantity < int(requirement["expected_quantity"] or 0):
+            missing_scans.append(
+                {
+                    "barcode": barcode,
+                    "name": requirement["name"],
+                    "sku": requirement["sku"],
+                    "expected_quantity": int(requirement["expected_quantity"] or 0),
+                    "scanned_quantity": scanned_quantity,
+                    "remaining_quantity": int(requirement["expected_quantity"] or 0) - scanned_quantity,
+                }
+            )
+
+    is_valid = not (
+        summary["unmatched_items"]
+        or summary["missing_barcodes"]
+        or unexpected_barcodes
+        or over_scanned
+        or missing_scans
+    )
+
+    return {
+        "is_valid": is_valid,
+        "requirements": summary["requirements"],
+        "unmatched_items": summary["unmatched_items"],
+        "missing_barcodes": summary["missing_barcodes"],
+        "unexpected_barcodes": unexpected_barcodes,
+        "over_scanned": over_scanned,
+        "missing_scans": missing_scans,
+        "scanned_barcodes": normalized_scans,
+        "scanned_counts": dict(scanned_counts),
+        "scanned_totals": scanned_totals,
+        "total_expected_quantity": int(summary["total_expected_quantity"] or 0),
+        "total_scanned_quantity": len(normalized_scans),
     }
 
 

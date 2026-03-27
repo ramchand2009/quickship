@@ -983,7 +983,9 @@
                                 <div class="ops-desktop-cell">
                                     <div class="ops-desktop-actions">
                                         {% if action and can_update_order_status %}
-                                            {% if action.requires_phone or action.requires_tracking %}
+                                            {% if action.value == 'order_packed' %}
+                                                <a href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}" class="ops-desktop-primary-action">Verify &amp; Pack</a>
+                                            {% elif action.requires_phone or action.requires_tracking %}
                                                 <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" class="ops-desktop-inline-form">
                                                     {% csrf_token %}
                                                     <input type="hidden" name="active_tab" value="{{ active_tab }}">
@@ -1041,6 +1043,12 @@
                                             {% endif %}
                                         {% else %}
                                             <button type="button" class="ops-desktop-primary-action" disabled>No Action</button>
+                                        {% endif %}
+                                        {% if order.local_status == 'order_accepted' or order.local_status == 'order_packed' %}
+                                            <a href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener" class="ops-desktop-secondary-action">Print Packing List</a>
+                                        {% endif %}
+                                        {% if order.local_status == 'order_packed' %}
+                                            <a href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener" class="ops-desktop-secondary-action">Print Shipping Label</a>
                                         {% endif %}
                                         <a href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}" class="ops-desktop-secondary-action">Open Details</a>
                                     </div>

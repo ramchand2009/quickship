@@ -334,6 +334,144 @@
         color: #15803d;
     }
 
+    .ops-detail-packing-wrap {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 1rem;
+        background: #f8fbff;
+        border: 1px solid rgba(14, 116, 144, 0.15);
+    }
+
+    .ops-detail-packing-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .ops-detail-packing-header h6 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        color: #163047;
+    }
+
+    .ops-detail-packing-counter {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: #0c6b8c;
+        font-size: 0.92rem;
+        font-weight: 700;
+    }
+
+    .ops-detail-packing-note {
+        color: #526071;
+        font-size: 0.94rem;
+        line-height: 1.5;
+        margin-bottom: 0.9rem;
+    }
+
+    .ops-detail-packing-alert {
+        border-radius: 0.95rem;
+        padding: 0.8rem 0.9rem;
+        font-size: 0.94rem;
+        line-height: 1.45;
+        margin-bottom: 0.8rem;
+    }
+
+    .ops-detail-packing-alert.is-warning {
+        background: #fff7ed;
+        color: #9a3412;
+        border: 1px solid rgba(251, 146, 60, 0.3);
+    }
+
+    .ops-detail-packing-alert.is-success {
+        background: #ecfdf5;
+        color: #166534;
+        border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+
+    .ops-detail-packing-checklist {
+        display: grid;
+        gap: 0.7rem;
+    }
+
+    .ops-detail-packing-item {
+        border-radius: 1rem;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 0.9rem;
+    }
+
+    .ops-detail-packing-item.is-complete {
+        border-color: rgba(34, 197, 94, 0.32);
+        background: #f0fdf4;
+    }
+
+    .ops-detail-packing-item.is-over {
+        border-color: rgba(239, 68, 68, 0.32);
+        background: #fef2f2;
+    }
+
+    .ops-detail-packing-item-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        align-items: start;
+    }
+
+    .ops-detail-packing-item-name {
+        margin: 0;
+        font-size: 0.98rem;
+        font-weight: 800;
+        color: #1f2933;
+    }
+
+    .ops-detail-packing-item-meta {
+        color: #64748b;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        margin-top: 0.3rem;
+    }
+
+    .ops-detail-packing-qty {
+        text-align: right;
+        min-width: 92px;
+    }
+
+    .ops-detail-packing-qty strong {
+        display: block;
+        font-size: 1rem;
+        color: #0f172a;
+    }
+
+    .ops-detail-packing-qty span {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    .ops-detail-packing-manual-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.6rem;
+        margin-top: 0.9rem;
+    }
+
+    .ops-detail-packing-manual-row input[type="text"] {
+        margin-top: 0;
+    }
+
+    .ops-detail-packing-list {
+        margin: 0.5rem 0 0;
+        padding-left: 1rem;
+        color: #7c2d12;
+    }
+
     .ops-detail-scanner-panel {
         display: none;
         margin-top: 0.75rem;
@@ -480,9 +618,14 @@
 
         <div class="ops-detail-card ops-detail-actions-card">
             <h5 class="mb-0">Update Order</h5>
-            {% if can_print_packing_list %}
+            {% if can_print_packing_list or can_print_shipping_label %}
                 <div class="ops-detail-action-grid">
-                    <a href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener" class="ops-detail-action-btn is-secondary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Print Packing List</a>
+                    {% if can_print_packing_list %}
+                        <a href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener" class="ops-detail-action-btn is-secondary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Print Packing List</a>
+                    {% endif %}
+                    {% if can_print_shipping_label %}
+                        <a href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener" class="ops-detail-action-btn is-secondary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Print Shipping Label</a>
+                    {% endif %}
                 </div>
             {% endif %}
             {% if can_update_order_status and ops_mobile_actions %}
@@ -494,7 +637,97 @@
                     <input type="hidden" name="order-{{ order.pk }}-local_status" id="opsStatusTargetInput">
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput">
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
+                    <input type="hidden" name="order-{{ order.pk }}-packing_scan_payload" id="opsPackingScanPayload" value="[]">
                     <input type="tel" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone }}" placeholder="Customer phone for Accept action">
+                    {% if ops_pack_action_available %}
+                        <div
+                            id="opsPackingWrap"
+                            class="ops-detail-packing-wrap"
+                            data-total-expected="{{ packing_scan_total_expected_quantity }}"
+                            data-has-setup-issues="{% if packing_scan_unmatched_items or packing_scan_missing_barcodes %}true{% else %}false{% endif %}"
+                        >
+                            <div class="ops-detail-packing-header">
+                                <h6>Packing Verification</h6>
+                                <div class="ops-detail-packing-counter">
+                                    <span id="opsPackingCounter">0 / {{ packing_scan_total_expected_quantity }}</span>
+                                </div>
+                            </div>
+                            <div class="ops-detail-packing-note">
+                                Scan every product SKU label before packing. If a product quantity is 2, scan the same SKU label 2 times.
+                            </div>
+                            {% if packing_scan_unmatched_items %}
+                                <div class="ops-detail-packing-alert is-warning">
+                                    Product mapping is missing for these order items:
+                                    <ul class="ops-detail-packing-list">
+                                        {% for item in packing_scan_unmatched_items %}
+                                            <li>{{ item.name }} x{{ item.quantity }}{% if item.identifier %} ({{ item.identifier }}){% endif %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            {% if packing_scan_missing_barcodes %}
+                                <div class="ops-detail-packing-alert is-warning">
+                                    Add a local SKU to these products before packing:
+                                    <ul class="ops-detail-packing-list">
+                                        {% for item in packing_scan_missing_barcodes %}
+                                            <li>{{ item.name }}{% if item.sku %} ({{ item.sku }}){% endif %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                            <div id="opsPackingFeedback" class="ops-detail-packing-alert{% if packing_scan_unmatched_items or packing_scan_missing_barcodes %} is-warning{% endif %}">
+                                {% if packing_scan_unmatched_items or packing_scan_missing_barcodes %}
+                                    Fix the packing setup issues before scanning.
+                                {% else %}
+                                    No items scanned yet. Start scanning or type the product SKU label manually.
+                                {% endif %}
+                            </div>
+                            <div class="ops-detail-packing-manual-row">
+                                <input type="text" id="opsPackingScanInput" placeholder="Scan or type product SKU label">
+                                <button type="button" id="opsPackingAddButton" class="ops-detail-scan-btn is-primary">Add Scan</button>
+                            </div>
+                            <div class="ops-detail-scanner-row mt-2">
+                                <button type="button" id="opsPackingScanStartButton" class="ops-detail-scan-btn is-primary">Scan Barcode</button>
+                                <button type="button" id="opsPackingScanStopButton" class="ops-detail-scan-btn is-danger" style="display:none;">Stop Scan</button>
+                                <button type="button" id="opsPackingResetButton" class="ops-detail-scan-btn">Reset</button>
+                            </div>
+                            <div id="opsPackingScanStatus" class="ops-detail-scan-status">
+                                Use the camera or a scanner gun to capture product SKU labels.
+                            </div>
+                            <div id="opsPackingScannerPanel" class="ops-detail-scanner-panel">
+                                <video id="opsPackingScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
+                            </div>
+                            <div class="ops-detail-packing-checklist mt-3">
+                                {% for requirement in packing_scan_requirements %}
+                                    <div
+                                        class="ops-detail-packing-item"
+                                        data-packing-requirement
+                                        data-barcode="{{ requirement.scan_code|default:requirement.barcode }}"
+                                        data-expected="{{ requirement.expected_quantity }}"
+                                    >
+                                        <div class="ops-detail-packing-item-top">
+                                            <div>
+                                                <div class="ops-detail-packing-item-name">{{ requirement.name }}</div>
+                                                <div class="ops-detail-packing-item-meta">
+                                                    SKU: {{ requirement.sku|default:"-" }}<br>
+                                                    Scan SKU: {{ requirement.scan_code|default:"Not set" }}
+                                                </div>
+                                            </div>
+                                            <div class="ops-detail-packing-qty">
+                                                <strong><span data-scanned-count>0</span> / {{ requirement.expected_quantity }}</strong>
+                                                <span>Scanned</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% empty %}
+                                    <div class="ops-detail-packing-alert is-warning mb-0">
+                                        No packable products were found for this order.
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {{ packing_scan_requirements|json_script:"opsPackingRequirementsData" }}
+                    {% endif %}
                     <div id="opsTrackingWrap" class="ops-detail-tracking-wrap">
                         <div class="ops-detail-scanner-row">
                             <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Tracking number for Ship action">
@@ -546,11 +779,27 @@ document.addEventListener("DOMContentLoaded", function () {
     const scanStatus = document.getElementById("opsScanStatus");
     const scannerPanel = document.getElementById("opsScannerPanel");
     const scannerVideo = document.getElementById("opsScannerVideo");
+    const packingWrap = document.getElementById("opsPackingWrap");
+    const packingPayloadInput = document.getElementById("opsPackingScanPayload");
+    const packingInput = document.getElementById("opsPackingScanInput");
+    const packingAddButton = document.getElementById("opsPackingAddButton");
+    const packingStartButton = document.getElementById("opsPackingScanStartButton");
+    const packingStopButton = document.getElementById("opsPackingScanStopButton");
+    const packingResetButton = document.getElementById("opsPackingResetButton");
+    const packingStatus = document.getElementById("opsPackingScanStatus");
+    const packingScannerPanel = document.getElementById("opsPackingScannerPanel");
+    const packingScannerVideo = document.getElementById("opsPackingScannerVideo");
+    const packingFeedback = document.getElementById("opsPackingFeedback");
+    const packingCounter = document.getElementById("opsPackingCounter");
     const buttons = Array.from(form.querySelectorAll("[data-status-action]"));
     const scannerSupported = "mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices && "BarcodeDetector" in window;
     let barcodeDetector = null;
     let scannerStream = null;
     let scannerLoopFrame = null;
+    let packingStream = null;
+    let packingLoopFrame = null;
+    let scannedPackingBarcodes = [];
+    let activeActionButton = null;
 
     const normalizeTrackingNumber = function (rawValue) {
         return String(rawValue || "")
@@ -558,6 +807,51 @@ document.addEventListener("DOMContentLoaded", function () {
             .replace(/[^A-Z0-9]/g, "")
             .trim();
     };
+
+    const normalizeBarcodeValue = function (rawValue) {
+        return String(rawValue || "")
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "")
+            .trim();
+    };
+
+    const packingRequirements = (() => {
+        const element = document.getElementById("opsPackingRequirementsData");
+        if (!element) {
+            return [];
+        }
+        try {
+            const parsed = JSON.parse(element.textContent || "[]");
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    })();
+    const packingRequirementMap = {};
+    const packingRequirementElements = {};
+    const totalExpectedPackingQuantity = packingRequirements.reduce(function (total, item) {
+        return total + Number(item.expected_quantity || 0);
+    }, 0);
+    const packingSetupBlocked = !!(packingWrap && packingWrap.getAttribute("data-has-setup-issues") === "true");
+
+    packingRequirements.forEach(function (requirement) {
+        const aliases = Array.isArray(requirement.scan_aliases) ? requirement.scan_aliases : [];
+        aliases.forEach(function (alias) {
+            const normalizedAlias = normalizeBarcodeValue(alias);
+            if (normalizedAlias) {
+                packingRequirementMap[normalizedAlias] = requirement;
+            }
+        });
+    });
+
+    if (packingWrap) {
+        Array.from(packingWrap.querySelectorAll("[data-packing-requirement]")).forEach(function (element) {
+            const barcode = String(element.getAttribute("data-barcode") || "").trim();
+            if (barcode) {
+                packingRequirementElements[barcode] = element;
+            }
+        });
+    }
 
     const setScanStatus = function (message, tone) {
         if (!scanStatus) {
@@ -595,6 +889,277 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         if (scanStopButton) {
             scanStopButton.style.display = "none";
+        }
+    };
+
+    const setPackingStatus = function (message, tone) {
+        if (!packingStatus) {
+            return;
+        }
+        packingStatus.textContent = message;
+        packingStatus.classList.remove("is-error", "is-success");
+        if (tone === "error") {
+            packingStatus.classList.add("is-error");
+        } else if (tone === "success") {
+            packingStatus.classList.add("is-success");
+        }
+    };
+
+    const setPackingFeedback = function (message, tone) {
+        if (!packingFeedback) {
+            return;
+        }
+        packingFeedback.textContent = message;
+        packingFeedback.classList.remove("is-warning", "is-success");
+        if (tone === "success") {
+            packingFeedback.classList.add("is-success");
+        } else {
+            packingFeedback.classList.add("is-warning");
+        }
+    };
+
+    const stopPackingScanner = function () {
+        if (packingLoopFrame) {
+            cancelAnimationFrame(packingLoopFrame);
+            packingLoopFrame = null;
+        }
+        if (packingScannerVideo) {
+            packingScannerVideo.pause();
+            packingScannerVideo.srcObject = null;
+        }
+        if (packingStream) {
+            packingStream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+            packingStream = null;
+        }
+        if (packingScannerPanel) {
+            packingScannerPanel.classList.remove("is-visible");
+        }
+        if (packingStartButton) {
+            packingStartButton.style.display = "";
+        }
+        if (packingStopButton) {
+            packingStopButton.style.display = "none";
+        }
+    };
+
+    const getPackingScanCounts = function () {
+        return scannedPackingBarcodes.reduce(function (result, barcode) {
+            result[barcode] = (result[barcode] || 0) + 1;
+            return result;
+        }, {});
+    };
+
+    const getRequirementScannedCount = function (requirement, scanCounts) {
+        const aliases = Array.isArray(requirement.scan_aliases) ? requirement.scan_aliases : [];
+        return aliases.reduce(function (total, alias) {
+            const normalizedAlias = normalizeBarcodeValue(alias);
+            return total + Number(scanCounts[normalizedAlias] || 0);
+        }, 0);
+    };
+
+    const refreshPackingUI = function () {
+        if (!packingWrap) {
+            return;
+        }
+        const scanCounts = getPackingScanCounts();
+        let totalScanned = scannedPackingBarcodes.length;
+        let remainingMessages = [];
+        let overScanMessages = [];
+
+        packingRequirements.forEach(function (requirement) {
+            const primaryCode = normalizeBarcodeValue(requirement.scan_code || requirement.barcode || "");
+            const element = packingRequirementElements[primaryCode];
+            const scanned = getRequirementScannedCount(requirement, scanCounts);
+            const expected = Number((requirement && requirement.expected_quantity) || 0);
+            const countElement = element ? element.querySelector("[data-scanned-count]") : null;
+            if (countElement) {
+                countElement.textContent = String(scanned);
+            }
+            if (element) {
+                element.classList.remove("is-complete", "is-over");
+                if (scanned === expected && expected > 0) {
+                    element.classList.add("is-complete");
+                } else if (scanned > expected) {
+                    element.classList.add("is-over");
+                }
+            }
+            if (scanned < expected) {
+                remainingMessages.push((requirement.sku || requirement.name || primaryCode) + " x" + String(expected - scanned));
+            } else if (scanned > expected) {
+                overScanMessages.push((requirement.sku || requirement.name || primaryCode) + " (" + String(scanned) + "/" + String(expected) + ")");
+            }
+        });
+
+        if (packingPayloadInput) {
+            packingPayloadInput.value = JSON.stringify(scannedPackingBarcodes);
+        }
+        if (packingCounter) {
+            packingCounter.textContent = String(totalScanned) + " / " + String(totalExpectedPackingQuantity);
+        }
+
+        const packButtons = buttons.filter(function (button) {
+            return (button.getAttribute("data-status-value") || "") === "order_packed";
+        });
+        let canPack = !packingSetupBlocked && totalExpectedPackingQuantity > 0 && !remainingMessages.length && !overScanMessages.length;
+        if (totalExpectedPackingQuantity === 0 && !packingSetupBlocked) {
+            canPack = false;
+        }
+        packButtons.forEach(function (button) {
+            button.disabled = !canPack;
+            button.style.opacity = canPack ? "1" : "0.55";
+            button.style.cursor = canPack ? "" : "not-allowed";
+        });
+
+        if (packingSetupBlocked) {
+            setPackingFeedback("Fix the packing setup issues before scanning.", "warning");
+        } else if (overScanMessages.length) {
+            setPackingFeedback("Some products were scanned more times than ordered: " + overScanMessages.join(", ") + ".", "warning");
+        } else if (remainingMessages.length) {
+            setPackingFeedback("Scan all products before packing. Remaining: " + remainingMessages.join(", ") + ".", "warning");
+        } else if (totalExpectedPackingQuantity > 0) {
+            setPackingFeedback("All products are scanned and ready for packing.", "success");
+        } else {
+            setPackingFeedback("No packable products were found for this order.", "warning");
+        }
+    };
+
+    const registerPackingScan = function (rawValue) {
+        if (!packingWrap) {
+            return false;
+        }
+        if (packingSetupBlocked) {
+            window.alert("Fix the packing setup issues before scanning this order.");
+            setPackingStatus("Packing scan is blocked until product mapping and local SKU setup are fixed.", "error");
+            return false;
+        }
+        const normalized = normalizeBarcodeValue(rawValue);
+        if (!normalized) {
+            setPackingStatus("Scan a valid product SKU label.", "error");
+            if (packingInput) {
+                packingInput.focus();
+            }
+            return false;
+        }
+        const requirement = packingRequirementMap[normalized];
+        if (!requirement) {
+            window.alert("Product is not matched with this order.");
+            setPackingStatus("Scanned SKU label does not belong to this order.", "error");
+            if (packingInput) {
+                packingInput.value = "";
+                packingInput.focus();
+            }
+            return false;
+        }
+        const currentCount = getRequirementScannedCount(requirement, getPackingScanCounts());
+        if (currentCount >= Number(requirement.expected_quantity || 0)) {
+            window.alert("This product is already fully scanned for the ordered quantity.");
+            setPackingStatus("Scanned quantity already matches the required count for " + (requirement.sku || requirement.name) + ".", "error");
+            if (packingInput) {
+                packingInput.value = "";
+                packingInput.focus();
+            }
+            return false;
+        }
+        scannedPackingBarcodes.push(normalized);
+        refreshPackingUI();
+        setPackingStatus("Scanned " + (requirement.sku || requirement.name) + " successfully.", "success");
+        if (packingInput) {
+            packingInput.value = "";
+            packingInput.focus();
+        }
+        return true;
+    };
+
+    const resetPackingScans = function () {
+        scannedPackingBarcodes = [];
+        refreshPackingUI();
+        setPackingStatus("Packing scans cleared. Start scanning again.", null);
+        stopPackingScanner();
+        if (packingInput) {
+            packingInput.value = "";
+            packingInput.focus();
+        }
+    };
+
+    const packingScanLoop = async function () {
+        if (!barcodeDetector || !packingScannerVideo || !packingStream) {
+            return;
+        }
+        try {
+            const barcodes = await barcodeDetector.detect(packingScannerVideo);
+            if (Array.isArray(barcodes) && barcodes.length) {
+                const detected = barcodes
+                    .map(function (item) {
+                        return normalizeBarcodeValue(item.rawValue || "");
+                    })
+                    .find(function (value) {
+                        return value.length >= 4;
+                    });
+                if (detected) {
+                    const accepted = registerPackingScan(detected);
+                    if (accepted) {
+                        stopPackingScanner();
+                    }
+                    return;
+                }
+            }
+        } catch (error) {
+            setPackingStatus("Scanner is active, but no readable product SKU label yet.", null);
+        }
+        packingLoopFrame = requestAnimationFrame(packingScanLoop);
+    };
+
+    const startPackingScanner = async function () {
+        if (!packingWrap) {
+            return;
+        }
+        if (packingSetupBlocked) {
+            window.alert("Fix the packing setup issues before scanning this order.");
+            setPackingStatus("Packing scan is blocked until product mapping and local SKU setup are fixed.", "error");
+            return;
+        }
+        if (!scannerSupported) {
+            setPackingStatus("Camera scan is not supported here. Use manual entry or a USB scanner.", "error");
+            if (packingInput) {
+                packingInput.focus();
+            }
+            return;
+        }
+        if (!barcodeDetector) {
+            try {
+                barcodeDetector = new BarcodeDetector({
+                    formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"],
+                });
+            } catch (error) {
+                setPackingStatus("Barcode scanner initialization failed. Use manual entry.", "error");
+                return;
+            }
+        }
+        try {
+            packingStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } },
+                audio: false,
+            });
+            if (packingScannerVideo) {
+                packingScannerVideo.srcObject = packingStream;
+                await packingScannerVideo.play();
+            }
+            if (packingScannerPanel) {
+                packingScannerPanel.classList.add("is-visible");
+            }
+            if (packingStartButton) {
+                packingStartButton.style.display = "none";
+            }
+            if (packingStopButton) {
+                packingStopButton.style.display = "";
+            }
+            setPackingStatus("Scanner is ready. Point the camera at the product SKU label.", null);
+            packingLoopFrame = requestAnimationFrame(packingScanLoop);
+        } catch (error) {
+            stopPackingScanner();
+            setPackingStatus("Unable to access the camera. Use manual entry or a USB scanner.", "error");
         }
     };
 
@@ -690,6 +1255,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const setFieldVisibility = function (button) {
         const needsPhone = button.getAttribute("data-requires-phone") === "true";
         const needsTracking = button.getAttribute("data-requires-tracking") === "true";
+        const needsPacking = (button.getAttribute("data-status-value") || "") === "order_packed";
         if (phoneInput) {
             phoneInput.style.display = needsPhone ? "block" : "none";
             phoneInput.required = needsPhone;
@@ -700,11 +1266,20 @@ document.addEventListener("DOMContentLoaded", function () {
         if (trackingInput) {
             trackingInput.required = needsTracking;
         }
+        if (packingWrap) {
+            packingWrap.style.display = needsPacking ? "block" : "none";
+        }
         if (!needsTracking) {
             stopScanner();
         }
+        if (!needsPacking) {
+            stopPackingScanner();
+        }
         if (needsTracking) {
             setScanStatus("Enter tracking manually or use barcode scan.", null);
+        }
+        if (needsPacking) {
+            refreshPackingUI();
         }
     };
 
@@ -713,10 +1288,12 @@ document.addEventListener("DOMContentLoaded", function () {
             setFieldVisibility(button);
         }
         button.addEventListener("click", function (event) {
+            activeActionButton = button;
             const targetStatus = button.getAttribute("data-status-value") || "";
             const needsPhone = button.getAttribute("data-requires-phone") === "true";
             const needsTracking = button.getAttribute("data-requires-tracking") === "true";
             const isCancel = button.getAttribute("data-is-cancel") === "true";
+            const needsPacking = targetStatus === "order_packed";
             setFieldVisibility(button);
             if (statusTargetInput) {
                 statusTargetInput.value = targetStatus;
@@ -742,6 +1319,31 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
             }
+            if (needsPacking) {
+                refreshPackingUI();
+                const counts = getPackingScanCounts();
+                const remaining = packingRequirements.filter(function (requirement) {
+                    return getRequirementScannedCount(requirement, counts) < Number(requirement.expected_quantity || 0);
+                });
+                const unexpected = scannedPackingBarcodes.filter(function (barcode) {
+                    return !packingRequirementMap[barcode];
+                });
+                if (packingSetupBlocked) {
+                    event.preventDefault();
+                    window.alert("Fix the product mapping or local SKU setup before packing this order.");
+                    return;
+                }
+                if (unexpected.length) {
+                    event.preventDefault();
+                    window.alert("Product is not matched with this order.");
+                    return;
+                }
+                if (remaining.length || !packingRequirements.length) {
+                    event.preventDefault();
+                    window.alert("Scan all ordered products and quantities before packing.");
+                    return;
+                }
+            }
         });
     });
 
@@ -764,8 +1366,45 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    if (packingAddButton) {
+        packingAddButton.addEventListener("click", function () {
+            registerPackingScan(packingInput ? packingInput.value : "");
+        });
+    }
+
+    if (packingInput) {
+        packingInput.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                registerPackingScan(packingInput.value);
+            }
+        });
+    }
+
+    if (packingStartButton) {
+        packingStartButton.addEventListener("click", function () {
+            startPackingScanner();
+        });
+    }
+
+    if (packingStopButton) {
+        packingStopButton.addEventListener("click", function () {
+            stopPackingScanner();
+            setPackingStatus("Scanner stopped. You can enter the product SKU label manually.", null);
+        });
+    }
+
+    if (packingResetButton) {
+        packingResetButton.addEventListener("click", function () {
+            resetPackingScans();
+        });
+    }
+
+    refreshPackingUI();
+
     window.addEventListener("beforeunload", function () {
         stopScanner();
+        stopPackingScanner();
     });
 });
 </script>
