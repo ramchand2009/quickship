@@ -695,7 +695,11 @@
                                 Use the camera or a scanner gun to capture product SKU labels.
                             </div>
                             <div id="opsPackingScannerPanel" class="ops-detail-scanner-panel">
-                                <video id="opsPackingScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
+                                <div class="camera-scanner-stage camera-scanner-stage--wide">
+                                    <video id="opsPackingScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
+                                    <div class="camera-scanner-guide" aria-hidden="true"></div>
+                                    <div class="camera-scanner-hint" aria-hidden="true">Align barcode with red line</div>
+                                </div>
                             </div>
                             <div class="ops-detail-packing-checklist mt-3">
                                 {% for requirement in packing_scan_requirements %}
@@ -736,7 +740,11 @@
                         </div>
                         <div id="opsScanStatus" class="ops-detail-scan-status">Enter tracking manually or use barcode scan.</div>
                         <div id="opsScannerPanel" class="ops-detail-scanner-panel">
-                            <video id="opsScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
+                            <div class="camera-scanner-stage camera-scanner-stage--wide">
+                                <video id="opsScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
+                                <div class="camera-scanner-guide" aria-hidden="true"></div>
+                                <div class="camera-scanner-hint" aria-hidden="true">Align barcode with red line</div>
+                            </div>
                         </div>
                     </div>
                     <div class="ops-detail-action-grid">

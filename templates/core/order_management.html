@@ -324,7 +324,11 @@
                                                         </div>
                                                         <div class="small text-muted mt-1 d-none" data-scan-status>Enter tracking number manually or use barcode scan.</div>
                                                         <div class="tracking-scanner-panel d-none mt-2" data-scanner-panel>
-                                                            <video class="tracking-scanner-video" data-scanner-video playsinline muted></video>
+                                                            <div class="camera-scanner-stage">
+                                                                <video class="tracking-scanner-video" data-scanner-video playsinline muted></video>
+                                                                <div class="camera-scanner-guide" aria-hidden="true"></div>
+                                                                <div class="camera-scanner-hint" aria-hidden="true">Align barcode with red line</div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     <div class="d-flex flex-wrap gap-2 d-none" data-cancel-fields>

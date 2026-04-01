@@ -353,20 +353,34 @@ document.addEventListener("DOMContentLoaded", function () {
         title.style.color = "#fff";
         title.style.marginBottom = "12px";
 
+        const stage = document.createElement("div");
+        stage.className = "camera-scanner-stage camera-scanner-stage--wide";
+        stage.style.width = "min(92vw, 520px)";
+
         const video = document.createElement("video");
         video.setAttribute("autoplay", "autoplay");
         video.setAttribute("playsinline", "playsinline");
-        video.style.width = "min(92vw, 520px)";
-        video.style.borderRadius = "12px";
         video.style.background = "#000";
+
+        const guide = document.createElement("div");
+        guide.className = "camera-scanner-guide";
+        guide.setAttribute("aria-hidden", "true");
+
+        const hint = document.createElement("div");
+        hint.className = "camera-scanner-hint";
+        hint.setAttribute("aria-hidden", "true");
+        hint.textContent = "Align barcode with red line";
 
         const stopButton = document.createElement("button");
         stopButton.type = "button";
         stopButton.className = "btn btn-outline-light mt-3";
         stopButton.textContent = "Cancel Scan";
 
+        stage.appendChild(video);
+        stage.appendChild(guide);
+        stage.appendChild(hint);
         overlay.appendChild(title);
-        overlay.appendChild(video);
+        overlay.appendChild(stage);
         overlay.appendChild(stopButton);
         document.body.appendChild(overlay);
 
