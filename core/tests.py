@@ -33,6 +33,44 @@ from .system_status import write_system_heartbeat
 from .whatomate import WhatomateNotificationError, _build_template_params_for_status
 from .views import _build_webhook_test_payload, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
+from .shiprocket import sync_orders
+
+
+class ShiprocketSyncTests(TestCase):
+    @patch("core.shiprocket._get_auth_token", return_value="token-123")
+    @patch("core.shiprocket._json_request")
+    def test_sync_orders_imports_only_new_shiprocket_orders(self, mock_json_request, mock_get_auth_token):
+        mock_json_request.return_value = {
+            "data": [
+                {
+                    "id": 101,
+                    "status": "NEW",
+                    "customer_name": "Fresh Order",
+                    "customer_email": "fresh@example.com",
+                    "customer_phone": "9999999999",
+                    "payment_method": "Prepaid",
+                    "total": "250.00",
+                    "created_at": "2026-04-01T01:00:00+00:00",
+                },
+                {
+                    "id": 202,
+                    "status": "CANCELED",
+                    "customer_name": "Cancelled Order",
+                    "customer_email": "cancelled@example.com",
+                    "customer_phone": "8888888888",
+                    "payment_method": "COD",
+                    "total": "175.00",
+                    "created_at": "2026-04-01T02:00:00+00:00",
+                },
+            ]
+        }
+
+        synced = sync_orders()
+
+        self.assertEqual(synced, 1)
+        self.assertTrue(ShiprocketOrder.objects.filter(shiprocket_order_id="101").exists())
+        self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="202").exists())
+        self.assertEqual(ShiprocketOrder.objects.get(shiprocket_order_id="101").status, "NEW")
 
 
 class ShiprocketOrderStatusFormTests(TestCase):

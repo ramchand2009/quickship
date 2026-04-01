@@ -126,6 +126,19 @@ def _extract_items(item):
     return normalized
 
 
+def _normalize_shiprocket_status(value):
+    return " ".join(str(value or "").strip().lower().replace("_", " ").replace("-", " ").split())
+
+
+def _get_shiprocket_status(item):
+    return str(item.get("status") or item.get("current_status") or "").strip()
+
+
+def _is_syncable_order(item):
+    normalized_status = _normalize_shiprocket_status(_get_shiprocket_status(item))
+    return normalized_status.startswith("new")
+
+
 def sync_orders():
     token = _get_auth_token()
     params = parse.urlencode({"per_page": 20, "page": 1})
@@ -140,6 +153,10 @@ def sync_orders():
         order_id = item.get("id") or item.get("order_id")
         if not order_id:
             continue
+        if not _is_syncable_order(item):
+            continue
+
+        shiprocket_status = _get_shiprocket_status(item)
 
         ShiprocketOrder.objects.update_or_create(
             shiprocket_order_id=str(order_id),
@@ -148,7 +165,7 @@ def sync_orders():
                 "customer_name": item.get("customer_name") or "",
                 "customer_email": item.get("customer_email") or "",
                 "customer_phone": item.get("customer_phone") or "",
-                "status": item.get("status") or item.get("current_status") or "",
+                "status": shiprocket_status,
                 "payment_method": item.get("payment_method") or "",
                 "total": _to_decimal(item.get("total") or item.get("sub_total")),
                 "order_date": parse_datetime(item.get("created_at") or item.get("order_date") or ""),
