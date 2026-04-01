@@ -734,11 +734,11 @@
                     {% endif %}
                     <div id="opsTrackingWrap" class="ops-detail-tracking-wrap">
                         <div class="ops-detail-scanner-row">
-                            <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Tracking number for Ship action">
+                            <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Type tracking number manually (AA123456789AA)" autocomplete="off" autocapitalize="characters" spellcheck="false">
                             <button type="button" id="opsScanStartButton" class="ops-detail-scan-btn is-primary">Scan Barcode</button>
                             <button type="button" id="opsScanStopButton" class="ops-detail-scan-btn is-danger" style="display:none;">Stop Scan</button>
                         </div>
-                        <div id="opsScanStatus" class="ops-detail-scan-status">Enter tracking manually or use barcode scan.</div>
+                        <div id="opsScanStatus" class="ops-detail-scan-status">Manual option: type tracking number here in format AA123456789AA, or scan barcode.</div>
                         <div id="opsScannerPanel" class="ops-detail-scanner-panel">
                             <div class="camera-scanner-stage camera-scanner-stage--wide">
                                 <video id="opsScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
@@ -801,12 +801,18 @@ document.addEventListener("DOMContentLoaded", function () {
     const packingCounter = document.getElementById("opsPackingCounter");
     const buttons = Array.from(form.querySelectorAll("[data-status-action]"));
     const scannerSupported = "mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices && "BarcodeDetector" in window;
+    const TRACKING_NUMBER_LENGTH = 13;
+    const TRACKING_NUMBER_PATTERN = /^[A-Z]{2}\d{9}[A-Z]{2}$/;
+    const TRACKING_CONFIRM_DELAY_MS = 500;
     let barcodeDetector = null;
     let scannerStream = null;
     let scannerLoopFrame = null;
     let packingStream = null;
     let packingLoopFrame = null;
     let scannedPackingBarcodes = [];
+    let trackingScanCounts = {};
+    let trackingConfirmTimeout = null;
+    let pendingTrackingValue = "";
     let activeActionButton = null;
 
     const normalizeTrackingNumber = function (rawValue) {
@@ -814,6 +820,10 @@ document.addEventListener("DOMContentLoaded", function () {
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, "")
             .trim();
+    };
+
+    const isExactTrackingNumber = function (value) {
+        return TRACKING_NUMBER_PATTERN.test(String(value || ""));
     };
 
     const normalizeBarcodeValue = function (rawValue) {
@@ -879,6 +889,10 @@ document.addEventListener("DOMContentLoaded", function () {
             cancelAnimationFrame(scannerLoopFrame);
             scannerLoopFrame = null;
         }
+        if (trackingConfirmTimeout) {
+            clearTimeout(trackingConfirmTimeout);
+            trackingConfirmTimeout = null;
+        }
         if (scannerVideo) {
             scannerVideo.pause();
             scannerVideo.srcObject = null;
@@ -898,6 +912,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (scanStopButton) {
             scanStopButton.style.display = "none";
         }
+        trackingScanCounts = {};
+        pendingTrackingValue = "";
     };
 
     const setPackingStatus = function (message, tone) {
@@ -1185,6 +1201,62 @@ document.addEventListener("DOMContentLoaded", function () {
         trackingInput.focus();
     };
 
+    const registerTrackingDetection = function (rawValue) {
+        const normalized = normalizeTrackingNumber(rawValue);
+        if (!normalized) {
+            return { accepted: false, message: "" };
+        }
+        if (!isExactTrackingNumber(normalized)) {
+            if (normalized.length < TRACKING_NUMBER_LENGTH) {
+                return {
+                    accepted: false,
+                    message:
+                        "Partial barcode read (" +
+                        String(normalized.length) +
+                        "/" +
+                        String(TRACKING_NUMBER_LENGTH) +
+                        "). Hold the barcode steady on the red line.",
+                };
+            }
+            return {
+                accepted: false,
+                message: "Tracking barcode must match format AA123456789AA. Hold the full code steady on the red line.",
+            };
+        }
+        trackingScanCounts[normalized] = (trackingScanCounts[normalized] || 0) + 1;
+        if (trackingScanCounts[normalized] >= 2) {
+            return { accepted: true, value: normalized };
+        }
+        return {
+            accepted: false,
+            message: "Reading full tracking number. Hold steady for one more moment.",
+        };
+    };
+
+    const scheduleTrackingConfirmation = function (value) {
+        if (!value || !isExactTrackingNumber(value)) {
+            return;
+        }
+        if (pendingTrackingValue === value && trackingConfirmTimeout) {
+            return;
+        }
+        if (trackingConfirmTimeout) {
+            clearTimeout(trackingConfirmTimeout);
+            trackingConfirmTimeout = null;
+        }
+        pendingTrackingValue = value;
+        setScanStatus("Full tracking number detected. Confirming scan...", null);
+        trackingConfirmTimeout = window.setTimeout(function () {
+            trackingConfirmTimeout = null;
+            if (!scannerStream || pendingTrackingValue !== value) {
+                return;
+            }
+            fillTrackingCode(value);
+            setScanStatus("Full tracking number captured from barcode.", "success");
+            stopScanner();
+        }, TRACKING_CONFIRM_DELAY_MS);
+    };
+
     const scanLoop = async function () {
         if (!barcodeDetector || !scannerVideo || !scannerStream) {
             return;
@@ -1192,22 +1264,26 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             const barcodes = await barcodeDetector.detect(scannerVideo);
             if (Array.isArray(barcodes) && barcodes.length) {
-                const detected = barcodes
+                const candidates = barcodes
                     .map(function (item) {
-                        return normalizeTrackingNumber(item.rawValue || "");
+                        return item.rawValue || "";
                     })
-                    .find(function (value) {
-                        return value.length >= 10;
-                    });
-                if (detected) {
-                    fillTrackingCode(detected);
-                    setScanStatus("Tracking number captured from barcode.", "success");
-                    stopScanner();
-                    return;
+                    .filter(Boolean);
+                for (let index = 0; index < candidates.length; index += 1) {
+                    const result = registerTrackingDetection(candidates[index]);
+                    if (result.message) {
+                        setScanStatus(result.message, null);
+                    }
+                    if (result.accepted) {
+                        scheduleTrackingConfirmation(result.value);
+                        return;
+                    }
                 }
+            } else {
+                setScanStatus("Scanner is active. Align the exact 13-character barcode with the red line.", null);
             }
         } catch (error) {
-            setScanStatus("Scanner is active, but no readable barcode yet.", null);
+            setScanStatus("Scanner is active. Align the exact 13-character barcode with the red line.", null);
         }
         scannerLoopFrame = requestAnimationFrame(scanLoop);
     };
@@ -1234,6 +1310,8 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         try {
+            trackingScanCounts = {};
+            pendingTrackingValue = "";
             scannerStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: "environment" } },
                 audio: false,
@@ -1251,7 +1329,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (scanStopButton) {
                 scanStopButton.style.display = "";
             }
-            setScanStatus("Scanner is ready. Point the camera at the tracking barcode.", null);
+            setScanStatus("Scanner is ready. Hold the exact barcode format AA123456789AA on the red line.", null);
             scannerLoopFrame = requestAnimationFrame(scanLoop);
         } catch (error) {
             stopScanner();
