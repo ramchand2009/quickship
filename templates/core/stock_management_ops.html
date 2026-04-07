@@ -49,6 +49,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-table-status { display:inline-flex; align-items:center; padding:.24rem .58rem; border-radius:999px; background:#dcf4e9; color:#1d684a; font-size:.76rem; font-weight:700; }
 .ops-stock-table-status.is-inactive { background:#e7eaee; color:#52606d; }
 .ops-stock-table-stock.is-low { color:#c2410c; font-weight:800; }
+.ops-stock-table-stock.is-out { color:#b91c1c; font-weight:800; }
 .ops-stock-table-actions { min-width:210px; }
 .ops-stock-inline-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.45rem; align-items:center; }
 .ops-stock-inline-form .form-control { min-height:40px; border-radius:.8rem; }
@@ -70,6 +71,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-qty strong { display:block; font-size:1.5rem; color:#0f172a; line-height:1; }
 .ops-stock-qty span { display:block; margin-top:.2rem; color:#64748b; font-size:.84rem; }
 .ops-stock-qty.is-low strong { color:#c2410c; }
+.ops-stock-qty.is-out strong { color:#b91c1c; }
 .ops-stock-details { grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:.75rem; }
 .ops-stock-details span { display:block; color:#64748b; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
 .ops-stock-details strong, .ops-stock-details code { display:block; margin-top:.12rem; color:#172330; word-break:break-word; }
@@ -232,7 +234,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                             <td><strong>{{ product.name }}</strong></td>
                                             <td>{{ product.category_label|default:"-" }}</td>
                                             <td>{{ product.sku }}</td>
-                                            <td class="ops-stock-table-stock {% if product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</td>
+                                            <td class="ops-stock-table-stock {% if product.is_no_stock %}is-out{% elif product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</td>
                                             <td>
                                                 {% if product.is_active %}
                                                     <span class="ops-stock-table-status">Active</span>
@@ -303,7 +305,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <div class="ops-stock-item">
                                     <div class="ops-stock-item-head">
                                         <div><h4>{{ product.name }}</h4><div class="ops-stock-meta">Category: {{ product.category_label|default:"-" }}</div><div class="ops-stock-meta">SKU: {{ product.sku }}</div><div class="ops-stock-meta">Barcode: {{ product.barcode|default:"-" }}</div></div>
-                                        <div class="ops-stock-qty {% if product.is_low_stock %}is-low{% endif %}"><strong>{{ product.stock_quantity }}</strong><span>Threshold {{ product.reorder_level }}</span></div>
+                                        <div class="ops-stock-qty {% if product.is_no_stock %}is-out{% elif product.is_low_stock %}is-low{% endif %}"><strong>{{ product.stock_quantity }}</strong><span>Threshold {{ product.reorder_level }}</span></div>
                                     </div>
                                     <div class="ops-stock-details">
                                         <div><span>SmartBiz ID</span><code>{{ product.smartbiz_product_id|default:"-" }}</code></div>

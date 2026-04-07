@@ -329,7 +329,11 @@ class Product(models.Model):
 
     @property
     def is_low_stock(self):
-        return self.stock_quantity <= int(self.reorder_level or 0)
+        return self.stock_quantity > 0 and self.stock_quantity <= int(self.reorder_level or 0)
+
+    @property
+    def is_no_stock(self):
+        return self.stock_quantity <= 0
 
     @property
     def category_label(self):

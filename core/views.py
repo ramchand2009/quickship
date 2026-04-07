@@ -2578,7 +2578,11 @@ def stock_management(request):
     if selected_category_id.isdigit():
         products = products.filter(category_master_id=int(selected_category_id))
 
-    low_stock_queryset = products.filter(is_active=True, stock_quantity__lte=F("reorder_level")).order_by(
+    low_stock_queryset = products.filter(
+        is_active=True,
+        stock_quantity__gt=0,
+        stock_quantity__lte=F("reorder_level"),
+    ).order_by(
         "stock_quantity",
         "name",
     )
@@ -2586,7 +2590,7 @@ def stock_management(request):
     no_stock_count = products.filter(is_active=True, stock_quantity__lte=0).count()
     low_stock_products = low_stock_queryset[:10]
     if low_only:
-        products = products.filter(stock_quantity__lte=F("reorder_level"))
+        products = products.filter(stock_quantity__gt=0, stock_quantity__lte=F("reorder_level"))
     total_products_count = products.count()
     recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
     product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
