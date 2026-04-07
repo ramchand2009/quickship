@@ -2577,13 +2577,17 @@ def stock_management(request):
         )
     if selected_category_id.isdigit():
         products = products.filter(category_master_id=int(selected_category_id))
+
+    low_stock_queryset = products.filter(is_active=True, stock_quantity__lte=F("reorder_level")).order_by(
+        "stock_quantity",
+        "name",
+    )
+    low_stock_count = low_stock_queryset.count()
+    no_stock_count = products.filter(is_active=True, stock_quantity__lte=0).count()
+    low_stock_products = low_stock_queryset[:10]
     if low_only:
         products = products.filter(stock_quantity__lte=F("reorder_level"))
-
-    low_stock_products = (
-        Product.objects.filter(is_active=True, stock_quantity__lte=F("reorder_level"))
-        .order_by("stock_quantity", "name")[:10]
-    )
+    total_products_count = products.count()
     recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
     product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
 
@@ -2596,7 +2600,10 @@ def stock_management(request):
             "stock_form": stock_form,
             "mapping_form": mapping_form,
             "products": products[:200],
+            "total_products_count": total_products_count,
             "low_stock_products": low_stock_products,
+            "low_stock_count": low_stock_count,
+            "no_stock_count": no_stock_count,
             "recent_movements": recent_movements,
             "search_query": search_query,
             "low_only": low_only,

@@ -151,8 +151,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     {% endif %}
 
     <div class="ops-stock-summary">
-        <div class="ops-stock-summary-card"><span>Total products</span><strong>{{ products|length }}</strong></div>
-        <div class="ops-stock-summary-card"><span>Low stock items</span><strong>{{ low_stock_products|length }}</strong></div>
+        <div class="ops-stock-summary-card"><span>Total products</span><strong>{{ total_products_count }}</strong></div>
+        <div class="ops-stock-summary-card"><span>Low stock items</span><strong>{{ low_stock_count }}</strong></div>
+        <div class="ops-stock-summary-card"><span>No stock qty</span><strong>{{ no_stock_count }}</strong></div>
     </div>
 
     {% if active_view == 'list' or active_view == 'manage' %}
@@ -272,7 +273,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="ops-stock-main mt-3">
         <div class="ops-stock-grid">
             <div class="ops-stock-card">
-                <div class="ops-stock-card-head"><div><h3>Low Stock Products</h3><p>Items already at or below threshold.</p></div><span class="ops-stock-badge is-warning">{{ low_stock_products|length }}</span></div>
+                <div class="ops-stock-card-head"><div><h3>Low Stock Products</h3><p>Items already at or below threshold.</p></div><span class="ops-stock-badge is-warning">{{ low_stock_count }}</span></div>
                 <div class="ops-stock-card-body">
                     {% if low_stock_products %}
                         <div class="ops-stock-list">
