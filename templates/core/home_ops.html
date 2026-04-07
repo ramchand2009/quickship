@@ -29,6 +29,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-grid,
+.ops-home-month-grid,
 .ops-home-actions,
 .ops-home-queues,
 .ops-home-health {
@@ -39,6 +40,10 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-bottom: 1rem;
+}
+
+.ops-home-month-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .ops-home-actions,
@@ -226,11 +231,45 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         <p>Track today’s workload, urgent queues, stock risks, and quick links from one place.</p>
     </div>
 
+    <div class="ops-home-section-head">
+        <h3>Orders</h3>
+        <span>Order workload</span>
+    </div>
     <div class="ops-home-grid">
-        {% for card in mobile_dashboard_cards %}
+        {% for card in mobile_order_dashboard_cards %}
             <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
                 <a href="{{ card.url }}" class="ops-home-card-link">
                     <span class="ops-home-card-label">{{ card.title }}</span>
+                    <span class="ops-home-card-value">{{ card.count }}</span>
+                </a>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="ops-home-section-head mt-3">
+        <h3>Stock</h3>
+        <span>Inventory risks</span>
+    </div>
+    <div class="ops-home-grid">
+        {% for card in mobile_stock_dashboard_cards %}
+            <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
+                <a href="{{ card.url }}" class="ops-home-card-link">
+                    <span class="ops-home-card-label">{{ card.title }}</span>
+                    <span class="ops-home-card-value">{{ card.count }}</span>
+                </a>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="ops-home-section-head">
+        <h3>This Month Order Status</h3>
+        <span>{{ current_month_label }} | {{ monthly_status_total }}</span>
+    </div>
+    <div class="ops-home-month-grid">
+        {% for card in monthly_status_cards %}
+            <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
+                <a href="{{ card.url }}" class="ops-home-card-link">
+                    <span class="ops-home-card-label">{{ card.label }}</span>
                     <span class="ops-home-card-value">{{ card.count }}</span>
                 </a>
             </div>

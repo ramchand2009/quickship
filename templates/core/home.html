@@ -243,8 +243,35 @@
 </div>
 
 <div class="orders-dashboard-shell">
+<div class="dashboard-panel-head mb-3">
+    <div>
+        <h5 class="mb-1">Orders</h5>
+        <p class="mb-0 text-muted">Track live order workload and action queues.</p>
+    </div>
+</div>
 <div class="row g-3 mb-2">
-    {% for card in action_cards %}
+    {% for card in order_action_cards %}
+    <div class="col-md-6 col-xl">
+        <div class="card dashboard-card dashboard-tone-{{ card.tone }}">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">{{ card.title }}</div>
+                <div class="metric-value mt-2">{{ card.count }}</div>
+                <div class="text-muted small mt-2">{{ card.description }}</div>
+                <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-primary mt-3">{{ card.action_label }}</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="dashboard-panel-head mb-3 mt-4">
+    <div>
+        <h5 class="mb-1">Stock</h5>
+        <p class="mb-0 text-muted">See low-stock and no-stock items separately from order actions.</p>
+    </div>
+</div>
+<div class="row g-3 mb-2">
+    {% for card in stock_action_cards %}
     <div class="col-md-6 col-xl">
         <div class="card dashboard-card dashboard-tone-{{ card.tone }}">
             <div class="card-body">
@@ -270,6 +297,33 @@
         </div>
     </div>
     {% endfor %}
+</div>
+
+<div class="row mb-2">
+    <div class="col-12">
+        <div class="card dashboard-card">
+            <div class="card-body">
+                <div class="dashboard-panel-head">
+                    <div>
+                        <h5 class="mb-1">This Month Order Status</h5>
+                        <p class="mb-0 text-muted">{{ current_month_label }} total orders: {{ monthly_status_total }}</p>
+                    </div>
+                    <a href="{% url 'order_management' %}" class="btn btn-sm btn-outline-secondary">Open Orders</a>
+                </div>
+                <div class="row g-3 mt-1">
+                    {% for card in monthly_status_cards %}
+                    <div class="col-md-4 col-xl">
+                        <div class="dashboard-insight-card">
+                            <div class="small text-muted text-uppercase">{{ card.label }}</div>
+                            <div class="metric-value mt-2">{{ card.count }}</div>
+                            <a href="{{ card.url }}" class="btn btn-sm btn-outline-primary mt-3">View Orders</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% if dashboard_alerts %}

@@ -1355,6 +1355,7 @@ def _build_orders_dashboard_context(request):
     webhook_stale_threshold_minutes = counters["webhook_stale_threshold_minutes"]
     show_webhook_stale_banner = bool(_is_ops_admin(getattr(request, "user", None)) and webhook_is_stale)
     today_order_count = ShiprocketOrder.objects.filter(order_date__date=today).count()
+    current_month_label = now.strftime("%B %Y")
     system_status = get_dashboard_system_status()
     status_tabs = _order_status_tabs()
     tab_keys = [tab["key"] for tab in status_tabs]
@@ -1408,7 +1409,15 @@ def _build_orders_dashboard_context(request):
             }
         )
 
-    action_cards = [
+    monthly_rows = (
+        ShiprocketOrder.objects.filter(order_date__year=today.year, order_date__month=today.month)
+        .values("local_status")
+        .annotate(total=Count("id"))
+    )
+    monthly_status_map = {row["local_status"]: int(row["total"] or 0) for row in monthly_rows}
+    monthly_total = sum(monthly_status_map.values())
+
+    order_action_cards = [
         {
             "title": "Needs Acceptance",
             "count": status_counts.get(ShiprocketOrder.STATUS_NEW, 0),
@@ -1478,7 +1487,7 @@ def _build_orders_dashboard_context(request):
         stock_quantity__lte=F("reorder_level"),
     ).count()
     no_stock_count = Product.objects.filter(is_active=True, stock_quantity__lte=0).count()
-    action_cards.append(
+    stock_action_cards = [
         {
             "title": "Low Stock Items",
             "count": low_stock_count,
@@ -1487,8 +1496,8 @@ def _build_orders_dashboard_context(request):
             "action_url": reverse("stock_management"),
             "tone": "danger" if low_stock_count else "success",
         }
-    )
-    action_cards.append(
+    ]
+    stock_action_cards.append(
         {
             "title": "No Stock Items",
             "count": no_stock_count,
@@ -1498,6 +1507,7 @@ def _build_orders_dashboard_context(request):
             "tone": "danger" if no_stock_count else "success",
         }
     )
+    action_cards = order_action_cards + stock_action_cards
 
     dashboard_alerts = []
     if webhook_is_stale:
@@ -1577,6 +1587,116 @@ def _build_orders_dashboard_context(request):
         },
     ]
 
+    if ops_mobile_mode:
+        monthly_status_cards = [
+            {
+                "label": "All",
+                "count": monthly_total,
+                "tone": "primary",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+            {
+                "label": "Pending",
+                "count": monthly_status_map.get(ShiprocketOrder.STATUS_NEW, 0),
+                "tone": "warning",
+                "url": f"{reverse('order_management')}?tab=pending",
+            },
+            {
+                "label": "Accepted",
+                "count": monthly_status_map.get(ShiprocketOrder.STATUS_ACCEPTED, 0)
+                + monthly_status_map.get(ShiprocketOrder.STATUS_PACKED, 0),
+                "tone": "info",
+                "url": f"{reverse('order_management')}?tab=accepted",
+            },
+            {
+                "label": "Shipped",
+                "count": monthly_status_map.get(ShiprocketOrder.STATUS_SHIPPED, 0)
+                + monthly_status_map.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0)
+                + monthly_status_map.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0),
+                "tone": "secondary",
+                "url": f"{reverse('order_management')}?tab=shipped",
+            },
+            {
+                "label": "Completed",
+                "count": monthly_status_map.get(ShiprocketOrder.STATUS_DELIVERED, 0)
+                + monthly_status_map.get(ShiprocketOrder.STATUS_COMPLETED, 0),
+                "tone": "success",
+                "url": f"{reverse('order_management')}?tab=completed",
+            },
+            {
+                "label": "Cancelled",
+                "count": monthly_status_map.get(ShiprocketOrder.STATUS_CANCELLED, 0),
+                "tone": "danger" if monthly_status_map.get(ShiprocketOrder.STATUS_CANCELLED, 0) else "success",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+        ]
+    else:
+        monthly_status_cards = [
+            {
+                "label": tab["label"],
+                "count": monthly_status_map.get(tab["key"], 0),
+                "tone": shortcut_tones.get(tab["key"], "light"),
+                "url": _dashboard_status_url(tab["key"]),
+            }
+            for tab in status_tabs
+        ]
+
+    mobile_order_dashboard_cards = [
+        {
+            "title": "Today Orders",
+            "count": today_order_count,
+            "tone": "primary",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "title": "Pending",
+            "count": work_queues["new_orders"]["count"],
+            "tone": "warning",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "title": "To Pack",
+            "count": status_counts.get(ShiprocketOrder.STATUS_ACCEPTED, 0),
+            "tone": "info",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "title": "Shipped",
+            "count": status_counts.get(ShiprocketOrder.STATUS_SHIPPED, 0)
+            + status_counts.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0)
+            + status_counts.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0),
+            "tone": "secondary",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "title": "Completed",
+            "count": status_counts.get(ShiprocketOrder.STATUS_DELIVERED, 0)
+            + status_counts.get(ShiprocketOrder.STATUS_COMPLETED, 0),
+            "tone": "success",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "title": "Queue Failed",
+            "count": failed_queue_count,
+            "tone": "danger" if failed_queue_count else "success",
+            "url": reverse("whatsapp_delivery_logs"),
+        },
+    ]
+    mobile_stock_dashboard_cards = [
+        {
+            "title": "Low Stock",
+            "count": low_stock_count,
+            "tone": "danger" if low_stock_count else "success",
+            "url": reverse("stock_management"),
+        },
+        {
+            "title": "No Stock",
+            "count": no_stock_count,
+            "tone": "danger" if no_stock_count else "success",
+            "url": reverse("stock_management"),
+        },
+    ]
+
     context = {
         "projects": projects,
         "project_count": Project.objects.count(),
@@ -1602,6 +1722,8 @@ def _build_orders_dashboard_context(request):
         "can_edit_operations": can_edit_operations,
         "ops_mobile_mode": ops_mobile_mode,
         "action_cards": action_cards,
+        "order_action_cards": order_action_cards,
+        "stock_action_cards": stock_action_cards,
         "daily_whatsapp_cards": daily_whatsapp_cards,
         "shortcut_tabs": shortcut_tabs,
         "dashboard_alerts": dashboard_alerts,
@@ -1619,59 +1741,12 @@ def _build_orders_dashboard_context(request):
         ),
         "low_stock_count": low_stock_count,
         "no_stock_count": no_stock_count,
-        "mobile_dashboard_cards": [
-            {
-                "title": "Today Orders",
-                "count": today_order_count,
-                "tone": "primary",
-                "url": f"{reverse('order_management')}?tab=all",
-            },
-            {
-                "title": "Pending",
-                "count": work_queues["new_orders"]["count"],
-                "tone": "warning",
-                "url": f"{reverse('order_management')}?tab=all",
-            },
-            {
-                "title": "To Pack",
-                "count": status_counts.get(ShiprocketOrder.STATUS_ACCEPTED, 0),
-                "tone": "info",
-                "url": f"{reverse('order_management')}?tab=all",
-            },
-            {
-                "title": "Shipped",
-                "count": status_counts.get(ShiprocketOrder.STATUS_SHIPPED, 0)
-                + status_counts.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0)
-                + status_counts.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0),
-                "tone": "secondary",
-                "url": f"{reverse('order_management')}?tab=all",
-            },
-            {
-                "title": "Completed",
-                "count": status_counts.get(ShiprocketOrder.STATUS_DELIVERED, 0)
-                + status_counts.get(ShiprocketOrder.STATUS_COMPLETED, 0),
-                "tone": "success",
-                "url": f"{reverse('order_management')}?tab=all",
-            },
-            {
-                "title": "Low Stock",
-                "count": low_stock_count,
-                "tone": "danger" if low_stock_count else "success",
-                "url": reverse("stock_management"),
-            },
-            {
-                "title": "No Stock",
-                "count": no_stock_count,
-                "tone": "danger" if no_stock_count else "success",
-                "url": reverse("stock_management"),
-            },
-            {
-                "title": "Queue Failed",
-                "count": failed_queue_count,
-                "tone": "danger" if failed_queue_count else "success",
-                "url": reverse("whatsapp_delivery_logs"),
-            },
-        ],
+        "current_month_label": current_month_label,
+        "monthly_status_total": monthly_total,
+        "monthly_status_cards": monthly_status_cards,
+        "mobile_dashboard_cards": mobile_order_dashboard_cards + mobile_stock_dashboard_cards,
+        "mobile_order_dashboard_cards": mobile_order_dashboard_cards,
+        "mobile_stock_dashboard_cards": mobile_stock_dashboard_cards,
         "mobile_quick_actions": [
             {
                 "label": "My Orders",
