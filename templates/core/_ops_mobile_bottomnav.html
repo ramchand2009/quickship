@@ -3,7 +3,7 @@
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-home"></i></span>
         <span class="ops-mobile-bottomnav-label">Home</span>
     </a>
-    <a href="{% url 'order_management' %}" class="{% if ops_mobile_nav_active == 'orders' %}is-active{% endif %}">
+    <a href="{% url 'order_management' %}?tab=all" class="{% if ops_mobile_nav_active == 'orders' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-box-open"></i></span>
         <span class="ops-mobile-bottomnav-label">My Orders</span>
     </a>

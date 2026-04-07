@@ -1129,6 +1129,8 @@ def _resolve_active_tab(request, status_tabs):
     active_tab = requested_tab if requested_tab in tab_keys else ""
     if active_tab:
         return active_tab
+    if OPS_VIEWER_TAB_ALL in tab_keys:
+        return OPS_VIEWER_TAB_ALL
 
     counts = (
         ShiprocketOrder.objects.values("local_status")
