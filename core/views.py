@@ -1335,6 +1335,7 @@ def _get_order_management_undo_context(request):
 
 def _build_orders_dashboard_context(request):
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     projects = Project.objects.all()[:3]
     orders = ShiprocketOrder.objects.all()[:10]
     total_orders = ShiprocketOrder.objects.count()
@@ -1353,6 +1354,7 @@ def _build_orders_dashboard_context(request):
     webhook_is_stale = counters["webhook_is_stale"]
     webhook_stale_threshold_minutes = counters["webhook_stale_threshold_minutes"]
     show_webhook_stale_banner = bool(_is_ops_admin(getattr(request, "user", None)) and webhook_is_stale)
+    today_order_count = ShiprocketOrder.objects.filter(order_date__date=today).count()
     system_status = get_dashboard_system_status()
     status_tabs = _order_status_tabs()
     tab_keys = [tab["key"] for tab in status_tabs]
@@ -1472,8 +1474,10 @@ def _build_orders_dashboard_context(request):
 
     low_stock_count = Product.objects.filter(
         is_active=True,
+        stock_quantity__gt=0,
         stock_quantity__lte=F("reorder_level"),
     ).count()
+    no_stock_count = Product.objects.filter(is_active=True, stock_quantity__lte=0).count()
     action_cards.append(
         {
             "title": "Low Stock Items",
@@ -1482,6 +1486,16 @@ def _build_orders_dashboard_context(request):
             "action_label": "Open Stock Management",
             "action_url": reverse("stock_management"),
             "tone": "danger" if low_stock_count else "success",
+        }
+    )
+    action_cards.append(
+        {
+            "title": "No Stock Items",
+            "count": no_stock_count,
+            "description": "Products with zero stock that need an immediate refill check.",
+            "action_label": "Open Stock Management",
+            "action_url": reverse("stock_management"),
+            "tone": "danger" if no_stock_count else "success",
         }
     )
 
@@ -1569,6 +1583,7 @@ def _build_orders_dashboard_context(request):
         "message_count": ContactMessage.objects.count(),
         "orders": orders,
         "order_count": total_orders,
+        "today_order_count": today_order_count,
         "status_tabs": status_tabs,
         "active_tab": active_tab,
         "status_counts": status_counts,
@@ -1585,6 +1600,7 @@ def _build_orders_dashboard_context(request):
         "show_webhook_stale_banner": show_webhook_stale_banner,
         "system_status": system_status,
         "can_edit_operations": can_edit_operations,
+        "ops_mobile_mode": ops_mobile_mode,
         "action_cards": action_cards,
         "daily_whatsapp_cards": daily_whatsapp_cards,
         "shortcut_tabs": shortcut_tabs,
@@ -1601,15 +1617,86 @@ def _build_orders_dashboard_context(request):
         "last_successful_send_text": _describe_recent_timestamp(
             last_successful_send.created_at if last_successful_send else None
         ),
+        "low_stock_count": low_stock_count,
+        "no_stock_count": no_stock_count,
+        "mobile_dashboard_cards": [
+            {
+                "title": "Today Orders",
+                "count": today_order_count,
+                "tone": "primary",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+            {
+                "title": "Pending",
+                "count": work_queues["new_orders"]["count"],
+                "tone": "warning",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+            {
+                "title": "To Pack",
+                "count": status_counts.get(ShiprocketOrder.STATUS_ACCEPTED, 0),
+                "tone": "info",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+            {
+                "title": "Shipped",
+                "count": status_counts.get(ShiprocketOrder.STATUS_SHIPPED, 0)
+                + status_counts.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0)
+                + status_counts.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0),
+                "tone": "secondary",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+            {
+                "title": "Completed",
+                "count": status_counts.get(ShiprocketOrder.STATUS_DELIVERED, 0)
+                + status_counts.get(ShiprocketOrder.STATUS_COMPLETED, 0),
+                "tone": "success",
+                "url": f"{reverse('order_management')}?tab=all",
+            },
+            {
+                "title": "Low Stock",
+                "count": low_stock_count,
+                "tone": "danger" if low_stock_count else "success",
+                "url": reverse("stock_management"),
+            },
+            {
+                "title": "No Stock",
+                "count": no_stock_count,
+                "tone": "danger" if no_stock_count else "success",
+                "url": reverse("stock_management"),
+            },
+            {
+                "title": "Queue Failed",
+                "count": failed_queue_count,
+                "tone": "danger" if failed_queue_count else "success",
+                "url": reverse("whatsapp_delivery_logs"),
+            },
+        ],
+        "mobile_quick_actions": [
+            {
+                "label": "My Orders",
+                "url": f"{reverse('order_management')}?tab=all",
+                "icon": "fas fa-box-open",
+            },
+            {
+                "label": "Stock List",
+                "url": reverse("stock_management"),
+                "icon": "fas fa-boxes",
+            },
+            {
+                "label": "Low Stock",
+                "url": f"{reverse('stock_management')}?view=more",
+                "icon": "fas fa-exclamation-triangle",
+            },
+        ],
     }
     return context
 
 
 def home(request):
-    restricted_response = _redirect_ops_viewer_to_order_management(request, include_message=False)
-    if restricted_response:
-        return restricted_response
     context = _build_orders_dashboard_context(request)
+    if context["ops_mobile_mode"]:
+        return render(request, "core/home_ops.html", context)
     return render(request, "core/home.html", context)
 
 

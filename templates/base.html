@@ -24,7 +24,7 @@
     {% block extrastyle %}{% endblock %}
 </head>
 {% with current=request.resolver_match.url_name %}
-<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' or viewer_order_management_only and current == 'stock_management' %} no-sidebar-layout ops-mobile-layout{% endif %}">
+<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'home' or viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' or viewer_order_management_only and current == 'stock_management' %} no-sidebar-layout ops-mobile-layout{% endif %}">
     {% if current != "login" and current != "signup" %}
         <nav class="pcoded-navbar menupos-fixed navbar-dark brand-dark">
             <div class="navbar-wrapper">
