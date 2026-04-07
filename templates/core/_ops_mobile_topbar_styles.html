@@ -1,0 +1,93 @@
+.ops-mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    padding: 0.95rem 1rem 0.85rem;
+}
+
+.ops-mobile-topbar h1 {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 700;
+    text-align: center;
+    color: #14181f;
+}
+
+.ops-mobile-topbar-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ops-mobile-topbar-control {
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: #f8fbff;
+    color: #243042;
+    text-decoration: none;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ops-mobile-topbar-control.is-hidden {
+    visibility: hidden;
+}
+
+.ops-mobile-toolbar {
+    display: none;
+}
+
+.ops-mobile-search {
+    flex: 1 1 auto;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 999px;
+    padding: 0.8rem 1rem;
+    background: #f8fbff;
+    color: #243042;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ops-mobile-search::placeholder {
+    color: #94a3b8;
+}
+
+.ops-mobile-sync-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.82rem 1rem;
+    background: linear-gradient(135deg, #0f9ec1 0%, #1479b8 100%);
+    color: #fff;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 10px 20px rgba(20, 121, 184, 0.22);
+}
+
+.ops-mobile-sync-btn.is-secondary {
+    background: #d9e2ec;
+    color: #52606d;
+}
+
+@media (max-width: 767px) {
+    .ops-mobile-topbar {
+        padding: 0.85rem 0.8rem 0.75rem;
+    }
+
+    .ops-mobile-topbar h1 {
+        font-size: 1.55rem;
+    }
+
+    .ops-mobile-search {
+        width: 100%;
+    }
+
+    .ops-mobile-sync-btn {
+        padding: 0.78rem 0.95rem;
+    }
+}

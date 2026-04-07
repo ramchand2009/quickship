@@ -1,0 +1,55 @@
+.ops-mobile-bottomnav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    background: rgba(255, 255, 255, 0.99);
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.4rem;
+    padding: 0.45rem 0.35rem calc(0.55rem + env(safe-area-inset-bottom));
+}
+
+.ops-mobile-bottomnav a,
+.ops-mobile-bottomnav button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: center;
+    color: #7b8794;
+    text-decoration: none;
+    padding: 0.2rem;
+}
+
+.ops-mobile-bottomnav form {
+    margin: 0;
+}
+
+.ops-mobile-bottomnav .is-active {
+    color: #0b84a5;
+    font-weight: 700;
+}
+
+.ops-mobile-bottomnav button:disabled {
+    opacity: 0.55;
+}
+
+.ops-mobile-bottomnav-icon {
+    display: block;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.ops-mobile-bottomnav-label {
+    display: block;
+    margin-top: 0.18rem;
+    font-size: 0.72rem;
+}
+
+@media (min-width: 1200px) {
+    .ops-mobile-bottomnav {
+        display: none;
+    }
+}

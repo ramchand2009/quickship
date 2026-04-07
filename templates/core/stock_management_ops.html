@@ -7,8 +7,9 @@ body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { d
 body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
 body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
 body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+{% include "core/_ops_mobile_topbar_styles.html" %}
 .ops-stock-shell { min-height:100vh; padding:0.45rem 0.85rem 6rem; background:radial-gradient(circle at top left, rgba(73,190,219,.16), transparent 32%), linear-gradient(180deg,#f8fbff 0%,#eef3f8 100%); display:flex; flex-direction:column; }
-.ops-stock-topbar, .ops-stock-actions, .ops-stock-card-head, .ops-stock-item-head, .ops-stock-bottomnav { display:flex; }
+.ops-stock-topbar, .ops-stock-actions, .ops-stock-card-head, .ops-stock-item-head { display:flex; }
 .ops-stock-topbar, .ops-stock-card-head, .ops-stock-item-head { justify-content:space-between; align-items:flex-start; gap:.75rem; }
 .ops-stock-topbar { align-items:center; padding:.1rem 0 .65rem; border-bottom:1px solid rgba(15,23,42,.08); }
 .ops-stock-brand, .ops-stock-pill, .ops-stock-card, .ops-stock-summary-card, .ops-stock-item, .ops-stock-movement { background:rgba(255,255,255,.96); border:1px solid rgba(15,23,42,.08); box-shadow:0 14px 28px rgba(15,23,42,.06); }
@@ -20,8 +21,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-pill, .ops-stock-actions button, .ops-stock-btn, .ops-stock-link-btn { padding:.8rem .95rem; text-decoration:none; font-weight:700; border-radius:.9rem; }
 .ops-stock-pill, .ops-stock-actions button { border:1px solid rgba(15,23,42,.1); color:#334155; }
 .ops-stock-header { padding:.7rem 0 .9rem; }
-.ops-stock-header h1 { margin:0; font-size:clamp(2rem,4vw,3rem); color:#0f172a; }
-.ops-stock-header p { margin:.45rem 0 0; color:#4b5563; }
+.ops-stock-header p { margin:0; color:#4b5563; }
 .ops-stock-header a { color:#1f6ea0; text-decoration:none; }
 .ops-stock-viewtabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin-bottom:1rem; }
 .ops-stock-viewtab { display:inline-flex; align-items:center; justify-content:center; padding:.85rem 1rem; border-radius:1rem; border:1px solid rgba(15,23,42,.08); background:rgba(255,255,255,.92); color:#475569; text-decoration:none; font-weight:700; box-shadow:0 12px 24px rgba(15,23,42,.05); }
@@ -80,10 +80,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-delta.is-positive { color:#15803d; }
 .ops-stock-delta.is-negative { color:#dc2626; }
 .ops-stock-empty { padding:1rem; border-radius:1rem; background:#f8fbff; color:#64748b; }
-.ops-stock-bottomnav { position:fixed; left:0; right:0; bottom:0; z-index:30; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.4rem; padding:.6rem .6rem calc(.7rem + env(safe-area-inset-bottom)); background:rgba(255,255,255,.98); border-top:1px solid rgba(15,23,42,.08); }
-.ops-stock-bottomnav a, .ops-stock-bottomnav button { border:0; background:transparent; text-align:center; color:#7b8794; text-decoration:none; padding:.3rem; }
-.ops-stock-bottomnav .is-active { color:#0b84a5; font-weight:700; }
-.ops-stock-bottomnav-label { display:block; margin-top:.2rem; }
 .ops-stock-topbar { order:1; }
 .ops-stock-header { order:2; }
 .ops-stock-viewtabs { order:3; }
@@ -91,24 +87,19 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-summary { order:5; }
 .ops-stock-search-card { order:6; }
 .ops-stock-main { order:7; }
-.ops-stock-bottomnav { order:8; }
-@media (min-width: 1200px) { .ops-stock-shell { padding:.35rem 1.5rem 2rem; } .ops-stock-topbar { justify-content:flex-end; } .ops-stock-main { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); } .ops-stock-bottomnav { display:none; } }
+@media (min-width: 1200px) { .ops-stock-shell { padding:.35rem 1.5rem 2rem; } .ops-stock-topbar { justify-content:flex-end; } .ops-stock-main { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); } }
 @media (max-width: 767px) { .ops-stock-summary, .ops-stock-row-2, .ops-stock-details, .ops-stock-card-actions { grid-template-columns:1fr; } .ops-stock-topbar, .ops-stock-item-head { flex-direction:column; align-items:stretch; } .ops-stock-actions { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .ops-stock-pill, .ops-stock-actions form, .ops-stock-actions form button { width:100%; } .ops-stock-qty { text-align:left; } .ops-stock-card-body { padding:.9rem; } .ops-stock-shell { padding:.4rem .7rem 6rem; } .ops-stock-header { padding:.55rem 0 .75rem; } .ops-stock-header p { margin-top:.35rem; } .ops-stock-check { padding:.65rem .8rem; } .ops-stock-viewtabs { gap:.55rem; } .ops-stock-viewtab { padding:.78rem .8rem; } }
+{% include "core/_ops_mobile_bottomnav_styles.html" %}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="ops-stock-shell">
-    <div class="ops-stock-topbar">
-        <div class="ops-stock-brand"><span class="ops-stock-brand-mark">MO</span><span class="ops-stock-brand-name">Mathukai Organic</span></div>
-        <div class="ops-stock-actions">
-            <a href="{% url 'order_management' %}" class="ops-stock-pill">Orders</a>
-            <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Logout</button></form>
-        </div>
+    <div class="ops-mobile-topbar">
+        <h1>Stock</h1>
     </div>
 
     <div class="ops-stock-header">
-        <h1>Stock</h1>
         <p>Manage products, stock updates, and SmartBiz mappings with a simpler ops view. <a href="{% url 'stock_management' %}">Refresh View</a></p>
     </div>
 
@@ -353,10 +344,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </div>
     {% endif %}
 
-    <div class="ops-stock-bottomnav">
-        <a href="{% url 'order_management' %}"><span class="ops-stock-bottomnav-label">Orders</span></a>
-        <a href="{% url 'stock_management' %}" class="is-active"><span class="ops-stock-bottomnav-label">Stock</span></a>
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><span class="ops-stock-bottomnav-label">Logout</span></button></form>
-    </div>
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="stock" ops_mobile_nav_sync_return="stock_management" %}
 </div>
 {% endblock %}

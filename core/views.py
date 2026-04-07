@@ -109,10 +109,16 @@ PWA_APP_NAME = "Mathukai Dashboard"
 PWA_SHORT_NAME = "Mathukai"
 PWA_THEME_COLOR = "#253142"
 PWA_BACKGROUND_COLOR = "#f4f7fa"
+PWA_ASSET_VERSION = "20260407-1"
+PWA_CACHE_NAME = f"mathukai-pwa-{PWA_ASSET_VERSION}"
 
 
 def _is_truthy(raw_value):
     return str(raw_value).lower() in {"1", "true", "yes", "on"}
+
+
+def _pwa_static_asset(path):
+    return f"{static(path)}?v={PWA_ASSET_VERSION}"
 
 
 @require_GET
@@ -130,19 +136,19 @@ def manifest_webmanifest(request):
         "theme_color": PWA_THEME_COLOR,
         "icons": [
             {
-                "src": static("pwa/icon-192.png"),
+                "src": _pwa_static_asset("pwa/icon-192.png"),
                 "sizes": "192x192",
                 "type": "image/png",
                 "purpose": "any",
             },
             {
-                "src": static("pwa/icon-512.png"),
+                "src": _pwa_static_asset("pwa/icon-512.png"),
                 "sizes": "512x512",
                 "type": "image/png",
                 "purpose": "any",
             },
             {
-                "src": static("pwa/icon-maskable-512.png"),
+                "src": _pwa_static_asset("pwa/icon-maskable-512.png"),
                 "sizes": "512x512",
                 "type": "image/png",
                 "purpose": "maskable",
@@ -160,13 +166,13 @@ def manifest_webmanifest(request):
 def service_worker(request):
     precache_urls = [
         reverse("offline_page"),
-        static("pwa/icon-192.png"),
-        static("pwa/icon-512.png"),
-        static("pwa/icon-maskable-512.png"),
-        static("pwa/apple-touch-icon.png"),
+        _pwa_static_asset("pwa/icon-192.png"),
+        _pwa_static_asset("pwa/icon-512.png"),
+        _pwa_static_asset("pwa/icon-maskable-512.png"),
+        _pwa_static_asset("pwa/apple-touch-icon.png"),
     ]
     body = f"""
-const CACHE_NAME = "mathukai-pwa-v1";
+const CACHE_NAME = "{PWA_CACHE_NAME}";
 const PRECACHE_URLS = {json.dumps(precache_urls)};
 const OFFLINE_URL = {json.dumps(reverse("offline_page"))};
 const STATIC_PREFIX = {json.dumps(settings.STATIC_URL)};
@@ -972,7 +978,11 @@ def _is_metrics_authorized(request):
 def _resolve_ops_redirect(request, *, default_name="home", active_tab=""):
     return_to = str(request.POST.get("return_to") or "").strip()
     return_query = str(request.POST.get("return_query") or "").strip()
-    redirect_name = return_to if return_to in {"home", "order_management"} else default_name
+    redirect_name = (
+        return_to
+        if return_to in {"home", "order_management", "stock_management"}
+        else default_name
+    )
     redirect_url = reverse(redirect_name)
 
     params = {}

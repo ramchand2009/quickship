@@ -497,22 +497,7 @@
         background: #fff;
     }
 
-    .ops-mobile-topbar {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        background: #fff;
-        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-        padding: 0.95rem 1rem 0.85rem;
-    }
-
-    .ops-mobile-topbar h1 {
-        margin: 0;
-        font-size: 1.7rem;
-        font-weight: 700;
-        text-align: center;
-        color: #14181f;
-    }
+    {% include "core/_ops_mobile_topbar_styles.html" %}
 
     .ops-mobile-subtitle {
         display: none;
@@ -524,40 +509,6 @@
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-    }
-
-    .ops-mobile-toolbar {
-        display: none;
-    }
-
-    .ops-mobile-search {
-        flex: 1 1 auto;
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 999px;
-        padding: 0.8rem 1rem;
-        background: #f8fbff;
-        color: #243042;
-        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
-    }
-
-    .ops-mobile-search::placeholder {
-        color: #94a3b8;
-    }
-
-    .ops-mobile-sync-btn {
-        border: 0;
-        border-radius: 999px;
-        padding: 0.82rem 1rem;
-        background: linear-gradient(135deg, #0f9ec1 0%, #1479b8 100%);
-        color: #fff;
-        font-weight: 700;
-        white-space: nowrap;
-        box-shadow: 0 10px 20px rgba(20, 121, 184, 0.22);
-    }
-
-    .ops-mobile-sync-btn.is-secondary {
-        background: #d9e2ec;
-        color: #52606d;
     }
 
     .ops-mobile-tabs {
@@ -772,46 +723,7 @@
         text-align: center;
     }
 
-    .ops-mobile-bottomnav {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 30;
-        background: rgba(255, 255, 255, 0.99);
-        border-top: 1px solid rgba(15, 23, 42, 0.08);
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 0.4rem;
-        padding: 0.45rem 0.35rem calc(0.55rem + env(safe-area-inset-bottom));
-    }
-
-    .ops-mobile-bottomnav a,
-    .ops-mobile-bottomnav button {
-        border: 0;
-        background: transparent;
-        text-align: center;
-        color: #7b8794;
-        text-decoration: none;
-        padding: 0.2rem;
-    }
-
-    .ops-mobile-bottomnav .is-active {
-        color: #0b84a5;
-        font-weight: 700;
-    }
-
-    .ops-mobile-bottomnav-icon {
-        display: block;
-        font-size: 1rem;
-        line-height: 1;
-    }
-
-    .ops-mobile-bottomnav-label {
-        display: block;
-        margin-top: 0.18rem;
-        font-size: 0.72rem;
-    }
+    {% include "core/_ops_mobile_bottomnav_styles.html" %}
 
     @media (min-width: 1200px) {
         .ops-desktop-shell {
@@ -830,31 +742,11 @@
     }
 
     @media (max-width: 767px) {
-        .ops-mobile-topbar {
-            padding: 0.85rem 0.8rem 0.75rem;
-        }
-
-        .ops-mobile-topbar h1 {
-            font-size: 1.55rem;
-        }
-
         .ops-order-card-head,
         .ops-order-card-meta {
             flex-direction: column;
             align-items: stretch;
             gap: 0.7rem;
-        }
-
-        .ops-mobile-toolbar {
-            display: none;
-        }
-
-        .ops-mobile-search {
-            width: 100%;
-        }
-
-        .ops-mobile-sync-btn {
-            padding: 0.78rem 0.95rem;
         }
 
         .ops-mobile-tabs {
@@ -1212,43 +1104,7 @@
             </div>
         {% endif %}
 
-        <div class="ops-mobile-bottomnav">
-            <a href="{% url 'home' %}">
-                <span class="ops-mobile-bottomnav-icon"><i class="fas fa-home"></i></span>
-                <span class="ops-mobile-bottomnav-label">Home</span>
-            </a>
-            <a href="{% url 'order_management' %}" class="is-active">
-                <span class="ops-mobile-bottomnav-icon"><i class="fas fa-box-open"></i></span>
-                <span class="ops-mobile-bottomnav-label">My Orders</span>
-            </a>
-            <a href="{% url 'stock_management' %}">
-                <span class="ops-mobile-bottomnav-icon"><i class="fas fa-boxes"></i></span>
-                <span class="ops-mobile-bottomnav-label">Stock</span>
-            </a>
-            {% if can_sync_orders %}
-                <form method="post" action="{% url 'sync_shiprocket_orders' %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="return_to" value="order_management">
-                    <input type="hidden" name="return_query" value="{{ page_base_query }}">
-                    <button type="submit">
-                        <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sync-alt"></i></span>
-                        <span class="ops-mobile-bottomnav-label">Sync</span>
-                    </button>
-                </form>
-            {% else %}
-                <button type="button" disabled>
-                    <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sync-alt"></i></span>
-                    <span class="ops-mobile-bottomnav-label">Sync</span>
-                </button>
-            {% endif %}
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">
-                    <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sign-out-alt"></i></span>
-                    <span class="ops-mobile-bottomnav-label">Logout</span>
-                </button>
-            </form>
-        </div>
+        {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="orders" ops_mobile_nav_sync_return="order_management" ops_mobile_nav_sync_return_query=page_base_query %}
     </section>
 </div>
 {% endblock %}

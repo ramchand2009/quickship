@@ -1,0 +1,41 @@
+<div class="ops-mobile-bottomnav">
+    <a href="{% url 'home' %}" class="{% if ops_mobile_nav_active == 'home' %}is-active{% endif %}">
+        <span class="ops-mobile-bottomnav-icon"><i class="fas fa-home"></i></span>
+        <span class="ops-mobile-bottomnav-label">Home</span>
+    </a>
+    <a href="{% url 'order_management' %}" class="{% if ops_mobile_nav_active == 'orders' %}is-active{% endif %}">
+        <span class="ops-mobile-bottomnav-icon"><i class="fas fa-box-open"></i></span>
+        <span class="ops-mobile-bottomnav-label">My Orders</span>
+    </a>
+    <a href="{% url 'stock_management' %}" class="{% if ops_mobile_nav_active == 'stock' %}is-active{% endif %}">
+        <span class="ops-mobile-bottomnav-icon"><i class="fas fa-boxes"></i></span>
+        <span class="ops-mobile-bottomnav-label">Stock</span>
+    </a>
+    {% if can_sync_orders %}
+        <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+            {% csrf_token %}
+            {% if ops_mobile_nav_sync_return %}
+                <input type="hidden" name="return_to" value="{{ ops_mobile_nav_sync_return }}">
+            {% endif %}
+            {% if ops_mobile_nav_sync_return_query %}
+                <input type="hidden" name="return_query" value="{{ ops_mobile_nav_sync_return_query }}">
+            {% endif %}
+            <button type="submit" {% if ops_mobile_nav_active == 'sync' %}class="is-active"{% endif %}>
+                <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sync-alt"></i></span>
+                <span class="ops-mobile-bottomnav-label">Sync</span>
+            </button>
+        </form>
+    {% else %}
+        <button type="button" disabled>
+            <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sync-alt"></i></span>
+            <span class="ops-mobile-bottomnav-label">Sync</span>
+        </button>
+    {% endif %}
+    <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit">
+            <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sign-out-alt"></i></span>
+            <span class="ops-mobile-bottomnav-label">Logout</span>
+        </button>
+    </form>
+</div>

@@ -31,57 +31,7 @@
         background: linear-gradient(180deg, #f7f8fb 0%, #eef1f7 100%);
         padding-bottom: 6rem;
     }
-
-    .ops-detail-topbar {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        background: rgba(255, 255, 255, 0.96);
-        backdrop-filter: blur(14px);
-        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-        padding: 0.9rem 1rem 1rem;
-        display: grid;
-        grid-template-columns: 56px 1fr 56px;
-        align-items: center;
-    }
-
-    .ops-detail-topbar h1 {
-        margin: 0;
-        text-align: center;
-        font-size: 1.95rem;
-        font-weight: 700;
-        color: #161b22;
-    }
-
-    .ops-detail-back {
-        width: 42px;
-        height: 42px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        color: #1f2933;
-        text-decoration: none;
-        font-size: 1.8rem;
-    }
-
-    .ops-detail-logout {
-        justify-self: end;
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .ops-detail-stock-link,
-    .ops-detail-logout button {
-        border: 0;
-        background: #eef2f6;
-        color: #213247;
-        font-weight: 700;
-        border-radius: 999px;
-        padding: 0.55rem 0.85rem;
-        text-decoration: none;
-    }
+    {% include "core/_ops_mobile_topbar_styles.html" %}
 
     .ops-detail-stepper {
         display: grid;
@@ -523,20 +473,20 @@
         color: #6b7280;
         margin-top: 0.8rem;
     }
+
+    {% include "core/_ops_mobile_bottomnav_styles.html" %}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="ops-detail-shell">
-    <div class="ops-detail-topbar">
-        <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-detail-back">&#8592;</a>
-        <h1>Order Details</h1>
-        <div class="ops-detail-logout">
-            <a href="{% url 'stock_management' %}" class="ops-detail-stock-link">Stock</a>
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">Logout</button>
-            </form>
+    <div class="ops-mobile-topbar">
+        <div class="ops-mobile-topbar-row">
+            <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-mobile-topbar-control" aria-label="Back to orders">&#8592;</a>
+            <h1>Order Details</h1>
+            <a href="{% url 'stock_management' %}" class="ops-mobile-topbar-control" aria-label="Open stock">
+                <i class="fas fa-boxes"></i>
+            </a>
         </div>
     </div>
 
@@ -768,6 +718,8 @@
             {% endif %}
         </div>
     </div>
+
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="orders" ops_mobile_nav_sync_return="order_management" %}
 </div>
 
 <script>
