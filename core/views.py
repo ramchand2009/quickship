@@ -18,6 +18,7 @@ from django.core.management import CommandError, call_command
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
@@ -1410,7 +1411,8 @@ def _build_orders_dashboard_context(request):
         )
 
     monthly_rows = (
-        ShiprocketOrder.objects.filter(order_date__year=today.year, order_date__month=today.month)
+        ShiprocketOrder.objects.annotate(dashboard_order_date=Coalesce("order_date", "created_at"))
+        .filter(dashboard_order_date__year=today.year, dashboard_order_date__month=today.month)
         .values("local_status")
         .annotate(total=Count("id"))
     )

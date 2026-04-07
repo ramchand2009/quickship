@@ -1,8 +1,10 @@
 import json
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from urllib import error, parse, request
 
 from django.conf import settings
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .models import ShiprocketOrder
@@ -130,6 +132,35 @@ def _normalize_shiprocket_status(value):
     return " ".join(str(value or "").strip().lower().replace("_", " ").replace("-", " ").split())
 
 
+def _parse_shiprocket_datetime(value):
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return None
+
+    parsed_value = parse_datetime(raw_value)
+    if parsed_value:
+        if timezone.is_naive(parsed_value):
+            return timezone.make_aware(parsed_value, timezone.get_current_timezone())
+        return parsed_value
+
+    for fmt in (
+        "%d %b %Y, %I:%M %p",
+        "%d %b %Y, %I:%M:%S %p",
+        "%d-%b-%Y %H:%M:%S",
+        "%d-%b-%Y %H:%M",
+        "%d-%b-%Y",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+    ):
+        try:
+            parsed_value = datetime.strptime(raw_value, fmt)
+            return timezone.make_aware(parsed_value, timezone.get_current_timezone())
+        except ValueError:
+            continue
+
+    return None
+
+
 def _get_shiprocket_status(item):
     return str(item.get("status") or item.get("current_status") or "").strip()
 
@@ -168,7 +199,7 @@ def sync_orders():
                 "status": shiprocket_status,
                 "payment_method": item.get("payment_method") or "",
                 "total": _to_decimal(item.get("total") or item.get("sub_total")),
-                "order_date": parse_datetime(item.get("created_at") or item.get("order_date") or ""),
+                "order_date": _parse_shiprocket_datetime(item.get("created_at") or item.get("order_date") or ""),
                 "shipping_address": _extract_shipping_address(item),
                 "billing_address": _extract_billing_address(item),
                 "order_items": _extract_items(item),
