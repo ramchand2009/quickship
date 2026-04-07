@@ -2497,6 +2497,7 @@ def stock_management(request):
     actor = _request_actor(request)
     search_query = str(request.GET.get("q") or "").strip()
     low_only = _is_truthy(request.GET.get("low"))
+    no_stock_only = _is_truthy(request.GET.get("no_stock"))
     selected_category_id = str(request.GET.get("category") or "").strip()
     active_view = str(request.GET.get("view") or "list").strip().lower()
     if active_view not in {"list", "manage", "more"}:
@@ -2678,8 +2679,15 @@ def stock_management(request):
     low_stock_count = low_stock_queryset.count()
     no_stock_count = products.filter(is_active=True, stock_quantity__lte=0).count()
     low_stock_products = low_stock_queryset[:10]
-    if low_only:
+    if low_only and no_stock_only:
+        products = products.filter(
+            Q(stock_quantity__lte=0)
+            | Q(stock_quantity__gt=0, stock_quantity__lte=F("reorder_level"))
+        )
+    elif low_only:
         products = products.filter(stock_quantity__gt=0, stock_quantity__lte=F("reorder_level"))
+    elif no_stock_only:
+        products = products.filter(stock_quantity__lte=0)
     total_products_count = products.count()
     recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
     product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
@@ -2700,6 +2708,7 @@ def stock_management(request):
             "recent_movements": recent_movements,
             "search_query": search_query,
             "low_only": low_only,
+            "no_stock_only": no_stock_only,
             "selected_category_id": selected_category_id,
             "product_categories": product_categories,
             "current_query_string": request.GET.urlencode(),
