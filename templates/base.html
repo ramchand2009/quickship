@@ -3,11 +3,19 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="theme-color" content="#253142">
+    <meta name="application-name" content="Mathukai">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Mathukai">
     <title>{% block title %}Mathukai Dashboard{% endblock %}</title>
 
     <link rel="icon" href="{% static 'assets/images/favicon.ico' %}" type="image/x-icon">
+    <link rel="manifest" href="{% url 'pwa_manifest' %}">
+    <link rel="apple-touch-icon" href="{% static 'pwa/apple-touch-icon.png' %}">
     <link rel="stylesheet" href="{% static 'assets/fonts/fontawesome/css/fontawesome-all.min.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/plugins/animate.min.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/plugins/perfect-scrollbar.css' %}">
@@ -214,6 +222,7 @@
     <script src="{% static 'assets/js/plugins/bootstrap.min.js' %}"></script>
     <script src="{% static 'assets/js/plugins/perfect-scrollbar.min.js' %}"></script>
     <script src="{% static 'assets/js/pcoded.js' %}"></script>
+    <script src="{% static 'js/pwa-register.js' %}?v=20260407-1"></script>
     {% block extra_js %}{% endblock %}
 </body>
 {% endwith %}

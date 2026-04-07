@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Shipping Labels ST-4 ({{ selected_status_label }})</title>
+    <title>Bulk 4x6 Shipping Labels ({{ selected_status_label }})</title>
     <style>
         @page {
-            size: A4 portrait;
+            size: 4in 6in;
             margin: 0;
         }
 
@@ -15,158 +15,160 @@
         }
 
         html {
-            background: #f3f4f6;
+            background: #e5e7eb;
         }
 
         body {
             margin: 0;
-            padding: 0;
+            padding: 16px;
             font-family: Arial, sans-serif;
-            color: #111;
-            font-size: 10px;
-            line-height: 1.2;
+            color: #111827;
+            font-size: 12px;
+            line-height: 1.35;
         }
 
         .actions {
-            position: fixed;
-            top: 12px;
-            right: 12px;
             display: flex;
             gap: 8px;
             align-items: center;
-            z-index: 10;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
         }
 
         .actions button,
         .actions a,
-        .actions span,
-        .actions select {
-            border: 1px solid #111;
+        .actions span {
+            border: 1px solid #111827;
             background: #fff;
-            color: #111;
-            padding: 6px 10px;
+            color: #111827;
+            padding: 8px 12px;
             font-size: 12px;
             text-decoration: none;
         }
 
-        .actions button,
-        .actions select {
+        .actions button {
             cursor: pointer;
         }
 
         .stack {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
             align-items: center;
-            padding: 16px 0;
         }
 
-        .sheet {
-            width: 210mm;
-            height: 297mm;
-            padding: 9.5mm 5.9mm;
-            display: grid;
-            grid-template-columns: repeat(2, 99.1mm);
-            grid-template-rows: repeat(2, 139mm);
-            gap: 0;
+        .label-page {
+            width: 4in;
+            min-height: 6in;
             background: #fff;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+            padding: 0.18in;
             page-break-after: always;
             break-after: page;
         }
 
-        .sheet:last-child {
+        .label-page:last-child {
             page-break-after: auto;
             break-after: auto;
         }
 
-        .label {
-            border: 1px solid #000;
+        .label-shell {
+            min-height: calc(6in - 0.36in);
+            border: 1.5px solid #111827;
+            padding: 0.14in;
             display: flex;
             flex-direction: column;
-            gap: 1.8mm;
-            padding: 2.2mm;
-            overflow: hidden;
+            gap: 0.14in;
         }
 
-        .label.empty {
-            border: 0;
-            background: transparent;
+        .label-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1.5px solid #111827;
+            padding-bottom: 0.1in;
         }
 
-        .box {
-            border: 0;
-            padding: 0;
-            overflow: hidden;
-        }
-
-        .label .box + .box {
-            border-top: 1px solid #000;
-            padding-top: 1.6mm;
-        }
-
-        .title {
-            font-size: 10px;
+        .label-title {
+            font-size: 18px;
             font-weight: 700;
-            margin: 0 0 1.5mm 0;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.4px;
         }
 
-        .company {
+        .label-order-id {
+            margin-top: 4px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .label-meta {
+            text-align: right;
             font-size: 11px;
+            line-height: 1.45;
+        }
+
+        .label-section {
+            border: 1px solid #111827;
+            padding: 0.11in;
+        }
+
+        .ship-to-section {
+            flex: 1;
+        }
+
+        .section-title {
+            margin-bottom: 0.08in;
+            font-size: 12px;
             font-weight: 700;
-            margin-bottom: 1.2mm;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
         }
 
-        .meta {
-            font-size: 9px;
-        }
-
-        .meta strong {
+        .party-name {
+            font-size: 16px;
             font-weight: 700;
+            margin-bottom: 0.05in;
         }
 
-        .box p {
-            margin: 0 0 1.1mm 0;
+        .line + .line {
+            margin-top: 4px;
         }
 
-        .name {
-            font-size: 11px;
+        .strong-line {
             font-weight: 700;
-        }
-
-        .phone {
-            font-weight: 700;
+            font-size: 14px;
         }
 
         .empty {
-            max-width: 600px;
+            max-width: 460px;
             margin: 84px auto 0;
             padding: 24px;
-            border: 1px solid #111;
+            border: 1px solid #111827;
             background: #fff;
             text-align: center;
         }
 
-        @media screen {
-            .stack {
-                min-height: 100vh;
-            }
-        }
-
         @media print {
+            html,
+            body {
+                background: #fff;
+            }
+
+            body {
+                padding: 0;
+            }
+
             .actions {
                 display: none;
             }
 
             .stack {
-                padding: 0;
                 gap: 0;
             }
 
-            .sheet {
+            .label-page {
                 box-shadow: none;
             }
         }
@@ -174,21 +176,16 @@
 </head>
 <body>
     <div class="actions">
-        <select id="startPositionSelect" aria-label="Start position">
-            {% for value, label in start_position_choices %}
-                <option value="{{ value }}" {% if value == start_position %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
         <span>{{ selected_status_label }}: {{ orders|length }} labels</span>
         <button
             type="button"
             id="bulkPrintButton"
             data-track-url="{% url 'track_bulk_shipping_labels_print' %}"
         >
-            Print ST-4 (A4)
+            Print 4x6 Labels
         </button>
         <a href="{% url 'home' %}">Back</a>
-        <span>Use A4 + Actual Size + 1 page per sheet</span>
+        <span>Use 4x6 thermal label media with scale set to 100%</span>
     </div>
     <input type="hidden" id="csrfToken" value="{{ csrf_token }}">
     <div id="bulkOrderIds" style="display: none;">
@@ -199,50 +196,9 @@
 
     {% if orders %}
         <div class="stack">
-            {% for page in pages %}
-                <div class="sheet">
-                    {% for slot_order in page.slots %}
-                        {% if slot_order %}
-                            <div class="label">
-                                <div class="box">
-                                    <p class="title">From</p>
-                                    <div class="company">{{ sender.name|default:"Mathukai Organic" }}</div>
-                                    {% if sender.phone %}<div class="meta"><strong>Phone:</strong> {{ sender.phone }}</div>{% endif %}
-                                    {% if sender.email %}<div class="meta"><strong>Email:</strong> {{ sender.email }}</div>{% endif %}
-                                    <div class="meta">{{ sender.address_1|default:"-" }}</div>
-                                    {% if sender.address_2 %}<div class="meta">{{ sender.address_2 }}</div>{% endif %}
-                                    <div class="meta">
-                                        {{ sender.city|default:"-" }}, {{ sender.state|default:"-" }}
-                                        {% if sender.pincode %} - {{ sender.pincode }}{% endif %}
-                                    </div>
-                                    <div class="meta">{{ sender.country|default:"-" }}</div>
-                                </div>
-
-                                <div class="box to-address">
-                                    <p class="title">Ship To</p>
-                                    <p class="name">{{ slot_order.display_shipping_address.name|default:"-" }}</p>
-                                    <p class="phone">{{ slot_order.display_shipping_address.phone|default:"-" }}</p>
-                                    {% if slot_order.display_shipping_address.alternate_phone %}
-                                        <p>Alt: {{ slot_order.display_shipping_address.alternate_phone }}</p>
-                                    {% endif %}
-                                    <p>{{ slot_order.display_shipping_address.address_1|default:"-" }}</p>
-                                    {% if slot_order.display_shipping_address.address_2 %}
-                                        <p>{{ slot_order.display_shipping_address.address_2 }}</p>
-                                    {% endif %}
-                                    <p>
-                                        {{ slot_order.display_shipping_address.city|default:"-" }},
-                                        {{ slot_order.display_shipping_address.state|default:"-" }}
-                                    </p>
-                                    <p>
-                                        {{ slot_order.display_shipping_address.country|default:"-" }}
-                                        - {{ slot_order.display_shipping_address.pincode|default:"-" }}
-                                    </p>
-                                </div>
-                            </div>
-                        {% else %}
-                            <div class="label empty"></div>
-                        {% endif %}
-                    {% endfor %}
+            {% for order in orders %}
+                <div class="label-page">
+                    {% include "core/_shipping_label_content.html" with order=order sender=sender %}
                 </div>
             {% endfor %}
         </div>
@@ -254,19 +210,10 @@
     <script>
     (function () {
         const printButton = document.getElementById("bulkPrintButton");
-        const startPositionSelect = document.getElementById("startPositionSelect");
         const csrfTokenInput = document.getElementById("csrfToken");
         const orderInputs = document.querySelectorAll("#bulkOrderIds input[name='order_id']");
         if (!printButton || !csrfTokenInput) {
             return;
-        }
-
-        if (startPositionSelect) {
-            startPositionSelect.addEventListener("change", function () {
-                const nextUrl = new URL(window.location.href);
-                nextUrl.searchParams.set("start_position", startPositionSelect.value);
-                window.location.href = nextUrl.toString();
-            });
         }
 
         printButton.addEventListener("click", async function () {

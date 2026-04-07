@@ -89,7 +89,7 @@
                             <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_queue' %}">Packing Queue</a>
                         {% endif %}
                         {% if active_tab == "order_packed" and tab_filter_count %}
-                            <a class="btn btn-sm btn-primary" href="{% url 'bulk_shipping_labels_4x6' %}?status=order_packed" target="_blank" rel="noopener">Bulk Label ST-4</a>
+                            <a class="btn btn-sm btn-primary" href="{% url 'bulk_shipping_labels_4x6' %}?status=order_packed" target="_blank" rel="noopener">Bulk 4x6 Labels</a>
                         {% endif %}
                         {% endif %}
 
@@ -362,7 +362,7 @@
                                                     <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_list' item.order.pk %}" target="_blank" rel="noopener">Packing</a>
                                                 {% endif %}
                                                 {% if is_ops_admin and item.order.local_status == "order_packed" %}
-                                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' item.order.pk %}" target="_blank" rel="noopener">Label</a>
+                                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' item.order.pk %}" target="_blank" rel="noopener">4x6 Label</a>
                                                 {% endif %}
                                             </div>
                                         </td>

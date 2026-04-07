@@ -774,6 +774,12 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
 
 
 class ShippingLabelViewTests(TestCase):
+    def setUp(self):
+        admin_group, _ = Group.objects.get_or_create(name="admin")
+        self.user = get_user_model().objects.create_user(username="labeladmin", password="testpass123")
+        self.user.groups.add(admin_group)
+        self.client.force_login(self.user)
+
     def test_shipping_label_page_renders_with_4x6_size(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-LABEL-1",
@@ -812,7 +818,7 @@ class ShippingLabelViewTests(TestCase):
         order.refresh_from_db()
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "size: A4 portrait;")
+        self.assertContains(response, "size: 4in 6in;")
         self.assertContains(response, "SR-LABEL-1")
         self.assertContains(response, "Manual Name")
         self.assertContains(response, "Manual Street 10")
@@ -851,7 +857,7 @@ class ShippingLabelViewTests(TestCase):
 
         self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
 
-    def test_shipping_label_respects_start_position_slot(self):
+    def test_shipping_label_shows_single_4x6_print_action(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-LABEL-SLOT-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
@@ -874,18 +880,12 @@ class ShippingLabelViewTests(TestCase):
             pincode="638001",
         )
 
-        response = self.client.get(
-            reverse("shipping_label_4x6", args=[order.pk]),
-            {"start_position": "bottom_right"},
-        )
+        response = self.client.get(reverse("shipping_label_4x6", args=[order.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["start_position"], "bottom_right")
-        slots = response.context["label_slots"]
-        self.assertIsNone(slots[0])
-        self.assertIsNone(slots[1])
-        self.assertIsNone(slots[2])
-        self.assertEqual(slots[3].pk, order.pk)
+        self.assertContains(response, "Print 4x6 Label")
+        self.assertContains(response, "Slot Receiver")
+        self.assertContains(response, "size: 4in 6in;")
 
 
 class BulkShippingLabelsViewTests(TestCase):
@@ -931,10 +931,11 @@ class BulkShippingLabelsViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Bulk Shipping Labels ST-4 (Order Packed)")
+        self.assertContains(response, "Bulk 4x6 Shipping Labels (Order Packed)")
         self.assertNotContains(response, "New Receiver")
         self.assertContains(response, "Packed Receiver")
-        self.assertContains(response, "Print ST-4 (A4)")
+        self.assertContains(response, "Print 4x6 Labels")
+        self.assertContains(response, "size: 4in 6in;")
         self.assertContains(response, reverse("home"))
         self.assertNotContains(response, "SR-BULK-NEW-1")
         packed_order.refresh_from_db()
@@ -973,7 +974,7 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, "Order Packed")
         self.assertContains(response, "Order Cancelled")
 
-    def test_bulk_labels_respect_start_position_for_first_sheet(self):
+    def test_bulk_labels_render_one_4x6_page_per_order(self):
         first_order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-BULK-SLOT-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
@@ -1009,27 +1010,14 @@ class BulkShippingLabelsViewTests(TestCase):
             pincode="638001",
         )
 
-        response = self.client.get(
-            reverse("bulk_shipping_labels_4x6"),
-            {"start_position": "bottom_right"},
-        )
+        response = self.client.get(reverse("bulk_shipping_labels_4x6"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["start_position"], "bottom_right")
-        pages = response.context["pages"]
-        self.assertEqual(len(pages), 2)
-        first_slots = pages[0]["slots"]
-        second_slots = pages[1]["slots"]
-        self.assertIsNone(first_slots[0])
-        self.assertIsNone(first_slots[1])
-        self.assertIsNone(first_slots[2])
-        self.assertIsNotNone(first_slots[3])
-        self.assertIsNotNone(second_slots[0])
-        page_order_ids = {
-            first_slots[3].shiprocket_order_id,
-            second_slots[0].shiprocket_order_id,
-        }
-        self.assertEqual(page_order_ids, {first_order.shiprocket_order_id, second_order.shiprocket_order_id})
+        orders = response.context["orders"]
+        self.assertEqual([order.shiprocket_order_id for order in orders], ["SR-BULK-SLOT-2", "SR-BULK-SLOT-1"])
+        self.assertContains(response, "Receiver 1")
+        self.assertContains(response, "Receiver 2")
+        self.assertContains(response, "page-break-after: always;")
 
     def test_home_shows_packing_checklist_pending_for_accepted_order(self):
         ShiprocketOrder.objects.create(
@@ -3426,6 +3414,35 @@ class HealthEndpointTests(TestCase):
         self.assertIn("checks", payload)
         self.assertIn("database", payload["checks"])
         self.assertIn("queue", payload["checks"])
+
+
+class PwaEndpointTests(TestCase):
+    def test_manifest_webmanifest_exposes_install_metadata(self):
+        response = self.client.get(reverse("pwa_manifest"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/manifest+json", response["Content-Type"])
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["display"], "standalone")
+        self.assertEqual(payload["start_url"], reverse("home"))
+        self.assertEqual(payload["short_name"], "Mathukai")
+        self.assertGreaterEqual(len(payload["icons"]), 3)
+
+    def test_service_worker_is_served_from_root_scope(self):
+        response = self.client.get(reverse("service_worker"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("javascript", response["Content-Type"])
+        self.assertEqual(response["Service-Worker-Allowed"], "/")
+        self.assertContains(response, reverse("offline_page"))
+
+    def test_base_template_includes_manifest_and_pwa_bootstrap(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'rel="manifest"')
+        self.assertContains(response, reverse("pwa_manifest"))
+        self.assertContains(response, "pwa-register.js")
 
 
 class MetricsEndpointTests(TestCase):

@@ -171,7 +171,7 @@
                         <a class="btn btn-sm btn-outline-dark" href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener">Packing List</a>
                     {% endif %}
                     {% if is_ops_admin and order.local_status == "order_packed" %}
-                        <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener">Shipping Label ST-4</a>
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener">Print 4x6 Label</a>
                     {% endif %}
                 </div>
             </div>

@@ -20,12 +20,15 @@ from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.template.defaultfilters import timesince
 from django.test import Client
 from django.urls import reverse
 from django.utils.dateparse import parse_date
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
@@ -91,17 +94,6 @@ from .whatomate import (
     sync_templates_from_api,
 )
 
-START_POSITION_TOP_LEFT = "top_left"
-START_POSITION_TOP_RIGHT = "top_right"
-START_POSITION_BOTTOM_LEFT = "bottom_left"
-START_POSITION_BOTTOM_RIGHT = "bottom_right"
-START_POSITION_CHOICES = [
-    (START_POSITION_TOP_LEFT, "Top Left"),
-    (START_POSITION_TOP_RIGHT, "Top Right"),
-    (START_POSITION_BOTTOM_LEFT, "Bottom Left"),
-    (START_POSITION_BOTTOM_RIGHT, "Bottom Right"),
-]
-START_POSITION_FLOW = [value for value, _ in START_POSITION_CHOICES]
 STATUS_UPDATE_SOFT_LOCK_SECONDS = 8
 ORDER_MANAGEMENT_PER_PAGE_CHOICES = (25, 50, 100)
 ORDER_MANAGEMENT_AUTO_REFRESH_CHOICES = (0, 15, 30, 60)
@@ -113,40 +105,152 @@ OPS_VIEWER_TAB_PENDING = "pending"
 OPS_VIEWER_TAB_ACCEPTED = "accepted"
 OPS_VIEWER_TAB_SHIPPED = "shipped"
 OPS_VIEWER_TAB_COMPLETED = "completed"
-
-
-def _resolve_start_position(raw_value):
-    return raw_value if raw_value in START_POSITION_FLOW else START_POSITION_TOP_LEFT
+PWA_APP_NAME = "Mathukai Dashboard"
+PWA_SHORT_NAME = "Mathukai"
+PWA_THEME_COLOR = "#253142"
+PWA_BACKGROUND_COLOR = "#f4f7fa"
 
 
 def _is_truthy(raw_value):
     return str(raw_value).lower() in {"1", "true", "yes", "on"}
 
 
-def _build_bulk_pages(orders, start_position):
-    queue = list(orders)
-    if not queue:
-        return []
+@require_GET
+def manifest_webmanifest(request):
+    payload = {
+        "id": reverse("home"),
+        "name": PWA_APP_NAME,
+        "short_name": PWA_SHORT_NAME,
+        "description": "Mathukai mobile dashboard for orders, stock, shipping, and WhatsApp operations.",
+        "start_url": reverse("home"),
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": PWA_BACKGROUND_COLOR,
+        "theme_color": PWA_THEME_COLOR,
+        "icons": [
+            {
+                "src": static("pwa/icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": static("pwa/icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": static("pwa/icon-maskable-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            },
+        ],
+    }
+    return HttpResponse(
+        json.dumps(payload),
+        content_type="application/manifest+json; charset=utf-8",
+    )
 
-    pages = []
-    first_start_index = START_POSITION_FLOW.index(start_position)
 
-    first_slots = [None] * 4
-    for slot_index in range(first_start_index, 4):
-        if not queue:
-            break
-        first_slots[slot_index] = queue.pop(0)
-    pages.append({"slots": first_slots})
+@never_cache
+@require_GET
+def service_worker(request):
+    precache_urls = [
+        reverse("offline_page"),
+        static("pwa/icon-192.png"),
+        static("pwa/icon-512.png"),
+        static("pwa/icon-maskable-512.png"),
+        static("pwa/apple-touch-icon.png"),
+    ]
+    body = f"""
+const CACHE_NAME = "mathukai-pwa-v1";
+const PRECACHE_URLS = {json.dumps(precache_urls)};
+const OFFLINE_URL = {json.dumps(reverse("offline_page"))};
+const STATIC_PREFIX = {json.dumps(settings.STATIC_URL)};
 
-    while queue:
-        slots = [None] * 4
-        for slot_index in range(4):
-            if not queue:
-                break
-            slots[slot_index] = queue.pop(0)
-        pages.append({"slots": slots})
+self.addEventListener("install", (event) => {{
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting())
+  );
+}});
 
-    return pages
+self.addEventListener("activate", (event) => {{
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
+  );
+}});
+
+function isNavigationRequest(request) {{
+  return request.mode === "navigate" || (
+    request.method === "GET" &&
+    request.headers.get("accept") &&
+    request.headers.get("accept").includes("text/html")
+  );
+}}
+
+self.addEventListener("fetch", (event) => {{
+  const request = event.request;
+  if (request.method !== "GET") {{
+    return;
+  }}
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) {{
+    return;
+  }}
+
+  if (isNavigationRequest(request)) {{
+    event.respondWith(
+      fetch(request).catch(() => caches.match(OFFLINE_URL))
+    );
+    return;
+  }}
+
+  if (!url.pathname.startsWith(STATIC_PREFIX)) {{
+    return;
+  }}
+
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => {{
+      const networkFetch = fetch(request)
+        .then((networkResponse) => {{
+          if (networkResponse && networkResponse.ok) {{
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse.clone()));
+          }}
+          return networkResponse;
+        }})
+        .catch(() => cachedResponse);
+
+      return cachedResponse || networkFetch;
+    }})
+  );
+}});
+""".strip()
+    response = HttpResponse(body, content_type="application/javascript; charset=utf-8")
+    response["Service-Worker-Allowed"] = "/"
+    return response
+
+
+@require_GET
+def offline_page(request):
+    return render(
+        request,
+        "pwa/offline.html",
+        {
+            "app_name": PWA_APP_NAME,
+            "short_name": PWA_SHORT_NAME,
+            "theme_color": PWA_THEME_COLOR,
+        },
+    )
 
 
 _TEMPLATE_TOKEN_PATTERN = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
@@ -2181,9 +2285,6 @@ def shipping_label_4x6(request, pk):
         messages.error(request, "Shipping label is available only for packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    start_position = _resolve_start_position((request.GET.get("start_position") or "").strip())
-    label_slots = [None] * 4
-    label_slots[START_POSITION_FLOW.index(start_position)] = order
     sender = SenderAddress.get_default()
     return render(
         request,
@@ -2191,9 +2292,6 @@ def shipping_label_4x6(request, pk):
         {
             "order": order,
             "sender": sender,
-            "start_position": start_position,
-            "start_position_choices": START_POSITION_CHOICES,
-            "label_slots": label_slots,
         },
     )
 
@@ -2214,16 +2312,10 @@ def bulk_shipping_labels_4x6(request):
         orders_query = orders_query.filter(pk__in=order_ids)
 
     orders = list(orders_query)
-    start_position = _resolve_start_position((request.GET.get("start_position") or "").strip())
-    pages = _build_bulk_pages(orders, start_position)
-
     context = {
         "orders": orders,
-        "pages": pages,
         "sender": sender,
         "selected_status_label": selected_status_label,
-        "start_position": start_position,
-        "start_position_choices": START_POSITION_CHOICES,
     }
     return render(request, "core/bulk_shipping_labels_4x6.html", context)
 
@@ -2266,11 +2358,8 @@ def print_queue(request):
                 filtered_orders.append(order)
         orders = filtered_orders
 
-    start_position = _resolve_start_position((request.GET.get("start_position") or "").strip())
     context = {
         "orders": orders,
-        "start_position": start_position,
-        "start_position_choices": START_POSITION_CHOICES,
         "skip_printed": skip_printed,
         "ready_only": ready_only,
         "search_query": search_query,

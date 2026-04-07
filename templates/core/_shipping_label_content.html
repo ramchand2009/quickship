@@ -1,0 +1,51 @@
+<div class="label-shell">
+    <div class="label-header">
+        <div>
+            <div class="label-title">Shipping Label</div>
+            <div class="label-order-id">Order {{ order.shiprocket_order_id|default:"-" }}</div>
+        </div>
+        <div class="label-meta">
+            {% if order.courier_name %}
+                <div><strong>Courier:</strong> {{ order.courier_name }}</div>
+            {% endif %}
+            {% if order.tracking_number %}
+                <div><strong>Tracking:</strong> {{ order.tracking_number }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="label-section">
+        <div class="section-title">From</div>
+        <div class="party-name">{{ sender.name|default:"Mathukai Organic" }}</div>
+        {% if sender.phone %}<div class="line"><strong>Phone:</strong> {{ sender.phone }}</div>{% endif %}
+        {% if sender.email %}<div class="line"><strong>Email:</strong> {{ sender.email }}</div>{% endif %}
+        <div class="line">{{ sender.address_1|default:"-" }}</div>
+        {% if sender.address_2 %}<div class="line">{{ sender.address_2 }}</div>{% endif %}
+        <div class="line">
+            {{ sender.city|default:"-" }}, {{ sender.state|default:"-" }}
+            {% if sender.pincode %} - {{ sender.pincode }}{% endif %}
+        </div>
+        <div class="line">{{ sender.country|default:"-" }}</div>
+    </div>
+
+    <div class="label-section ship-to-section">
+        <div class="section-title">Ship To</div>
+        <div class="party-name">{{ order.display_shipping_address.name|default:"-" }}</div>
+        <div class="line strong-line">{{ order.display_shipping_address.phone|default:"-" }}</div>
+        {% if order.display_shipping_address.alternate_phone %}
+            <div class="line">Alt: {{ order.display_shipping_address.alternate_phone }}</div>
+        {% endif %}
+        <div class="line">{{ order.display_shipping_address.address_1|default:"-" }}</div>
+        {% if order.display_shipping_address.address_2 %}
+            <div class="line">{{ order.display_shipping_address.address_2 }}</div>
+        {% endif %}
+        <div class="line">
+            {{ order.display_shipping_address.city|default:"-" }},
+            {{ order.display_shipping_address.state|default:"-" }}
+        </div>
+        <div class="line">
+            {{ order.display_shipping_address.country|default:"-" }}
+            - {{ order.display_shipping_address.pincode|default:"-" }}
+        </div>
+    </div>
+</div>

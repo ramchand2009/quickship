@@ -7,7 +7,7 @@
     <div class="col-12">
         <div class="page-header-title mb-4 queue-screen-header">
             <h4 class="m-b-10">Packed Orders Print Queue</h4>
-            <p class="mb-0 text-muted">Select exact orders and print ST-4 labels in bulk.</p>
+            <p class="mb-0 text-muted">Select exact orders and print one 4x6 thermal label per order.</p>
         </div>
     </div>
 </div>
@@ -63,14 +63,8 @@
                             <div class="order-toolbar-right">
                                 <button type="button" class="btn btn-sm btn-outline-dark" id="selectAllButton">Select All</button>
                                 <button type="button" class="btn btn-sm btn-outline-dark" id="clearAllButton">Clear</button>
-                                <label for="startPositionSelect" class="small text-muted mb-0">Start Position</label>
-                                <select id="startPositionSelect" class="form-control form-control-sm" style="max-width: 180px;" name="start_position">
-                                    {% for value, label in start_position_choices %}
-                                        <option value="{{ value }}" {% if value == start_position %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
                                 <button id="openPrintButton" type="submit" class="btn btn-sm btn-primary" disabled>
-                                    Open Selected Labels
+                                    Open 4x6 Labels
                                 </button>
                                 <span class="small text-muted" id="selectionSummary">0 selected</span>
                             </div>

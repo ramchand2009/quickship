@@ -25,6 +25,8 @@ from .views import (
     project_detail,
     project_list,
     product_categories,
+    manifest_webmanifest,
+    offline_page,
     run_integration_smoke,
     run_restore_dry_run,
     retry_failed_whatsapp_queue,
@@ -41,6 +43,7 @@ from .views import (
     whatomate_webhook,
     whatsapp_delivery_logs,
     whatsapp_delivery_logs_csv,
+    service_worker,
     webhook_diagnostics,
     whatsapp_settings,
     update_shiprocket_order,
@@ -48,6 +51,9 @@ from .views import (
 )
 
 urlpatterns = [
+    path("manifest.webmanifest", manifest_webmanifest, name="pwa_manifest"),
+    path("service-worker.js", service_worker, name="service_worker"),
+    path("offline/", offline_page, name="offline_page"),
     path('', home, name='home'),
     path("orders/management/", order_management, name="order_management"),
     path("orders/management/views/save/", order_management_save_view, name="order_management_save_view"),
