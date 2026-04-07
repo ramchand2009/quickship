@@ -29,47 +29,28 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-grid,
-.ops-home-month-grid,
-.ops-home-actions,
-.ops-home-queues,
-.ops-home-health {
+.ops-home-month-grid {
     display: grid;
     gap: 0.85rem;
 }
 
 .ops-home-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-bottom: 1rem;
 }
 
 .ops-home-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.ops-home-actions,
-.ops-home-queues,
-.ops-home-health {
-    margin-top: 1rem;
-}
-
-.ops-home-card,
-.ops-home-queue,
-.ops-home-health-card,
-.ops-home-action {
+.ops-home-card {
     background: rgba(255,255,255,.96);
     border: 1px solid rgba(15,23,42,.08);
-    box-shadow: 0 14px 28px rgba(15,23,42,.06);
-}
-
-.ops-home-card,
-.ops-home-queue,
-.ops-home-health-card {
     border-radius: 1.15rem;
+    box-shadow: 0 14px 28px rgba(15,23,42,.06);
     overflow: hidden;
 }
 
-.ops-home-card a,
-.ops-home-action {
+.ops-home-card a {
     text-decoration: none;
 }
 
@@ -106,7 +87,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     justify-content: space-between;
     align-items: center;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    margin: 0 0 0.75rem;
 }
 
 .ops-home-section-head h3 {
@@ -115,108 +96,16 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     color: #0f172a;
 }
 
-.ops-home-section-head span,
-.ops-home-section-head a {
+.ops-home-section-head span {
     color: #64748b;
     font-size: 0.84rem;
-    text-decoration: none;
 }
-
-.ops-home-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.ops-home-action {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    min-height: 88px;
-    border-radius: 1rem;
-    color: #243042;
-    font-weight: 700;
-}
-
-.ops-home-action-icon {
-    font-size: 1.1rem;
-    color: #0b84a5;
-}
-
-.ops-home-queue-body,
-.ops-home-health-body {
-    padding: 1rem;
-}
-
-.ops-home-queue-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.ops-home-queue-list li + li {
-    border-top: 1px solid rgba(15,23,42,.08);
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-}
-
-.ops-home-queue-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    align-items: flex-start;
-}
-
-.ops-home-queue-title {
-    font-weight: 700;
-    color: #111827;
-}
-
-.ops-home-queue-meta,
-.ops-home-health-meta,
-.ops-home-alert-text {
-    color: #64748b;
-    font-size: 0.85rem;
-}
-
-.ops-home-health {
-    grid-template-columns: 1fr;
-}
-
-.ops-home-health-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.24rem 0.6rem;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    background: #eef2f7;
-    color: #334155;
-}
-
-.ops-home-health-badge.tone-success { background: #dcf4e9; color: #1d684a; }
-.ops-home-health-badge.tone-warning { background: #fff3c4; color: #8a5f00; }
-.ops-home-health-badge.tone-danger { background: #ffe1e1; color: #b91c1c; }
-
-.ops-home-alert {
-    margin-top: 1rem;
-    border-radius: 1rem;
-    padding: 0.95rem 1rem;
-    border: 1px solid rgba(15,23,42,.08);
-    background: rgba(255,255,255,.96);
-    box-shadow: 0 14px 28px rgba(15,23,42,.06);
-}
-
-.ops-home-alert.tone-warning { border-left: 4px solid #d97706; }
-.ops-home-alert.tone-danger { border-left: 4px solid #dc2626; }
 
 @media (max-width: 767px) {
     .ops-home-shell { padding: 0.4rem 0.7rem 6rem; }
     .ops-home-grid { gap: 0.65rem; }
     .ops-home-card-link { padding: 0.9rem 0.9rem 0.85rem; }
     .ops-home-card-value { font-size: 1.45rem; }
-    .ops-home-actions { gap: 0.65rem; }
 }
 </style>
 {% endblock %}
@@ -228,37 +117,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </div>
 
     <div class="ops-home-header">
-        <p>Track today’s workload, urgent queues, stock risks, and quick links from one place.</p>
-    </div>
-
-    <div class="ops-home-section-head">
-        <h3>Orders</h3>
-        <span>Order workload</span>
-    </div>
-    <div class="ops-home-grid">
-        {% for card in mobile_order_dashboard_cards %}
-            <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
-                <a href="{{ card.url }}" class="ops-home-card-link">
-                    <span class="ops-home-card-label">{{ card.title }}</span>
-                    <span class="ops-home-card-value">{{ card.count }}</span>
-                </a>
-            </div>
-        {% endfor %}
-    </div>
-
-    <div class="ops-home-section-head mt-3">
-        <h3>Stock</h3>
-        <span>Inventory risks</span>
-    </div>
-    <div class="ops-home-grid">
-        {% for card in mobile_stock_dashboard_cards %}
-            <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
-                <a href="{{ card.url }}" class="ops-home-card-link">
-                    <span class="ops-home-card-label">{{ card.title }}</span>
-                    <span class="ops-home-card-value">{{ card.count }}</span>
-                </a>
-            </div>
-        {% endfor %}
+        <p>Monthly order status and stock overview.</p>
     </div>
 
     <div class="ops-home-section-head">
@@ -276,92 +135,17 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         {% endfor %}
     </div>
 
-    <div class="ops-home-section-head">
-        <h3>Quick Actions</h3>
-        <span>Fast shortcuts</span>
-    </div>
-    <div class="ops-home-actions">
-        {% for action in mobile_quick_actions %}
-            <a href="{{ action.url }}" class="ops-home-action">
-                <span class="ops-home-action-icon"><i class="{{ action.icon }}"></i></span>
-                <span>{{ action.label }}</span>
-            </a>
-        {% endfor %}
-    </div>
-
-    {% if can_sync_orders %}
-        <form method="post" action="{% url 'sync_shiprocket_orders' %}" class="mt-3">
-            {% csrf_token %}
-            <input type="hidden" name="return_to" value="home">
-            <button type="submit" class="ops-mobile-sync-btn w-100">Sync Orders Now</button>
-        </form>
-    {% endif %}
-
-    {% if dashboard_alerts %}
-        {% for alert in dashboard_alerts|slice:":2" %}
-            <div class="ops-home-alert tone-{{ alert.tone }}">
-                <div class="fw-semibold">{{ alert.title }}</div>
-                <div class="ops-home-alert-text mt-1">{{ alert.message }}</div>
-                <a href="{{ alert.action_url }}" class="d-inline-block mt-2 small">{{ alert.action_label }}</a>
-            </div>
-        {% endfor %}
-    {% endif %}
-
     <div class="ops-home-section-head mt-3">
-        <h3>Urgent Queues</h3>
-        <a href="{% url 'order_management' %}?tab=all">Open all</a>
+        <h3>Stock Dashboard</h3>
+        <span>Inventory overview</span>
     </div>
-    <div class="ops-home-queues">
-        {% for queue in dashboard_work_queues %}
-            <div class="ops-home-queue">
-                <div class="ops-home-queue-body">
-                    <div class="ops-home-section-head mb-2">
-                        <div>
-                            <h3>{{ queue.title }}</h3>
-                            <span>{{ queue.count }} item(s)</span>
-                        </div>
-                        <a href="{{ queue.action_url }}">{{ queue.action_label }}</a>
-                    </div>
-                    {% if queue.items %}
-                        <ul class="ops-home-queue-list">
-                            {% for item in queue.items|slice:":3" %}
-                                <li>
-                                    <div class="ops-home-queue-row">
-                                        <div>
-                                            <div class="ops-home-queue-title">{{ item.order_id }}</div>
-                                            <div class="ops-home-queue-meta">{{ item.customer_name }} | {{ item.phone }}</div>
-                                            {% if item.note %}
-                                                <div class="ops-home-queue-meta mt-1">{{ item.note }}</div>
-                                            {% endif %}
-                                        </div>
-                                        <a href="{{ item.url }}" class="small">Open</a>
-                                    </div>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <div class="ops-home-queue-meta">{{ queue.empty_text }}</div>
-                    {% endif %}
-                </div>
-            </div>
-        {% endfor %}
-    </div>
-
-    <div class="ops-home-section-head mt-3">
-        <h3>Health Snapshot</h3>
-        <span>{{ last_successful_send_text }}</span>
-    </div>
-    <div class="ops-home-health">
-        {% for item in health_snapshot %}
-            <div class="ops-home-health-card">
-                <div class="ops-home-health-body">
-                    <div class="ops-home-section-head mb-2">
-                        <h3>{{ item.title }}</h3>
-                        <span class="ops-home-health-badge tone-{{ item.tone }}">{{ item.status }}</span>
-                    </div>
-                    <div class="ops-home-health-meta">{{ item.primary }}</div>
-                    <div class="ops-home-health-meta mt-1">{{ item.secondary }}</div>
-                </div>
+    <div class="ops-home-grid">
+        {% for card in mobile_stock_dashboard_cards %}
+            <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
+                <a href="{{ card.url }}" class="ops-home-card-link">
+                    <span class="ops-home-card-label">{{ card.title }}</span>
+                    <span class="ops-home-card-value">{{ card.count }}</span>
+                </a>
             </div>
         {% endfor %}
     </div>
