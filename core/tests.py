@@ -2941,6 +2941,32 @@ class RoleAccessTests(TestCase):
         self.assertLess(content.index("<th>SKU</th>"), content.index("<th>Status</th>"))
         self.assertLess(content.index("<th>Status</th>"), content.index("<th>Update Qty</th>"))
 
+    def test_ops_viewer_stock_qty_table_is_grouped_by_category(self):
+        drink = ProductCategory.objects.create(name="Drink")
+        soap = ProductCategory.objects.create(name="Soap")
+        Product.objects.create(
+            name="Z Soap Product",
+            category_master=soap,
+            sku="SOAP-ORDER-1",
+            stock_quantity=5,
+            is_active=True,
+        )
+        Product.objects.create(
+            name="A Drink Product",
+            category_master=drink,
+            sku="DRINK-ORDER-1",
+            stock_quantity=7,
+            is_active=True,
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("stock_management"))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertLess(content.index("Drink"), content.index("Soap"))
+        self.assertLess(content.index("A Drink Product"), content.index("Z Soap Product"))
+
     def test_ops_viewer_manage_stock_tab_shows_management_tools(self):
         self.client.force_login(self.viewer)
 

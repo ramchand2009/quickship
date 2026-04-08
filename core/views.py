@@ -2732,7 +2732,9 @@ def stock_management(request):
             messages.error(request, "Invalid stock action.")
             return redirect(redirect_url)
 
-    products = Product.objects.all().order_by("name", "sku")
+    products = Product.objects.annotate(
+        sort_category=Coalesce("category_master__name", "category"),
+    ).order_by("sort_category", "name", "sku")
     if search_query:
         products = products.filter(
             Q(name__icontains=search_query)
