@@ -1,7 +1,6 @@
 <div class="label-shell">
     <div class="label-header">
         <div>
-            <div class="label-brand">{{ sender.name|default:"Mathukai Organic" }}</div>
             <div class="label-title">Shipping Label</div>
             <div class="label-order-id">Order {{ order.shiprocket_order_id|default:"-" }}</div>
         </div>
@@ -16,54 +15,56 @@
     </div>
 
     <div class="label-section ship-to-section postal-address-section">
-        <div class="section-title">To</div>
+        <div class="section-title">To Address</div>
         <div class="party-name postal-name">{{ order.display_shipping_address.name|default:"-" }}</div>
         <div class="postal-line">{{ order.display_shipping_address.address_1|default:"-" }}</div>
         {% if order.display_shipping_address.address_2 %}
             <div class="postal-line">{{ order.display_shipping_address.address_2 }}</div>
         {% endif %}
-        {% if order.display_shipping_address.city or order.display_shipping_address.state %}
+        {% if order.display_shipping_address.city or order.display_shipping_address.state or order.display_shipping_address.pincode %}
             <div class="postal-line">
                 {% if order.display_shipping_address.city %}{{ order.display_shipping_address.city }}{% endif %}
-                {% if order.display_shipping_address.city and order.display_shipping_address.state %} {% endif %}
+                {% if order.display_shipping_address.city and order.display_shipping_address.state %}, {% endif %}
                 {% if order.display_shipping_address.state %}{{ order.display_shipping_address.state }}{% endif %}
+                {% if order.display_shipping_address.pincode %}
+                    {% if order.display_shipping_address.city or order.display_shipping_address.state %} - {% endif %}
+                    {{ order.display_shipping_address.pincode }}
+                {% endif %}
             </div>
-        {% endif %}
-        {% if order.display_shipping_address.pincode %}
-            <div class="postal-line pin-line">PIN {{ order.display_shipping_address.pincode }}</div>
         {% endif %}
         {% if order.display_shipping_address.country and order.display_shipping_address.country|lower != "india" %}
             <div class="postal-line">{{ order.display_shipping_address.country }}</div>
         {% endif %}
         <div class="line contact-line">
             {% if order.display_shipping_address.phone %}
-                Mobile {{ order.display_shipping_address.phone }}
+                Phone: {{ order.display_shipping_address.phone }}
             {% else %}
-                Mobile -
+                Phone: -
             {% endif %}
         </div>
     </div>
 
     <div class="label-section return-address-section">
-        <div class="section-title">From</div>
+        <div class="section-title">From Address</div>
         <div class="party-name return-name">{{ sender.name|default:"Mathukai Organic" }}</div>
         <div class="postal-line">{{ sender.address_1|default:"-" }}</div>
         {% if sender.address_2 %}<div class="postal-line">{{ sender.address_2 }}</div>{% endif %}
-        {% if sender.city or sender.state %}
+        {% if sender.city or sender.state or sender.pincode %}
             <div class="postal-line">
                 {% if sender.city %}{{ sender.city }}{% endif %}
-                {% if sender.city and sender.state %} {% endif %}
+                {% if sender.city and sender.state %}, {% endif %}
                 {% if sender.state %}{{ sender.state }}{% endif %}
+                {% if sender.pincode %}
+                    {% if sender.city or sender.state %} - {% endif %}
+                    {{ sender.pincode }}
+                {% endif %}
             </div>
-        {% endif %}
-        {% if sender.pincode %}
-            <div class="postal-line pin-line">PIN {{ sender.pincode }}</div>
         {% endif %}
         {% if sender.country and sender.country|lower != "india" %}
             <div class="postal-line">{{ sender.country }}</div>
         {% endif %}
         {% if sender.phone %}
-            <div class="line contact-line">Mobile {{ sender.phone }}</div>
+            <div class="line contact-line">Phone: {{ sender.phone }}</div>
         {% endif %}
     </div>
 </div>

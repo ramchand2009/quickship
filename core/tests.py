@@ -823,7 +823,6 @@ class ShippingLabelViewTests(TestCase):
         self.assertContains(response, "Manual Name")
         self.assertContains(response, "Manual Street 10")
         self.assertContains(response, "Warehouse Sender")
-        self.assertContains(response, 'class="label-brand">Warehouse Sender</div>', html=False)
         self.assertContains(response, "Sender Street 5")
         self.assertEqual(order.label_print_count, 0)
         self.assertIsNone(order.last_label_printed_at)
@@ -916,8 +915,11 @@ class ShippingLabelViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        self.assertLess(content.index('section-title">To</div>'), content.index('section-title">From</div>'))
-        self.assertIn("PIN 600001", content)
+        self.assertLess(content.index('section-title">To Address</div>'), content.index('section-title">From Address</div>'))
+        self.assertIn("Chennai", content)
+        self.assertIn("TN", content)
+        self.assertIn("600001", content)
+        self.assertIn("Phone: 9000012345", content)
         self.assertNotIn("Alt: 9000099999", content)
 
 
