@@ -887,6 +887,38 @@ class ShippingLabelViewTests(TestCase):
         self.assertContains(response, "Slot Receiver")
         self.assertContains(response, "size: 4in 6in;")
 
+    def test_shipping_label_shows_ship_to_before_from_without_alt_phone(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-LABEL-ORDER-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Receiver First",
+                "phone": "9000012345",
+                "alternate_phone": "9000099999",
+                "address_1": "To Street 1",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "India",
+                "pincode": "600001",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="From Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+
+        response = self.client.get(reverse("shipping_label_4x6", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertLess(content.index('section-title">To</div>'), content.index('section-title">From</div>'))
+        self.assertIn("PIN 600001", content)
+        self.assertNotIn("Alt: 9000099999", content)
+
 
 class BulkShippingLabelsViewTests(TestCase):
     def test_bulk_labels_page_filters_orders_by_status(self):
