@@ -919,7 +919,8 @@ class ShippingLabelViewTests(TestCase):
         self.assertIn("Chennai", content)
         self.assertIn("TN", content)
         self.assertIn("600001", content)
-        self.assertIn("Phone: 9000012345", content)
+        self.assertIn("PIN 600001", content)
+        self.assertIn("Phone 9000012345", content)
         self.assertNotIn("Alt: 9000099999", content)
 
 
