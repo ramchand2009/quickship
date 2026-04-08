@@ -23,10 +23,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-header { padding:.7rem 0 .9rem; }
 .ops-stock-header p { margin:0; color:#4b5563; }
 .ops-stock-header a { color:#1f6ea0; text-decoration:none; }
-.ops-stock-shortcut-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; margin-bottom:1rem; }
-.ops-stock-shortcut { display:flex; flex-direction:column; gap:.18rem; padding:.9rem 1rem; border-radius:1rem; border:1px solid rgba(15,23,42,.08); background:rgba(255,255,255,.96); color:#0f172a; text-decoration:none; box-shadow:0 12px 24px rgba(15,23,42,.05); }
-.ops-stock-shortcut strong { font-size:.95rem; }
-.ops-stock-shortcut span { color:#64748b; font-size:.82rem; line-height:1.35; }
 .ops-stock-viewtabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin-bottom:1rem; }
 .ops-stock-viewtab { display:inline-flex; align-items:center; justify-content:center; padding:.85rem 1rem; border-radius:1rem; border:1px solid rgba(15,23,42,.08); background:rgba(255,255,255,.92); color:#475569; text-decoration:none; font-weight:700; box-shadow:0 12px 24px rgba(15,23,42,.05); }
 .ops-stock-viewtab.is-active { background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; border-color:transparent; }
@@ -107,17 +103,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
     <div class="ops-stock-header">
         <p>Manage products, stock updates, and SmartBiz mappings with a simpler ops view. <a href="{% url 'stock_management' %}">Refresh View</a></p>
-    </div>
-
-    <div class="ops-stock-shortcut-grid">
-        <a href="{% url 'special_stock_issue_register' %}" class="ops-stock-shortcut">
-            <strong>Free / Sample Issue</strong>
-            <span>Record free, sample, and complimentary stock issues.</span>
-        </a>
-        <a href="{% url 'stock_management' %}?view=manage" class="ops-stock-shortcut">
-            <strong>Quick Stock Update</strong>
-            <span>Open add, remove, or set quantity tools.</span>
-        </a>
     </div>
 
     <div class="ops-stock-viewtabs">
