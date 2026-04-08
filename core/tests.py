@@ -823,6 +823,7 @@ class ShippingLabelViewTests(TestCase):
         self.assertContains(response, "Manual Name")
         self.assertContains(response, "Manual Street 10")
         self.assertContains(response, "Warehouse Sender")
+        self.assertContains(response, 'class="label-brand">Warehouse Sender</div>', html=False)
         self.assertContains(response, "Sender Street 5")
         self.assertEqual(order.label_print_count, 0)
         self.assertIsNone(order.last_label_printed_at)

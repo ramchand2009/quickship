@@ -1,6 +1,7 @@
 <div class="label-shell">
     <div class="label-header">
         <div>
+            <div class="label-brand">{{ sender.name|default:"Mathukai Organic" }}</div>
             <div class="label-title">Shipping Label</div>
             <div class="label-order-id">Order {{ order.shiprocket_order_id|default:"-" }}</div>
         </div>
