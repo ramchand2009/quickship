@@ -220,10 +220,10 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                             <table class="ops-stock-table">
                                 <thead>
                                     <tr>
-                                        <th>Product</th>
                                         <th>Category</th>
-                                        <th>SKU</th>
+                                        <th>Product</th>
                                         <th>Stock Qty</th>
+                                        <th>SKU</th>
                                         <th>Status</th>
                                         <th>Update Qty</th>
                                     </tr>
@@ -231,10 +231,10 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <tbody>
                                     {% for product in products %}
                                         <tr>
-                                            <td><strong>{{ product.name }}</strong></td>
                                             <td>{{ product.category_label|default:"-" }}</td>
-                                            <td>{{ product.sku }}</td>
+                                            <td><strong>{{ product.name }}</strong></td>
                                             <td class="ops-stock-table-stock {% if product.is_no_stock %}is-out{% elif product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</td>
+                                            <td>{{ product.sku }}</td>
                                             <td>
                                                 {% if product.is_active %}
                                                     <span class="ops-stock-table-status">Active</span>
