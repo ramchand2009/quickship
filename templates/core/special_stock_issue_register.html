@@ -1,8 +1,104 @@
 {% extends 'base.html' %}
 
 {% block title %}Free / Sample Issue Register{% endblock %}
+{% block extrastyle %}
+{% if ops_mobile_mode %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+{% include "core/_ops_mobile_topbar_styles.html" %}
+.issue-shell { min-height:100vh; padding:.45rem .85rem 6rem; background:radial-gradient(circle at top left, rgba(73,190,219,.16), transparent 32%), linear-gradient(180deg,#f8fbff 0%,#eef3f8 100%); }
+.issue-card { background:rgba(255,255,255,.96); border:1px solid rgba(15,23,42,.08); box-shadow:0 14px 28px rgba(15,23,42,.06); border-radius:1.2rem; overflow:hidden; margin-top:.95rem; }
+.issue-card-head { padding:.95rem 1rem .8rem; border-bottom:1px solid rgba(15,23,42,.06); }
+.issue-card-head h3 { margin:0; font-size:1.02rem; color:#0f172a; }
+.issue-card-head p { margin:.28rem 0 0; color:#64748b; font-size:.88rem; }
+.issue-card-body { padding:1rem; }
+.issue-field { margin-bottom:.85rem; }
+.issue-field label { display:block; margin-bottom:.35rem; font-weight:700; color:#334155; }
+.issue-field .form-control, .issue-field .form-select { min-height:46px; border-radius:.85rem; border-color:#d4dbe5; }
+.issue-field textarea.form-control { min-height:88px; }
+.issue-btn, .issue-link { display:inline-flex; align-items:center; justify-content:center; width:100%; padding:.82rem .95rem; border-radius:.9rem; font-weight:700; text-decoration:none; }
+.issue-btn { border:0; background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; }
+.issue-link { border:2px solid #2a73a6; background:#fff; color:#2a73a6; margin-top:.6rem; }
+.issue-history { display:grid; gap:.75rem; }
+.issue-item { padding:.9rem 1rem; border-radius:1rem; background:#f8fbff; border:1px solid rgba(15,23,42,.06); }
+.issue-item strong { color:#0f172a; }
+.issue-meta { margin-top:.18rem; color:#64748b; font-size:.85rem; }
+{% include "core/_ops_mobile_bottomnav_styles.html" %}
+</style>
+{% endif %}
+{% endblock %}
 
 {% block content %}
+{% if ops_mobile_mode %}
+<div class="issue-shell">
+    <div class="ops-mobile-topbar">
+        <h1>Stock Issue</h1>
+    </div>
+
+    <div class="issue-card">
+        <div class="issue-card-head">
+            <h3>Free / Sample Issue Register</h3>
+            <p>Record free, sample, or complimentary stock given to someone.</p>
+        </div>
+        <div class="issue-card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="issue-field">
+                    <label for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
+                    {{ form.product }}
+                </div>
+                <div class="issue-field">
+                    <label for="{{ form.issue_category.id_for_label }}">{{ form.issue_category.label }}</label>
+                    {{ form.issue_category }}
+                </div>
+                <div class="issue-field">
+                    <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                    {{ form.quantity }}
+                </div>
+                <div class="issue-field">
+                    <label for="{{ form.issue_recipient.id_for_label }}">{{ form.issue_recipient.label }}</label>
+                    {{ form.issue_recipient }}
+                </div>
+                <div class="issue-field">
+                    <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                    {{ form.notes }}
+                </div>
+                <button type="submit" class="issue-btn">Save Issue Entry</button>
+            </form>
+            <a href="{% url 'stock_management' %}" class="issue-link">Back To Stock</a>
+        </div>
+    </div>
+
+    <div class="issue-card">
+        <div class="issue-card-head">
+            <h3>Recent Issue Entries</h3>
+            <p>Latest free, sample, and complimentary stock records.</p>
+        </div>
+        <div class="issue-card-body">
+            {% if recent_issues %}
+                <div class="issue-history">
+                    {% for issue in recent_issues %}
+                        <div class="issue-item">
+                            <strong>{{ issue.product.name }}</strong>
+                            <div class="issue-meta">{{ issue.get_issue_category_display|default:"-" }} | Qty {{ issue.quantity_delta|add:"0"|cut:"-" }}</div>
+                            <div class="issue-meta">Given To: {{ issue.issue_recipient|default:"-" }}</div>
+                            <div class="issue-meta">Remark: {{ issue.notes|default:"-" }}</div>
+                            <div class="issue-meta">{{ issue.created_at|date:"Y-m-d H:i" }} | {{ issue.triggered_by|default:"-" }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="mb-0 text-muted">No free, sample, or complimentary issue entries recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="stock" ops_mobile_nav_sync_return="special_stock_issue_register" %}
+</div>
+{% else %}
 <div class="row">
     <div class="col-12">
         <div class="page-header">
@@ -104,4 +200,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

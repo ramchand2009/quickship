@@ -2808,6 +2808,7 @@ def special_stock_issue_register(request):
         return redirect("order_management")
 
     actor = _request_actor(request)
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     form = SpecialStockIssueForm(request.POST or None)
     recent_issues = (
         StockMovement.objects.filter(movement_type=StockMovement.TYPE_SPECIAL_ISSUE)
@@ -2848,6 +2849,7 @@ def special_stock_issue_register(request):
         {
             "form": form,
             "recent_issues": recent_issues,
+            "ops_mobile_mode": ops_mobile_mode,
         },
     )
 

@@ -2918,6 +2918,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "More")
         self.assertContains(response, "ops-stock-shell")
         self.assertContains(response, "Stock Qty Table")
+        self.assertContains(response, "Free / Sample Issue")
+        self.assertContains(response, reverse("special_stock_issue_register"))
         self.assertNotContains(response, "Low Stock Products")
         self.assertNotContains(response, "Recent Stock Movements")
         self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
