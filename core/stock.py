@@ -305,6 +305,25 @@ def apply_manual_stock_movement(*, product, movement_type, quantity, actor="", n
     )
 
 
+def issue_special_stock(*, product, quantity, actor="", issue_category="", issue_recipient="", notes=""):
+    quantity = int(quantity or 0)
+    if quantity <= 0:
+        raise ValueError("Quantity must be greater than zero.")
+    issue_recipient = str(issue_recipient or "").strip()
+    if not issue_recipient:
+        raise ValueError("Issue recipient is required.")
+
+    return _create_stock_movement(
+        product=product,
+        quantity_delta=-quantity,
+        movement_type=StockMovement.TYPE_SPECIAL_ISSUE,
+        actor=actor,
+        notes=notes,
+        issue_category=issue_category,
+        issue_recipient=issue_recipient,
+    )
+
+
 def set_manual_stock_quantity(*, product, target_quantity, actor="", notes=""):
     target_quantity = int(target_quantity or 0)
     with transaction.atomic():
@@ -531,6 +550,8 @@ def _create_stock_movement(
     notes="",
     order=None,
     reference_key=None,
+    issue_category="",
+    issue_recipient="",
 ):
     quantity_delta = int(quantity_delta or 0)
     if quantity_delta == 0:
@@ -560,6 +581,8 @@ def _create_stock_movement(
             sku_snapshot=locked_product.sku,
             barcode_snapshot=normalize_barcode(locked_product.barcode),
             reference_key=reference_key,
+            issue_category=str(issue_category or "").strip(),
+            issue_recipient=str(issue_recipient or "").strip(),
             notes=str(notes or "").strip(),
             triggered_by=str(actor or "").strip(),
         )

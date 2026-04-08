@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+
+{% block title %}Free / Sample Issue Register{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Free / Sample Issue Register</h5>
+                            <p class="mb-0 text-muted">Record stock given for free, sample, or complimentary use with recipient name and remarks.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                        <a href="{% url 'stock_management' %}" class="btn btn-outline-primary">Back To Stock Management</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Issue Stock</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
+                        {{ form.product }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.issue_category.id_for_label }}">{{ form.issue_category.label }}</label>
+                        {{ form.issue_category }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                        {{ form.quantity }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.issue_recipient.id_for_label }}">{{ form.issue_recipient.label }}</label>
+                        {{ form.issue_recipient }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Issue Entry</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Issue Entries</h5>
+                <span class="badge bg-light text-dark">{{ recent_issues|length }}</span>
+            </div>
+            <div class="card-body">
+                {% if recent_issues %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Type</th>
+                                    <th>Product</th>
+                                    <th>Qty</th>
+                                    <th>Given To</th>
+                                    <th>Remark</th>
+                                    <th>By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for issue in recent_issues %}
+                                    <tr>
+                                        <td>{{ issue.created_at|date:"Y-m-d H:i" }}</td>
+                                        <td>{{ issue.get_issue_category_display|default:"-" }}</td>
+                                        <td>
+                                            {{ issue.product.name }}
+                                            <div class="small text-muted">{{ issue.product.sku }}</div>
+                                        </td>
+                                        <td>{{ issue.quantity_delta|add:"0"|cut:"-" }}</td>
+                                        <td>{{ issue.issue_recipient|default:"-" }}</td>
+                                        <td>{{ issue.notes|default:"-" }}</td>
+                                        <td>{{ issue.triggered_by|default:"-" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No free, sample, or complimentary issue entries recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -53,6 +53,12 @@
                                     <span class="pcoded-mtext">Stock Management</span>
                                 </a>
                             </li>
+                            <li class="nav-item {% if current == 'special_stock_issue_register' %}active{% endif %}">
+                                <a href="{% url 'special_stock_issue_register' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-gift"></i></span>
+                                    <span class="pcoded-mtext">Free / Sample Issue</span>
+                                </a>
+                            </li>
                         {% endif %}
                         {% if request.user.is_authenticated and is_ops_admin %}
                             <li class="nav-item {% if current == 'product_categories' %}active{% endif %}">

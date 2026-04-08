@@ -2922,6 +2922,50 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, "Recent Stock Movements")
         self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
 
+    def test_ops_viewer_can_access_special_stock_issue_register(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("special_stock_issue_register"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Free / Sample Issue Register")
+        self.assertContains(response, "Given To")
+        self.assertContains(response, reverse("special_stock_issue_register"))
+
+    def test_ops_viewer_can_submit_special_stock_issue(self):
+        product = Product.objects.create(
+            name="Issue Product",
+            sku="ISSUE-1",
+            stock_quantity=12,
+            is_active=True,
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("special_stock_issue_register"),
+            {
+                "product": product.pk,
+                "issue_category": StockMovement.ISSUE_CATEGORY_SAMPLE,
+                "quantity": 3,
+                "issue_recipient": "Demo Customer",
+                "notes": "Festival sample pack",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("special_stock_issue_register"))
+        product.refresh_from_db()
+        movement = StockMovement.objects.filter(
+            product=product,
+            movement_type=StockMovement.TYPE_SPECIAL_ISSUE,
+        ).latest("pk")
+        self.assertEqual(product.stock_quantity, 9)
+        self.assertEqual(movement.quantity_delta, -3)
+        self.assertEqual(movement.issue_category, StockMovement.ISSUE_CATEGORY_SAMPLE)
+        self.assertEqual(movement.issue_recipient, "Demo Customer")
+        self.assertEqual(movement.notes, "Festival sample pack")
+        self.assertContains(response, "Issued 3 unit(s) of Issue Product (ISSUE-1) as sample stock to Demo Customer.")
+
     def test_ops_viewer_stock_qty_table_uses_requested_column_order(self):
         Product.objects.create(
             name="Column Order Product",

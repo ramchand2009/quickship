@@ -13,6 +13,7 @@ from .models import (
     ProductCategory,
     SenderAddress,
     ShiprocketOrder,
+    StockMovement,
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
 )
@@ -544,3 +545,31 @@ class SenderAddressForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs["class"] = "form-control"
+
+
+class SpecialStockIssueForm(forms.Form):
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.none(),
+        empty_label="Select product",
+        label="Product",
+    )
+    issue_category = forms.ChoiceField(
+        choices=StockMovement.ISSUE_CATEGORY_CHOICES,
+        label="Issue Type",
+    )
+    quantity = forms.IntegerField(min_value=1, label="Quantity")
+    issue_recipient = forms.CharField(max_length=160, label="Given To")
+    notes = forms.CharField(
+        required=False,
+        label="Remark",
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["product"].queryset = Product.objects.order_by("category", "name", "sku")
+        for field_name, field in self.fields.items():
+            css_class = "form-select" if isinstance(field.widget, forms.Select) else "form-control"
+            field.widget.attrs["class"] = css_class
+        self.fields["issue_recipient"].widget.attrs["placeholder"] = "Given to whom"
+        self.fields["notes"].widget.attrs["placeholder"] = "Reason or remark"

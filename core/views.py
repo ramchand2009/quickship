@@ -50,6 +50,7 @@ from .forms import (
     ShiprocketOrderManualUpdateForm,
     ShiprocketOrderStatusForm,
     SignUpForm,
+    SpecialStockIssueForm,
     StockAdjustmentForm,
     WhatsAppApiSettingsForm,
     WhatsAppMessageTestForm,
@@ -76,6 +77,7 @@ from .stock import (
     apply_manual_stock_movement,
     build_packing_scan_requirements,
     find_product_by_lookup,
+    issue_special_stock,
     reconcile_missed_stock_deductions,
     set_manual_stock_quantity,
     sync_stock_for_status_transition,
@@ -2795,6 +2797,57 @@ def stock_management(request):
             "editing_product": edit_product,
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": ops_mobile_mode,
+        },
+    )
+
+
+@login_required
+def special_stock_issue_register(request):
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access free / sample issue register.")
+        return redirect("order_management")
+
+    actor = _request_actor(request)
+    form = SpecialStockIssueForm(request.POST or None)
+    recent_issues = (
+        StockMovement.objects.filter(movement_type=StockMovement.TYPE_SPECIAL_ISSUE)
+        .select_related("product")
+        .order_by("-created_at")[:25]
+    )
+
+    if request.method == "POST":
+        if form.is_valid():
+            product = form.cleaned_data["product"]
+            quantity = int(form.cleaned_data["quantity"] or 0)
+            issue_category = str(form.cleaned_data["issue_category"] or "").strip()
+            issue_recipient = str(form.cleaned_data["issue_recipient"] or "").strip()
+            notes = str(form.cleaned_data["notes"] or "").strip()
+            movement, _ = issue_special_stock(
+                product=product,
+                quantity=quantity,
+                actor=actor,
+                issue_category=issue_category,
+                issue_recipient=issue_recipient,
+                notes=notes,
+            )
+            issue_label = dict(StockMovement.ISSUE_CATEGORY_CHOICES).get(issue_category, issue_category or "Issue")
+            messages.success(
+                request,
+                (
+                    f"Issued {quantity} unit(s) of {product.name} ({product.sku}) as "
+                    f"{issue_label.lower()} stock to {issue_recipient}. "
+                    f"Stock is now {movement.quantity_after}."
+                ),
+            )
+            return redirect("special_stock_issue_register")
+        messages.error(request, "Unable to save the stock issue. Check the form fields.")
+
+    return render(
+        request,
+        "core/special_stock_issue_register.html",
+        {
+            "form": form,
+            "recent_issues": recent_issues,
         },
     )
 

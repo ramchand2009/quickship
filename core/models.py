@@ -357,14 +357,24 @@ class StockMovement(models.Model):
     TYPE_MANUAL_ADD = "manual_add"
     TYPE_MANUAL_REMOVE = "manual_remove"
     TYPE_MANUAL_SET = "manual_set"
+    TYPE_SPECIAL_ISSUE = "special_issue"
     TYPE_ORDER_ACCEPTED = "order_accepted"
     TYPE_ORDER_CANCELLED = "order_cancelled"
+    ISSUE_CATEGORY_FREE = "free"
+    ISSUE_CATEGORY_SAMPLE = "sample"
+    ISSUE_CATEGORY_COMPLIMENTARY = "complimentary"
     TYPE_CHOICES = [
         (TYPE_MANUAL_ADD, "Manual Add"),
         (TYPE_MANUAL_REMOVE, "Manual Remove"),
         (TYPE_MANUAL_SET, "Manual Set"),
+        (TYPE_SPECIAL_ISSUE, "Free / Sample Issue"),
         (TYPE_ORDER_ACCEPTED, "Order Accepted Deduction"),
         (TYPE_ORDER_CANCELLED, "Order Cancelled Restore"),
+    ]
+    ISSUE_CATEGORY_CHOICES = [
+        (ISSUE_CATEGORY_FREE, "Free"),
+        (ISSUE_CATEGORY_SAMPLE, "Sample"),
+        (ISSUE_CATEGORY_COMPLIMENTARY, "Complimentary"),
     ]
 
     product = models.ForeignKey(
@@ -387,6 +397,8 @@ class StockMovement(models.Model):
     sku_snapshot = models.CharField(max_length=120, blank=True)
     barcode_snapshot = models.CharField(max_length=120, blank=True)
     reference_key = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    issue_category = models.CharField(max_length=32, choices=ISSUE_CATEGORY_CHOICES, blank=True)
+    issue_recipient = models.CharField(max_length=160, blank=True)
     notes = models.TextField(blank=True)
     triggered_by = models.CharField(max_length=150, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
