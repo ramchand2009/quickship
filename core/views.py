@@ -2810,6 +2810,16 @@ def special_stock_issue_register(request):
     actor = _request_actor(request)
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     form = SpecialStockIssueForm(request.POST or None)
+    product_options = list(form.fields["product"].queryset)
+    selected_product_id = str(form["product"].value() or "").strip()
+    selected_product_stock = None
+    if selected_product_id.isdigit():
+        selected_product = next(
+            (product for product in product_options if product.pk == int(selected_product_id)),
+            None,
+        )
+        if selected_product:
+            selected_product_stock = selected_product.stock_quantity
     recent_issues = (
         StockMovement.objects.filter(movement_type=StockMovement.TYPE_SPECIAL_ISSUE)
         .select_related("product")
@@ -2848,6 +2858,9 @@ def special_stock_issue_register(request):
         "core/special_stock_issue_register.html",
         {
             "form": form,
+            "product_options": product_options,
+            "selected_product_id": selected_product_id,
+            "selected_product_stock": selected_product_stock,
             "recent_issues": recent_issues,
             "ops_mobile_mode": ops_mobile_mode,
         },

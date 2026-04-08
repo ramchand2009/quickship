@@ -44,15 +44,33 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             <p>Record free, sample, or complimentary stock given to someone.</p>
         </div>
         <div class="issue-card-body">
-            <form method="post">
-                {% csrf_token %}
-                <div class="issue-field">
-                    <label for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
-                    {{ form.product }}
-                </div>
-                <div class="issue-field">
-                    <label for="{{ form.issue_category.id_for_label }}">{{ form.issue_category.label }}</label>
-                    {{ form.issue_category }}
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="issue-field">
+                        <label for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
+                        <select name="{{ form.product.html_name }}" id="{{ form.product.id_for_label }}" class="form-select">
+                            <option value="">Select product</option>
+                            {% for product in product_options %}
+                                <option
+                                    value="{{ product.pk }}"
+                                    data-stock="{{ product.stock_quantity }}"
+                                    {% if selected_product_id == product.pk|stringformat:'s' %}selected{% endif %}
+                                >
+                                    {{ product.name }} ({{ product.sku }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text mt-2" id="issueProductStockMobile">
+                            {% if selected_product_stock != None %}
+                                Available Stock: {{ selected_product_stock }}
+                            {% else %}
+                                Select a product to view current stock.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="issue-field">
+                        <label for="{{ form.issue_category.id_for_label }}">{{ form.issue_category.label }}</label>
+                        {{ form.issue_category }}
                 </div>
                 <div class="issue-field">
                     <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
@@ -130,7 +148,25 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     {% csrf_token %}
                     <div class="mb-3">
                         <label class="form-label" for="{{ form.product.id_for_label }}">{{ form.product.label }}</label>
-                        {{ form.product }}
+                        <select name="{{ form.product.html_name }}" id="{{ form.product.id_for_label }}" class="form-select">
+                            <option value="">Select product</option>
+                            {% for product in product_options %}
+                                <option
+                                    value="{{ product.pk }}"
+                                    data-stock="{{ product.stock_quantity }}"
+                                    {% if selected_product_id == product.pk|stringformat:'s' %}selected{% endif %}
+                                >
+                                    {{ product.name }} ({{ product.sku }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text mt-2" id="issueProductStockDesktop">
+                            {% if selected_product_stock != None %}
+                                Available Stock: {{ selected_product_stock }}
+                            {% else %}
+                                Select a product to view current stock.
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="{{ form.issue_category.id_for_label }}">{{ form.issue_category.label }}</label>
@@ -201,4 +237,29 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const productSelect = document.getElementById("{{ form.product.id_for_label }}");
+    const stockHint = document.getElementById("issueProductStockMobile") || document.getElementById("issueProductStockDesktop");
+    if (!productSelect || !stockHint) {
+        return;
+    }
+
+    const updateStockHint = function () {
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        const stockValue = selectedOption ? selectedOption.getAttribute("data-stock") : "";
+        if (stockValue) {
+            stockHint.textContent = "Available Stock: " + stockValue;
+        } else {
+            stockHint.textContent = "Select a product to view current stock.";
+        }
+    };
+
+    productSelect.addEventListener("change", updateStockHint);
+    updateStockHint();
+});
+</script>
 {% endblock %}

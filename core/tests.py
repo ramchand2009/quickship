@@ -2924,6 +2924,12 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
 
     def test_ops_viewer_can_access_special_stock_issue_register(self):
+        product = Product.objects.create(
+            name="Issue Product",
+            sku="ISSUE-STOCK-1",
+            stock_quantity=14,
+            is_active=True,
+        )
         self.client.force_login(self.viewer)
 
         response = self.client.get(reverse("special_stock_issue_register"))
@@ -2933,6 +2939,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Given To")
         self.assertContains(response, reverse("special_stock_issue_register"))
         self.assertContains(response, "Free Entry")
+        self.assertContains(response, 'data-stock="14"', html=False)
+        self.assertContains(response, "Available Stock")
 
     def test_ops_viewer_can_submit_special_stock_issue(self):
         product = Product.objects.create(
