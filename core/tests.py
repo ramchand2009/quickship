@@ -1088,6 +1088,34 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, "Backups")
         self.assertNotContains(response, "Never")
 
+    def test_home_shows_current_month_sales_total(self):
+        current_month = timezone.now()
+        previous_month = current_month - timedelta(days=35)
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-HOME-SALES-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            total="250.00",
+            order_date=current_month,
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-HOME-SALES-2",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="175.00",
+            order_date=current_month,
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-HOME-SALES-OLD-1",
+            local_status=ShiprocketOrder.STATUS_COMPLETED,
+            total="999.00",
+            order_date=previous_month,
+        )
+
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Monthly sales")
+        self.assertContains(response, "Rs 425.00")
+
     def test_home_shows_action_sections_and_work_queues(self):
         Product.objects.create(
             name="Low Stock Powder",

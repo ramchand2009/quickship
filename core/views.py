@@ -1412,14 +1412,13 @@ def _build_orders_dashboard_context(request):
             }
         )
 
-    monthly_rows = (
-        ShiprocketOrder.objects.annotate(dashboard_order_date=Coalesce("order_date", "created_at"))
-        .filter(dashboard_order_date__year=today.year, dashboard_order_date__month=today.month)
-        .values("local_status")
-        .annotate(total=Count("id"))
-    )
+    monthly_orders = ShiprocketOrder.objects.annotate(
+        dashboard_order_date=Coalesce("order_date", "created_at")
+    ).filter(dashboard_order_date__year=today.year, dashboard_order_date__month=today.month)
+    monthly_rows = monthly_orders.values("local_status").annotate(total=Count("id"))
     monthly_status_map = {row["local_status"]: int(row["total"] or 0) for row in monthly_rows}
     monthly_total = sum(monthly_status_map.values())
+    monthly_sales_total = monthly_orders.aggregate(total_amount=Sum("total")).get("total_amount") or 0
 
     order_action_cards = [
         {
@@ -1747,6 +1746,7 @@ def _build_orders_dashboard_context(request):
         "no_stock_count": no_stock_count,
         "current_month_label": current_month_label,
         "monthly_status_total": monthly_total,
+        "monthly_sales_total": monthly_sales_total,
         "monthly_status_cards": monthly_status_cards,
         "mobile_dashboard_cards": mobile_order_dashboard_cards + mobile_stock_dashboard_cards,
         "mobile_order_dashboard_cards": mobile_order_dashboard_cards,

@@ -122,7 +122,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
     <div class="ops-home-section-head">
         <h3>This Month Order Status</h3>
-        <span>{{ current_month_label }} | {{ monthly_status_total }}</span>
+        <span>{{ current_month_label }} | {{ monthly_status_total }} | Rs {{ monthly_sales_total|floatformat:2 }}</span>
     </div>
     <div class="ops-home-month-grid">
         {% for card in monthly_status_cards %}

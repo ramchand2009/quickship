@@ -125,7 +125,10 @@
                     <div class="dashboard-panel-head">
                         <div>
                             <h5 class="mb-1">This Month Order Status</h5>
-                            <p class="mb-0 text-muted">{{ current_month_label }} total orders: {{ monthly_status_total }}</p>
+                            <p class="mb-0 text-muted">
+                                {{ current_month_label }} total orders: {{ monthly_status_total }} |
+                                Monthly sales: Rs {{ monthly_sales_total|floatformat:2 }}
+                            </p>
                         </div>
                         <a href="{% url 'order_management' %}" class="btn btn-sm btn-outline-secondary">Open Orders</a>
                     </div>
