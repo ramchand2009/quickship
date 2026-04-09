@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    BusinessExpense,
     ContactMessage,
     OrderActivityLog,
     Product,
@@ -15,6 +16,13 @@ from .models import (
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
 )
+
+
+@admin.register(BusinessExpense)
+class BusinessExpenseAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "item_name", "quantity", "unit_price", "created_by")
+    search_fields = ("item_name", "remark", "created_by")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(Project)

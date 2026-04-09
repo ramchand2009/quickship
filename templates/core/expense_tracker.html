@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+
+{% block title %}Expense Tracker{% endblock %}
+{% block extrastyle %}
+{% if ops_mobile_mode %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+{% include "core/_ops_mobile_topbar_styles.html" %}
+.expense-shell { min-height:100vh; padding:.45rem .85rem 6rem; background:radial-gradient(circle at top left, rgba(73,190,219,.16), transparent 32%), linear-gradient(180deg,#f8fbff 0%,#eef3f8 100%); }
+.expense-card, .expense-summary-card { background:rgba(255,255,255,.96); border:1px solid rgba(15,23,42,.08); box-shadow:0 14px 28px rgba(15,23,42,.06); border-radius:1.2rem; overflow:hidden; }
+.expense-card { margin-top:.95rem; }
+.expense-card-head { padding:.95rem 1rem .8rem; border-bottom:1px solid rgba(15,23,42,.06); }
+.expense-card-head h3 { margin:0; font-size:1.02rem; color:#0f172a; }
+.expense-card-head p { margin:.28rem 0 0; color:#64748b; font-size:.88rem; }
+.expense-card-body { padding:1rem; }
+.expense-summary { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.75rem; margin-top:.95rem; }
+.expense-summary-card { padding:.95rem 1rem; }
+.expense-summary-card span { display:block; color:#64748b; font-size:.82rem; }
+.expense-summary-card strong { display:block; margin-top:.3rem; font-size:1.45rem; color:#0f172a; line-height:1.1; }
+.expense-field { margin-bottom:.85rem; }
+.expense-field label { display:block; margin-bottom:.35rem; font-weight:700; color:#334155; }
+.expense-field .form-control { min-height:46px; border-radius:.85rem; border-color:#d4dbe5; }
+.expense-field textarea.form-control { min-height:88px; }
+.expense-row-2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.75rem; }
+.expense-btn { display:inline-flex; align-items:center; justify-content:center; width:100%; padding:.82rem .95rem; border-radius:.9rem; border:0; background:linear-gradient(135deg,#2c89be 0%,#1f6ea0 100%); color:#fff; font-weight:700; }
+.expense-history { display:grid; gap:.75rem; }
+.expense-item { padding:.9rem 1rem; border-radius:1rem; background:#f8fbff; border:1px solid rgba(15,23,42,.06); }
+.expense-item-head { display:flex; justify-content:space-between; gap:.75rem; align-items:flex-start; }
+.expense-item-head strong { color:#0f172a; }
+.expense-amount { color:#15803d; font-weight:800; white-space:nowrap; }
+.expense-meta { margin-top:.18rem; color:#64748b; font-size:.85rem; }
+@media (max-width: 767px) { .expense-summary, .expense-row-2 { grid-template-columns:1fr; } }
+{% include "core/_ops_mobile_bottomnav_styles.html" %}
+</style>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if ops_mobile_mode %}
+<div class="expense-shell">
+    <div class="ops-mobile-topbar">
+        <h1>Expenses</h1>
+    </div>
+
+    <div class="expense-summary">
+        <div class="expense-summary-card">
+            <span>Total Spend</span>
+            <strong>Rs {{ total_spent|floatformat:2 }}</strong>
+        </div>
+        <div class="expense-summary-card">
+            <span>{{ current_month_label }}</span>
+            <strong>Rs {{ current_month_spent|floatformat:2 }}</strong>
+        </div>
+        <div class="expense-summary-card">
+            <span>Entries</span>
+            <strong>{{ expense_count }}</strong>
+        </div>
+    </div>
+
+    <div class="expense-card">
+        <div class="expense-card-head">
+            <h3>Expense Tracker</h3>
+            <p>Record purchased item, quantity, price, and remarks for business spending.</p>
+        </div>
+        <div class="expense-card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="expense-field">
+                    <label for="{{ form.item_name.id_for_label }}">{{ form.item_name.label }}</label>
+                    {{ form.item_name }}
+                </div>
+                <div class="expense-row-2">
+                    <div class="expense-field">
+                        <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                        {{ form.quantity }}
+                    </div>
+                    <div class="expense-field">
+                        <label for="{{ form.unit_price.id_for_label }}">{{ form.unit_price.label }}</label>
+                        {{ form.unit_price }}
+                    </div>
+                </div>
+                <div class="expense-field">
+                    <label for="{{ form.remark.id_for_label }}">{{ form.remark.label }}</label>
+                    {{ form.remark }}
+                </div>
+                <button type="submit" class="expense-btn">Save Expense</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="expense-card">
+        <div class="expense-card-head">
+            <h3>Recent Expense Entries</h3>
+            <p>Latest purchase records and their total spend amount.</p>
+        </div>
+        <div class="expense-card-body">
+            {% if recent_expenses %}
+                <div class="expense-history">
+                    {% for expense in recent_expenses %}
+                        <div class="expense-item">
+                            <div class="expense-item-head">
+                                <strong>{{ expense.item_name }}</strong>
+                                <span class="expense-amount">Rs {{ expense.total_amount|floatformat:2 }}</span>
+                            </div>
+                            <div class="expense-meta">Qty {{ expense.quantity }} x Rs {{ expense.unit_price|floatformat:2 }}</div>
+                            <div class="expense-meta">Remark: {{ expense.remark|default:"-" }}</div>
+                            <div class="expense-meta">{{ expense.created_at|date:"Y-m-d H:i" }} | {{ expense.created_by|default:"-" }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="mb-0 text-muted">No expense entries recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="expenses" %}
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header">
+            <div class="page-block">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="page-header-title">
+                            <h5 class="m-b-10">Expense Tracker</h5>
+                            <p class="mb-0 text-muted">Track purchased items, quantity, price, and remarks with a live total spend summary.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                        <a href="{% url 'stock_management' %}" class="btn btn-outline-primary">Back To Stock Management</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">Total Spend</div>
+                <div class="h3 mb-0 mt-2">Rs {{ total_spent|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">{{ current_month_label }}</div>
+                <div class="h3 mb-0 mt-2">Rs {{ current_month_spent|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">Entries</div>
+                <div class="h3 mb-0 mt-2">{{ expense_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add Expense</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.item_name.id_for_label }}">{{ form.item_name.label }}</label>
+                        {{ form.item_name }}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+                                {{ form.quantity }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ form.unit_price.id_for_label }}">{{ form.unit_price.label }}</label>
+                                {{ form.unit_price }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.remark.id_for_label }}">{{ form.remark.label }}</label>
+                        {{ form.remark }}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Expense</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Expense Entries</h5>
+                <span class="badge bg-light text-dark">{{ recent_expenses|length }}</span>
+            </div>
+            <div class="card-body">
+                {% if recent_expenses %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Purchased Item</th>
+                                    <th>Qty</th>
+                                    <th>Price</th>
+                                    <th>Total</th>
+                                    <th>Remark</th>
+                                    <th>By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for expense in recent_expenses %}
+                                    <tr>
+                                        <td>{{ expense.created_at|date:"Y-m-d H:i" }}</td>
+                                        <td>{{ expense.item_name }}</td>
+                                        <td>{{ expense.quantity }}</td>
+                                        <td>Rs {{ expense.unit_price|floatformat:2 }}</td>
+                                        <td>Rs {{ expense.total_amount|floatformat:2 }}</td>
+                                        <td>{{ expense.remark|default:"-" }}</td>
+                                        <td>{{ expense.created_by|default:"-" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">No expense entries recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

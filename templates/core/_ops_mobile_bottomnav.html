@@ -15,11 +15,8 @@
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-gift"></i></span>
         <span class="ops-mobile-bottomnav-label">Free Entry</span>
     </a>
-    <form method="post" action="{% url 'logout' %}">
-        {% csrf_token %}
-        <button type="submit">
-            <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sign-out-alt"></i></span>
-            <span class="ops-mobile-bottomnav-label">Logout</span>
-        </button>
-    </form>
+    <a href="{% url 'expense_tracker' %}" class="{% if ops_mobile_nav_active == 'expenses' %}is-active{% endif %}">
+        <span class="ops-mobile-bottomnav-icon"><i class="fas fa-wallet"></i></span>
+        <span class="ops-mobile-bottomnav-label">Expenses</span>
+    </a>
 </div>

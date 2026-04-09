@@ -17,7 +17,7 @@ from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -42,6 +42,7 @@ from .access import (
     is_ops_viewer,
 )
 from .forms import (
+    BusinessExpenseForm,
     BulkSmartbizMappingForm,
     ContactForm,
     ProductForm,
@@ -59,6 +60,7 @@ from .forms import (
 from .activity import log_order_activity
 from .monitoring import build_health_payload, get_operational_counters
 from .models import (
+    BusinessExpense,
     ContactMessage,
     OrderActivityLog,
     Product,
@@ -2863,6 +2865,60 @@ def special_stock_issue_register(request):
             "selected_product_stock": selected_product_stock,
             "recent_issues": recent_issues,
             "ops_mobile_mode": ops_mobile_mode,
+        },
+    )
+
+
+@login_required
+def expense_tracker(request):
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access expense tracker.")
+        return redirect("order_management")
+
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    form = BusinessExpenseForm(request.POST or None)
+    actor = _request_actor(request)
+    now = timezone.localtime(timezone.now())
+    line_total_expression = ExpressionWrapper(
+        F("quantity") * F("unit_price"),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+    expense_totals = BusinessExpense.objects.annotate(line_total=line_total_expression)
+    total_spent = expense_totals.aggregate(total=Sum("line_total")).get("total") or 0
+    current_month_spent = (
+        expense_totals.filter(created_at__year=now.year, created_at__month=now.month)
+        .aggregate(total=Sum("line_total"))
+        .get("total")
+        or 0
+    )
+
+    if request.method == "POST":
+        if form.is_valid():
+            expense = form.save(commit=False)
+            expense.created_by = actor
+            expense.save()
+            messages.success(
+                request,
+                (
+                    f"Saved expense for {expense.item_name}. "
+                    f"Total spend added: Rs {expense.total_amount:.2f}."
+                ),
+            )
+            return redirect("expense_tracker")
+        messages.error(request, "Unable to save expense entry. Check the form fields.")
+
+    recent_expenses = BusinessExpense.objects.all()[:30]
+    return render(
+        request,
+        "core/expense_tracker.html",
+        {
+            "form": form,
+            "ops_mobile_mode": ops_mobile_mode,
+            "recent_expenses": recent_expenses,
+            "expense_count": BusinessExpense.objects.count(),
+            "total_spent": total_spent,
+            "current_month_spent": current_month_spent,
+            "current_month_label": now.strftime("%B %Y"),
         },
     )
 

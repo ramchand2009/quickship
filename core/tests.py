@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from .forms import ShiprocketOrderStatusForm, StockAdjustmentForm
 from .models import (
+    BusinessExpense,
     OrderActivityLog,
     Product,
     ProductCategory,
@@ -2970,6 +2971,41 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, 'data-stock="14"', html=False)
         self.assertContains(response, "Available Stock")
 
+    def test_ops_viewer_can_access_expense_tracker(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("expense_tracker"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Expense Tracker")
+        self.assertContains(response, "Purchased Item")
+        self.assertContains(response, "Total Spend")
+        self.assertContains(response, reverse("expense_tracker"))
+        self.assertContains(response, "Expenses")
+
+    def test_ops_viewer_can_submit_expense_entry_and_see_total_spend(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("expense_tracker"),
+            {
+                "item_name": "Bubble wrap roll",
+                "quantity": 3,
+                "unit_price": "120.50",
+                "remark": "Packaging purchase",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("expense_tracker"))
+        expense = BusinessExpense.objects.get(item_name="Bubble wrap roll")
+        self.assertEqual(expense.quantity, 3)
+        self.assertEqual(str(expense.unit_price), "120.50")
+        self.assertEqual(expense.remark, "Packaging purchase")
+        self.assertEqual(expense.created_by, "viewer")
+        self.assertContains(response, "Saved expense for Bubble wrap roll.")
+        self.assertContains(response, "Rs 361.50")
+
     def test_ops_viewer_can_submit_special_stock_issue(self):
         product = Product.objects.create(
             name="Issue Product",
@@ -3157,6 +3193,7 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("stock_management"))
+        self.assertContains(response, reverse("expense_tracker"))
         self.assertContains(response, reverse("product_categories"))
         self.assertContains(response, "Product Categories")
         self.assertContains(response, reverse("print_queue"))

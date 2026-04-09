@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 
 from .models import (
+    BusinessExpense,
     ContactMessage,
     Product,
     ProductCategory,
@@ -32,6 +33,32 @@ class ContactForm(forms.ModelForm):
         widgets = {
             "message": forms.Textarea(attrs={"rows": 5}),
         }
+
+
+class BusinessExpenseForm(forms.ModelForm):
+    class Meta:
+        model = BusinessExpense
+        fields = ["item_name", "quantity", "unit_price", "remark"]
+        labels = {
+            "item_name": "Purchased Item",
+            "quantity": "Qty",
+            "unit_price": "Price",
+            "remark": "Remark",
+        }
+        widgets = {
+            "remark": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form-control"
+        self.fields["item_name"].widget.attrs["placeholder"] = "Example: Packing box bundle"
+        self.fields["quantity"].widget.attrs["min"] = "1"
+        self.fields["unit_price"].widget.attrs["min"] = "0"
+        self.fields["unit_price"].widget.attrs["step"] = "0.01"
+        self.fields["unit_price"].widget.attrs["placeholder"] = "0.00"
+        self.fields["remark"].widget.attrs["placeholder"] = "Optional note about this purchase"
 
 
 class SignUpForm(UserCreationForm):

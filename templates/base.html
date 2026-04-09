@@ -24,7 +24,7 @@
     {% block extrastyle %}{% endblock %}
 </head>
 {% with current=request.resolver_match.url_name %}
-<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'home' or viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' or viewer_order_management_only and current == 'stock_management' or viewer_order_management_only and current == 'special_stock_issue_register' %} no-sidebar-layout ops-mobile-layout{% endif %}">
+<body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'home' or viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' or viewer_order_management_only and current == 'stock_management' or viewer_order_management_only and current == 'special_stock_issue_register' or viewer_order_management_only and current == 'expense_tracker' %} no-sidebar-layout ops-mobile-layout{% endif %}">
     {% if current != "login" and current != "signup" %}
         <nav class="pcoded-navbar menupos-fixed navbar-dark brand-dark">
             <div class="navbar-wrapper">
@@ -57,6 +57,12 @@
                                 <a href="{% url 'special_stock_issue_register' %}" class="nav-link">
                                     <span class="pcoded-micon"><i class="feather icon-gift"></i></span>
                                     <span class="pcoded-mtext">Free / Sample Issue</span>
+                                </a>
+                            </li>
+                            <li class="nav-item {% if current == 'expense_tracker' %}active{% endif %}">
+                                <a href="{% url 'expense_tracker' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-credit-card"></i></span>
+                                    <span class="pcoded-mtext">Expenses</span>
                                 </a>
                             </li>
                         {% endif %}

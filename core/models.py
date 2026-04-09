@@ -353,6 +353,25 @@ class Product(models.Model):
         super().save(*args, **kwargs)
 
 
+class BusinessExpense(models.Model):
+    item_name = models.CharField(max_length=160)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    remark = models.CharField(max_length=255, blank=True)
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.item_name} x {self.quantity}"
+
+    @property
+    def total_amount(self):
+        return (self.unit_price or 0) * (self.quantity or 0)
+
+
 class StockMovement(models.Model):
     TYPE_MANUAL_ADD = "manual_add"
     TYPE_MANUAL_REMOVE = "manual_remove"
