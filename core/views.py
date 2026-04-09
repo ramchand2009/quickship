@@ -2597,7 +2597,7 @@ def _draw_text_block(pdf_canvas, lines, *, x, top_y, width, line_height, font_na
 def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     page_width = 4 * inch
     page_height = 6 * inch
-    margin = 0.18 * inch
+    margin = 0.12 * inch
     inner_x = margin
     inner_y = margin
     inner_width = page_width - (2 * margin)
@@ -2606,55 +2606,56 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
 
     _draw_box(pdf_canvas, inner_x, inner_y, inner_width, inner_height)
 
-    content_x = inner_x + 0.14 * inch
-    content_y = inner_y + inner_height - 0.14 * inch
-    content_width = inner_width - (0.28 * inch)
+    content_x = inner_x + 0.1 * inch
+    content_y = inner_y + inner_height - 0.1 * inch
+    content_width = inner_width - (0.2 * inch)
 
     order_id = str(_label_value(order, "shiprocket_order_id", "") or "-").strip()
     courier_name = str(_label_value(order, "courier_name", "") or "").strip()
     tracking_number = str(_label_value(order, "tracking_number", "") or "").strip()
     shipping_address = _label_value(order, "display_shipping_address", {}) or {}
 
-    header_height = 0.72 * inch
+    header_height = 0.54 * inch
     pdf_canvas.setLineWidth(1.1)
     pdf_canvas.line(content_x, content_y - header_height, content_x + content_width, content_y - header_height)
-    pdf_canvas.setFont("Helvetica-Bold", 17)
-    pdf_canvas.drawString(content_x, content_y - 0.02 * inch, "SHIPPING LABEL")
-    pdf_canvas.setFont("Helvetica-Bold", 12)
-    pdf_canvas.drawString(content_x, content_y - 0.24 * inch, f"ORDER {order_id}")
+    pdf_canvas.setFont("Helvetica-Bold", 18)
+    pdf_canvas.drawString(content_x, content_y, "SHIPPING LABEL")
+    pdf_canvas.setFont("Helvetica-Bold", 13)
+    pdf_canvas.drawString(content_x, content_y - 0.23 * inch, f"ORDER {order_id}")
 
-    header_meta_top = content_y - 0.04 * inch
+    header_meta_top = content_y - 0.02 * inch
     if courier_name:
-        pdf_canvas.setFont("Helvetica-Bold", 10)
+        pdf_canvas.setFont("Helvetica-Bold", 9)
         pdf_canvas.drawRightString(content_x + content_width, header_meta_top, f"Courier: {courier_name}")
     if tracking_number:
-        pdf_canvas.setFont("Helvetica-Bold", 10)
-        pdf_canvas.drawRightString(content_x + content_width, header_meta_top - 0.2 * inch, f"Tracking: {tracking_number}")
+        pdf_canvas.setFont("Helvetica-Bold", 9)
+        pdf_canvas.drawRightString(content_x + content_width, header_meta_top - 0.18 * inch, f"Tracking: {tracking_number}")
 
-    ship_box_top = content_y - header_height - 0.12 * inch
-    ship_box_height = 2.45 * inch
+    ship_box_top = content_y - header_height - 0.1 * inch
+    ship_box_height = 2.55 * inch
     _draw_box(pdf_canvas, content_x, ship_box_top - ship_box_height, content_width, ship_box_height)
-    pdf_canvas.setFont("Helvetica-Bold", 9)
-    pdf_canvas.drawString(content_x + 0.09 * inch, ship_box_top - 0.14 * inch, "TO ADDRESS")
+    pdf_canvas.setFont("Helvetica-Bold", 9.5)
+    pdf_canvas.drawString(content_x + 0.08 * inch, ship_box_top - 0.14 * inch, "TO ADDRESS")
     ship_lines_top = ship_box_top - 0.36 * inch
     ship_lines = _shipping_label_address_lines(shipping_address)
     _draw_text_block(
         pdf_canvas,
         ship_lines,
-        x=content_x + 0.09 * inch,
+        x=content_x + 0.08 * inch,
         top_y=ship_lines_top,
-        width=content_width - 0.18 * inch,
-        line_height=0.19 * inch,
+        width=content_width - 0.16 * inch,
+        line_height=0.21 * inch,
         font_name="Helvetica-Bold",
-        font_size=12,
+        font_size=12.5,
     )
 
-    sender_box_top = ship_box_top - ship_box_height - 0.14 * inch
-    sender_box_height = 1.45 * inch
+    sender_box_top = ship_box_top - ship_box_height - 0.1 * inch
+    sender_box_bottom = inner_y + 0.1 * inch
+    sender_box_height = max(1.55 * inch, sender_box_top - sender_box_bottom)
     _draw_box(pdf_canvas, content_x, sender_box_top - sender_box_height, content_width, sender_box_height)
-    pdf_canvas.setFont("Helvetica-Bold", 9)
-    pdf_canvas.drawString(content_x + 0.09 * inch, sender_box_top - 0.14 * inch, "FROM ADDRESS")
-    sender_lines_top = sender_box_top - 0.34 * inch
+    pdf_canvas.setFont("Helvetica-Bold", 9.5)
+    pdf_canvas.drawString(content_x + 0.08 * inch, sender_box_top - 0.14 * inch, "FROM ADDRESS")
+    sender_lines_top = sender_box_top - 0.33 * inch
     sender_lines = _shipping_label_address_lines(
         {
             "name": sender.name,
@@ -2670,12 +2671,12 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     _draw_text_block(
         pdf_canvas,
         sender_lines,
-        x=content_x + 0.09 * inch,
+        x=content_x + 0.08 * inch,
         top_y=sender_lines_top,
-        width=content_width - 0.18 * inch,
-        line_height=0.16 * inch,
+        width=content_width - 0.16 * inch,
+        line_height=0.175 * inch,
         font_name="Helvetica-Bold",
-        font_size=9.5,
+        font_size=10.5,
     )
 
 
