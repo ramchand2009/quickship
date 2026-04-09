@@ -81,12 +81,14 @@
                                     <tr>
                                         <th style="width: 44px;"></th>
                                         <th>Order ID</th>
-                                        <th>Customer</th>
-                                        <th>Phone</th>
-                                        <th>City</th>
-                                        <th>Pincode</th>
-                                        <th>Last Label Print</th>
-                                        <th>Print Count</th>
+                                        <th>Name</th>
+                                        {% if not simplified_order_list %}
+                                            <th>Phone</th>
+                                            <th>City</th>
+                                            <th>Pincode</th>
+                                            <th>Last Label Print</th>
+                                            <th>Print Count</th>
+                                        {% endif %}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -101,12 +103,14 @@
                                                 >
                                             </td>
                                             <td data-label="Order ID">{{ order.shiprocket_order_id }}</td>
-                                            <td data-label="Customer">{{ order.display_shipping_address.name|default:"-" }}</td>
-                                            <td data-label="Phone">{{ order.display_shipping_address.phone|default:"-" }}</td>
-                                            <td data-label="City">{{ order.display_shipping_address.city|default:"-" }}</td>
-                                            <td data-label="Pincode">{{ order.display_shipping_address.pincode|default:"-" }}</td>
-                                            <td data-label="Last Label Print">{{ order.last_label_printed_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                                            <td data-label="Print Count">{{ order.label_print_count }}</td>
+                                            <td data-label="Name">{{ order.display_shipping_address.name|default:"-" }}</td>
+                                            {% if not simplified_order_list %}
+                                                <td data-label="Phone">{{ order.display_shipping_address.phone|default:"-" }}</td>
+                                                <td data-label="City">{{ order.display_shipping_address.city|default:"-" }}</td>
+                                                <td data-label="Pincode">{{ order.display_shipping_address.pincode|default:"-" }}</td>
+                                                <td data-label="Last Label Print">{{ order.last_label_printed_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                                                <td data-label="Print Count">{{ order.label_print_count }}</td>
+                                            {% endif %}
                                         </tr>
                                     {% endfor %}
                                 </tbody>

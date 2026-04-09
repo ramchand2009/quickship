@@ -2820,6 +2820,7 @@ def ops_print_queue(request):
             "bulk_action_label": "Download PDF",
             "queue_back_label": "Back to Accepted Orders",
             "show_printer_test_button": False,
+            "simplified_order_list": True,
         }
     )
     return render(request, "core/print_queue.html", context)

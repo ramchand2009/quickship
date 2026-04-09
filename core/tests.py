@@ -2656,8 +2656,13 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Packed Orders PDF Queue")
         self.assertContains(response, "Download PDF")
         self.assertContains(response, packed_order.shiprocket_order_id)
+        self.assertContains(response, "Bulk Label Receiver")
         self.assertContains(response, reverse("ops_bulk_shipping_labels_pdf"))
         self.assertNotContains(response, "Printer Test 4x6")
+        self.assertNotContains(response, ">Phone<", html=False)
+        self.assertNotContains(response, ">City<", html=False)
+        self.assertNotContains(response, ">Pincode<", html=False)
+        self.assertNotContains(response, ">Print Count<", html=False)
 
     def test_ops_viewer_can_open_ops_bulk_shipping_labels_page(self):
         order = ShiprocketOrder.objects.create(
