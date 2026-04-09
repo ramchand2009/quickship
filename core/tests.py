@@ -2654,9 +2654,9 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Packed Orders PDF Queue")
-        self.assertContains(response, "Open 4x6 PDF")
+        self.assertContains(response, "Download PDF")
         self.assertContains(response, packed_order.shiprocket_order_id)
-        self.assertContains(response, reverse("ops_bulk_shipping_labels_4x6"))
+        self.assertContains(response, reverse("ops_bulk_shipping_labels_pdf"))
         self.assertNotContains(response, "Printer Test 4x6")
 
     def test_ops_viewer_can_open_ops_bulk_shipping_labels_page(self):
@@ -2688,6 +2688,36 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, order.shiprocket_order_id)
         self.assertContains(response, "Save as PDF")
         self.assertContains(response, reverse("ops_print_queue"))
+
+    def test_ops_viewer_can_download_ops_bulk_shipping_labels_pdf(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-PDF-DL-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Bulk Pdf Download Receiver",
+                "phone": "9876543212",
+                "address_1": "Bulk Pdf Download Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638003",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_bulk_shipping_labels_pdf"), {"order_id": [order.pk]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment;", response["Content-Disposition"])
+        self.assertGreater(len(response.content), 1000)
 
     def test_ops_viewer_desktop_order_list_shows_packing_and_shipping_print_links(self):
         accepted_order = ShiprocketOrder.objects.create(

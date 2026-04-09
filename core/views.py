@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import re
 import csv
+from io import BytesIO
 from urllib.parse import parse_qsl, urlencode
 from io import StringIO
 from datetime import datetime, timedelta
@@ -32,6 +33,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
+from reportlab.lib.colors import black, white
+from reportlab.lib.units import inch
+from reportlab.lib.utils import simpleSplit
+from reportlab.pdfgen import canvas
 
 from .access import (
     can_manage_stock,
@@ -2515,6 +2520,181 @@ def shipping_label_test_4x6(request):
     )
 
 
+def _compact_line(*values):
+    return " ".join(str(value).strip() for value in values if str(value or "").strip())
+
+
+def _shipping_label_address_lines(address):
+    address = address or {}
+    lines = []
+    name = str(address.get("name") or "-").strip() or "-"
+    lines.append(name.upper())
+
+    address_1 = str(address.get("address_1") or "-").strip() or "-"
+    lines.append(address_1.upper())
+
+    address_2 = str(address.get("address_2") or "").strip()
+    if address_2:
+        lines.append(address_2.upper())
+
+    city_state = _compact_line(address.get("city"), address.get("state"))
+    if city_state:
+        lines.append(city_state.upper())
+
+    pincode = str(address.get("pincode") or "").strip()
+    if pincode:
+        lines.append(f"PIN {pincode}".upper())
+
+    country = str(address.get("country") or "").strip()
+    if country and country.lower() != "india":
+        lines.append(country.upper())
+
+    phone = str(address.get("phone") or "-").strip() or "-"
+    lines.append(f"PHONE {phone}".upper())
+    return lines
+
+
+def _fit_text_lines(pdf_canvas, text, *, font_name, font_size, max_width):
+    text = str(text or "").strip()
+    if not text:
+        return []
+    return simpleSplit(text, font_name, font_size, max_width)
+
+
+def _label_value(order, key, default=""):
+    if isinstance(order, dict):
+        return order.get(key, default)
+    return getattr(order, key, default)
+
+
+def _draw_box(pdf_canvas, x, y, width, height, *, fill=False):
+    pdf_canvas.setStrokeColor(black)
+    pdf_canvas.setLineWidth(1.2)
+    if fill:
+        pdf_canvas.setFillColor(white)
+        pdf_canvas.rect(x, y, width, height, stroke=1, fill=1)
+    else:
+        pdf_canvas.rect(x, y, width, height, stroke=1, fill=0)
+
+
+def _draw_text_block(pdf_canvas, lines, *, x, top_y, width, line_height, font_name, font_size):
+    current_y = top_y
+    for raw_line in lines:
+        wrapped_lines = _fit_text_lines(
+            pdf_canvas,
+            raw_line,
+            font_name=font_name,
+            font_size=font_size,
+            max_width=width,
+        )
+        for line in wrapped_lines:
+            pdf_canvas.setFont(font_name, font_size)
+            pdf_canvas.drawString(x, current_y, line)
+            current_y -= line_height
+    return current_y
+
+
+def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
+    page_width = 4 * inch
+    page_height = 6 * inch
+    margin = 0.18 * inch
+    inner_x = margin
+    inner_y = margin
+    inner_width = page_width - (2 * margin)
+    inner_height = page_height - (2 * margin)
+    pdf_canvas.setFillColor(black)
+
+    _draw_box(pdf_canvas, inner_x, inner_y, inner_width, inner_height)
+
+    content_x = inner_x + 0.14 * inch
+    content_y = inner_y + inner_height - 0.14 * inch
+    content_width = inner_width - (0.28 * inch)
+
+    order_id = str(_label_value(order, "shiprocket_order_id", "") or "-").strip()
+    courier_name = str(_label_value(order, "courier_name", "") or "").strip()
+    tracking_number = str(_label_value(order, "tracking_number", "") or "").strip()
+    shipping_address = _label_value(order, "display_shipping_address", {}) or {}
+
+    header_height = 0.72 * inch
+    pdf_canvas.setLineWidth(1.1)
+    pdf_canvas.line(content_x, content_y - header_height, content_x + content_width, content_y - header_height)
+    pdf_canvas.setFont("Helvetica-Bold", 17)
+    pdf_canvas.drawString(content_x, content_y - 0.02 * inch, "SHIPPING LABEL")
+    pdf_canvas.setFont("Helvetica-Bold", 12)
+    pdf_canvas.drawString(content_x, content_y - 0.24 * inch, f"ORDER {order_id}")
+
+    header_meta_top = content_y - 0.04 * inch
+    if courier_name:
+        pdf_canvas.setFont("Helvetica-Bold", 10)
+        pdf_canvas.drawRightString(content_x + content_width, header_meta_top, f"Courier: {courier_name}")
+    if tracking_number:
+        pdf_canvas.setFont("Helvetica-Bold", 10)
+        pdf_canvas.drawRightString(content_x + content_width, header_meta_top - 0.2 * inch, f"Tracking: {tracking_number}")
+
+    ship_box_top = content_y - header_height - 0.12 * inch
+    ship_box_height = 2.45 * inch
+    _draw_box(pdf_canvas, content_x, ship_box_top - ship_box_height, content_width, ship_box_height)
+    pdf_canvas.setFont("Helvetica-Bold", 9)
+    pdf_canvas.drawString(content_x + 0.09 * inch, ship_box_top - 0.14 * inch, "TO ADDRESS")
+    ship_lines_top = ship_box_top - 0.36 * inch
+    ship_lines = _shipping_label_address_lines(shipping_address)
+    _draw_text_block(
+        pdf_canvas,
+        ship_lines,
+        x=content_x + 0.09 * inch,
+        top_y=ship_lines_top,
+        width=content_width - 0.18 * inch,
+        line_height=0.19 * inch,
+        font_name="Helvetica-Bold",
+        font_size=12,
+    )
+
+    sender_box_top = ship_box_top - ship_box_height - 0.14 * inch
+    sender_box_height = 1.45 * inch
+    _draw_box(pdf_canvas, content_x, sender_box_top - sender_box_height, content_width, sender_box_height)
+    pdf_canvas.setFont("Helvetica-Bold", 9)
+    pdf_canvas.drawString(content_x + 0.09 * inch, sender_box_top - 0.14 * inch, "FROM ADDRESS")
+    sender_lines_top = sender_box_top - 0.34 * inch
+    sender_lines = _shipping_label_address_lines(
+        {
+            "name": sender.name,
+            "phone": sender.phone,
+            "address_1": sender.address_1,
+            "address_2": sender.address_2,
+            "city": sender.city,
+            "state": sender.state,
+            "country": sender.country,
+            "pincode": sender.pincode,
+        }
+    )
+    _draw_text_block(
+        pdf_canvas,
+        sender_lines,
+        x=content_x + 0.09 * inch,
+        top_y=sender_lines_top,
+        width=content_width - 0.18 * inch,
+        line_height=0.16 * inch,
+        font_name="Helvetica-Bold",
+        font_size=9.5,
+    )
+
+
+def _shipping_labels_pdf_response(orders, sender, *, filename_prefix):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=(4 * inch, 6 * inch))
+    for order in orders:
+        _render_shipping_label_pdf_page(pdf, order, sender)
+        pdf.showPage()
+    pdf.save()
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    timestamp = timezone.localtime().strftime("%Y%m%d-%H%M")
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename_prefix}-{timestamp}.pdf"'
+    return response
+
+
 def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     sender = SenderAddress.get_default()
     orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_PACKED).order_by(
@@ -2551,6 +2731,23 @@ def ops_bulk_shipping_labels_4x6(request):
         return redirect("order_management")
     context = _build_bulk_shipping_labels_context(request, back_url_name="ops_print_queue")
     return render(request, "core/bulk_shipping_labels_4x6.html", context)
+
+
+@login_required
+def ops_bulk_shipping_labels_pdf(request):
+    if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
+        messages.error(request, "Your role cannot access shipping labels.")
+        return redirect("order_management")
+    context = _build_bulk_shipping_labels_context(request, back_url_name="ops_print_queue")
+    orders = context["orders"]
+    if not orders:
+        messages.warning(request, "Select at least one packed order to download labels.")
+        return redirect("ops_print_queue")
+    return _shipping_labels_pdf_response(
+        orders,
+        context["sender"],
+        filename_prefix="shipping-labels",
+    )
 
 
 def _build_print_queue_context(request, *, back_url=None):
@@ -2617,10 +2814,10 @@ def ops_print_queue(request):
     context.update(
         {
             "queue_title": "Packed Orders PDF Queue",
-            "queue_intro": "Select packed orders, open one 4x6 label per page, then save the page as a PDF for Label Expert.",
+            "queue_intro": "Select packed orders and download a ready-to-import 4x6 PDF for Label Expert.",
             "filter_action_url": reverse("ops_print_queue"),
-            "bulk_action_url": reverse("ops_bulk_shipping_labels_4x6"),
-            "bulk_action_label": "Open 4x6 PDF",
+            "bulk_action_url": reverse("ops_bulk_shipping_labels_pdf"),
+            "bulk_action_label": "Download PDF",
             "queue_back_label": "Back to Accepted Orders",
             "show_printer_test_button": False,
         }
