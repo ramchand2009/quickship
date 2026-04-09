@@ -17,7 +17,10 @@
         <div class="card Recent-Users ops-queue-card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Queue Filters</h5>
-                <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}?tab=order_packed">Back to Packed Tab</a>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_test_4x6' %}" target="_blank" rel="noopener">Printer Test 4x6</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}?tab=order_packed">Back to Packed Tab</a>
+                </div>
             </div>
             <div class="card-block">
                 {% if orders %}

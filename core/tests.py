@@ -924,6 +924,26 @@ class ShippingLabelViewTests(TestCase):
         self.assertIn("Phone 9000012345", content)
         self.assertNotIn("Alt: 9000099999", content)
 
+    def test_shipping_label_test_page_renders_without_tracking_order_prints(self):
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            phone="8888888888",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+
+        response = self.client.get(reverse("shipping_label_test_4x6"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Print Test 4x6 Label")
+        self.assertContains(response, "Helett H30C Pro")
+        self.assertContains(response, "This sample label is for printer setup only.")
+        self.assertContains(response, reverse("print_queue"))
+        self.assertNotContains(response, "track-print/")
+
 
 class BulkShippingLabelsViewTests(TestCase):
     def test_bulk_labels_page_filters_orders_by_status(self):
@@ -1337,6 +1357,7 @@ class PrintQueueViewTests(TestCase):
         self.assertContains(response, packed_order.shiprocket_order_id)
         self.assertNotContains(response, "Queue New Receiver")
         self.assertContains(response, reverse("bulk_shipping_labels_4x6"))
+        self.assertContains(response, reverse("shipping_label_test_4x6"))
         self.assertContains(response, "name=\"order_id\"")
         self.assertContains(response, "queue-results-table")
         self.assertContains(response, 'data-label="Order ID"', html=False)
@@ -2597,6 +2618,13 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Stock Management")
         self.assertNotContains(response, reverse("print_queue"))
         self.assertNotContains(response, reverse("admin_utilities"))
+
+    def test_ops_viewer_cannot_open_shipping_label_test_page(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("shipping_label_test_4x6"))
+
+        self.assertRedirects(response, reverse("order_management"))
 
     def test_ops_viewer_desktop_order_list_shows_packing_and_shipping_print_links(self):
         accepted_order = ShiprocketOrder.objects.create(

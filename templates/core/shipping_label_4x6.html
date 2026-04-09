@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4x6 Shipping Label {{ order.shiprocket_order_id }}</title>
+    <title>{{ page_title|default:"4x6 Shipping Label" }} {{ order.shiprocket_order_id }}</title>
     <style>
         @page {
             size: 4in 6in;
@@ -195,12 +195,29 @@
 </head>
 <body>
     <div class="actions">
-        <button type="button" id="printLabelButton" data-track-url="{% url 'track_shipping_label_print' order.pk %}">
-            Print 4x6 Label
+        <button
+            type="button"
+            id="printLabelButton"
+            {% if track_url %}
+                data-track-url="{{ track_url }}"
+            {% elif order.pk %}
+                data-track-url="{% url 'track_shipping_label_print' order.pk %}"
+            {% endif %}
+        >
+            {{ print_button_label|default:"Print 4x6 Label" }}
         </button>
-        <a href="{% url 'order_detail' order.pk %}">Back</a>
-        <span>Use 4x6 thermal label media with scale set to 100%</span>
+        {% if back_url %}
+            <a href="{{ back_url }}">{{ back_label|default:"Back" }}</a>
+        {% elif order.pk %}
+            <a href="{% url 'order_detail' order.pk %}">Back</a>
+        {% endif %}
+        <span>{{ print_hint|default:"Use 4x6 thermal label media with scale set to 100%" }}</span>
     </div>
+    {% if test_label_note %}
+        <div class="actions" style="margin-top: -4px;">
+            <span>{{ test_label_note }}</span>
+        </div>
+    {% endif %}
     <input type="hidden" id="csrfToken" value="{{ csrf_token }}">
 
     <div class="label-page">
@@ -218,15 +235,17 @@
         printButton.addEventListener("click", async function () {
             const trackUrl = printButton.getAttribute("data-track-url");
             const csrfToken = csrfTokenInput.value;
-            try {
-                await fetch(trackUrl, {
-                    method: "POST",
-                    headers: {
-                        "X-CSRFToken": csrfToken,
-                    },
-                });
-            } catch (error) {
-                console.warn("Label print tracking failed.", error);
+            if (trackUrl) {
+                try {
+                    await fetch(trackUrl, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": csrfToken,
+                        },
+                    });
+                } catch (error) {
+                    console.warn("Label print tracking failed.", error);
+                }
             }
             window.print();
         });

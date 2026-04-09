@@ -2476,6 +2476,45 @@ def shipping_label_4x6(request, pk):
     )
 
 
+@login_required
+def shipping_label_test_4x6(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
+
+    sender = SenderAddress.get_default()
+    now = timezone.localtime()
+    test_order = {
+        "shiprocket_order_id": f"TEST-{now.strftime('%Y%m%d-%H%M')}",
+        "courier_name": "Helett H30C Pro",
+        "tracking_number": "TEST-LABEL-ONLY",
+        "display_shipping_address": {
+            "name": "Printer Test Receiver",
+            "phone": "9000000000",
+            "address_1": "4x6 Thermal Label Alignment Check",
+            "address_2": "Verify margins, scaling, and darkness",
+            "city": "Chennai",
+            "state": "TN",
+            "country": "India",
+            "pincode": "600001",
+        },
+    }
+    return render(
+        request,
+        "core/shipping_label_4x6.html",
+        {
+            "order": test_order,
+            "sender": sender,
+            "page_title": "4x6 Printer Test Label",
+            "print_button_label": "Print Test 4x6 Label",
+            "back_url": reverse("print_queue"),
+            "back_label": "Back to Print Queue",
+            "print_hint": "Select the Helett H30C Pro printer, use 4x6 media, and keep scale at 100%.",
+            "test_label_note": "This sample label is for printer setup only. It does not change any order print counts.",
+        },
+    )
+
+
 def bulk_shipping_labels_4x6(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
     if restricted_response:
