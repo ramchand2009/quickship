@@ -2515,10 +2515,7 @@ def shipping_label_test_4x6(request):
     )
 
 
-def bulk_shipping_labels_4x6(request):
-    restricted_response = _redirect_ops_viewer_to_order_management(request)
-    if restricted_response:
-        return restricted_response
+def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     sender = SenderAddress.get_default()
     orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_PACKED).order_by(
         "-order_date",
@@ -2531,18 +2528,32 @@ def bulk_shipping_labels_4x6(request):
         orders_query = orders_query.filter(pk__in=order_ids)
 
     orders = list(orders_query)
-    context = {
+    return {
         "orders": orders,
         "sender": sender,
         "selected_status_label": selected_status_label,
+        "back_url": reverse(back_url_name),
     }
-    return render(request, "core/bulk_shipping_labels_4x6.html", context)
 
 
-def print_queue(request):
+def bulk_shipping_labels_4x6(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
     if restricted_response:
         return restricted_response
+    context = _build_bulk_shipping_labels_context(request)
+    return render(request, "core/bulk_shipping_labels_4x6.html", context)
+
+
+@login_required
+def ops_bulk_shipping_labels_4x6(request):
+    if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
+        messages.error(request, "Your role cannot access shipping labels.")
+        return redirect("order_management")
+    context = _build_bulk_shipping_labels_context(request, back_url_name="ops_print_queue")
+    return render(request, "core/bulk_shipping_labels_4x6.html", context)
+
+
+def _build_print_queue_context(request, *, back_url=None):
     skip_printed = _is_truthy(request.GET.get("skip_printed"))
     ready_only = _is_truthy(request.GET.get("ready_only"))
     search_query = (request.GET.get("q") or "").strip()
@@ -2577,12 +2588,43 @@ def print_queue(request):
                 filtered_orders.append(order)
         orders = filtered_orders
 
-    context = {
+    return {
         "orders": orders,
         "skip_printed": skip_printed,
         "ready_only": ready_only,
         "search_query": search_query,
+        "back_url": back_url or f"{reverse('home')}?tab=order_packed",
     }
+
+
+def print_queue(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
+    context = _build_print_queue_context(request)
+    return render(request, "core/print_queue.html", context)
+
+
+@login_required
+def ops_print_queue(request):
+    if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
+        messages.error(request, "Your role cannot access shipping labels.")
+        return redirect("order_management")
+    context = _build_print_queue_context(
+        request,
+        back_url=f"{reverse('order_management')}?tab={OPS_VIEWER_TAB_ACCEPTED}",
+    )
+    context.update(
+        {
+            "queue_title": "Packed Orders PDF Queue",
+            "queue_intro": "Select packed orders, open one 4x6 label per page, then save the page as a PDF for Label Expert.",
+            "filter_action_url": reverse("ops_print_queue"),
+            "bulk_action_url": reverse("ops_bulk_shipping_labels_4x6"),
+            "bulk_action_label": "Open 4x6 PDF",
+            "queue_back_label": "Back to Accepted Orders",
+            "show_printer_test_button": False,
+        }
+    )
     return render(request, "core/print_queue.html", context)
 
 

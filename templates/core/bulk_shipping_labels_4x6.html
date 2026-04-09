@@ -228,8 +228,9 @@
         >
             Print 4x6 Labels
         </button>
-        <a href="{% url 'home' %}">Back</a>
+        <a href="{{ back_url|default:'/' }}">Back</a>
         <span>Use 4x6 thermal label media with scale set to 100%</span>
+        <span>On mobile, choose Save as PDF and import that PDF into Label Expert.</span>
     </div>
     <input type="hidden" id="csrfToken" value="{{ csrf_token }}">
     <div id="bulkOrderIds" style="display: none;">

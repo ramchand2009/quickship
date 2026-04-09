@@ -2619,12 +2619,75 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, reverse("print_queue"))
         self.assertNotContains(response, reverse("admin_utilities"))
 
+    def test_ops_viewer_mobile_orders_screen_shows_bulk_labels_pdf_link(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Bulk Labels PDF")
+        self.assertContains(response, reverse("ops_print_queue"))
+
     def test_ops_viewer_cannot_open_shipping_label_test_page(self):
         self.client.force_login(self.viewer)
 
         response = self.client.get(reverse("shipping_label_test_4x6"))
 
         self.assertRedirects(response, reverse("order_management"))
+
+    def test_ops_viewer_can_open_ops_print_queue(self):
+        packed_order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-LABEL-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Bulk Label Receiver",
+                "phone": "9876543210",
+                "address_1": "Bulk Label Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_print_queue"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Packed Orders PDF Queue")
+        self.assertContains(response, "Open 4x6 PDF")
+        self.assertContains(response, packed_order.shiprocket_order_id)
+        self.assertContains(response, reverse("ops_bulk_shipping_labels_4x6"))
+        self.assertNotContains(response, "Printer Test 4x6")
+
+    def test_ops_viewer_can_open_ops_bulk_shipping_labels_page(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-PDF-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Bulk Pdf Receiver",
+                "phone": "9876543211",
+                "address_1": "Bulk Pdf Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638002",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_bulk_shipping_labels_4x6"), {"order_id": [order.pk]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.shiprocket_order_id)
+        self.assertContains(response, "Save as PDF")
+        self.assertContains(response, reverse("ops_print_queue"))
 
     def test_ops_viewer_desktop_order_list_shows_packing_and_shipping_print_links(self):
         accepted_order = ShiprocketOrder.objects.create(

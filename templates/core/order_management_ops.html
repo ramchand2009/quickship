@@ -1044,6 +1044,7 @@
                     <input type="hidden" name="tab" value="{{ active_tab }}">
                     <input type="text" name="q" value="{{ filters.q }}" class="ops-mobile-search" placeholder="Search order, customer, or phone">
                 </form>
+                <a href="{% url 'ops_print_queue' %}" class="ops-mobile-sync-btn is-secondary" style="text-decoration:none;">Bulk Labels PDF</a>
                 {% if can_sync_orders %}
                     <form method="post" action="{% url 'sync_shiprocket_orders' %}">
                         {% csrf_token %}

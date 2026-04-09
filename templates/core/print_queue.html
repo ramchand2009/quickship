@@ -6,8 +6,8 @@
 <div class="row">
     <div class="col-12">
         <div class="page-header-title mb-4 queue-screen-header">
-            <h4 class="m-b-10">Packed Orders Print Queue</h4>
-            <p class="mb-0 text-muted">Select exact orders and print one 4x6 thermal label per order.</p>
+            <h4 class="m-b-10">{{ queue_title|default:"Packed Orders Print Queue" }}</h4>
+            <p class="mb-0 text-muted">{{ queue_intro|default:"Select exact orders and print one 4x6 thermal label per order." }}</p>
         </div>
     </div>
 </div>
@@ -18,13 +18,15 @@
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Queue Filters</h5>
                 <div class="d-flex align-items-center flex-wrap gap-2">
-                    <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_test_4x6' %}" target="_blank" rel="noopener">Printer Test 4x6</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'home' %}?tab=order_packed">Back to Packed Tab</a>
+                    {% if show_printer_test_button != False %}
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'shipping_label_test_4x6' %}" target="_blank" rel="noopener">Printer Test 4x6</a>
+                    {% endif %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ back_url|default:'/' }}">{{ queue_back_label|default:"Back to Packed Tab" }}</a>
                 </div>
             </div>
             <div class="card-block">
                 {% if orders %}
-                    <form id="queueFiltersForm" method="get" action="{% url 'print_queue' %}" class="order-toolbar queue-filter-toolbar mb-3">
+                    <form id="queueFiltersForm" method="get" action="{{ filter_action_url|default:''|default_if_none:'' }}{% if not filter_action_url %}{% url 'print_queue' %}{% endif %}" class="order-toolbar queue-filter-toolbar mb-3">
                         <div class="order-toolbar-left">
                             <input
                                 type="text"
@@ -61,13 +63,13 @@
                         </div>
                     </form>
 
-                    <form id="printQueueForm" method="get" action="{% url 'bulk_shipping_labels_4x6' %}" target="_blank">
+                    <form id="printQueueForm" method="get" action="{{ bulk_action_url|default:''|default_if_none:'' }}{% if not bulk_action_url %}{% url 'bulk_shipping_labels_4x6' %}{% endif %}" target="_blank">
                         <div class="order-toolbar queue-bulk-toolbar mb-3">
                             <div class="order-toolbar-right">
                                 <button type="button" class="btn btn-sm btn-outline-dark" id="selectAllButton">Select All</button>
                                 <button type="button" class="btn btn-sm btn-outline-dark" id="clearAllButton">Clear</button>
                                 <button id="openPrintButton" type="submit" class="btn btn-sm btn-primary" disabled>
-                                    Open 4x6 Labels
+                                    {{ bulk_action_label|default:"Open 4x6 Labels" }}
                                 </button>
                                 <span class="small text-muted" id="selectionSummary">0 selected</span>
                             </div>
