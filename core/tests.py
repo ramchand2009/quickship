@@ -2808,6 +2808,7 @@ class RoleAccessTests(TestCase):
     def test_ops_viewer_can_download_ops_bulk_shipping_labels_pdf(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-BULK-PDF-DL-1",
+            channel_order_id="CH-ROLE-VIEWER-BULK-PDF-DL-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
             shipping_address={
                 "name": "Bulk Pdf Download Receiver",
@@ -2834,6 +2835,12 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn("attachment;", response["Content-Disposition"])
         self.assertGreater(len(response.content), 1000)
+        self.assertIn(b"CH-ROLE-VIEWER-BULK-PDF-DL-1", response.content)
+        self.assertNotIn(b"ORDER SR-ROLE-VIEWER-BULK-PDF-DL-1", response.content)
+        self.assertIn(b"TO", response.content)
+        self.assertIn(b"FROM", response.content)
+        self.assertNotIn(b"TO ADDRESS", response.content)
+        self.assertNotIn(b"FROM ADDRESS", response.content)
 
     def test_ops_viewer_desktop_order_list_shows_packing_and_shipping_print_links(self):
         accepted_order = ShiprocketOrder.objects.create(

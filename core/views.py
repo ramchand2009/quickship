@@ -2560,6 +2560,38 @@ def _shipping_label_address_lines(address):
     return lines
 
 
+def _shipping_label_address_components(address):
+    address = address or {}
+    name = str(address.get("name") or "-").strip() or "-"
+    address_lines = []
+
+    address_1 = str(address.get("address_1") or "-").strip() or "-"
+    address_lines.append(address_1.upper())
+
+    address_2 = str(address.get("address_2") or "").strip()
+    if address_2:
+        address_lines.append(address_2.upper())
+
+    city_state = _compact_line(address.get("city"), address.get("state"))
+    if city_state:
+        address_lines.append(city_state.upper())
+
+    pincode = str(address.get("pincode") or "").strip()
+    pin_line = f"PIN {pincode}".upper() if pincode else ""
+
+    country = str(address.get("country") or "").strip()
+    country_line = country.upper() if country and country.lower() != "india" else ""
+
+    phone = str(address.get("phone") or "-").strip() or "-"
+    return {
+        "name": name.upper(),
+        "address_lines": address_lines,
+        "pin_line": pin_line,
+        "country_line": country_line,
+        "phone": phone,
+    }
+
+
 def _fit_text_lines(pdf_canvas, text, *, font_name, font_size, max_width):
     text = str(text or "").strip()
     if not text:
@@ -2614,6 +2646,158 @@ def _measure_text_block_height(pdf_canvas, lines, *, width, line_height, font_na
     return height
 
 
+def _measure_shipping_label_address_block_height(
+    pdf_canvas,
+    address_components,
+    *,
+    width,
+    name_font_name,
+    name_font_size,
+    body_font_name,
+    body_font_size,
+    pin_font_name,
+    pin_font_size,
+    phone_label_font_name,
+    phone_label_font_size,
+    phone_value_font_name,
+    phone_value_font_size,
+    line_height,
+):
+    height = 0
+    height += _measure_text_block_height(
+        pdf_canvas,
+        [address_components["name"]],
+        width=width,
+        line_height=line_height,
+        font_name=name_font_name,
+        font_size=name_font_size,
+    )
+    if address_components["address_lines"]:
+        height += _measure_text_block_height(
+            pdf_canvas,
+            address_components["address_lines"],
+            width=width,
+            line_height=line_height,
+            font_name=body_font_name,
+            font_size=body_font_size,
+        )
+    if address_components["pin_line"]:
+        height += _measure_text_block_height(
+            pdf_canvas,
+            [address_components["pin_line"]],
+            width=width,
+            line_height=line_height,
+            font_name=pin_font_name,
+            font_size=pin_font_size,
+        )
+    if address_components["country_line"]:
+        height += _measure_text_block_height(
+            pdf_canvas,
+            [address_components["country_line"]],
+            width=width,
+            line_height=line_height,
+            font_name=body_font_name,
+            font_size=body_font_size,
+        )
+    phone_lines = _fit_text_lines(
+        pdf_canvas,
+        f"PHONE {address_components['phone']}",
+        font_name=phone_value_font_name,
+        font_size=max(phone_label_font_size, phone_value_font_size),
+        max_width=width,
+    )
+    height += len(phone_lines) * line_height
+    return height
+
+
+def _draw_shipping_label_address_block(
+    pdf_canvas,
+    address_components,
+    *,
+    x,
+    top_y,
+    width,
+    line_height,
+    name_font_name,
+    name_font_size,
+    body_font_name,
+    body_font_size,
+    pin_font_name,
+    pin_font_size,
+    phone_label_font_name,
+    phone_label_font_size,
+    phone_value_font_name,
+    phone_value_font_size,
+):
+    current_y = top_y
+    current_y = _draw_text_block(
+        pdf_canvas,
+        [address_components["name"]],
+        x=x,
+        top_y=current_y,
+        width=width,
+        line_height=line_height,
+        font_name=name_font_name,
+        font_size=name_font_size,
+    )
+    if address_components["address_lines"]:
+        current_y = _draw_text_block(
+            pdf_canvas,
+            address_components["address_lines"],
+            x=x,
+            top_y=current_y,
+            width=width,
+            line_height=line_height,
+            font_name=body_font_name,
+            font_size=body_font_size,
+        )
+    if address_components["pin_line"]:
+        current_y = _draw_text_block(
+            pdf_canvas,
+            [address_components["pin_line"]],
+            x=x,
+            top_y=current_y,
+            width=width,
+            line_height=line_height,
+            font_name=pin_font_name,
+            font_size=pin_font_size,
+        )
+    if address_components["country_line"]:
+        current_y = _draw_text_block(
+            pdf_canvas,
+            [address_components["country_line"]],
+            x=x,
+            top_y=current_y,
+            width=width,
+            line_height=line_height,
+            font_name=body_font_name,
+            font_size=body_font_size,
+        )
+
+    phone_text = f"PHONE {address_components['phone']}"
+    phone_lines = _fit_text_lines(
+        pdf_canvas,
+        phone_text,
+        font_name=phone_value_font_name,
+        font_size=max(phone_label_font_size, phone_value_font_size),
+        max_width=width,
+    )
+    for index, phone_line in enumerate(phone_lines):
+        if index == 0 and phone_line.startswith("PHONE "):
+            label_text = "PHONE "
+            phone_value = phone_line[len(label_text):]
+            pdf_canvas.setFont(phone_label_font_name, phone_label_font_size)
+            pdf_canvas.drawString(x, current_y, label_text)
+            phone_start_x = x + pdf_canvas.stringWidth(label_text, phone_label_font_name, phone_label_font_size)
+            pdf_canvas.setFont(phone_value_font_name, phone_value_font_size)
+            pdf_canvas.drawString(phone_start_x, current_y, phone_value)
+        else:
+            pdf_canvas.setFont(phone_value_font_name, phone_value_font_size)
+            pdf_canvas.drawString(x, current_y, phone_line)
+        current_y -= line_height
+    return current_y
+
+
 def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     page_width = 4 * inch
     page_height = 6 * inch
@@ -2630,12 +2814,16 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     content_y = inner_y + inner_height - 0.14 * inch
     content_width = inner_width - (0.2 * inch)
 
-    order_id = str(_label_value(order, "shiprocket_order_id", "") or "-").strip()
+    order_id = str(
+        _label_value(order, "channel_order_id", "")
+        or _label_value(order, "shiprocket_order_id", "")
+        or "-"
+    ).strip()
     courier_name = str(_label_value(order, "courier_name", "") or "").strip()
     tracking_number = str(_label_value(order, "tracking_number", "") or "").strip()
     shipping_address = _label_value(order, "display_shipping_address", {}) or {}
-    ship_lines = _shipping_label_address_lines(shipping_address)
-    sender_lines = _shipping_label_address_lines(
+    ship_address = _shipping_label_address_components(shipping_address)
+    sender_address = _shipping_label_address_components(
         {
             "name": sender.name,
             "phone": sender.phone,
@@ -2669,59 +2857,91 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     section_gap = 0.1 * inch
     section_inner_width = content_width - 0.16 * inch
     ship_box_top = content_y - header_height - 0.08 * inch
-    ship_text_height = _measure_text_block_height(
+    ship_text_height = _measure_shipping_label_address_block_height(
         pdf_canvas,
-        ship_lines,
+        ship_address,
         width=section_inner_width,
-        line_height=0.21 * inch,
-        font_name="Helvetica-Bold",
-        font_size=12.5,
+        line_height=0.205 * inch,
+        name_font_name="Helvetica-Bold",
+        name_font_size=14,
+        body_font_name="Helvetica-Bold",
+        body_font_size=11.8,
+        pin_font_name="Helvetica-Bold",
+        pin_font_size=13.2,
+        phone_label_font_name="Helvetica-Bold",
+        phone_label_font_size=10.2,
+        phone_value_font_name="Helvetica-Bold",
+        phone_value_font_size=11.2,
     )
     ship_box_height = max(1.75 * inch, ship_text_height + 0.62 * inch)
     _draw_box(pdf_canvas, content_x, ship_box_top - ship_box_height, content_width, ship_box_height)
     pdf_canvas.setFont("Helvetica-Bold", 9.5)
-    pdf_canvas.drawString(content_x + 0.08 * inch, ship_box_top - 0.14 * inch, "TO ADDRESS")
+    pdf_canvas.drawString(content_x + 0.08 * inch, ship_box_top - 0.14 * inch, "TO")
     ship_lines_top = ship_box_top - 0.36 * inch
-    _draw_text_block(
+    _draw_shipping_label_address_block(
         pdf_canvas,
-        ship_lines,
+        ship_address,
         x=content_x + 0.08 * inch,
         top_y=ship_lines_top,
         width=section_inner_width,
-        line_height=0.21 * inch,
-        font_name="Helvetica-Bold",
-        font_size=12.5,
+        line_height=0.205 * inch,
+        name_font_name="Helvetica-Bold",
+        name_font_size=14,
+        body_font_name="Helvetica-Bold",
+        body_font_size=11.8,
+        pin_font_name="Helvetica-Bold",
+        pin_font_size=13.2,
+        phone_label_font_name="Helvetica-Bold",
+        phone_label_font_size=10.2,
+        phone_value_font_name="Helvetica-Bold",
+        phone_value_font_size=11.2,
     )
 
     sender_box_top = ship_box_top - ship_box_height - section_gap
-    sender_text_height = _measure_text_block_height(
+    sender_text_height = _measure_shipping_label_address_block_height(
         pdf_canvas,
-        sender_lines,
+        sender_address,
         width=section_inner_width,
-        line_height=0.175 * inch,
-        font_name="Helvetica-Bold",
-        font_size=10.5,
+        line_height=0.17 * inch,
+        name_font_name="Helvetica-Bold",
+        name_font_size=11.5,
+        body_font_name="Helvetica-Bold",
+        body_font_size=10.2,
+        pin_font_name="Helvetica-Bold",
+        pin_font_size=11.8,
+        phone_label_font_name="Helvetica-Bold",
+        phone_label_font_size=9.6,
+        phone_value_font_name="Helvetica-Bold",
+        phone_value_font_size=10.6,
     )
     sender_box_height = max(1.28 * inch, sender_text_height + 0.54 * inch)
     _draw_box(pdf_canvas, content_x, sender_box_top - sender_box_height, content_width, sender_box_height)
     pdf_canvas.setFont("Helvetica-Bold", 9.5)
-    pdf_canvas.drawString(content_x + 0.08 * inch, sender_box_top - 0.14 * inch, "FROM ADDRESS")
+    pdf_canvas.drawString(content_x + 0.08 * inch, sender_box_top - 0.14 * inch, "FROM")
     sender_lines_top = sender_box_top - 0.33 * inch
-    _draw_text_block(
+    _draw_shipping_label_address_block(
         pdf_canvas,
-        sender_lines,
+        sender_address,
         x=content_x + 0.08 * inch,
         top_y=sender_lines_top,
         width=section_inner_width,
-        line_height=0.175 * inch,
-        font_name="Helvetica-Bold",
-        font_size=10.5,
+        line_height=0.17 * inch,
+        name_font_name="Helvetica-Bold",
+        name_font_size=11.5,
+        body_font_name="Helvetica-Bold",
+        body_font_size=10.2,
+        pin_font_name="Helvetica-Bold",
+        pin_font_size=11.8,
+        phone_label_font_name="Helvetica-Bold",
+        phone_label_font_size=9.6,
+        phone_value_font_name="Helvetica-Bold",
+        phone_value_font_size=10.6,
     )
 
 
 def _shipping_labels_pdf_response(orders, sender, *, filename_prefix):
     buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=(4 * inch, 6 * inch))
+    pdf = canvas.Canvas(buffer, pagesize=(4 * inch, 6 * inch), pageCompression=0)
     for order in orders:
         _render_shipping_label_pdf_page(pdf, order, sender)
         pdf.showPage()
