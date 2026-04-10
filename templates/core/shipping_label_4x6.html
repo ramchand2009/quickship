@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title|default:"4x6 Shipping Label" }} {{ order.shiprocket_order_id }}</title>
+    <title>{{ page_title|default:"4x6 Shipping Label" }} {{ order.channel_order_id|default:order.shiprocket_order_id }}</title>
     <style>
         @page {
             size: 4in 6in;

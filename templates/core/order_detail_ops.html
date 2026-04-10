@@ -225,6 +225,16 @@
         font-weight: 700;
     }
 
+    .ops-detail-stock-alert {
+        margin-top: 0.9rem;
+        padding: 0.8rem 0.9rem;
+        border-radius: 0.5rem;
+        background: #fff4db;
+        color: #8a5a00;
+        font-size: 0.92rem;
+        line-height: 1.45;
+    }
+
     .ops-detail-actions-card input[type="tel"],
     .ops-detail-actions-card input[type="text"] {
         width: 100%;
@@ -542,6 +552,19 @@
                 <h5 class="mb-0">Order Details</h5>
                 <span>{{ order.order_items|length }} Items</span>
             </div>
+
+            {% if stock_availability.has_shortage %}
+                <div class="ops-detail-stock-alert">
+                    <strong>Stock short for this order.</strong>
+                    {% for shortage in stock_availability.shortages %}
+                        <div class="mt-1">
+                            {{ shortage.name }}{% if shortage.sku %} ({{ shortage.sku }}){% endif %}:
+                            required {{ shortage.required_quantity }},
+                            available {{ shortage.available_quantity }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
 
             {% for item in order.order_items %}
                 <div class="ops-detail-item">

@@ -820,7 +820,8 @@ class ShippingLabelViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "size: 4in 6in;")
-        self.assertContains(response, "SR-LABEL-1")
+        self.assertContains(response, "CH-1001")
+        self.assertNotContains(response, "Order SR-LABEL-1")
         self.assertContains(response, "Manual Name")
         self.assertContains(response, "Manual Street 10")
         self.assertContains(response, "Warehouse Sender")
@@ -916,7 +917,7 @@ class ShippingLabelViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        self.assertLess(content.index('section-title">To Address</div>'), content.index('section-title">From Address</div>'))
+        self.assertLess(content.index('section-title">To</div>'), content.index('section-title">From</div>'))
         self.assertIn("Chennai", content)
         self.assertIn("TN", content)
         self.assertIn("600001", content)
@@ -1008,6 +1009,51 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertEqual(track_response.status_code, 200)
         self.assertEqual(packed_order.label_print_count, 1)
         self.assertIsNotNone(packed_order.last_label_printed_at)
+
+    def test_bulk_labels_page_skips_already_printed_orders(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-BULK-PRINTED-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=2,
+            shipping_address={
+                "name": "Printed Receiver",
+                "phone": "9000000111",
+                "address_1": "Printed Street 1",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "India",
+                "pincode": "600011",
+            },
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-BULK-PENDING-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=0,
+            shipping_address={
+                "name": "Pending Receiver",
+                "phone": "9000000112",
+                "address_1": "Pending Street 1",
+                "city": "Madurai",
+                "state": "TN",
+                "country": "India",
+                "pincode": "625011",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+
+        response = self.client.get(reverse("bulk_shipping_labels_4x6"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pending Receiver")
+        self.assertNotContains(response, "Printed Receiver")
+        self.assertNotContains(response, "SR-BULK-PRINTED-1")
 
     def test_home_includes_bulk_label_link_for_status_tab(self):
         ShiprocketOrder.objects.create(
@@ -1122,6 +1168,12 @@ class BulkShippingLabelsViewTests(TestCase):
             shiprocket_order_id="SR-HOME-SALES-2",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             total="175.00",
+            order_date=current_month,
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-HOME-SALES-CANCELLED-1",
+            local_status=ShiprocketOrder.STATUS_CANCELLED,
+            total="1000.00",
             order_date=current_month,
         )
         ShiprocketOrder.objects.create(
@@ -1260,6 +1312,7 @@ class OrderManagementViewTests(TestCase):
     def test_order_management_hides_shiprocket_status_column(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ORDER-MGMT-1",
+            channel_order_id="CH-ORDER-MGMT-1",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             tracking_number="1234567890123",
             shipping_address={
@@ -1277,13 +1330,39 @@ class OrderManagementViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "<th>Shiprocket Status</th>", html=True)
-        self.assertContains(response, order.shiprocket_order_id)
+        self.assertContains(response, order.channel_order_id)
+        self.assertContains(response, f"Shiprocket: {order.shiprocket_order_id}")
         self.assertContains(response, "Workflow: Order Accepted")
         self.assertContains(response, "Tracking: 1234567890123")
         self.assertContains(response, "Packing Checklist")
         self.assertContains(response, "order-status-tabs")
         self.assertContains(response, 'data-label="Order ID"', html=False)
         self.assertContains(response, 'data-label="Move Order"', html=False)
+
+    def test_order_management_shows_stock_shortage_indicator_for_new_order(self):
+        Product.objects.create(
+            name="Short Stock Soap",
+            sku="SHORT-STOCK-1",
+            stock_quantity=1,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ORDER-MGMT-STOCK-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            order_items=[
+                {"name": "Short Stock Soap", "sku": "SHORT-STOCK-1", "quantity": 3, "price": "99"},
+            ],
+        )
+
+        response = self.client.get(
+            reverse("order_management"),
+            {"tab": ShiprocketOrder.STATUS_NEW},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.shiprocket_order_id)
+        self.assertContains(response, "Stock short")
+        self.assertContains(response, "required 3,")
+        self.assertContains(response, "available 1")
 
 
 class PackingQueueViewTests(TestCase):
@@ -2594,6 +2673,7 @@ class RoleAccessTests(TestCase):
     def test_ops_viewer_sidebar_shows_order_management_and_stock_management_only(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-LIST-1",
+            channel_order_id="CH-ROLE-VIEWER-LIST-1",
             local_status=ShiprocketOrder.STATUS_NEW,
             customer_name="Viewer Mobile",
             payment_method="Cash on Delivery",
@@ -2612,6 +2692,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, f'order-{order.pk}-manual_customer_phone')
         self.assertContains(response, "Customer phone for Accept action")
         self.assertContains(response, "ops-order-card")
+        self.assertContains(response, order.channel_order_id)
+        self.assertContains(response, f"Shiprocket: {order.shiprocket_order_id}")
         self.assertContains(response, reverse("order_detail", args=[order.pk]))
         self.assertNotContains(response, 'data-row-update-form', html=False)
         self.assertContains(response, reverse("stock_management"))
@@ -2627,6 +2709,35 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Bulk Labels PDF")
         self.assertContains(response, reverse("ops_print_queue"))
+
+    def test_ops_viewer_order_detail_shows_stock_shortage_alert(self):
+        Product.objects.create(
+            name="Viewer Short Stock",
+            sku="VIEWER-STOCK-1",
+            stock_quantity=0,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-STOCK-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Viewer Stock",
+                "phone": "9876543210",
+                "address_1": "Stock Street 5",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Viewer Short Stock", "sku": "VIEWER-STOCK-1", "quantity": 2, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "pending"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Stock short for this order.")
+        self.assertContains(response, "required 2,")
+        self.assertContains(response, "available 0")
 
     def test_ops_viewer_cannot_open_shipping_label_test_page(self):
         self.client.force_login(self.viewer)
@@ -3020,6 +3131,32 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Print Shipping Label")
         self.assertContains(response, reverse("shipping_label_4x6", args=[order.pk]))
+
+    def test_ops_viewer_shipped_order_detail_hides_shipping_label_option(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-SHIPPED-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Shipped Detail",
+                "phone": "9876543210",
+                "email": "shipped@example.com",
+                "address_1": "88 Shipped Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638010",
+            },
+            order_items=[
+                {"name": "Soap Bar", "quantity": 1, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "shipped"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Print Shipping Label")
+        self.assertNotContains(response, reverse("shipping_label_4x6", args=[order.pk]))
 
     def test_ops_viewer_can_open_packing_list(self):
         order = ShiprocketOrder.objects.create(

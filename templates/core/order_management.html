@@ -275,8 +275,8 @@
                                         {% endif %}
                                         </td>
                                         <td data-label="Order ID">
-                                            <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.shiprocket_order_id }}</a>
-                                            <div class="text-muted small mt-1">Channel: {{ item.order.channel_order_id|default:"-" }}</div>
+                                            <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</a>
+                                            <div class="text-muted small mt-1">Shiprocket: {{ item.order.shiprocket_order_id|default:"-" }}</div>
                                             <div class="text-muted small mt-1">Workflow: {{ item.order.get_local_status_display }}</div>
                                             {% if item.order.tracking_number %}
                                                 <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number }}</div>
@@ -286,6 +286,22 @@
                                                     <span class="fw-semibold">Packing Checklist</span>:
                                                     <span class="text-warning">Pending</span>
                                                     <span class="text-muted">({{ item.missing_packing_fields|join:", " }})</span>
+                                                </div>
+                                            {% endif %}
+                                            {% if item.stock_availability.has_shortage %}
+                                                <div class="small mt-1">
+                                                    <span class="fw-semibold text-danger">Stock short</span>:
+                                                    {% with shortage=item.stock_availability.shortages.0 %}
+                                                        <span class="text-danger">
+                                                            {% if item.stock_availability.shortage_count == 1 %}
+                                                                {{ shortage.name }}{% if shortage.sku %} ({{ shortage.sku }}){% endif %}:
+                                                                required {{ shortage.required_quantity }},
+                                                                available {{ shortage.available_quantity }}
+                                                            {% else %}
+                                                                {{ item.stock_availability.shortage_count }} product lines need stock
+                                                            {% endif %}
+                                                        </span>
+                                                    {% endwith %}
                                                 </div>
                                             {% endif %}
                                         </td>

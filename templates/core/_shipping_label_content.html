@@ -2,7 +2,7 @@
     <div class="label-header">
         <div>
             <div class="label-title">Shipping Label</div>
-            <div class="label-order-id">Order {{ order.shiprocket_order_id|default:"-" }}</div>
+            <div class="label-order-id">Order {{ order.channel_order_id|default:order.shiprocket_order_id|default:"-" }}</div>
         </div>
         <div class="label-meta">
             {% if order.courier_name %}
@@ -15,7 +15,7 @@
     </div>
 
     <div class="label-section ship-to-section postal-address-section">
-        <div class="section-title">To Address</div>
+        <div class="section-title">To</div>
         <div class="party-name postal-name">{{ order.display_shipping_address.name|default:"-" }}</div>
         <div class="postal-line">{{ order.display_shipping_address.address_1|default:"-" }}</div>
         {% if order.display_shipping_address.address_2 %}
@@ -44,7 +44,7 @@
     </div>
 
     <div class="label-section return-address-section">
-        <div class="section-title">From Address</div>
+        <div class="section-title">From</div>
         <div class="party-name return-name">{{ sender.name|default:"Mathukai Organic" }}</div>
         <div class="postal-line">{{ sender.address_1|default:"-" }}</div>
         {% if sender.address_2 %}<div class="postal-line">{{ sender.address_2 }}</div>{% endif %}

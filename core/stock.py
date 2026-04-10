@@ -66,6 +66,57 @@ def summarize_order_items_by_product(order):
     }
 
 
+def summarize_order_stock_availability(order):
+    product_summary = summarize_order_items_by_product(order)
+    product_totals = product_summary["products"]
+    if not product_totals:
+        return {
+            "has_shortage": False,
+            "shortage_count": 0,
+            "shortages": [],
+            "missing_identifiers": product_summary["missing_identifiers"],
+        }
+
+    products_by_id = Product.objects.in_bulk(product_totals.keys())
+    reserved_product_ids = set(
+        StockMovement.objects.filter(
+            order=order,
+            movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+            product_id__in=product_totals.keys(),
+        ).values_list("product_id", flat=True)
+    )
+    shortages = []
+    for product_id, required_quantity in product_totals.items():
+        product = products_by_id.get(product_id)
+        if not product or product_id in reserved_product_ids:
+            continue
+
+        required_quantity = int(required_quantity or 0)
+        available_quantity = int(product.stock_quantity or 0)
+        if available_quantity >= required_quantity:
+            continue
+
+        shortages.append(
+            {
+                "product_id": product.pk,
+                "name": product.name,
+                "sku": product.sku,
+                "required_quantity": required_quantity,
+                "available_quantity": available_quantity,
+                "short_quantity": required_quantity - available_quantity,
+                "is_out_of_stock": available_quantity <= 0,
+            }
+        )
+
+    shortages.sort(key=lambda item: (item["name"], item["sku"]))
+    return {
+        "has_shortage": bool(shortages),
+        "shortage_count": len(shortages),
+        "shortages": shortages,
+        "missing_identifiers": product_summary["missing_identifiers"],
+    }
+
+
 def build_packing_scan_requirements(order):
     grouped_requirements = {}
     unmatched_items = []

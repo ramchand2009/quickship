@@ -87,6 +87,7 @@ from .stock import (
     issue_special_stock,
     reconcile_missed_stock_deductions,
     set_manual_stock_quantity,
+    summarize_order_stock_availability,
     sync_stock_for_status_transition,
     validate_packing_scans,
 )
@@ -1425,7 +1426,9 @@ def _build_orders_dashboard_context(request):
     monthly_rows = monthly_orders.values("local_status").annotate(total=Count("id"))
     monthly_status_map = {row["local_status"]: int(row["total"] or 0) for row in monthly_rows}
     monthly_total = sum(monthly_status_map.values())
-    monthly_sales_total = monthly_orders.aggregate(total_amount=Sum("total")).get("total_amount") or 0
+    monthly_sales_total = monthly_orders.exclude(
+        local_status=ShiprocketOrder.STATUS_CANCELLED
+    ).aggregate(total_amount=Sum("total")).get("total_amount") or 0
 
     order_action_cards = [
         {
@@ -1822,6 +1825,7 @@ def order_management(request):
                 "order": order,
                 "status_form": status_form,
                 "missing_packing_fields": order.missing_fields_for_packing(),
+                "stock_availability": summarize_order_stock_availability(order),
                 "primary_action": _build_ops_viewer_primary_action(order, status_form) if ops_mobile_mode else None,
             }
         )
@@ -2343,6 +2347,7 @@ def order_detail(request, pk):
     activity_timeline = activity_queryset.order_by("-created_at")[:200]
     ops_mobile_actions = _build_ops_viewer_detail_actions(order, status_form)
     packing_scan_summary = build_packing_scan_requirements(order)
+    stock_availability = summarize_order_stock_availability(order)
     pack_action_available = any(
         action.get("value") == ShiprocketOrder.STATUS_PACKED
         for action in ops_mobile_actions
@@ -2362,6 +2367,7 @@ def order_detail(request, pk):
             "can_update_order_status": can_update_order_status,
             "can_view_raw_payload": can_view_raw_payload,
             "ops_mobile_mode": ops_mobile_mode,
+            "stock_availability": stock_availability,
             "ops_mobile_stage_key": _ops_viewer_stage_key(order.local_status),
             "ops_mobile_actions": ops_mobile_actions,
             "ops_pack_action_available": pack_action_available,
@@ -2731,7 +2737,10 @@ def _shipping_labels_pdf_response(orders, sender, *, filename_prefix):
 
 def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     sender = SenderAddress.get_default()
-    orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_PACKED).order_by(
+    orders_query = ShiprocketOrder.objects.filter(
+        local_status=ShiprocketOrder.STATUS_PACKED,
+        label_print_count=0,
+    ).order_by(
         "-order_date",
         "-updated_at",
     )
@@ -2775,7 +2784,7 @@ def ops_bulk_shipping_labels_pdf(request):
     context = _build_bulk_shipping_labels_context(request, back_url_name="ops_print_queue")
     orders = context["orders"]
     if not orders:
-        messages.warning(request, "Select at least one packed order to download labels.")
+        messages.warning(request, "Select at least one pending packed order to download labels.")
         return redirect("ops_print_queue")
     return _shipping_labels_pdf_response(
         orders,
