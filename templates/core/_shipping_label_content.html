@@ -36,7 +36,7 @@
         {% endif %}
         <div class="line contact-line">
             {% if order.display_shipping_address.phone %}
-                Phone {{ order.display_shipping_address.phone }}
+                Phone <span class="contact-value">{{ order.display_shipping_address.phone }}</span>
             {% else %}
                 Phone -
             {% endif %}
@@ -62,7 +62,7 @@
             <div class="postal-line">{{ sender.country }}</div>
         {% endif %}
         {% if sender.phone %}
-            <div class="line contact-line">Phone {{ sender.phone }}</div>
+            <div class="line contact-line">Phone <span class="contact-value">{{ sender.phone }}</span></div>
         {% endif %}
     </div>
 </div>
