@@ -3076,11 +3076,11 @@ def ops_print_queue(request):
     )
     context.update(
         {
-            "queue_title": "Packed Orders PDF Queue",
-            "queue_intro": "Select packed orders and download a ready-to-import 4x6 PDF for Label Expert.",
+            "queue_title": "Packed Orders Label Queue",
+            "queue_intro": "Select packed orders and open the same 4x6 label layout used for individual labels.",
             "filter_action_url": reverse("ops_print_queue"),
-            "bulk_action_url": reverse("ops_bulk_shipping_labels_pdf"),
-            "bulk_action_label": "Download PDF",
+            "bulk_action_url": reverse("ops_bulk_shipping_labels_4x6"),
+            "bulk_action_label": "Open 4x6 Labels",
             "queue_back_label": "Back to Accepted Orders",
             "show_printer_test_button": False,
             "simplified_order_list": True,
