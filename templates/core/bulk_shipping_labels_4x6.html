@@ -67,6 +67,13 @@
         >
             Print 4x6 Labels
         </button>
+        <button
+            type="button"
+            id="bulkPdfButton"
+            data-track-url="{% url 'track_bulk_shipping_labels_print' %}"
+        >
+            Save as PDF
+        </button>
         <a href="{{ back_url|default:'/' }}">Back</a>
         <span>Use 4x6 thermal label media with scale set to 100%</span>
         <span>On mobile, choose Save as PDF and import that PDF into Label Expert.</span>
@@ -94,14 +101,15 @@
     <script>
     (function () {
         const printButton = document.getElementById("bulkPrintButton");
+        const pdfButton = document.getElementById("bulkPdfButton");
         const csrfTokenInput = document.getElementById("csrfToken");
         const orderInputs = document.querySelectorAll("#bulkOrderIds input[name='order_id']");
-        if (!printButton || !csrfTokenInput) {
+        if (!printButton || !pdfButton || !csrfTokenInput) {
             return;
         }
 
-        printButton.addEventListener("click", async function () {
-            const trackUrl = printButton.getAttribute("data-track-url");
+        const openBrowserPrintDialog = async function (triggerButton) {
+            const trackUrl = triggerButton.getAttribute("data-track-url");
             const csrfToken = csrfTokenInput.value;
             const payload = new URLSearchParams();
             orderInputs.forEach(function (input) {
@@ -117,10 +125,18 @@
                     },
                     body: payload.toString(),
                 });
-            } catch (error) {
-                console.warn("Bulk label print tracking failed.", error);
-            }
+                } catch (error) {
+                    console.warn("Bulk label print tracking failed.", error);
+                }
             window.print();
+        };
+
+        printButton.addEventListener("click", function () {
+            openBrowserPrintDialog(printButton);
+        });
+
+        pdfButton.addEventListener("click", function () {
+            openBrowserPrintDialog(pdfButton);
         });
     })();
     </script>
