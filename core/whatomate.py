@@ -517,6 +517,32 @@ def _format_order_message(template_text, order):
         )
 
 
+def _send_text_message_to_phone(phone_number, contact_name, message_text, config):
+    contact_id = _ensure_contact_id(
+        phone_number=phone_number,
+        name=contact_name,
+        config=config,
+    )
+    payload = {"type": "text", "text": str(message_text or "").strip()}
+    if not payload["text"]:
+        raise WhatomateNotificationError("WhatsApp message text is empty.")
+
+    endpoint = f"/api/contacts/{parse.quote(contact_id)}/messages"
+    response_payload = _json_request(
+        endpoint,
+        config=config,
+        method="POST",
+        payload=payload,
+    )
+    return {
+        "endpoint": endpoint,
+        "request_payload": dict(payload),
+        "response_payload": response_payload if isinstance(response_payload, (dict, list)) else {},
+        "contact_id": contact_id,
+        "external_message_id": _extract_message_id(response_payload),
+    }
+
+
 def _send_template_message(order, phone_number, config):
     template_name = str(config.get("template_name") or "").strip()
     if not template_name:
@@ -546,30 +572,65 @@ def _send_template_message(order, phone_number, config):
 
 
 def _send_text_message(order, phone_number, config):
-    contact_id = _ensure_contact_id(
-        phone_number=phone_number,
-        name=order.display_shipping_address.get("name") or order.customer_name or "",
-        config=config,
-    )
     message_template = str(config.get("accepted_text") or "")
     message_text = _format_order_message(message_template, order)
-    if not message_text:
-        raise WhatomateNotificationError("Order accepted message text is empty.")
-
-    payload = {"type": "text", "text": message_text}
-    endpoint = f"/api/contacts/{parse.quote(contact_id)}/messages"
-    response_payload = _json_request(
-        endpoint,
+    return _send_text_message_to_phone(
+        phone_number=phone_number,
+        contact_name=order.display_shipping_address.get("name") or order.customer_name or "",
+        message_text=message_text,
         config=config,
-        method="POST",
-        payload=payload,
+    )
+
+
+def _build_customer_enquiry_message(order):
+    customer_name = order.display_shipping_address.get("name") or order.customer_name or "Customer"
+    order_id = str(order.shiprocket_order_id or "").strip() or "-"
+    status_label = str(order.get_local_status_display() or order.local_status or "").strip() or "Pending"
+    tracking_number = str(order.tracking_number or "").strip()
+
+    lines = [
+        f"Hi {customer_name},",
+        f"Your order {order_id} is currently {status_label}.",
+    ]
+    if tracking_number:
+        lines.append(f"Tracking number: {tracking_number}.")
+    else:
+        lines.append("Tracking number is not assigned yet.")
+    lines.append("We will share the next update soon.")
+    return " ".join(lines).strip()
+
+
+def send_order_enquiry_reply(order, incoming_phone_number="", inbound_message_text="", config_overrides=None):
+    config = _resolve_runtime_config(config_overrides)
+    if not _is_enabled(config):
+        return {"sent": False, "reason": "disabled"}
+
+    raw_phone = incoming_phone_number or (
+        order.display_shipping_address.get("phone")
+        or order.manual_customer_phone
+        or order.customer_phone
+    )
+    phone_number = _normalize_phone_number(raw_phone, config)
+    if len(phone_number) < 10:
+        raise WhatomateNotificationError("Customer mobile is missing or invalid for WhatsApp enquiry reply.")
+
+    message_text = _build_customer_enquiry_message(order)
+    send_result = _send_text_message_to_phone(
+        phone_number=phone_number,
+        contact_name=order.display_shipping_address.get("name") or order.customer_name or "",
+        message_text=message_text,
+        config=config,
     )
     return {
-        "endpoint": endpoint,
-        "request_payload": dict(payload),
-        "response_payload": response_payload if isinstance(response_payload, (dict, list)) else {},
-        "contact_id": contact_id,
-        "external_message_id": _extract_message_id(response_payload),
+        "sent": True,
+        "phone_number": phone_number,
+        "mode": "text",
+        "message_text": message_text,
+        "incoming_message_text": str(inbound_message_text or "").strip(),
+        "request_payload": send_result.get("request_payload", {}) if isinstance(send_result, dict) else {},
+        "response_payload": send_result.get("response_payload", {}) if isinstance(send_result, dict) else {},
+        "endpoint": send_result.get("endpoint", "") if isinstance(send_result, dict) else "",
+        "external_message_id": send_result.get("external_message_id", "") if isinstance(send_result, dict) else "",
     }
 
 

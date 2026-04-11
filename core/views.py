@@ -102,6 +102,7 @@ from .whatomate import (
     WhatomateNotificationError,
     build_order_template_context,
     check_api_connection,
+    send_order_enquiry_reply,
     send_test_template_message,
     send_test_whatsapp_message,
     sync_templates_from_api,
@@ -828,6 +829,17 @@ def _normalize_webhook_phone(raw_phone):
     if len(digits) == 10:
         return f"91{digits}"
     return digits
+
+
+def _normalize_webhook_event_type(raw_event_type):
+    return (
+        str(raw_event_type or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace(".", "_")
+    )
 
 
 def _build_webhook_signature(payload_bytes, secret):
@@ -4248,18 +4260,18 @@ def whatomate_webhook(request):
         payload,
         [("event_id",), ("id",), ("data", "event_id"), ("data", "id")],
     )
-    if webhook_event_id:
-        duplicate = WhatsAppNotificationLog.objects.filter(
-            trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_STATUS,
-            webhook_event_id=webhook_event_id,
-        ).exists()
-        if duplicate:
-            return JsonResponse({"ok": True, "duplicate": True})
-
     event_type = _first_text_value(
         payload,
         [("event_type",), ("event",), ("type",), ("data", "event_type"), ("data", "event"), ("data", "type")],
     )
+    normalized_event_type = _normalize_webhook_event_type(event_type)
+    is_incoming_message_event = "message" in normalized_event_type and "incoming" in normalized_event_type
+    if webhook_event_id:
+        duplicate = WhatsAppNotificationLog.objects.filter(
+            webhook_event_id=webhook_event_id,
+        ).exists()
+        if duplicate:
+            return JsonResponse({"ok": True, "duplicate": True})
     delivery_status = _first_text_value(
         payload,
         [
@@ -4324,13 +4336,95 @@ def whatomate_webhook(request):
             ("data", "phone"),
             ("contact", "phone_number"),
             ("data", "contact", "phone_number"),
+            ("message", "from"),
+            ("data", "message", "from"),
             ("message", "to"),
             ("data", "message", "to"),
         ],
     )
     normalized_phone = _normalize_webhook_phone(raw_phone)
+    incoming_message_text = _first_text_value(
+        payload,
+        [
+            ("message_text",),
+            ("text",),
+            ("message", "text"),
+            ("message", "body"),
+            ("data", "message_text"),
+            ("data", "text"),
+            ("data", "message", "text"),
+            ("data", "message", "body"),
+        ],
+    )
 
     order = _resolve_order_for_webhook(order_id_text, normalized_phone, idempotency_key)
+    if is_incoming_message_event:
+        enquiry_success = False
+        enquiry_result = {
+            "phone_number": normalized_phone,
+            "incoming_message_text": incoming_message_text,
+            "webhook_event_id": webhook_event_id,
+            "idempotency_key": idempotency_key,
+            "response_payload": payload,
+        }
+        enquiry_error = ""
+
+        if order:
+            try:
+                reply_result = send_order_enquiry_reply(
+                    order,
+                    incoming_phone_number=normalized_phone,
+                    inbound_message_text=incoming_message_text,
+                )
+                enquiry_success = bool(reply_result.get("sent"))
+                enquiry_result.update(reply_result)
+            except Exception as exc:
+                enquiry_error = str(exc)
+        else:
+            enquiry_error = "Incoming WhatsApp message did not match any known order."
+
+        _create_whatsapp_log(
+            trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
+            request=request,
+            order=order,
+            previous_status=order.local_status if order else "",
+            current_status=order.local_status if order else "",
+            result=enquiry_result,
+            is_success=enquiry_success,
+            error_message=enquiry_error,
+        )
+        log_order_activity(
+            order=order,
+            shiprocket_order_id=order.shiprocket_order_id if order else order_id_text,
+            event_type=OrderActivityLog.EVENT_WHATSAPP_WEBHOOK,
+            title="WhatsApp customer enquiry received",
+            description=(
+                "Auto-reply sent with latest order update."
+                if enquiry_success
+                else enquiry_error or "Customer enquiry received but auto-reply was not sent."
+            ),
+            previous_status=order.local_status if order else "",
+            current_status=order.local_status if order else "",
+            metadata={
+                "webhook_event_id": webhook_event_id,
+                "incoming_message_text": incoming_message_text,
+                "phone_number": normalized_phone,
+            },
+            is_success=enquiry_success,
+            triggered_by="whatomate_webhook",
+        )
+        return JsonResponse(
+            {
+                "ok": True,
+                "mapped_order_id": order.shiprocket_order_id if order else "",
+                "event_type": normalized_event_type,
+                "phone_number": normalized_phone,
+                "webhook_event_id": webhook_event_id,
+                "replied": enquiry_success,
+                "error": enquiry_error,
+            }
+        )
+
     success_statuses = {"queued", "sent", "delivered", "read"}
     failure_statuses = {"failed", "undelivered", "error", "rejected"}
     if delivery_status in success_statuses:

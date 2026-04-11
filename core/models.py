@@ -490,12 +490,14 @@ class WhatsAppNotificationLog(models.Model):
     TRIGGER_TEST_MESSAGE = "test_message"
     TRIGGER_TEST_TEMPLATE = "test_template"
     TRIGGER_WEBHOOK_STATUS = "webhook_status"
+    TRIGGER_WEBHOOK_INCOMING = "webhook_incoming"
     TRIGGER_CHOICES = [
         (TRIGGER_STATUS_CHANGE, "Status Change"),
         (TRIGGER_RESEND, "Resend"),
         (TRIGGER_TEST_MESSAGE, "Test Message"),
         (TRIGGER_TEST_TEMPLATE, "Test Template"),
         (TRIGGER_WEBHOOK_STATUS, "Webhook Status"),
+        (TRIGGER_WEBHOOK_INCOMING, "Webhook Incoming"),
     ]
 
     order = models.ForeignKey(
