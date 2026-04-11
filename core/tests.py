@@ -2775,6 +2775,43 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, ">Pincode<", html=False)
         self.assertNotContains(response, ">Print Count<", html=False)
 
+    def test_ops_print_queue_hides_already_printed_orders(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-PRINTED-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=1,
+            shipping_address={
+                "name": "Printed Bulk Receiver",
+                "phone": "9876543200",
+                "address_1": "Printed Bulk Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638004",
+            },
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-PENDING-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=0,
+            shipping_address={
+                "name": "Pending Bulk Receiver",
+                "phone": "9876543201",
+                "address_1": "Pending Bulk Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638005",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_print_queue"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pending Bulk Receiver")
+        self.assertNotContains(response, "Printed Bulk Receiver")
+        self.assertContains(response, 'id="skipPrintedToggle"', html=False)
+        self.assertContains(response, "checked")
+
     def test_ops_viewer_can_open_ops_bulk_shipping_labels_page(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-BULK-PDF-1",

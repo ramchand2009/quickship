@@ -3013,8 +3013,8 @@ def ops_bulk_shipping_labels_pdf(request):
     )
 
 
-def _build_print_queue_context(request, *, back_url=None):
-    skip_printed = _is_truthy(request.GET.get("skip_printed"))
+def _build_print_queue_context(request, *, back_url=None, force_skip_printed=False):
+    skip_printed = force_skip_printed or _is_truthy(request.GET.get("skip_printed"))
     ready_only = _is_truthy(request.GET.get("ready_only"))
     search_query = (request.GET.get("q") or "").strip()
 
@@ -3073,6 +3073,7 @@ def ops_print_queue(request):
     context = _build_print_queue_context(
         request,
         back_url=f"{reverse('order_management')}?tab={OPS_VIEWER_TAB_ACCEPTED}",
+        force_skip_printed=True,
     )
     context.update(
         {
