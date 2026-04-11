@@ -2549,7 +2549,7 @@ def _shipping_label_address_lines(address):
 
     pincode = str(address.get("pincode") or "").strip()
     if pincode:
-        lines.append(f"PIN {pincode}".upper())
+        lines.append(f"Pincode {pincode}")
 
     country = str(address.get("country") or "").strip()
     if country and country.lower() != "india":
@@ -2577,7 +2577,7 @@ def _shipping_label_address_components(address):
         address_lines.append(city_state.upper())
 
     pincode = str(address.get("pincode") or "").strip()
-    pin_line = f"PIN {pincode}".upper() if pincode else ""
+    pin_line = f"Pincode {pincode}" if pincode else ""
 
     country = str(address.get("country") or "").strip()
     country_line = country.upper() if country and country.lower() != "india" else ""
@@ -2844,7 +2844,7 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     pdf_canvas.setFont("Helvetica-Bold", 17)
     pdf_canvas.drawString(content_x, title_y, "SHIPPING LABEL")
     pdf_canvas.setFont("Helvetica-Bold", 13)
-    pdf_canvas.drawString(content_x, order_y, f"ORDER {order_id}")
+    pdf_canvas.drawString(content_x, order_y, f"Order {order_id}")
 
     header_meta_top = content_y - 0.02 * inch
     if courier_name:
