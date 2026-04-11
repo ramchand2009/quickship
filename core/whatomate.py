@@ -600,6 +600,13 @@ def _build_customer_enquiry_message(order):
     return " ".join(lines).strip()
 
 
+def _build_no_order_found_message():
+    return (
+        "Hi, we could not find any order linked to this WhatsApp number. "
+        "Please share your order ID or contact support for help."
+    )
+
+
 def send_order_enquiry_reply(order, incoming_phone_number="", inbound_message_text="", config_overrides=None):
     config = _resolve_runtime_config(config_overrides)
     if not _is_enabled(config):
@@ -624,6 +631,35 @@ def send_order_enquiry_reply(order, incoming_phone_number="", inbound_message_te
     return {
         "sent": True,
         "phone_number": phone_number,
+        "mode": "text",
+        "message_text": message_text,
+        "incoming_message_text": str(inbound_message_text or "").strip(),
+        "request_payload": send_result.get("request_payload", {}) if isinstance(send_result, dict) else {},
+        "response_payload": send_result.get("response_payload", {}) if isinstance(send_result, dict) else {},
+        "endpoint": send_result.get("endpoint", "") if isinstance(send_result, dict) else "",
+        "external_message_id": send_result.get("external_message_id", "") if isinstance(send_result, dict) else "",
+    }
+
+
+def send_no_order_found_reply(phone_number, inbound_message_text="", config_overrides=None):
+    config = _resolve_runtime_config(config_overrides)
+    if not _is_enabled(config):
+        return {"sent": False, "reason": "disabled"}
+
+    normalized_phone = _normalize_phone_number(phone_number, config)
+    if len(normalized_phone) < 10:
+        raise WhatomateNotificationError("Customer mobile is missing or invalid for no-order reply.")
+
+    message_text = _build_no_order_found_message()
+    send_result = _send_text_message_to_phone(
+        phone_number=normalized_phone,
+        contact_name="Customer",
+        message_text=message_text,
+        config=config,
+    )
+    return {
+        "sent": True,
+        "phone_number": normalized_phone,
         "mode": "text",
         "message_text": message_text,
         "incoming_message_text": str(inbound_message_text or "").strip(),

@@ -2241,8 +2241,20 @@ class WhatsAppWebhookSyncTests(TestCase):
         )
         self.assertContains(response, '"replied": true', status_code=200)
 
+    @patch("core.views.send_no_order_found_reply")
     @patch("core.views.send_order_enquiry_reply")
-    def test_incoming_message_webhook_without_matching_order_skips_reply(self, mock_send_order_enquiry_reply):
+    def test_incoming_message_webhook_without_matching_order_sends_no_order_reply(
+        self,
+        mock_send_order_enquiry_reply,
+        mock_send_no_order_found_reply,
+    ):
+        mock_send_no_order_found_reply.return_value = {
+            "sent": True,
+            "phone_number": "919000000000",
+            "mode": "text",
+            "message_text": "No order found message",
+            "external_message_id": "reply_002",
+        }
         payload = {
             "event_id": "evt_incoming_002",
             "event_type": "message_incoming",
@@ -2260,13 +2272,15 @@ class WhatsAppWebhookSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_send_order_enquiry_reply.assert_not_called()
+        mock_send_no_order_found_reply.assert_called_once()
         log = WhatsAppNotificationLog.objects.filter(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
             webhook_event_id="evt_incoming_002",
         ).first()
         self.assertIsNotNone(log)
-        self.assertFalse(log.is_success)
-        self.assertContains(response, '"replied": false', status_code=200)
+        self.assertTrue(log.is_success)
+        self.assertEqual(log.phone_number, "919000000000")
+        self.assertContains(response, '"replied": true', status_code=200)
 
     def test_order_detail_shows_whatsapp_timeline(self):
         order = ShiprocketOrder.objects.create(

@@ -102,6 +102,7 @@ from .whatomate import (
     WhatomateNotificationError,
     build_order_template_context,
     check_api_connection,
+    send_no_order_found_reply,
     send_order_enquiry_reply,
     send_test_template_message,
     send_test_whatsapp_message,
@@ -4369,19 +4370,25 @@ def whatomate_webhook(request):
         }
         enquiry_error = ""
 
-        if order:
-            try:
+        try:
+            if order:
                 reply_result = send_order_enquiry_reply(
                     order,
                     incoming_phone_number=normalized_phone,
                     inbound_message_text=incoming_message_text,
                 )
-                enquiry_success = bool(reply_result.get("sent"))
-                enquiry_result.update(reply_result)
-            except Exception as exc:
-                enquiry_error = str(exc)
-        else:
-            enquiry_error = "Incoming WhatsApp message did not match any known order."
+            else:
+                reply_result = send_no_order_found_reply(
+                    normalized_phone,
+                    inbound_message_text=incoming_message_text,
+                )
+                enquiry_result["lookup_result"] = "no_order_found"
+            enquiry_success = bool(reply_result.get("sent"))
+            enquiry_result.update(reply_result)
+        except Exception as exc:
+            enquiry_error = str(exc)
+            if not order and "lookup_result" not in enquiry_result:
+                enquiry_result["lookup_result"] = "no_order_found"
 
         _create_whatsapp_log(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
