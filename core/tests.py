@@ -2285,6 +2285,69 @@ class WhatsAppWebhookSyncTests(TestCase):
         self.assertEqual(log.phone_number, "919876543210")
         self.assertContains(response, '"replied": true', status_code=200)
 
+    @patch("core.views.send_order_enquiry_reply")
+    def test_incoming_message_webhook_reads_meta_style_nested_payload(self, mock_send_order_enquiry_reply):
+        mock_send_order_enquiry_reply.return_value = {
+            "sent": True,
+            "phone_number": "919876543210",
+            "mode": "text",
+            "message_text": "Order update message",
+            "external_message_id": "reply_004",
+        }
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-WEBHOOK-INCOMING-3",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            customer_phone="919876543210",
+            tracking_number="AA123456789AA",
+            shipping_address={"phone": "919876543210", "name": "Nested Payload Customer"},
+        )
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "id": "WABA-1",
+                    "changes": [
+                        {
+                            "field": "messages",
+                            "value": {
+                                "contacts": [
+                                    {
+                                        "profile": {"name": "Nested Payload Customer"},
+                                        "wa_id": "919876543210",
+                                    }
+                                ],
+                                "messages": [
+                                    {
+                                        "from": "919876543210",
+                                        "id": "wamid.nested.001",
+                                        "type": "text",
+                                        "text": {"body": "Where is my order?"},
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+
+        response = self.client.post(
+            reverse("whatomate_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_send_order_enquiry_reply.assert_called_once()
+        log = WhatsAppNotificationLog.objects.filter(
+            trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
+            shiprocket_order_id=order.shiprocket_order_id,
+        ).first()
+        self.assertIsNotNone(log)
+        self.assertTrue(log.is_success)
+        self.assertEqual(log.phone_number, "919876543210")
+        self.assertContains(response, '"replied": true', status_code=200)
+
     @patch("core.views.send_no_order_found_reply")
     @patch("core.views.send_order_enquiry_reply")
     def test_incoming_message_webhook_without_matching_order_sends_no_order_reply(

@@ -843,6 +843,41 @@ def _normalize_webhook_event_type(raw_event_type):
     )
 
 
+def _extract_whatomate_event_payload(payload):
+    if not isinstance(payload, dict):
+        return {}
+
+    entry_items = payload.get("entry")
+    if not isinstance(entry_items, list) or not entry_items:
+        return payload
+
+    first_entry = entry_items[0]
+    if not isinstance(first_entry, dict):
+        return payload
+
+    changes = first_entry.get("changes")
+    if not isinstance(changes, list) or not changes:
+        return payload
+
+    first_change = changes[0]
+    if not isinstance(first_change, dict):
+        return payload
+
+    value = first_change.get("value")
+    if isinstance(value, dict):
+        return value
+    return payload
+
+
+def _extract_first_item(payload, key):
+    if not isinstance(payload, dict):
+        return {}
+    value = payload.get(key)
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        return value[0]
+    return {}
+
+
 def _build_webhook_signature(payload_bytes, secret):
     if not payload_bytes or not secret:
         return ""
@@ -4257,14 +4292,26 @@ def whatomate_webhook(request):
     if not isinstance(payload, dict):
         return JsonResponse({"ok": False, "error": "Payload must be a JSON object."}, status=400)
 
+    event_payload = _extract_whatomate_event_payload(payload)
+    first_message = _extract_first_item(event_payload, "messages")
+    first_status = _extract_first_item(event_payload, "statuses")
+    first_contact = _extract_first_item(event_payload, "contacts")
+
     webhook_event_id = _first_text_value(
         payload,
         [("event_id",), ("id",), ("data", "event_id"), ("data", "id")],
     )
+    if not webhook_event_id:
+        webhook_event_id = str(first_message.get("id") or first_status.get("id") or "").strip()
     event_type = _first_text_value(
         payload,
         [("event_type",), ("event",), ("type",), ("data", "event_type"), ("data", "event"), ("data", "type")],
     )
+    if not event_type:
+        if first_message:
+            event_type = "message_incoming"
+        elif first_status:
+            event_type = "message_status"
     normalized_event_type = _normalize_webhook_event_type(event_type)
     is_incoming_message_event = "message" in normalized_event_type and "incoming" in normalized_event_type
     if webhook_event_id:
@@ -4286,6 +4333,8 @@ def whatomate_webhook(request):
             ("data", "message", "status"),
         ],
     ).lower()
+    if not delivery_status:
+        delivery_status = str(first_status.get("status") or "").strip().lower()
     if not delivery_status and event_type:
         delivery_status = str(event_type).strip().lower()
 
@@ -4299,6 +4348,8 @@ def whatomate_webhook(request):
             ("data", "message", "message_id"),
         ],
     )
+    if not external_message_id:
+        external_message_id = str(first_message.get("id") or first_status.get("id") or "").strip()
     template_name = _first_text_value(
         payload,
         [
@@ -4371,6 +4422,15 @@ def whatomate_webhook(request):
             ("data", "message", "to"),
         ],
     )
+    if not raw_phone:
+        raw_phone = str(
+            first_contact.get("wa_id")
+            or first_contact.get("phone")
+            or first_contact.get("mobile")
+            or first_message.get("from")
+            or first_status.get("recipient_id")
+            or ""
+        ).strip()
     normalized_phone = _normalize_webhook_phone(raw_phone)
     incoming_message_text = _first_text_value(
         payload,
@@ -4385,6 +4445,8 @@ def whatomate_webhook(request):
             ("data", "message", "body"),
         ],
     )
+    if not incoming_message_text and isinstance(first_message.get("text"), dict):
+        incoming_message_text = str(first_message.get("text", {}).get("body") or "").strip()
 
     order = _resolve_order_for_webhook(order_id_text, normalized_phone, idempotency_key)
     if is_incoming_message_event:
