@@ -925,6 +925,7 @@ def _send_internal_webhook_test(payload, host=""):
     host = str(host or "").strip()
     if host:
         headers["HTTP_HOST"] = host
+        headers["HTTP_X_FORWARDED_PROTO"] = "https"
     token = str(getattr(settings, "WHATOMATE_WEBHOOK_TOKEN", "") or "").strip()
     if token:
         headers["HTTP_X_WEBHOOK_TOKEN"] = token
@@ -936,6 +937,7 @@ def _send_internal_webhook_test(payload, host=""):
         reverse("whatomate_webhook"),
         data=raw_body,
         content_type="application/json",
+        secure=True,
         **headers,
     )
     parsed = {}

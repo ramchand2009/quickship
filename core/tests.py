@@ -2195,6 +2195,12 @@ class WebhookTestHelperTests(TestCase):
         self.assertEqual(result.get("status_code"), 200)
         self.assertTrue(result.get("payload", {}).get("ok"))
 
+    @override_settings(ALLOWED_HOSTS=["localhost"], SECURE_SSL_REDIRECT=True)
+    def test_internal_webhook_test_bypasses_https_redirect(self):
+        result = _send_internal_webhook_test(_build_webhook_test_payload(), host="localhost")
+        self.assertEqual(result.get("status_code"), 200)
+        self.assertTrue(result.get("payload", {}).get("ok"))
+
 
 class WhatsAppWebhookSyncTests(TestCase):
     def test_webhook_creates_delivery_status_log_for_order(self):
