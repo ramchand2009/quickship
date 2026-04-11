@@ -2983,7 +2983,24 @@ def bulk_shipping_labels_4x6(request):
     if restricted_response:
         return restricted_response
     context = _build_bulk_shipping_labels_context(request)
+    context["pdf_download_url"] = reverse("bulk_shipping_labels_pdf")
     return render(request, "core/bulk_shipping_labels_4x6.html", context)
+
+
+def bulk_shipping_labels_pdf(request):
+    restricted_response = _redirect_ops_viewer_to_order_management(request)
+    if restricted_response:
+        return restricted_response
+    context = _build_bulk_shipping_labels_context(request)
+    orders = context["orders"]
+    if not orders:
+        messages.warning(request, "Select at least one packed order to download labels.")
+        return redirect("print_queue")
+    return _shipping_labels_pdf_response(
+        orders,
+        context["sender"],
+        filename_prefix="shipping-labels",
+    )
 
 
 @login_required
@@ -2992,6 +3009,7 @@ def ops_bulk_shipping_labels_4x6(request):
         messages.error(request, "Your role cannot access shipping labels.")
         return redirect("order_management")
     context = _build_bulk_shipping_labels_context(request, back_url_name="ops_print_queue")
+    context["pdf_download_url"] = reverse("ops_bulk_shipping_labels_pdf")
     return render(request, "core/bulk_shipping_labels_4x6.html", context)
 
 

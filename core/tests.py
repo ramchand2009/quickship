@@ -1056,6 +1056,67 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, "Printed Receiver")
         self.assertContains(response, "SR-BULK-PRINTED-1")
 
+    def test_bulk_labels_page_exposes_pdf_download_action(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-BULK-PDF-ACTION-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Pdf Action Receiver",
+                "phone": "9000000113",
+                "address_1": "Pdf Action Street 1",
+                "city": "Erode",
+                "state": "TN",
+                "country": "India",
+                "pincode": "638010",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+
+        response = self.client.get(reverse("bulk_shipping_labels_4x6"), {"order_id": [order.pk]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Save as PDF")
+        self.assertContains(response, reverse("bulk_shipping_labels_pdf"))
+
+    def test_bulk_labels_pdf_download_returns_pdf(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-BULK-PDF-DL-1",
+            channel_order_id="CH-BULK-PDF-DL-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Bulk Pdf Receiver",
+                "phone": "9000000114",
+                "address_1": "Bulk Pdf Street 1",
+                "city": "Erode",
+                "state": "TN",
+                "country": "India",
+                "pincode": "638011",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+
+        response = self.client.get(reverse("bulk_shipping_labels_pdf"), {"order_id": [order.pk]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment;", response["Content-Disposition"])
+        self.assertGreater(len(response.content), 1000)
+        self.assertIn(b"CH-BULK-PDF-DL-1", response.content)
+
     def test_home_includes_bulk_label_link_for_status_tab(self):
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-BULK-LINK-1",
@@ -2900,6 +2961,7 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, order.shiprocket_order_id)
         self.assertContains(response, "Save as PDF")
+        self.assertContains(response, reverse("ops_bulk_shipping_labels_pdf"))
         self.assertContains(response, reverse("ops_print_queue"))
 
     def test_ops_viewer_can_reopen_bulk_shipping_labels_for_printed_order(self):

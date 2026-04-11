@@ -71,12 +71,13 @@
             type="button"
             id="bulkPdfButton"
             data-track-url="{% url 'track_bulk_shipping_labels_print' %}"
+            data-download-url="{{ pdf_download_url|default:'' }}"
         >
             Save as PDF
         </button>
         <a href="{{ back_url|default:'/' }}">Back</a>
         <span>Use 4x6 thermal label media with scale set to 100%</span>
-        <span>On mobile, choose Save as PDF and import that PDF into Label Expert.</span>
+        <span>On mobile, Save as PDF downloads the label file directly.</span>
     </div>
     <input type="hidden" id="csrfToken" value="{{ csrf_token }}">
     <div id="bulkOrderIds" style="display: none;">
@@ -136,7 +137,29 @@
         });
 
         pdfButton.addEventListener("click", function () {
-            openBrowserPrintDialog(pdfButton);
+            const downloadUrl = pdfButton.getAttribute("data-download-url");
+            const payload = new URLSearchParams();
+            orderInputs.forEach(function (input) {
+                payload.append("order_id", input.value);
+            });
+            if (!downloadUrl) {
+                openBrowserPrintDialog(pdfButton);
+                return;
+            }
+
+            fetch(pdfButton.getAttribute("data-track-url"), {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                    "X-CSRFToken": csrfTokenInput.value,
+                },
+                body: payload.toString(),
+            }).catch(function (error) {
+                console.warn("Bulk label PDF tracking failed.", error);
+            }).finally(function () {
+                const separator = downloadUrl.indexOf("?") === -1 ? "?" : "&";
+                window.location.href = downloadUrl + separator + payload.toString();
+            });
         });
     })();
     </script>

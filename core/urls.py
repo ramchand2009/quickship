@@ -4,6 +4,7 @@ from django.urls import path
 from .forms import LoginForm
 from .views import (
     bulk_shipping_labels_4x6,
+    bulk_shipping_labels_pdf,
     bulk_packing_lists,
     audit_export_csv,
     admin_utilities,
@@ -80,6 +81,7 @@ urlpatterns = [
     path("orders/<int:pk>/label-4x6/track-print/", track_shipping_label_print, name="track_shipping_label_print"),
     path("orders/print-queue/", print_queue, name="print_queue"),
     path("orders/labels-4x6/bulk/", bulk_shipping_labels_4x6, name="bulk_shipping_labels_4x6"),
+    path("orders/labels-4x6/pdf/", bulk_shipping_labels_pdf, name="bulk_shipping_labels_pdf"),
     path(
         "orders/labels-4x6/bulk/track-print/",
         track_bulk_shipping_labels_print,
