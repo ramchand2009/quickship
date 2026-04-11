@@ -2968,8 +2968,6 @@ def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     order_ids = request.GET.getlist("order_id")
     if order_ids:
         orders_query = orders_query.filter(pk__in=order_ids)
-    else:
-        orders_query = orders_query.filter(label_print_count=0)
 
     orders = list(orders_query)
     return {
@@ -3005,7 +3003,7 @@ def ops_bulk_shipping_labels_pdf(request):
     context = _build_bulk_shipping_labels_context(request, back_url_name="ops_print_queue")
     orders = context["orders"]
     if not orders:
-        messages.warning(request, "Select at least one pending packed order to download labels.")
+        messages.warning(request, "Select at least one packed order to download labels.")
         return redirect("ops_print_queue")
     return _shipping_labels_pdf_response(
         orders,

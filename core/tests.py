@@ -1011,7 +1011,7 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertEqual(packed_order.label_print_count, 1)
         self.assertIsNotNone(packed_order.last_label_printed_at)
 
-    def test_bulk_labels_page_skips_already_printed_orders(self):
+    def test_bulk_labels_page_shows_already_printed_orders(self):
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-BULK-PRINTED-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
@@ -1053,8 +1053,8 @@ class BulkShippingLabelsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Pending Receiver")
-        self.assertNotContains(response, "Printed Receiver")
-        self.assertNotContains(response, "SR-BULK-PRINTED-1")
+        self.assertContains(response, "Printed Receiver")
+        self.assertContains(response, "SR-BULK-PRINTED-1")
 
     def test_home_includes_bulk_label_link_for_status_tab(self):
         ShiprocketOrder.objects.create(
