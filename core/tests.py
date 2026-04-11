@@ -34,6 +34,7 @@ from .system_status import write_system_heartbeat
 from .whatomate import (
     WhatomateNotificationError,
     _build_template_params_for_status,
+    _create_contact,
     send_order_enquiry_reply,
     send_test_whatsapp_message,
 )
@@ -1988,7 +1989,7 @@ class WhatsAppSettingsViewTests(TestCase):
 class WhatomateTextSendTests(TestCase):
     @patch("core.whatomate._json_request")
     @patch("core.whatomate._ensure_contact_id")
-    def test_send_test_message_includes_configured_account_fields(self, mock_ensure_contact_id, mock_json_request):
+    def test_send_test_message_keeps_plain_text_payload_minimal(self, mock_ensure_contact_id, mock_json_request):
         mock_ensure_contact_id.return_value = "contact_123"
         mock_json_request.return_value = {"status": "success", "id": "msg_123"}
 
@@ -2010,14 +2011,12 @@ class WhatomateTextSendTests(TestCase):
             {
                 "type": "text",
                 "text": "Test ping",
-                "account_id": "acc_123",
-                "account_name": "Mathukai_Updates",
             },
         )
 
     @patch("core.whatomate._json_request")
     @patch("core.whatomate._ensure_contact_id")
-    def test_order_enquiry_reply_includes_configured_account_fields(self, mock_ensure_contact_id, mock_json_request):
+    def test_order_enquiry_reply_keeps_plain_text_payload_minimal(self, mock_ensure_contact_id, mock_json_request):
         mock_ensure_contact_id.return_value = "contact_123"
         mock_json_request.return_value = {"status": "success", "id": "msg_123"}
         order = ShiprocketOrder.objects.create(
@@ -2046,8 +2045,43 @@ class WhatomateTextSendTests(TestCase):
             {
                 "type": "text",
                 "text": "Hi Customer One, Your order SR-WA-ENQ-1 is currently Order Accepted. Tracking number is not assigned yet. We will share the next update soon.",
-                "account_id": "acc_123",
+            },
+        )
+
+    @patch("core.whatomate._json_request")
+    def test_create_contact_resolves_account_id_from_account_name(self, mock_json_request):
+        mock_json_request.side_effect = [
+            {
+                "status": "success",
+                "data": {
+                    "items": [
+                        {"id": "acc_123", "name": "Mathukai_Updates"},
+                    ]
+                },
+            },
+            {
+                "status": "success",
+                "data": {"id": "contact_123"},
+            },
+        ]
+
+        contact_id = _create_contact(
+            phone_number="919952975768",
+            name="Customer One",
+            config={
+                "base_url": "https://whatomate.mathukaiorganic.store/api",
+                "api_key": "whm_test_key_123",
                 "account_name": "Mathukai_Updates",
+            },
+        )
+
+        self.assertEqual(contact_id, "contact_123")
+        self.assertEqual(
+            mock_json_request.call_args_list[1].kwargs["payload"],
+            {
+                "phone_number": "919952975768",
+                "name": "Customer One",
+                "account_id": "acc_123",
             },
         )
 

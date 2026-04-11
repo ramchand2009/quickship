@@ -429,7 +429,31 @@ def _normalize_phone_number(raw_phone, config):
     return digits
 
 
+def _resolve_account_id(config):
+    explicit_account_id = str(config.get("account_id") or "").strip()
+    if explicit_account_id:
+        return explicit_account_id
+
+    account_name = str(config.get("account_name") or "").strip()
+    if not account_name:
+        return ""
+
+    try:
+        response = _json_request("/api/accounts?limit=100", config=config, method="GET")
+    except WhatomateNotificationError:
+        return ""
+
+    items = _extract_items(response)
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("name") or "").strip() == account_name and item.get("id"):
+            return str(item.get("id") or "").strip()
+    return ""
+
+
 def _find_contact_id_by_phone(phone_number, config):
+    resolved_account_id = _resolve_account_id(config)
     lookup_queries = [
         {"search": phone_number, "limit": 100},
         {"q": phone_number, "limit": 100},
@@ -439,6 +463,8 @@ def _find_contact_id_by_phone(phone_number, config):
     ]
 
     for params in lookup_queries:
+        if resolved_account_id:
+            params["account_id"] = resolved_account_id
         query = parse.urlencode(params)
         try:
             response = _json_request(f"/api/contacts?{query}", config=config, method="GET")
@@ -461,6 +487,11 @@ def _find_contact_id_by_phone(phone_number, config):
             nested_contact = item.get("contact")
             if isinstance(nested_contact, dict):
                 item = nested_contact
+
+            nested_account = item.get("account") if isinstance(item.get("account"), dict) else {}
+            item_account_id = str(item.get("account_id") or nested_account.get("id") or "").strip()
+            if resolved_account_id and item_account_id and item_account_id != resolved_account_id:
+                continue
 
             for key in ("phone_number", "phone", "mobile", "wa_id", "whatsapp_number"):
                 existing_phone = _normalize_phone_number(item.get(key), config)
@@ -501,7 +532,7 @@ def _create_contact(phone_number, name, config):
     if name:
         payload["name"] = name
 
-    account_id = str(config.get("account_id") or "").strip()
+    account_id = _resolve_account_id(config)
     if account_id:
         payload["account_id"] = account_id
 
@@ -557,12 +588,6 @@ def _send_text_message_to_phone(phone_number, contact_name, message_text, config
     payload = {"type": "text", "text": str(message_text or "").strip()}
     if not payload["text"]:
         raise WhatomateNotificationError("WhatsApp message text is empty.")
-    account_id = str(config.get("account_id") or "").strip()
-    if account_id:
-        payload["account_id"] = account_id
-    account_name = str(config.get("account_name") or "").strip()
-    if account_name:
-        payload["account_name"] = account_name
 
     endpoint = f"/api/contacts/{parse.quote(contact_id)}/messages"
     response_payload = _json_request(
