@@ -2662,6 +2662,8 @@ def _measure_shipping_label_address_block_height(
     phone_value_font_name,
     phone_value_font_size,
     line_height,
+    pin_top_gap=0,
+    phone_top_gap=0,
 ):
     height = 0
     height += _measure_text_block_height(
@@ -2682,6 +2684,7 @@ def _measure_shipping_label_address_block_height(
             font_size=body_font_size,
         )
     if address_components["pin_line"]:
+        height += pin_top_gap
         height += _measure_text_block_height(
             pdf_canvas,
             [address_components["pin_line"]],
@@ -2706,6 +2709,7 @@ def _measure_shipping_label_address_block_height(
         font_size=max(phone_label_font_size, phone_value_font_size),
         max_width=width,
     )
+    height += phone_top_gap
     height += len(phone_lines) * line_height
     return height
 
@@ -2728,6 +2732,8 @@ def _draw_shipping_label_address_block(
     phone_label_font_size,
     phone_value_font_name,
     phone_value_font_size,
+    pin_top_gap=0,
+    phone_top_gap=0,
 ):
     current_y = top_y
     current_y = _draw_text_block(
@@ -2752,6 +2758,7 @@ def _draw_shipping_label_address_block(
             font_size=body_font_size,
         )
     if address_components["pin_line"]:
+        current_y -= pin_top_gap
         current_y = _draw_text_block(
             pdf_canvas,
             [address_components["pin_line"]],
@@ -2782,6 +2789,7 @@ def _draw_shipping_label_address_block(
         font_size=max(phone_label_font_size, phone_value_font_size),
         max_width=width,
     )
+    current_y -= phone_top_gap
     for index, phone_line in enumerate(phone_lines):
         if index == 0 and phone_line.startswith("PHONE "):
             label_text = "PHONE "
@@ -2801,18 +2809,19 @@ def _draw_shipping_label_address_block(
 def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     page_width = 4 * inch
     page_height = 6 * inch
-    margin = 0.12 * inch
-    inner_x = margin
-    inner_y = margin
-    inner_width = page_width - (2 * margin)
-    inner_height = page_height - (2 * margin)
+    page_padding = 0.18 * inch
+    shell_padding = 0.14 * inch
+    inner_x = page_padding
+    inner_y = page_padding
+    inner_width = page_width - (2 * page_padding)
+    inner_height = page_height - (2 * page_padding)
     pdf_canvas.setFillColor(black)
 
     _draw_box(pdf_canvas, inner_x, inner_y, inner_width, inner_height)
 
-    content_x = inner_x + 0.1 * inch
-    content_y = inner_y + inner_height - 0.14 * inch
-    content_width = inner_width - (0.2 * inch)
+    content_x = inner_x + shell_padding
+    content_y = inner_y + inner_height - shell_padding
+    content_width = inner_width - (2 * shell_padding)
 
     order_id = str(
         _label_value(order, "channel_order_id", "")
@@ -2836,17 +2845,17 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
         }
     )
 
-    header_height = 0.5 * inch
+    header_height = 0.6 * inch
     pdf_canvas.setLineWidth(1.1)
     pdf_canvas.line(content_x, content_y - header_height, content_x + content_width, content_y - header_height)
-    title_y = content_y - 0.02 * inch
-    order_y = content_y - 0.24 * inch
-    pdf_canvas.setFont("Helvetica-Bold", 17)
+    title_y = content_y - 0.08 * inch
+    order_y = content_y - 0.34 * inch
+    pdf_canvas.setFont("Helvetica-Bold", 18)
     pdf_canvas.drawString(content_x, title_y, "SHIPPING LABEL")
     pdf_canvas.setFont("Helvetica-Bold", 13)
     pdf_canvas.drawString(content_x, order_y, f"Order {order_id}")
 
-    header_meta_top = content_y - 0.02 * inch
+    header_meta_top = content_y - 0.08 * inch
     if courier_name:
         pdf_canvas.setFont("Helvetica-Bold", 9)
         pdf_canvas.drawRightString(content_x + content_width, header_meta_top, f"Courier: {courier_name}")
@@ -2854,47 +2863,51 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
         pdf_canvas.setFont("Helvetica-Bold", 9)
         pdf_canvas.drawRightString(content_x + content_width, header_meta_top - 0.18 * inch, f"Tracking: {tracking_number}")
 
-    section_gap = 0.1 * inch
-    section_inner_width = content_width - 0.16 * inch
-    ship_box_top = content_y - header_height - 0.08 * inch
+    section_gap = 0.14 * inch
+    section_inner_width = content_width - 0.22 * inch
+    ship_box_top = content_y - header_height - section_gap
     ship_text_height = _measure_shipping_label_address_block_height(
         pdf_canvas,
         ship_address,
         width=section_inner_width,
-        line_height=0.205 * inch,
+        line_height=0.19 * inch,
         name_font_name="Helvetica-Bold",
-        name_font_size=14,
-        body_font_name="Helvetica-Bold",
-        body_font_size=11.8,
+        name_font_size=17,
+        body_font_name="Helvetica",
+        body_font_size=13,
         pin_font_name="Helvetica-Bold",
-        pin_font_size=13.2,
+        pin_font_size=15,
         phone_label_font_name="Helvetica-Bold",
-        phone_label_font_size=10.2,
+        phone_label_font_size=11,
         phone_value_font_name="Helvetica-Bold",
-        phone_value_font_size=11.2,
+        phone_value_font_size=12,
+        pin_top_gap=0.03 * inch,
+        phone_top_gap=0.08 * inch,
     )
-    ship_box_height = max(1.75 * inch, ship_text_height + 0.62 * inch)
+    ship_box_height = max(1.78 * inch, ship_text_height + 0.74 * inch)
     _draw_box(pdf_canvas, content_x, ship_box_top - ship_box_height, content_width, ship_box_height)
     pdf_canvas.setFont("Helvetica-Bold", 9.5)
     pdf_canvas.drawString(content_x + 0.08 * inch, ship_box_top - 0.14 * inch, "TO")
-    ship_lines_top = ship_box_top - 0.36 * inch
+    ship_lines_top = ship_box_top - 0.42 * inch
     _draw_shipping_label_address_block(
         pdf_canvas,
         ship_address,
         x=content_x + 0.08 * inch,
         top_y=ship_lines_top,
         width=section_inner_width,
-        line_height=0.205 * inch,
+        line_height=0.19 * inch,
         name_font_name="Helvetica-Bold",
-        name_font_size=14,
-        body_font_name="Helvetica-Bold",
-        body_font_size=11.8,
+        name_font_size=17,
+        body_font_name="Helvetica",
+        body_font_size=13,
         pin_font_name="Helvetica-Bold",
-        pin_font_size=13.2,
+        pin_font_size=15,
         phone_label_font_name="Helvetica-Bold",
-        phone_label_font_size=10.2,
+        phone_label_font_size=11,
         phone_value_font_name="Helvetica-Bold",
-        phone_value_font_size=11.2,
+        phone_value_font_size=12,
+        pin_top_gap=0.03 * inch,
+        phone_top_gap=0.08 * inch,
     )
 
     sender_box_top = ship_box_top - ship_box_height - section_gap
@@ -2902,40 +2915,44 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
         pdf_canvas,
         sender_address,
         width=section_inner_width,
-        line_height=0.17 * inch,
+        line_height=0.18 * inch,
         name_font_name="Helvetica-Bold",
-        name_font_size=11.5,
-        body_font_name="Helvetica-Bold",
-        body_font_size=10.2,
+        name_font_size=13,
+        body_font_name="Helvetica",
+        body_font_size=13,
         pin_font_name="Helvetica-Bold",
-        pin_font_size=11.8,
+        pin_font_size=15,
         phone_label_font_name="Helvetica-Bold",
-        phone_label_font_size=9.6,
+        phone_label_font_size=11,
         phone_value_font_name="Helvetica-Bold",
-        phone_value_font_size=10.6,
+        phone_value_font_size=12,
+        pin_top_gap=0.03 * inch,
+        phone_top_gap=0.08 * inch,
     )
-    sender_box_height = max(1.28 * inch, sender_text_height + 0.54 * inch)
+    sender_box_height = max(1.32 * inch, sender_text_height + 0.66 * inch)
     _draw_box(pdf_canvas, content_x, sender_box_top - sender_box_height, content_width, sender_box_height)
     pdf_canvas.setFont("Helvetica-Bold", 9.5)
     pdf_canvas.drawString(content_x + 0.08 * inch, sender_box_top - 0.14 * inch, "FROM")
-    sender_lines_top = sender_box_top - 0.33 * inch
+    sender_lines_top = sender_box_top - 0.39 * inch
     _draw_shipping_label_address_block(
         pdf_canvas,
         sender_address,
         x=content_x + 0.08 * inch,
         top_y=sender_lines_top,
         width=section_inner_width,
-        line_height=0.17 * inch,
+        line_height=0.18 * inch,
         name_font_name="Helvetica-Bold",
-        name_font_size=11.5,
-        body_font_name="Helvetica-Bold",
-        body_font_size=10.2,
+        name_font_size=13,
+        body_font_name="Helvetica",
+        body_font_size=13,
         pin_font_name="Helvetica-Bold",
-        pin_font_size=11.8,
+        pin_font_size=15,
         phone_label_font_name="Helvetica-Bold",
-        phone_label_font_size=9.6,
+        phone_label_font_size=11,
         phone_value_font_name="Helvetica-Bold",
-        phone_value_font_size=10.6,
+        phone_value_font_size=12,
+        pin_top_gap=0.03 * inch,
+        phone_top_gap=0.08 * inch,
     )
 
 
