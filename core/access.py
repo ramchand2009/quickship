@@ -35,6 +35,12 @@ def can_edit_operations(user):
     return is_ops_admin(user)
 
 
+def can_edit_manual_order_details(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return is_ops_admin(user) or is_ops_viewer(user)
+
+
 def can_sync_orders(user):
     if not getattr(user, "is_authenticated", False):
         return False

@@ -190,7 +190,7 @@
             <div class="card-block">
                 {% if order.is_manual_edit_locked %}
                     <p class="mb-0 text-muted">Manual shipping edits are locked after the order reaches shipped.</p>
-                {% elif can_edit_operations %}
+                {% elif can_edit_manual_order_details %}
                     <form method="post" action="{% url 'update_shiprocket_order' order.pk %}">
                         {% csrf_token %}
                         <div class="row">

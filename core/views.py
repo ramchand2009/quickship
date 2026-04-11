@@ -40,6 +40,7 @@ from reportlab.pdfgen import canvas
 
 from .access import (
     can_manage_stock,
+    can_edit_manual_order_details,
     can_edit_operations,
     can_sync_orders,
     can_update_order_status,
@@ -441,6 +442,10 @@ def _is_ops_viewer(user):
 
 def _can_edit_operations(user):
     return can_edit_operations(user)
+
+
+def _can_edit_manual_order_details(user):
+    return can_edit_manual_order_details(user)
 
 
 def _can_sync_orders(user):
@@ -2316,6 +2321,7 @@ def order_detail(request, pk):
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     form = ShiprocketOrderManualUpdateForm(instance=order)
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
+    can_edit_manual_order_details = _can_edit_manual_order_details(getattr(request, "user", None))
     can_update_order_status = _can_update_order_status(getattr(request, "user", None))
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     can_view_raw_payload = _is_ops_admin(getattr(request, "user", None))
@@ -2359,6 +2365,7 @@ def order_detail(request, pk):
             "order": order,
             "form": form,
             "status_form": status_form,
+            "can_edit_manual_order_details": can_edit_manual_order_details,
             "whatsapp_timeline": whatsapp_timeline,
             "latest_queue_job": latest_queue_job,
             "activity_timeline": activity_timeline,
@@ -4518,14 +4525,19 @@ def update_shiprocket_order(request, pk):
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     if request.method != "POST":
         return redirect("order_detail", pk=pk)
-    if not _can_edit_operations(request.user):
+    if not _can_edit_manual_order_details(request.user):
         messages.error(request, "Your role has read-only access and cannot edit orders.")
         return redirect("order_detail", pk=pk)
     if order.is_manual_edit_locked:
         messages.error(request, "Manual shipping edits are locked after the order reaches shipped.")
         return redirect("order_detail", pk=pk)
 
-    form = ShiprocketOrderManualUpdateForm(request.POST, instance=order)
+    form_payload = request.POST.copy()
+    for field_name in ShiprocketOrderManualUpdateForm.Meta.fields:
+        if field_name not in form_payload:
+            form_payload[field_name] = getattr(order, field_name, "") or ""
+
+    form = ShiprocketOrderManualUpdateForm(form_payload, instance=order)
     if form.is_valid():
         changed_fields = list(form.changed_data)
         form.save()

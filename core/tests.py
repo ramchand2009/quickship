@@ -1663,6 +1663,40 @@ class ShiprocketOrderManualUpdateViewTests(TestCase):
         self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
         self.assertEqual(order.manual_customer_name, "After Edit")
 
+    def test_partial_manual_update_preserves_existing_unposted_fields(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-MANUAL-PARTIAL-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            manual_customer_name="Saved Name",
+            manual_customer_email="saved@example.com",
+            manual_customer_alternate_phone="9000000001",
+            manual_shipping_city="Erode",
+            manual_shipping_state="TN",
+            manual_shipping_country="India",
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order", args=[order.pk]),
+            {
+                "manual_customer_phone": "9876543210",
+                "manual_shipping_address_1": "55 Updated Street",
+                "manual_shipping_pincode": "638001",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
+        self.assertEqual(order.manual_customer_phone, "9876543210")
+        self.assertEqual(order.manual_shipping_address_1, "55 Updated Street")
+        self.assertEqual(order.manual_shipping_pincode, "638001")
+        self.assertEqual(order.manual_customer_name, "Saved Name")
+        self.assertEqual(order.manual_customer_email, "saved@example.com")
+        self.assertEqual(order.manual_customer_alternate_phone, "9000000001")
+        self.assertEqual(order.manual_shipping_city, "Erode")
+        self.assertEqual(order.manual_shipping_state, "TN")
+        self.assertEqual(order.manual_shipping_country, "India")
+
 
 class SenderAddressViewTests(TestCase):
     def setUp(self):
@@ -3088,6 +3122,41 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "ops-detail-step")
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
+        self.assertContains(response, "Edit Delivery Details")
+        self.assertContains(response, 'name="manual_customer_phone"', html=False)
+        self.assertContains(response, 'name="manual_shipping_address_1"', html=False)
+        self.assertContains(response, 'name="manual_shipping_pincode"', html=False)
+
+    def test_ops_viewer_can_update_delivery_details(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-EDIT-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            shipping_address={
+                "name": "Viewer Edit",
+                "phone": "9000001111",
+                "address_1": "Old Street 1",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("update_shiprocket_order", args=[order.pk]),
+            {
+                "manual_customer_phone": "9876543210",
+                "manual_shipping_address_1": "99 Updated Street",
+                "manual_shipping_pincode": "638009",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
+        self.assertEqual(order.manual_customer_phone, "9876543210")
+        self.assertEqual(order.manual_shipping_address_1, "99 Updated Street")
+        self.assertEqual(order.manual_shipping_pincode, "638009")
 
     def test_ops_viewer_accepted_order_detail_shows_packing_list_option(self):
         order = ShiprocketOrder.objects.create(

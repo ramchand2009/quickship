@@ -174,8 +174,39 @@ class ShiprocketOrderManualUpdateForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        shipping = getattr(self.instance, "shipping_address", {}) or {}
         for field in self.fields.values():
             field.widget.attrs["class"] = "form-control"
+        self.fields["manual_customer_phone"].widget.attrs.update(
+            {
+                "placeholder": shipping.get("phone") or "Customer mobile number",
+                "inputmode": "tel",
+                "autocomplete": "tel",
+            }
+        )
+        self.fields["manual_customer_alternate_phone"].widget.attrs.update(
+            {
+                "placeholder": shipping.get("alternate_phone") or "Alternate mobile number",
+                "inputmode": "tel",
+                "autocomplete": "tel",
+            }
+        )
+        self.fields["manual_shipping_address_1"].widget.attrs["placeholder"] = (
+            shipping.get("address_1") or "House / street / area"
+        )
+        self.fields["manual_shipping_address_2"].widget.attrs["placeholder"] = (
+            shipping.get("address_2") or "Landmark / apartment / locality"
+        )
+        self.fields["manual_shipping_city"].widget.attrs["placeholder"] = shipping.get("city") or "City"
+        self.fields["manual_shipping_state"].widget.attrs["placeholder"] = shipping.get("state") or "State"
+        self.fields["manual_shipping_country"].widget.attrs["placeholder"] = shipping.get("country") or "Country"
+        self.fields["manual_shipping_pincode"].widget.attrs.update(
+            {
+                "placeholder": shipping.get("pincode") or "Pincode",
+                "inputmode": "numeric",
+                "autocomplete": "postal-code",
+            }
+        )
 
 
 class ShiprocketOrderStatusForm(forms.ModelForm):
