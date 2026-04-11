@@ -921,8 +921,9 @@ class ShippingLabelViewTests(TestCase):
         self.assertIn("Chennai", content)
         self.assertIn("TN", content)
         self.assertIn("600001", content)
-        self.assertIn("PIN 600001", content)
-        self.assertIn("Phone 9000012345", content)
+        self.assertIn("Pincode 600001", content)
+        self.assertIn("Phone", content)
+        self.assertIn("9000012345", content)
         self.assertNotIn("Alt: 9000099999", content)
 
     def test_shipping_label_test_page_renders_without_tracking_order_prints(self):
@@ -2812,6 +2813,28 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, 'id="skipPrintedToggle"', html=False)
         self.assertContains(response, "checked")
 
+    def test_ops_print_queue_can_show_already_printed_orders_for_reprint(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-REPRINT-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=2,
+            shipping_address={
+                "name": "Reprint Bulk Receiver",
+                "phone": "9876543202",
+                "address_1": "Reprint Bulk Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638006",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_print_queue"), {"skip_printed": "0"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reprint Bulk Receiver")
+        self.assertNotContains(response, "Pending Bulk Receiver")
+
     def test_ops_viewer_can_open_ops_bulk_shipping_labels_page(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-BULK-PDF-1",
@@ -2841,6 +2864,36 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, order.shiprocket_order_id)
         self.assertContains(response, "Save as PDF")
         self.assertContains(response, reverse("ops_print_queue"))
+
+    def test_ops_viewer_can_reopen_bulk_shipping_labels_for_printed_order(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-REOPEN-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=3,
+            shipping_address={
+                "name": "Reopen Bulk Receiver",
+                "phone": "9876543213",
+                "address_1": "Reopen Bulk Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638007",
+            },
+        )
+        SenderAddress.objects.create(
+            name="Warehouse Sender",
+            address_1="Sender Street 5",
+            city="Erode",
+            state="TN",
+            country="India",
+            pincode="638001",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_bulk_shipping_labels_4x6"), {"order_id": [order.pk]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reopen Bulk Receiver")
+        self.assertContains(response, order.shiprocket_order_id)
 
     def test_ops_viewer_can_download_ops_bulk_shipping_labels_pdf(self):
         order = ShiprocketOrder.objects.create(

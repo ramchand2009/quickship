@@ -29,7 +29,7 @@
             </div>
         {% endif %}
         {% if order.display_shipping_address.pincode %}
-            <div class="postal-line pin-line">PIN {{ order.display_shipping_address.pincode }}</div>
+            <div class="postal-line pin-line">Pincode {{ order.display_shipping_address.pincode }}</div>
         {% endif %}
         {% if order.display_shipping_address.country and order.display_shipping_address.country|lower != "india" %}
             <div class="postal-line">{{ order.display_shipping_address.country }}</div>
@@ -56,7 +56,7 @@
             </div>
         {% endif %}
         {% if sender.pincode %}
-            <div class="postal-line pin-line">PIN {{ sender.pincode }}</div>
+            <div class="postal-line pin-line">Pincode {{ sender.pincode }}</div>
         {% endif %}
         {% if sender.country and sender.country|lower != "india" %}
             <div class="postal-line">{{ sender.country }}</div>

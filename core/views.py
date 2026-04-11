@@ -2959,7 +2959,6 @@ def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     sender = SenderAddress.get_default()
     orders_query = ShiprocketOrder.objects.filter(
         local_status=ShiprocketOrder.STATUS_PACKED,
-        label_print_count=0,
     ).order_by(
         "-order_date",
         "-updated_at",
@@ -2969,6 +2968,8 @@ def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     order_ids = request.GET.getlist("order_id")
     if order_ids:
         orders_query = orders_query.filter(pk__in=order_ids)
+    else:
+        orders_query = orders_query.filter(label_print_count=0)
 
     orders = list(orders_query)
     return {
@@ -3014,7 +3015,11 @@ def ops_bulk_shipping_labels_pdf(request):
 
 
 def _build_print_queue_context(request, *, back_url=None, force_skip_printed=False):
-    skip_printed = force_skip_printed or _is_truthy(request.GET.get("skip_printed"))
+    skip_printed_raw = request.GET.get("skip_printed")
+    if skip_printed_raw is None:
+        skip_printed = force_skip_printed
+    else:
+        skip_printed = _is_truthy(skip_printed_raw)
     ready_only = _is_truthy(request.GET.get("ready_only"))
     search_query = (request.GET.get("q") or "").strip()
 
