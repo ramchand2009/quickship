@@ -465,6 +465,33 @@ def _find_contact_id_by_phone(phone_number, config):
     return ""
 
 
+def _get_contact_by_id(contact_id, config):
+    contact_id = str(contact_id or "").strip()
+    if not contact_id:
+        return {}
+    response = _json_request(f"/api/contacts/{parse.quote(contact_id)}", config=config, method="GET")
+    if isinstance(response, dict):
+        data = response.get("data")
+        if isinstance(data, dict):
+            return data
+        contact = response.get("contact")
+        if isinstance(contact, dict):
+            return contact
+        return response
+    return {}
+
+
+def resolve_phone_number_from_contact_id(contact_id, config_overrides=None):
+    config = _resolve_runtime_config(config_overrides)
+    contact = _get_contact_by_id(contact_id, config)
+    for key in ("phone_number", "phone", "mobile", "wa_id", "whatsapp_number"):
+        value = contact.get(key)
+        normalized = _normalize_phone_number(value, config)
+        if normalized:
+            return normalized
+    return ""
+
+
 def _create_contact(phone_number, name, config):
     payload = {"phone_number": phone_number}
     if name:

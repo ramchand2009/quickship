@@ -102,6 +102,7 @@ from .whatomate import (
     WhatomateNotificationError,
     build_order_template_context,
     check_api_connection,
+    resolve_phone_number_from_contact_id,
     send_no_order_found_reply,
     send_order_enquiry_reply,
     send_test_template_message,
@@ -840,12 +841,17 @@ def _normalize_webhook_event_type(raw_event_type):
         .replace("-", "_")
         .replace(" ", "_")
         .replace(".", "_")
+        .replace(":", "_")
     )
 
 
 def _extract_whatomate_event_payload(payload):
     if not isinstance(payload, dict):
         return {}
+
+    direct_payload = payload.get("payload")
+    if isinstance(direct_payload, dict):
+        return direct_payload
 
     entry_items = payload.get("entry")
     if not isinstance(entry_items, list) or not entry_items:
@@ -4296,6 +4302,12 @@ def whatomate_webhook(request):
     first_message = _extract_first_item(event_payload, "messages")
     first_status = _extract_first_item(event_payload, "statuses")
     first_contact = _extract_first_item(event_payload, "contacts")
+    event_direction = _normalize_webhook_event_type(
+        _first_text_value(
+            payload,
+            [("direction",), ("payload", "direction"), ("data", "direction")],
+        )
+    )
 
     webhook_event_id = _first_text_value(
         payload,
@@ -4313,7 +4325,11 @@ def whatomate_webhook(request):
         elif first_status:
             event_type = "message_status"
     normalized_event_type = _normalize_webhook_event_type(event_type)
-    is_incoming_message_event = "message" in normalized_event_type and "incoming" in normalized_event_type
+    is_incoming_message_event = (
+        ("message" in normalized_event_type and "incoming" in normalized_event_type)
+        or normalized_event_type == "message_new"
+        or (normalized_event_type.startswith("message_") and event_direction == "incoming")
+    )
     if webhook_event_id:
         duplicate = WhatsAppNotificationLog.objects.filter(
             webhook_event_id=webhook_event_id,
@@ -4420,6 +4436,10 @@ def whatomate_webhook(request):
             ("data", "message", "author"),
             ("message", "to"),
             ("data", "message", "to"),
+            ("payload", "phone_number"),
+            ("payload", "phone"),
+            ("payload", "mobile"),
+            ("payload", "wa_id"),
         ],
     )
     if not raw_phone:
@@ -4431,6 +4451,19 @@ def whatomate_webhook(request):
             or first_status.get("recipient_id")
             or ""
         ).strip()
+    if not raw_phone:
+        contact_id = _first_text_value(
+            payload,
+            [
+                ("contact_id",),
+                ("payload", "contact_id"),
+                ("data", "contact_id"),
+                ("message", "contact_id"),
+                ("data", "message", "contact_id"),
+            ],
+        )
+        if contact_id:
+            raw_phone = resolve_phone_number_from_contact_id(contact_id)
     normalized_phone = _normalize_webhook_phone(raw_phone)
     incoming_message_text = _first_text_value(
         payload,
@@ -4447,6 +4480,15 @@ def whatomate_webhook(request):
     )
     if not incoming_message_text and isinstance(first_message.get("text"), dict):
         incoming_message_text = str(first_message.get("text", {}).get("body") or "").strip()
+    if not incoming_message_text:
+        incoming_message_text = _first_text_value(
+            payload,
+            [
+                ("payload", "content", "text"),
+                ("content", "text"),
+                ("payload", "text"),
+            ],
+        )
 
     order = _resolve_order_for_webhook(order_id_text, normalized_phone, idempotency_key)
     if is_incoming_message_event:
