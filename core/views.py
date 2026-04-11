@@ -3076,7 +3076,6 @@ def ops_print_queue(request):
     context = _build_print_queue_context(
         request,
         back_url=f"{reverse('order_management')}?tab={OPS_VIEWER_TAB_ACCEPTED}",
-        force_skip_printed=True,
     )
     context.update(
         {

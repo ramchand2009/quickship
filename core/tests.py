@@ -2776,7 +2776,7 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, ">Pincode<", html=False)
         self.assertNotContains(response, ">Print Count<", html=False)
 
-    def test_ops_print_queue_hides_already_printed_orders(self):
+    def test_ops_print_queue_shows_already_printed_orders_by_default(self):
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-BULK-PRINTED-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
@@ -2809,9 +2809,9 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Pending Bulk Receiver")
-        self.assertNotContains(response, "Printed Bulk Receiver")
+        self.assertContains(response, "Printed Bulk Receiver")
         self.assertContains(response, 'id="skipPrintedToggle"', html=False)
-        self.assertContains(response, "checked")
+        self.assertNotContains(response, 'id="skipPrintedToggle" checked', html=False)
 
     def test_ops_print_queue_can_show_already_printed_orders_for_reprint(self):
         ShiprocketOrder.objects.create(
@@ -2834,6 +2834,43 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Reprint Bulk Receiver")
         self.assertNotContains(response, "Pending Bulk Receiver")
+
+    def test_ops_print_queue_skip_printed_filter_hides_reprinted_orders(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-PRINTED-2",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=2,
+            shipping_address={
+                "name": "Printed Filter Receiver",
+                "phone": "9876543203",
+                "address_1": "Printed Filter Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638008",
+            },
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-PENDING-2",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            label_print_count=0,
+            shipping_address={
+                "name": "Pending Filter Receiver",
+                "phone": "9876543204",
+                "address_1": "Pending Filter Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638009",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("ops_print_queue"), {"skip_printed": "1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pending Filter Receiver")
+        self.assertNotContains(response, "Printed Filter Receiver")
+        self.assertContains(response, 'id="skipPrintedToggle"', html=False)
+        self.assertContains(response, "checked")
 
     def test_ops_viewer_can_open_ops_bulk_shipping_labels_page(self):
         order = ShiprocketOrder.objects.create(
