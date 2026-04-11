@@ -278,9 +278,7 @@
                                             <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</a>
                                             <div class="text-muted small mt-1">Shiprocket: {{ item.order.shiprocket_order_id|default:"-" }}</div>
                                             <div class="text-muted small mt-1">Workflow: {{ item.order.get_local_status_display }}</div>
-                                            {% if item.order.tracking_number %}
-                                                <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number }}</div>
-                                            {% endif %}
+                                            <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number|default:"Not added" }}</div>
                                             {% if item.missing_packing_fields %}
                                                 <div class="small mt-1">
                                                     <span class="fw-semibold">Packing Checklist</span>:

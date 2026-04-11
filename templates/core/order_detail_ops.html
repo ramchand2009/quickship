@@ -220,6 +220,15 @@
         line-height: 1.45;
     }
 
+    .ops-detail-tracking-current {
+        margin-top: 0.9rem;
+        padding: 0.9rem 1rem;
+        border-radius: 1rem;
+        background: #f8fafc;
+        color: #1f2933;
+        font-weight: 700;
+    }
+
     .ops-detail-items-head {
         display: flex;
         justify-content: space-between;
@@ -661,6 +670,44 @@
             {% else %}
                 <div class="ops-detail-edit-lock">
                     Login is required to edit manual customer details.
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="ops-detail-card">
+            <div class="ops-detail-items-head">
+                <h5 class="mb-0">Tracking Number</h5>
+            </div>
+            <div class="ops-detail-tracking-current">
+                Current: {{ order.tracking_number|default:"Not added" }}
+            </div>
+            {% if order.local_status == "order_cancelled" %}
+                <div class="ops-detail-edit-lock">
+                    Tracking number cannot be updated for cancelled orders.
+                </div>
+            {% elif can_edit_manual_order_details %}
+                <div class="ops-detail-edit-note">
+                    Update the tracking number here if it was entered wrongly earlier.
+                </div>
+                <form method="post" action="{% url 'update_shiprocket_order_tracking' order.pk %}">
+                    {% csrf_token %}
+                    <div class="ops-detail-edit-grid">
+                        <div class="ops-detail-edit-field">
+                            <label for="{{ tracking_form.tracking_number.id_for_label }}">{{ tracking_form.tracking_number.label }}</label>
+                            {{ tracking_form.tracking_number }}
+                        </div>
+                    </div>
+                    <div class="ops-detail-edit-actions">
+                        <button type="submit" class="btn btn-primary">Save Tracking Number</button>
+                    </div>
+                </form>
+            {% elif request.user.is_authenticated %}
+                <div class="ops-detail-edit-lock">
+                    Your role is read-only for tracking edits.
+                </div>
+            {% else %}
+                <div class="ops-detail-edit-lock">
+                    Login is required to edit the tracking number.
                 </div>
             {% endif %}
         </div>

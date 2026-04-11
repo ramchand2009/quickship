@@ -54,6 +54,7 @@ from .views import (
     webhook_diagnostics,
     whatsapp_settings,
     update_shiprocket_order,
+    update_shiprocket_order_tracking,
     update_shiprocket_order_status,
 )
 
@@ -88,6 +89,7 @@ urlpatterns = [
         name="track_bulk_shipping_labels_print",
     ),
     path("orders/<int:pk>/update/", update_shiprocket_order, name="update_shiprocket_order"),
+    path("orders/<int:pk>/tracking/", update_shiprocket_order_tracking, name="update_shiprocket_order_tracking"),
     path("orders/<int:pk>/status/", update_shiprocket_order_status, name="update_shiprocket_order_status"),
     path("orders/bulk/status/", bulk_update_shiprocket_order_status, name="bulk_update_shiprocket_order_status"),
     path("orders/bulk/resend-whatsapp/", bulk_resend_shiprocket_order_whatsapp, name="bulk_resend_shiprocket_order_whatsapp"),

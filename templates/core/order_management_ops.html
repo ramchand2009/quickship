@@ -1114,6 +1114,7 @@
                                 </div>
                             </div>
                             <div class="ops-order-payment">{{ item.order.payment_method|default:"Cash on Delivery" }}</div>
+                            <div class="ops-order-payment">Tracking: {{ item.order.tracking_number|default:"Not added" }}</div>
                             {% if item.stock_availability.has_shortage %}
                                 {% with shortage=item.stock_availability.shortages.0 %}
                                     <div class="ops-order-stock-alert">

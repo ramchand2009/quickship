@@ -1698,6 +1698,46 @@ class ShiprocketOrderManualUpdateViewTests(TestCase):
         self.assertEqual(order.manual_shipping_country, "India")
 
 
+class ShiprocketOrderTrackingUpdateViewTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="trackingadmin", password="testpass123")
+        self.client.force_login(user)
+
+    def test_tracking_update_works(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-TRACKING-EDIT-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            tracking_number="AA123456789AA",
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_tracking", args=[order.pk]),
+            {"tracking_number": "BB123456789BB"},
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
+        self.assertEqual(order.tracking_number, "BB123456789BB")
+
+    def test_tracking_update_rejects_invalid_length(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-TRACKING-EDIT-2",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            tracking_number="AA123456789AA",
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_tracking", args=[order.pk]),
+            {"tracking_number": "SHORT123"},
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
+        self.assertEqual(order.tracking_number, "AA123456789AA")
+
+
 class SenderAddressViewTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(username="senderadmin", password="testpass123")
@@ -2806,6 +2846,27 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Bulk Labels PDF")
         self.assertContains(response, reverse("ops_print_queue"))
 
+    def test_ops_viewer_order_management_shows_tracking_number(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-TRACK-LIST-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            tracking_number="AA123456789AA",
+            shipping_address={
+                "name": "Tracking Receiver",
+                "phone": "9876543222",
+                "address_1": "Tracking Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638004",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"), {"tab": "shipped"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tracking: AA123456789AA")
+
     def test_ops_viewer_order_detail_shows_stock_shortage_alert(self):
         Product.objects.create(
             name="Viewer Short Stock",
@@ -3157,6 +3218,32 @@ class RoleAccessTests(TestCase):
         self.assertEqual(order.manual_customer_phone, "9876543210")
         self.assertEqual(order.manual_shipping_address_1, "99 Updated Street")
         self.assertEqual(order.manual_shipping_pincode, "638009")
+
+    def test_ops_viewer_can_update_tracking_number(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-TRACK-EDIT-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            tracking_number="AA123456789AA",
+            shipping_address={
+                "name": "Viewer Tracking Edit",
+                "phone": "9000001111",
+                "address_1": "Tracking Lane",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638001",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_tracking", args=[order.pk]),
+            {"tracking_number": "BB123456789BB"},
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
+        self.assertEqual(order.tracking_number, "BB123456789BB")
 
     def test_ops_viewer_accepted_order_detail_shows_packing_list_option(self):
         order = ShiprocketOrder.objects.create(
@@ -3537,6 +3624,37 @@ class RoleAccessTests(TestCase):
         self.assertEqual(expense.created_by, "viewer")
         self.assertContains(response, "Saved expense for Bubble wrap roll.")
         self.assertContains(response, "Rs 361.50")
+
+    def test_ops_viewer_can_edit_expense_entry(self):
+        expense = BusinessExpense.objects.create(
+            item_name="Tape Roll",
+            quantity=2,
+            unit_price="50.00",
+            remark="Old remark",
+            created_by="viewer",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("expense_tracker"),
+            {
+                "expense_id": expense.pk,
+                "item_name": "Tape Roll",
+                "quantity": 4,
+                "unit_price": "55.00",
+                "remark": "Updated remark",
+            },
+            follow=True,
+        )
+
+        expense.refresh_from_db()
+        self.assertRedirects(response, reverse("expense_tracker"))
+        self.assertEqual(expense.quantity, 4)
+        self.assertEqual(str(expense.unit_price), "55.00")
+        self.assertEqual(expense.remark, "Updated remark")
+        self.assertEqual(expense.created_by, "viewer")
+        self.assertContains(response, "Updated expense for Tape Roll.")
+        self.assertContains(response, "Rs 220.00")
 
     def test_ops_viewer_can_submit_special_stock_issue(self):
         product = Product.objects.create(

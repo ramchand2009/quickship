@@ -56,6 +56,7 @@ from .forms import (
     SenderAddressForm,
     ShiprocketOrderManualUpdateForm,
     ShiprocketOrderStatusForm,
+    ShiprocketOrderTrackingUpdateForm,
     SignUpForm,
     SpecialStockIssueForm,
     StockAdjustmentForm,
@@ -2320,6 +2321,7 @@ def project_detail(request, pk):
 def order_detail(request, pk):
     order = get_object_or_404(ShiprocketOrder, pk=pk)
     form = ShiprocketOrderManualUpdateForm(instance=order)
+    tracking_form = ShiprocketOrderTrackingUpdateForm(instance=order)
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
     can_edit_manual_order_details = _can_edit_manual_order_details(getattr(request, "user", None))
     can_update_order_status = _can_update_order_status(getattr(request, "user", None))
@@ -2364,6 +2366,7 @@ def order_detail(request, pk):
         {
             "order": order,
             "form": form,
+            "tracking_form": tracking_form,
             "status_form": status_form,
             "can_edit_manual_order_details": can_edit_manual_order_details,
             "whatsapp_timeline": whatsapp_timeline,
@@ -3463,8 +3466,10 @@ def expense_tracker(request):
         return redirect("order_management")
 
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
-    form = BusinessExpenseForm(request.POST or None)
     actor = _request_actor(request)
+    edit_pk = str(request.GET.get("edit") or request.POST.get("expense_id") or "").strip()
+    edit_expense = BusinessExpense.objects.filter(pk=int(edit_pk)).first() if edit_pk.isdigit() else None
+    form = BusinessExpenseForm(request.POST or None, instance=edit_expense)
     now = timezone.localtime(timezone.now())
     line_total_expression = ExpressionWrapper(
         F("quantity") * F("unit_price"),
@@ -3482,17 +3487,32 @@ def expense_tracker(request):
     if request.method == "POST":
         if form.is_valid():
             expense = form.save(commit=False)
-            expense.created_by = actor
+            if not edit_expense:
+                expense.created_by = actor
             expense.save()
-            messages.success(
-                request,
-                (
-                    f"Saved expense for {expense.item_name}. "
-                    f"Total spend added: Rs {expense.total_amount:.2f}."
-                ),
-            )
+            if edit_expense:
+                messages.success(
+                    request,
+                    (
+                        f"Updated expense for {expense.item_name}. "
+                        f"Current total: Rs {expense.total_amount:.2f}."
+                    ),
+                )
+            else:
+                messages.success(
+                    request,
+                    (
+                        f"Saved expense for {expense.item_name}. "
+                        f"Total spend added: Rs {expense.total_amount:.2f}."
+                    ),
+                )
             return redirect("expense_tracker")
-        messages.error(request, "Unable to save expense entry. Check the form fields.")
+        messages.error(
+            request,
+            "Unable to save expense entry. Check the form fields."
+            if not edit_expense
+            else "Unable to update expense entry. Check the form fields.",
+        )
 
     recent_expenses = BusinessExpense.objects.all()[:30]
     return render(
@@ -3500,6 +3520,7 @@ def expense_tracker(request):
         "core/expense_tracker.html",
         {
             "form": form,
+            "edit_expense": edit_expense,
             "ops_mobile_mode": ops_mobile_mode,
             "recent_expenses": recent_expenses,
             "expense_count": BusinessExpense.objects.count(),
@@ -4567,6 +4588,59 @@ def update_shiprocket_order(request, pk):
             triggered_by=_request_actor(request),
         )
         messages.error(request, "Unable to update the order details. Check the form fields.")
+
+    return redirect("order_detail", pk=pk)
+
+
+@login_required
+def update_shiprocket_order_tracking(request, pk):
+    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    if request.method != "POST":
+        return redirect("order_detail", pk=pk)
+    if not _can_edit_manual_order_details(request.user):
+        messages.error(request, "Your role has read-only access and cannot edit tracking number.")
+        return redirect("order_detail", pk=pk)
+    if order.local_status == ShiprocketOrder.STATUS_CANCELLED:
+        messages.error(request, "Tracking number cannot be updated for cancelled orders.")
+        return redirect("order_detail", pk=pk)
+
+    previous_tracking_number = str(order.tracking_number or "").strip()
+    form = ShiprocketOrderTrackingUpdateForm(request.POST, instance=order)
+    if form.is_valid():
+        updated_order = form.save()
+        changed_tracking_number = str(updated_order.tracking_number or "").strip()
+        if changed_tracking_number != previous_tracking_number:
+            log_order_activity(
+                order=updated_order,
+                event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                title="Tracking number updated",
+                description=(
+                    f"Tracking number changed from {previous_tracking_number or '-'} "
+                    f"to {changed_tracking_number or '-'}."
+                ),
+                previous_status=updated_order.local_status,
+                current_status=updated_order.local_status,
+                metadata={
+                    "previous_tracking_number": previous_tracking_number,
+                    "tracking_number": changed_tracking_number,
+                },
+                is_success=True,
+                triggered_by=_request_actor(request),
+            )
+        messages.success(request, "Tracking number updated.")
+    else:
+        log_order_activity(
+            order=order,
+            event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+            title="Tracking number update failed",
+            description="Tracking number validation failed.",
+            previous_status=order.local_status,
+            current_status=order.local_status,
+            metadata={"errors": form.errors.get_json_data()},
+            is_success=False,
+            triggered_by=_request_actor(request),
+        )
+        messages.error(request, "Unable to update tracking number. Check the format and try again.")
 
     return redirect("order_detail", pk=pk)
 

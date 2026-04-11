@@ -32,6 +32,10 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .expense-item-head strong { color:#0f172a; }
 .expense-amount { color:#15803d; font-weight:800; white-space:nowrap; }
 .expense-meta { margin-top:.18rem; color:#64748b; font-size:.85rem; }
+.expense-item-actions { margin-top:.65rem; display:flex; gap:.5rem; flex-wrap:wrap; }
+.expense-item-actions a { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:.45rem .8rem; border-radius:.7rem; text-decoration:none; font-weight:700; font-size:.85rem; }
+.expense-action-edit { background:#e0f2fe; color:#075985; }
+.expense-action-cancel { background:#f1f5f9; color:#475569; }
 @media (max-width: 767px) { .expense-summary, .expense-row-2 { grid-template-columns:1fr; } }
 {% include "core/_ops_mobile_bottomnav_styles.html" %}
 </style>
@@ -62,12 +66,21 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
     <div class="expense-card">
         <div class="expense-card-head">
-            <h3>Expense Tracker</h3>
-            <p>Record purchased item, quantity, price, and remarks for business spending.</p>
+            <h3>{% if edit_expense %}Edit Expense{% else %}Expense Tracker{% endif %}</h3>
+            <p>
+                {% if edit_expense %}
+                    Update item, quantity, price, and remarks for this expense entry.
+                {% else %}
+                    Record purchased item, quantity, price, and remarks for business spending.
+                {% endif %}
+            </p>
         </div>
         <div class="expense-card-body">
             <form method="post">
                 {% csrf_token %}
+                {% if edit_expense %}
+                    <input type="hidden" name="expense_id" value="{{ edit_expense.pk }}">
+                {% endif %}
                 <div class="expense-field">
                     <label for="{{ form.item_name.id_for_label }}">{{ form.item_name.label }}</label>
                     {{ form.item_name }}
@@ -86,7 +99,12 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     <label for="{{ form.remark.id_for_label }}">{{ form.remark.label }}</label>
                     {{ form.remark }}
                 </div>
-                <button type="submit" class="expense-btn">Save Expense</button>
+                <button type="submit" class="expense-btn">{% if edit_expense %}Update Expense{% else %}Save Expense{% endif %}</button>
+                {% if edit_expense %}
+                    <div class="expense-item-actions">
+                        <a href="{% url 'expense_tracker' %}" class="expense-action-cancel">Cancel Edit</a>
+                    </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -108,6 +126,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                             <div class="expense-meta">Qty {{ expense.quantity }} x Rs {{ expense.unit_price|floatformat:2 }}</div>
                             <div class="expense-meta">Remark: {{ expense.remark|default:"-" }}</div>
                             <div class="expense-meta">{{ expense.created_at|date:"Y-m-d H:i" }} | {{ expense.created_by|default:"-" }}</div>
+                            <div class="expense-item-actions">
+                                <a href="{% url 'expense_tracker' %}?edit={{ expense.pk }}" class="expense-action-edit">Edit</a>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
@@ -171,11 +192,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="col-lg-5">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Add Expense</h5>
+                <h5 class="mb-0">{% if edit_expense %}Edit Expense{% else %}Add Expense{% endif %}</h5>
             </div>
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
+                    {% if edit_expense %}
+                        <input type="hidden" name="expense_id" value="{{ edit_expense.pk }}">
+                    {% endif %}
                     <div class="mb-3">
                         <label class="form-label" for="{{ form.item_name.id_for_label }}">{{ form.item_name.label }}</label>
                         {{ form.item_name }}
@@ -198,7 +222,12 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                         <label class="form-label" for="{{ form.remark.id_for_label }}">{{ form.remark.label }}</label>
                         {{ form.remark }}
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Expense</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="submit" class="btn btn-primary">{% if edit_expense %}Update Expense{% else %}Save Expense{% endif %}</button>
+                        {% if edit_expense %}
+                            <a href="{% url 'expense_tracker' %}" class="btn btn-outline-secondary">Cancel</a>
+                        {% endif %}
+                    </div>
                 </form>
             </div>
         </div>
@@ -223,6 +252,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                     <th>Total</th>
                                     <th>Remark</th>
                                     <th>By</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -235,6 +265,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                         <td>Rs {{ expense.total_amount|floatformat:2 }}</td>
                                         <td>{{ expense.remark|default:"-" }}</td>
                                         <td>{{ expense.created_by|default:"-" }}</td>
+                                        <td>
+                                            <a href="{% url 'expense_tracker' %}?edit={{ expense.pk }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>

@@ -320,6 +320,36 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
         return cleaned_data
 
 
+class ShiprocketOrderTrackingUpdateForm(forms.ModelForm):
+    class Meta:
+        model = ShiprocketOrder
+        fields = ["tracking_number"]
+        labels = {
+            "tracking_number": "Tracking Number",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tracking_number"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Enter tracking number (AA123456789AA)",
+                "maxlength": "13",
+                "autocomplete": "off",
+                "autocapitalize": "characters",
+                "spellcheck": "false",
+            }
+        )
+
+    def clean_tracking_number(self):
+        value = str(self.cleaned_data.get("tracking_number") or "").strip().upper()
+        if not value:
+            raise forms.ValidationError("Enter tracking number.")
+        if len(value) != 13:
+            raise forms.ValidationError("Tracking number must be exactly 13 characters.")
+        return value
+
+
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
