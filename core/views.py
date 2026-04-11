@@ -3655,6 +3655,8 @@ def whatsapp_settings(request):
             "enabled": cleaned_data.get("enabled"),
             "base_url": cleaned_data.get("api_base_url"),
             "api_key": cleaned_data.get("api_key"),
+            "account_id": cleaned_data.get("account_id"),
+            "account_name": cleaned_data.get("account_name"),
         }
 
     def _config_overrides_from_saved():
@@ -3662,6 +3664,8 @@ def whatsapp_settings(request):
             "enabled": settings_row.enabled,
             "base_url": settings_row.api_base_url,
             "api_key": settings_row.api_key,
+            "account_id": settings_row.account_id,
+            "account_name": settings_row.account_name,
         }
 
     settings_form = WhatsAppApiSettingsForm(instance=settings_row, prefix="settings")

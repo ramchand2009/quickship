@@ -468,11 +468,13 @@ class BulkSmartbizMappingForm(forms.Form):
 class WhatsAppApiSettingsForm(forms.ModelForm):
     class Meta:
         model = WhatsAppSettings
-        fields = ["enabled", "api_base_url", "api_key"]
+        fields = ["enabled", "api_base_url", "api_key", "account_id", "account_name"]
         labels = {
             "enabled": "Enable WhatsApp Updates",
             "api_base_url": "API Link",
             "api_key": "API Key",
+            "account_id": "Whatomate Account ID",
+            "account_name": "Whatomate Account Name",
         }
 
     def __init__(self, *args, **kwargs):
@@ -482,6 +484,10 @@ class WhatsAppApiSettingsForm(forms.ModelForm):
         self.fields["api_base_url"].widget.attrs["placeholder"] = "http://127.0.0.1:8080"
         self.fields["api_key"].widget.attrs["class"] = "form-control"
         self.fields["api_key"].widget.attrs["placeholder"] = "whm_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        self.fields["account_id"].widget.attrs["class"] = "form-control"
+        self.fields["account_id"].widget.attrs["placeholder"] = "acc_1234567890"
+        self.fields["account_name"].widget.attrs["class"] = "form-control"
+        self.fields["account_name"].widget.attrs["placeholder"] = "Mathukai_Updates"
 
 
 class WhatsAppMessageTestForm(forms.ModelForm):

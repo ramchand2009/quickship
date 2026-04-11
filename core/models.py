@@ -73,6 +73,8 @@ class WhatsAppSettings(models.Model):
     enabled = models.BooleanField(default=False)
     api_base_url = models.CharField(max_length=255, blank=True)
     api_key = models.CharField(max_length=255, blank=True)
+    account_id = models.CharField(max_length=160, blank=True)
+    account_name = models.CharField(max_length=160, blank=True)
     test_phone_number = models.CharField(max_length=32, blank=True)
     test_message_text = models.CharField(
         max_length=255,

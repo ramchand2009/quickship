@@ -31,7 +31,12 @@ from .models import (
     WhatsAppTemplate,
 )
 from .system_status import write_system_heartbeat
-from .whatomate import WhatomateNotificationError, _build_template_params_for_status
+from .whatomate import (
+    WhatomateNotificationError,
+    _build_template_params_for_status,
+    send_order_enquiry_reply,
+    send_test_whatsapp_message,
+)
 from .views import _build_webhook_test_payload, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .shiprocket import sync_orders
@@ -1791,6 +1796,8 @@ class WhatsAppSettingsViewTests(TestCase):
                 "settings-enabled": "on",
                 "settings-api_base_url": "http://127.0.0.1:8080",
                 "settings-api_key": "whm_test_key_123",
+                "settings-account_name": "Mathukai_Updates",
+                "settings-account_id": "acc_123",
                 "action": "save_settings",
             },
             follow=True,
@@ -1801,6 +1808,8 @@ class WhatsAppSettingsViewTests(TestCase):
         self.assertTrue(settings_row.enabled)
         self.assertEqual(settings_row.api_base_url, "http://127.0.0.1:8080")
         self.assertEqual(settings_row.api_key, "whm_test_key_123")
+        self.assertEqual(settings_row.account_name, "Mathukai_Updates")
+        self.assertEqual(settings_row.account_id, "acc_123")
 
     @patch("core.views.check_api_connection")
     def test_whatsapp_check_api_action_calls_service(self, mock_check_api_connection):
@@ -1974,6 +1983,73 @@ class WhatsAppSettingsViewTests(TestCase):
         self.assertContains(response, "Process Queue Once")
         self.assertContains(response, "ops-settings-action-row")
         self.assertContains(response, "ops-admin-table")
+
+
+class WhatomateTextSendTests(TestCase):
+    @patch("core.whatomate._json_request")
+    @patch("core.whatomate._ensure_contact_id")
+    def test_send_test_message_includes_configured_account_fields(self, mock_ensure_contact_id, mock_json_request):
+        mock_ensure_contact_id.return_value = "contact_123"
+        mock_json_request.return_value = {"status": "success", "id": "msg_123"}
+
+        result = send_test_whatsapp_message(
+            phone_number="9952975768",
+            message_text="Test ping",
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://whatomate.mathukaiorganic.store/api",
+                "api_key": "whm_test_key_123",
+                "account_name": "Mathukai_Updates",
+                "account_id": "acc_123",
+            },
+        )
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "type": "text",
+                "text": "Test ping",
+                "account_id": "acc_123",
+                "account_name": "Mathukai_Updates",
+            },
+        )
+
+    @patch("core.whatomate._json_request")
+    @patch("core.whatomate._ensure_contact_id")
+    def test_order_enquiry_reply_includes_configured_account_fields(self, mock_ensure_contact_id, mock_json_request):
+        mock_ensure_contact_id.return_value = "contact_123"
+        mock_json_request.return_value = {"status": "success", "id": "msg_123"}
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-WA-ENQ-1",
+            customer_name="Customer One",
+            customer_phone="9952975768",
+            shipping_address={"phone": "9952975768", "name": "Customer One"},
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+        )
+
+        result = send_order_enquiry_reply(
+            order,
+            incoming_phone_number="919952975768",
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://whatomate.mathukaiorganic.store/api",
+                "api_key": "whm_test_key_123",
+                "account_name": "Mathukai_Updates",
+                "account_id": "acc_123",
+            },
+        )
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "type": "text",
+                "text": "Hi Customer One, Your order SR-WA-ENQ-1 is currently Order Accepted. Tracking number is not assigned yet. We will share the next update soon.",
+                "account_id": "acc_123",
+                "account_name": "Mathukai_Updates",
+            },
+        )
 
 
 class WhatsAppDeliveryLogsViewTests(TestCase):

@@ -53,6 +53,10 @@ def _load_runtime_config():
             config["base_url"] = settings_row.api_base_url.strip()
         if settings_row.api_key.strip():
             config["api_key"] = settings_row.api_key.strip()
+        if settings_row.account_id.strip():
+            config["account_id"] = settings_row.account_id.strip()
+        if settings_row.account_name.strip():
+            config["account_name"] = settings_row.account_name.strip()
         if settings_row.test_phone_number.strip():
             config["test_phone_number"] = settings_row.test_phone_number.strip()
         if settings_row.test_message_text.strip():
@@ -553,6 +557,12 @@ def _send_text_message_to_phone(phone_number, contact_name, message_text, config
     payload = {"type": "text", "text": str(message_text or "").strip()}
     if not payload["text"]:
         raise WhatomateNotificationError("WhatsApp message text is empty.")
+    account_id = str(config.get("account_id") or "").strip()
+    if account_id:
+        payload["account_id"] = account_id
+    account_name = str(config.get("account_name") or "").strip()
+    if account_name:
+        payload["account_name"] = account_name
 
     endpoint = f"/api/contacts/{parse.quote(contact_id)}/messages"
     response_payload = _json_request(
@@ -763,23 +773,20 @@ def send_test_whatsapp_message(phone_number, message_text, config_overrides=None
     if not final_message:
         raise WhatomateNotificationError("Test message cannot be empty.")
 
-    contact_id = _ensure_contact_id(normalized_phone, "Mathukai Test", config)
-    payload = {"type": "text", "text": final_message}
-    endpoint = f"/api/contacts/{parse.quote(contact_id)}/messages"
-    response_payload = _json_request(
-        endpoint,
+    send_result = _send_text_message_to_phone(
+        phone_number=normalized_phone,
+        contact_name="Mathukai Test",
+        message_text=final_message,
         config=config,
-        method="POST",
-        payload=payload,
     )
     return {
         "sent": True,
         "phone_number": normalized_phone,
         "mode": "text",
-        "request_payload": payload,
-        "response_payload": response_payload if isinstance(response_payload, (dict, list)) else {},
-        "endpoint": endpoint,
-        "external_message_id": _extract_message_id(response_payload),
+        "request_payload": send_result.get("request_payload", {}) if isinstance(send_result, dict) else {},
+        "response_payload": send_result.get("response_payload", {}) if isinstance(send_result, dict) else {},
+        "endpoint": send_result.get("endpoint", "") if isinstance(send_result, dict) else "",
+        "external_message_id": send_result.get("external_message_id", "") if isinstance(send_result, dict) else "",
     }
 
 

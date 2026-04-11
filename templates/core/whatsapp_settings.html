@@ -44,6 +44,22 @@
                             <div class="text-danger small mt-1">{{ settings_form.api_key.errors|join:", " }}</div>
                         {% endif %}
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ settings_form.account_name.id_for_label }}">{{ settings_form.account_name.label }}</label>
+                        {{ settings_form.account_name }}
+                        <div class="text-muted small mt-1">Use the exact Whatomate account name shown on the account card, for example <code>Mathukai_Updates</code>.</div>
+                        {% if settings_form.account_name.errors %}
+                            <div class="text-danger small mt-1">{{ settings_form.account_name.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ settings_form.account_id.id_for_label }}">{{ settings_form.account_id.label }}</label>
+                        {{ settings_form.account_id }}
+                        <div class="text-muted small mt-1">Optional, but useful if you want Quickship to target one specific Whatomate account.</div>
+                        {% if settings_form.account_id.errors %}
+                            <div class="text-danger small mt-1">{{ settings_form.account_id.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
                     <div class="ops-settings-action-row">
                         <button type="submit" name="action" value="save_settings" class="btn btn-primary">Save Settings</button>
                         <button type="submit" name="action" value="check_connection" class="btn btn-outline-info">Check API</button>
