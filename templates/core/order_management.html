@@ -316,6 +316,15 @@
                                             {% else %}
                                                 <span class="text-muted">-</span>
                                             {% endif %}
+                                            <div class="small text-muted mt-1">
+                                                Packed: {{ item.order.packed_at|date:"Y-m-d H:i"|default:"-" }}
+                                            </div>
+                                            <div class="small text-muted">
+                                                Shipped: {{ item.order.shipped_at|date:"Y-m-d H:i"|default:"-" }}
+                                            </div>
+                                            <div class="small text-muted">
+                                                Delivered: {{ item.order.delivered_at|date:"Y-m-d H:i"|default:"-" }}
+                                            </div>
                                         </td>
                                         <td class="order-move-cell" data-label="Move Order">
                                             {% if item.order.local_status == "completed" or item.order.local_status == "order_cancelled" %}

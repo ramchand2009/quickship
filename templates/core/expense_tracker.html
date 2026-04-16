@@ -82,6 +82,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     <input type="hidden" name="expense_id" value="{{ edit_expense.pk }}">
                 {% endif %}
                 <div class="expense-field">
+                    <label for="{{ form.expense_person.id_for_label }}">{{ form.expense_person.label }}</label>
+                    {{ form.expense_person }}
+                    {% if not expense_people_count %}
+                        <div class="expense-meta">No expense person added yet. Admin can add names in Admin Utilities.</div>
+                    {% endif %}
+                </div>
+                <div class="expense-field">
                     <label for="{{ form.item_name.id_for_label }}">{{ form.item_name.label }}</label>
                     {{ form.item_name }}
                 </div>
@@ -124,8 +131,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <span class="expense-amount">Rs {{ expense.total_amount|floatformat:2 }}</span>
                             </div>
                             <div class="expense-meta">Qty {{ expense.quantity }} x Rs {{ expense.unit_price|floatformat:2 }}</div>
+                            <div class="expense-meta">Expense by: {{ expense.expense_person.name|default:"-" }}</div>
                             <div class="expense-meta">Remark: {{ expense.remark|default:"-" }}</div>
-                            <div class="expense-meta">{{ expense.created_at|date:"Y-m-d H:i" }} | {{ expense.created_by|default:"-" }}</div>
+                            <div class="expense-meta">{{ expense.created_at|date:"Y-m-d H:i" }} | Logged by: {{ expense.created_by|default:"-" }}</div>
                             <div class="expense-item-actions">
                                 <a href="{% url 'expense_tracker' %}?edit={{ expense.pk }}" class="expense-action-edit">Edit</a>
                             </div>
@@ -201,6 +209,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                         <input type="hidden" name="expense_id" value="{{ edit_expense.pk }}">
                     {% endif %}
                     <div class="mb-3">
+                        <label class="form-label" for="{{ form.expense_person.id_for_label }}">{{ form.expense_person.label }}</label>
+                        {{ form.expense_person }}
+                        {% if not expense_people_count %}
+                            <div class="form-text">No expense person added yet. Admin can add names in Admin Utilities.</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label" for="{{ form.item_name.id_for_label }}">{{ form.item_name.label }}</label>
                         {{ form.item_name }}
                     </div>
@@ -250,8 +265,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                     <th>Qty</th>
                                     <th>Price</th>
                                     <th>Total</th>
+                                    <th>Expense By</th>
                                     <th>Remark</th>
-                                    <th>By</th>
+                                    <th>Logged By</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -263,6 +279,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                         <td>{{ expense.quantity }}</td>
                                         <td>Rs {{ expense.unit_price|floatformat:2 }}</td>
                                         <td>Rs {{ expense.total_amount|floatformat:2 }}</td>
+                                        <td>{{ expense.expense_person.name|default:"-" }}</td>
                                         <td>{{ expense.remark|default:"-" }}</td>
                                         <td>{{ expense.created_by|default:"-" }}</td>
                                         <td>

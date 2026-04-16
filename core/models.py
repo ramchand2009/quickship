@@ -190,8 +190,8 @@ class ShiprocketOrder(models.Model):
         STATUS_NEW: [STATUS_ACCEPTED, STATUS_CANCELLED],
         STATUS_ACCEPTED: [STATUS_PACKED, STATUS_CANCELLED],
         STATUS_PACKED: [STATUS_SHIPPED, STATUS_CANCELLED],
-        STATUS_SHIPPED: [STATUS_DELIVERY_ISSUE, STATUS_OUT_FOR_DELIVERY, STATUS_CANCELLED],
-        STATUS_DELIVERY_ISSUE: [STATUS_OUT_FOR_DELIVERY, STATUS_CANCELLED],
+        STATUS_SHIPPED: [STATUS_DELIVERED, STATUS_OUT_FOR_DELIVERY, STATUS_DELIVERY_ISSUE],
+        STATUS_DELIVERY_ISSUE: [STATUS_DELIVERED, STATUS_OUT_FOR_DELIVERY],
         STATUS_OUT_FOR_DELIVERY: [STATUS_DELIVERED],
         STATUS_DELIVERED: [STATUS_COMPLETED],
         STATUS_COMPLETED: [],
@@ -238,6 +238,7 @@ class ShiprocketOrder(models.Model):
     cancellation_reason = models.CharField(max_length=32, choices=CANCELLATION_REASON_CHOICES, blank=True)
     cancellation_note = models.CharField(max_length=255, blank=True)
     tracking_number = models.CharField(max_length=128, blank=True)
+    packed_at = models.DateTimeField(null=True, blank=True)
     shipped_at = models.DateTimeField(null=True, blank=True)
     out_for_delivery_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
@@ -287,6 +288,28 @@ class ShiprocketOrder(models.Model):
             "latitude": shipping.get("latitude"),
             "longitude": shipping.get("longitude"),
         }
+
+    @property
+    def status_date_rows(self):
+        return [
+            {"label": "Order Date", "value": self.order_date},
+            {"label": "Packed Date", "value": self.packed_at},
+            {"label": "Shipped Date", "value": self.shipped_at},
+            {"label": "Delivered Date", "value": self.delivered_at},
+        ]
+
+    @property
+    def last_status_changed_at(self):
+        candidates = [
+            self.order_date,
+            self.packed_at,
+            self.shipped_at,
+            self.out_for_delivery_at,
+            self.delivered_at,
+            self.completed_at,
+        ]
+        populated = [value for value in candidates if value]
+        return max(populated) if populated else None
 
 
 class ProductCategory(models.Model):
@@ -356,6 +379,13 @@ class Product(models.Model):
 
 
 class BusinessExpense(models.Model):
+    expense_person = models.ForeignKey(
+        "ExpensePerson",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="expenses",
+    )
     item_name = models.CharField(max_length=160)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -372,6 +402,19 @@ class BusinessExpense(models.Model):
     @property
     def total_amount(self):
         return (self.unit_price or 0) * (self.quantity or 0)
+
+
+class ExpensePerson(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
 
 
 class StockMovement(models.Model):

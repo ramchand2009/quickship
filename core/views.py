@@ -51,6 +51,7 @@ from .forms import (
     BusinessExpenseForm,
     BulkSmartbizMappingForm,
     ContactForm,
+    ExpensePersonForm,
     ProductForm,
     ProductCategoryForm,
     SenderAddressForm,
@@ -69,6 +70,7 @@ from .monitoring import build_health_payload, get_operational_counters
 from .models import (
     BusinessExpense,
     ContactMessage,
+    ExpensePerson,
     OrderActivityLog,
     Product,
     ProductCategory,
@@ -665,6 +667,25 @@ def _build_dashboard_work_queues():
     }
 
 
+def _build_dashboard_stock_lists(limit=6):
+    low_stock_products = list(
+        Product.objects.filter(
+            is_active=True,
+            stock_quantity__gt=0,
+            stock_quantity__lte=F("reorder_level"),
+        )
+        .order_by("stock_quantity", "name")[:limit]
+    )
+    no_stock_products = list(
+        Product.objects.filter(is_active=True, stock_quantity__lte=0)
+        .order_by("name")[:limit]
+    )
+    return {
+        "low_stock_products": low_stock_products,
+        "no_stock_products": no_stock_products,
+    }
+
+
 def _latest_queue_job():
     return WhatsAppNotificationQueue.objects.order_by("-updated_at", "-created_at").first()
 
@@ -1161,6 +1182,19 @@ def _ops_viewer_action_label(status_value, fallback_label):
     return label_map.get(status_value, fallback_label)
 
 
+def _preferred_status_action_order():
+    return [
+        ShiprocketOrder.STATUS_ACCEPTED,
+        ShiprocketOrder.STATUS_PACKED,
+        ShiprocketOrder.STATUS_SHIPPED,
+        ShiprocketOrder.STATUS_DELIVERED,
+        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+        ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+        ShiprocketOrder.STATUS_COMPLETED,
+        ShiprocketOrder.STATUS_CANCELLED,
+    ]
+
+
 def _build_ops_viewer_detail_actions(order, status_form):
     actions = []
     for status_value, fallback_label in status_form.fields["local_status"].choices:
@@ -1182,9 +1216,11 @@ def _build_ops_viewer_detail_actions(order, status_form):
 
 def _build_ops_viewer_primary_action(order, status_form):
     actions = _build_ops_viewer_detail_actions(order, status_form)
-    for action in actions:
-        if not action["is_cancel"]:
-            return action
+    preferred_order = _preferred_status_action_order()
+    for status_value in preferred_order:
+        for action in actions:
+            if action["value"] == status_value and not action["is_cancel"]:
+                return action
     return actions[0] if actions else None
 
 
@@ -1293,6 +1329,8 @@ def _filter_order_management_queryset(queryset, filters):
 
 def _apply_status_timestamps(order_obj):
     now = timezone.now()
+    if order_obj.local_status == ShiprocketOrder.STATUS_PACKED and not order_obj.packed_at:
+        order_obj.packed_at = now
     if order_obj.local_status == ShiprocketOrder.STATUS_SHIPPED and not order_obj.shipped_at:
         order_obj.shipped_at = now
     if order_obj.local_status == ShiprocketOrder.STATUS_OUT_FOR_DELIVERY and not order_obj.out_for_delivery_at:
@@ -1562,6 +1600,7 @@ def _build_orders_dashboard_context(request):
         stock_quantity__lte=F("reorder_level"),
     ).count()
     no_stock_count = Product.objects.filter(is_active=True, stock_quantity__lte=0).count()
+    stock_lists = _build_dashboard_stock_lists()
     stock_action_cards = [
         {
             "title": "Low Stock Items",
@@ -1816,6 +1855,8 @@ def _build_orders_dashboard_context(request):
         ),
         "low_stock_count": low_stock_count,
         "no_stock_count": no_stock_count,
+        "low_stock_products": stock_lists["low_stock_products"],
+        "no_stock_products": stock_lists["no_stock_products"],
         "current_month_label": current_month_label,
         "monthly_status_total": monthly_total,
         "monthly_sales_total": monthly_sales_total,
@@ -3570,7 +3611,7 @@ def expense_tracker(request):
             else "Unable to update expense entry. Check the form fields.",
         )
 
-    recent_expenses = BusinessExpense.objects.all()[:30]
+    recent_expenses = BusinessExpense.objects.select_related("expense_person").all()[:30]
     return render(
         request,
         "core/expense_tracker.html",
@@ -3583,6 +3624,7 @@ def expense_tracker(request):
             "total_spent": total_spent,
             "current_month_spent": current_month_spent,
             "current_month_label": now.strftime("%B %Y"),
+            "expense_people_count": ExpensePerson.objects.filter(is_active=True).count(),
         },
     )
 
@@ -3968,6 +4010,12 @@ def admin_utilities(request):
         messages.error(request, "Your role has read-only access and cannot run admin utilities.")
         return redirect("admin_utilities")
 
+    edit_expense_person = None
+    edit_expense_person_pk = str(request.GET.get("expense_person_edit") or "").strip()
+    if edit_expense_person_pk.isdigit():
+        edit_expense_person = ExpensePerson.objects.filter(pk=int(edit_expense_person_pk)).first()
+    expense_person_form = ExpensePersonForm(instance=edit_expense_person)
+
     if request.method == "POST":
         action = str(request.POST.get("action") or "").strip()
         actor = _request_actor(request) or "manual"
@@ -4040,8 +4088,29 @@ def admin_utilities(request):
                 messages.error(request, f"Webhook test failed (HTTP {status_code}).")
             return redirect("admin_utilities")
 
-        messages.error(request, "Invalid admin utility action.")
-        return redirect("admin_utilities")
+        if action == "save_expense_person":
+            expense_person_id = str(request.POST.get("expense_person_id") or "").strip()
+            expense_person = (
+                ExpensePerson.objects.filter(pk=int(expense_person_id)).first()
+                if expense_person_id.isdigit()
+                else None
+            )
+            expense_person_form = ExpensePersonForm(request.POST, instance=expense_person)
+            if expense_person_form.is_valid():
+                saved_person = expense_person_form.save()
+                messages.success(request, f"Saved expense person {saved_person.name}.")
+                return redirect("admin_utilities")
+            edit_expense_person = expense_person
+            messages.error(request, "Unable to save expense person. Check the form fields.")
+        elif action not in {
+            "process_queue_once",
+            "export_incident_snapshot",
+            "cleanup_runtime_dry_run",
+            "clear_demo_data",
+            "send_webhook_test",
+        }:
+            messages.error(request, "Invalid admin utility action.")
+            return redirect("admin_utilities")
 
     diagnostics = _build_whatsapp_diagnostics()
     webhook_diagnostics_context = _build_webhook_diagnostics()
@@ -4059,6 +4128,9 @@ def admin_utilities(request):
             "webhook_diagnostics": webhook_diagnostics_context,
             "demo_counts": demo_counts,
             "can_edit_operations": _can_edit_operations(request.user),
+            "expense_people": ExpensePerson.objects.all(),
+            "expense_person_form": expense_person_form,
+            "editing_expense_person": edit_expense_person,
         },
     )
 

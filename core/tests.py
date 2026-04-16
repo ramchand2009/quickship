@@ -17,6 +17,7 @@ from django.utils import timezone
 from .forms import ShiprocketOrderStatusForm, StockAdjustmentForm
 from .models import (
     BusinessExpense,
+    ExpensePerson,
     OrderActivityLog,
     Product,
     ProductCategory,
@@ -90,12 +91,14 @@ class ShiprocketOrderStatusFormTests(TestCase):
         form = ShiprocketOrderStatusForm(instance=order, prefix=f"order-{order.pk}")
         choices = [value for value, _ in form.fields["local_status"].choices]
 
-        self.assertEqual(choices[0], ShiprocketOrder.STATUS_DELIVERY_ISSUE)
+        self.assertEqual(choices[0], ShiprocketOrder.STATUS_DELIVERED)
+        self.assertIn(ShiprocketOrder.STATUS_DELIVERY_ISSUE, choices)
         self.assertIn(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, choices)
+        self.assertNotIn(ShiprocketOrder.STATUS_CANCELLED, choices)
         self.assertNotIn(ShiprocketOrder.STATUS_NEW, choices)
         self.assertNotIn(ShiprocketOrder.STATUS_SHIPPED, choices)
 
-    def test_delivery_issue_moves_only_to_out_for_delivery_or_cancel(self):
+    def test_delivery_issue_moves_only_to_delivered_or_out_for_delivery(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-STATUS-FORM-DI-1",
             local_status=ShiprocketOrder.STATUS_DELIVERY_ISSUE,
@@ -105,7 +108,7 @@ class ShiprocketOrderStatusFormTests(TestCase):
         choices = [value for value, _ in form.fields["local_status"].choices]
         self.assertEqual(
             choices,
-            [ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, ShiprocketOrder.STATUS_CANCELLED],
+            [ShiprocketOrder.STATUS_DELIVERED, ShiprocketOrder.STATUS_OUT_FOR_DELIVERY],
         )
 
     def test_completed_order_has_no_status_choices(self):
@@ -695,8 +698,28 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
 
         order.refresh_from_db()
         self.assertRedirects(response, reverse("home"))
-        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_CANCELLED)
-        self.assertEqual(order.cancellation_reason, ShiprocketOrder.CANCEL_REASON_COURIER_ISSUE)
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_SHIPPED)
+        self.assertEqual(order.cancellation_reason, "")
+
+    def test_can_move_from_shipped_directly_to_delivered(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-DELIVER-DIRECT-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            tracking_number="1234567890123",
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_DELIVERED,
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_DELIVERED)
+        self.assertIsNotNone(order.delivered_at)
 
     def test_can_move_from_shipped_to_delivery_issue(self):
         order = ShiprocketOrder.objects.create(
@@ -754,6 +777,46 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         order.refresh_from_db()
         self.assertRedirects(response, reverse("home"))
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+
+    def test_status_update_sets_packed_shipped_and_delivered_dates(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STATUS-DATES-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            manual_customer_phone="9876543210",
+            shipping_address={
+                "name": "Receiver Name",
+                "phone": "9876543210",
+                "address_1": "Street 1",
+                "pincode": "600001",
+            },
+        )
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_PACKED},
+            follow=True,
+        )
+        order.refresh_from_db()
+        self.assertIsNotNone(order.packed_at)
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_SHIPPED,
+                f"order-{order.pk}-tracking_number": "AA123456789AA",
+            },
+            follow=True,
+        )
+        order.refresh_from_db()
+        self.assertIsNotNone(order.shipped_at)
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_DELIVERED},
+            follow=True,
+        )
+        order.refresh_from_db()
+        self.assertIsNotNone(order.delivered_at)
 
     def test_status_update_redirects_back_to_submitted_tab(self):
         order = ShiprocketOrder.objects.create(
@@ -1264,6 +1327,12 @@ class BulkShippingLabelsViewTests(TestCase):
             stock_quantity=2,
             reorder_level=5,
         )
+        Product.objects.create(
+            name="No Stock Soap",
+            sku="SKU-HOME-NO-1",
+            stock_quantity=0,
+            reorder_level=4,
+        )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-HOME-NEW-1",
             local_status=ShiprocketOrder.STATUS_NEW,
@@ -1298,20 +1367,20 @@ class BulkShippingLabelsViewTests(TestCase):
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Status Shortcuts")
-        self.assertContains(response, "Action Center")
-        self.assertContains(response, "Needs Acceptance")
+        self.assertContains(response, "Home Dashboard")
+        self.assertContains(response, "This Month Order Status")
+        self.assertContains(response, "Stock Dashboard")
         self.assertContains(response, "Low Stock Items")
+        self.assertContains(response, "No Stock Items")
+        self.assertContains(response, "Low Qty Stock")
+        self.assertContains(response, "Out Of Stock")
+        self.assertContains(response, "Low Stock Powder")
+        self.assertContains(response, "No Stock Soap")
+        self.assertContains(response, "Qty 2")
+        self.assertContains(response, "Qty 0")
         self.assertContains(response, "Open Stock Management")
-        self.assertContains(response, "Packing Checklist Blockers")
-        self.assertContains(response, "Ready to Print")
-        self.assertContains(response, "SR-HOME-NEW-1")
-        self.assertContains(response, "SR-HOME-ACCEPT-1")
-        self.assertContains(response, "Packing Checklist Pending")
-        self.assertContains(response, "Missing: Phone, Pincode")
-        self.assertContains(response, packed_order.shiprocket_order_id)
         self.assertContains(response, "orders-dashboard-shell")
-        self.assertContains(response, "dashboard-shortcuts-row")
+        self.assertContains(response, "dashboard-stock-list-card")
         self.assertContains(response, reverse("stock_management"))
 
     def test_home_shows_queue_diagnostics_widgets(self):
@@ -2666,6 +2735,7 @@ class AdminUtilitiesViewTests(TestCase):
         self.assertContains(response, "Admin Utilities")
         self.assertContains(response, "Queue Operations")
         self.assertContains(response, "Demo Data Cleanup")
+        self.assertContains(response, "Expense People")
         self.assertContains(response, "ops-admin-action-group")
 
     @patch("core.views.process_whatsapp_notification_queue")
@@ -2700,6 +2770,17 @@ class AdminUtilitiesViewTests(TestCase):
         self.assertRedirects(response, reverse("admin_utilities"))
         self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="DEMO-UTIL-1").exists())
         self.assertContains(response, "Demo data cleared")
+
+    def test_admin_utilities_can_save_expense_person(self):
+        response = self.client.post(
+            reverse("admin_utilities"),
+            {"action": "save_expense_person", "name": "Kumar", "is_active": "on"},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("admin_utilities"))
+        self.assertTrue(ExpensePerson.objects.filter(name="Kumar", is_active=True).exists())
+        self.assertContains(response, "Saved expense person Kumar.")
 
 
 class WhatsAppQueueProcessingTests(TestCase):
@@ -3197,6 +3278,9 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "ops-order-card")
         self.assertContains(response, order.channel_order_id)
         self.assertContains(response, f"Shiprocket: {order.shiprocket_order_id}")
+        self.assertContains(response, "Packed:")
+        self.assertContains(response, "Shipped:")
+        self.assertContains(response, "Delivered:")
         self.assertContains(response, reverse("order_detail", args=[order.pk]))
         self.assertNotContains(response, 'data-row-update-form', html=False)
         self.assertContains(response, reverse("stock_management"))
@@ -3551,6 +3635,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
         self.assertContains(response, "Edit Delivery Details")
+        self.assertContains(response, "Status Dates")
         self.assertContains(response, 'name="manual_customer_phone"', html=False)
         self.assertContains(response, 'name="manual_shipping_address_1"', html=False)
         self.assertContains(response, 'name="manual_shipping_pincode"', html=False)
@@ -3964,17 +4049,20 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Expense Tracker")
+        self.assertContains(response, "Expense Done By")
         self.assertContains(response, "Purchased Item")
         self.assertContains(response, "Total Spend")
         self.assertContains(response, reverse("expense_tracker"))
         self.assertContains(response, "Expenses")
 
     def test_ops_viewer_can_submit_expense_entry_and_see_total_spend(self):
+        expense_person = ExpensePerson.objects.create(name="Arun")
         self.client.force_login(self.viewer)
 
         response = self.client.post(
             reverse("expense_tracker"),
             {
+                "expense_person": expense_person.pk,
                 "item_name": "Bubble wrap roll",
                 "quantity": 3,
                 "unit_price": "120.50",
@@ -3988,9 +4076,11 @@ class RoleAccessTests(TestCase):
         self.assertEqual(expense.quantity, 3)
         self.assertEqual(str(expense.unit_price), "120.50")
         self.assertEqual(expense.remark, "Packaging purchase")
+        self.assertEqual(expense.expense_person, expense_person)
         self.assertEqual(expense.created_by, "viewer")
         self.assertContains(response, "Saved expense for Bubble wrap roll.")
         self.assertContains(response, "Rs 361.50")
+        self.assertContains(response, "Arun")
 
     def test_ops_viewer_can_edit_expense_entry(self):
         expense = BusinessExpense.objects.create(

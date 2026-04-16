@@ -617,6 +617,21 @@
 
         <div class="ops-detail-card">
             <div class="ops-detail-items-head">
+                <h5 class="mb-0">Status Dates</h5>
+                <span>Latest: {{ order.last_status_changed_at|date:"d-m-Y g:i a"|default:"-" }}</span>
+            </div>
+            <div class="ops-detail-edit-grid">
+                {% for status_row in order.status_date_rows %}
+                    <div class="ops-detail-inline-row">
+                        <div class="fw-semibold">{{ status_row.label }}</div>
+                        <div>{{ status_row.value|date:"d-m-Y g:i a"|default:"-" }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="ops-detail-card">
+            <div class="ops-detail-items-head">
                 <h5 class="mb-0">Edit Delivery Details</h5>
             </div>
             {% if order.is_manual_edit_locked %}

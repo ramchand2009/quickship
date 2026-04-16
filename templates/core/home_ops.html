@@ -82,6 +82,96 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-card-tone-success { border-top: 4px solid #15803d; }
 .ops-home-card-tone-danger { border-top: 4px solid #dc2626; }
 
+.ops-home-stock-list {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.ops-home-stock-card {
+    background: rgba(255,255,255,.96);
+    border: 1px solid rgba(15,23,42,.08);
+    border-radius: 1.15rem;
+    box-shadow: 0 14px 28px rgba(15,23,42,.06);
+    padding: 1rem;
+}
+
+.ops-home-stock-card.is-danger { border-top: 4px solid #dc2626; }
+.ops-home-stock-card.is-warning { border-top: 4px solid #d97706; }
+
+.ops-home-stock-head {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+}
+
+.ops-home-stock-metric {
+    border-right: 1px solid rgba(15,23,42,.08);
+    padding-right: 0.75rem;
+}
+
+.ops-home-stock-metric strong {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 1.85rem;
+    line-height: 1;
+    color: #0f172a;
+}
+
+.ops-home-stock-metric span {
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.ops-home-stock-items {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.ops-home-stock-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(15,23,42,.06);
+    padding-bottom: 0.45rem;
+}
+
+.ops-home-stock-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.ops-home-stock-name {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.ops-home-stock-meta {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.ops-home-stock-qty {
+    font-weight: 800;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.ops-home-stock-empty {
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.ops-home-stock-link {
+    display: inline-flex;
+    margin-top: 0.85rem;
+    color: #1f6ea0;
+    font-weight: 700;
+    text-decoration: none;
+}
+
 .ops-home-section-head {
     display: flex;
     justify-content: space-between;
@@ -106,6 +196,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     .ops-home-grid { gap: 0.65rem; }
     .ops-home-card-link { padding: 0.9rem 0.9rem 0.85rem; }
     .ops-home-card-value { font-size: 1.45rem; }
+    .ops-home-stock-head { grid-template-columns: 82px minmax(0, 1fr); }
+    .ops-home-stock-metric strong { font-size: 1.65rem; }
 }
 </style>
 {% endblock %}
@@ -148,6 +240,54 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </a>
             </div>
         {% endfor %}
+    </div>
+
+    <div class="ops-home-stock-list">
+        <div class="ops-home-stock-card is-danger">
+            <div class="ops-home-stock-head">
+                <div class="ops-home-stock-metric">
+                    <span>Out Of Stock</span>
+                    <strong>{{ no_stock_count }}</strong>
+                </div>
+                <div class="ops-home-stock-items">
+                    {% for product in no_stock_products %}
+                        <div class="ops-home-stock-row">
+                            <div>
+                                <div class="ops-home-stock-name">{{ product.name }}</div>
+                                <div class="ops-home-stock-meta">SKU: {{ product.sku|default:"-" }}</div>
+                            </div>
+                            <div class="ops-home-stock-qty">Qty {{ product.stock_quantity }}</div>
+                        </div>
+                    {% empty %}
+                        <div class="ops-home-stock-empty">No products are currently out of stock.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <a href="{% url 'stock_management' %}" class="ops-home-stock-link">Open Stock Management</a>
+        </div>
+
+        <div class="ops-home-stock-card is-warning">
+            <div class="ops-home-stock-head">
+                <div class="ops-home-stock-metric">
+                    <span>Low Qty Stock</span>
+                    <strong>{{ low_stock_count }}</strong>
+                </div>
+                <div class="ops-home-stock-items">
+                    {% for product in low_stock_products %}
+                        <div class="ops-home-stock-row">
+                            <div>
+                                <div class="ops-home-stock-name">{{ product.name }}</div>
+                                <div class="ops-home-stock-meta">Threshold {{ product.reorder_level }}</div>
+                            </div>
+                            <div class="ops-home-stock-qty">Qty {{ product.stock_quantity }}</div>
+                        </div>
+                    {% empty %}
+                        <div class="ops-home-stock-empty">No products are currently in the low quantity range.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <a href="{% url 'stock_management' %}" class="ops-home-stock-link">Open Stock Management</a>
+        </div>
     </div>
 
     {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="home" ops_mobile_nav_sync_return="home" %}

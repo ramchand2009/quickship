@@ -977,6 +977,9 @@
                                     {% if order.status %}
                                         <div class="ops-desktop-shipping-text">SR Status: {{ order.status }}</div>
                                     {% endif %}
+                                    <div class="ops-desktop-shipping-text">Packed: {{ order.packed_at|date:"d M y H:i"|default:"-" }}</div>
+                                    <div class="ops-desktop-shipping-text">Shipped: {{ order.shipped_at|date:"d M y H:i"|default:"-" }}</div>
+                                    <div class="ops-desktop-shipping-text">Delivered: {{ order.delivered_at|date:"d M y H:i"|default:"-" }}</div>
                                 </div>
 
                                 <div class="ops-desktop-cell">
@@ -1136,6 +1139,9 @@
                                     Open Details <span class="ops-order-card-chevron">&#8250;</span>
                                 </div>
                             </div>
+                            <div class="ops-order-payment">Packed: {{ item.order.packed_at|date:"d-m-Y g:i a"|default:"-" }}</div>
+                            <div class="ops-order-payment">Shipped: {{ item.order.shipped_at|date:"d-m-Y g:i a"|default:"-" }}</div>
+                            <div class="ops-order-payment">Delivered: {{ item.order.delivered_at|date:"d-m-Y g:i a"|default:"-" }}</div>
                         </div>
                     </a>
                 {% endfor %}

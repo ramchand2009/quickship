@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     BusinessExpense,
     ContactMessage,
+    ExpensePerson,
     OrderActivityLog,
     Product,
     ProductCategory,
@@ -18,10 +19,18 @@ from .models import (
 )
 
 
+@admin.register(ExpensePerson)
+class ExpensePersonAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
+
+
 @admin.register(BusinessExpense)
 class BusinessExpenseAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "item_name", "quantity", "unit_price", "created_by")
-    search_fields = ("item_name", "remark", "created_by")
+    list_display = ("created_at", "item_name", "expense_person", "quantity", "unit_price", "created_by")
+    list_filter = ("expense_person",)
+    search_fields = ("item_name", "remark", "created_by", "expense_person__name")
     readonly_fields = ("created_at",)
 
 

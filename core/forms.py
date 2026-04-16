@@ -10,6 +10,7 @@ from django.core.cache import cache
 from .models import (
     BusinessExpense,
     ContactMessage,
+    ExpensePerson,
     Product,
     ProductCategory,
     SenderAddress,
@@ -38,8 +39,9 @@ class ContactForm(forms.ModelForm):
 class BusinessExpenseForm(forms.ModelForm):
     class Meta:
         model = BusinessExpense
-        fields = ["item_name", "quantity", "unit_price", "remark"]
+        fields = ["expense_person", "item_name", "quantity", "unit_price", "remark"]
         labels = {
+            "expense_person": "Expense Done By",
             "item_name": "Purchased Item",
             "quantity": "Qty",
             "unit_price": "Price",
@@ -51,14 +53,45 @@ class BusinessExpenseForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            field.widget.attrs["class"] = "form-control"
+        self.fields["expense_person"].queryset = ExpensePerson.objects.filter(is_active=True).order_by("name")
+        self.fields["expense_person"].required = False
+        self.fields["expense_person"].empty_label = "Select person"
+        self.fields["expense_person"].widget.attrs["class"] = "form-select form-control"
+        for name in ["item_name", "quantity", "unit_price", "remark"]:
+            self.fields[name].widget.attrs["class"] = "form-control"
         self.fields["item_name"].widget.attrs["placeholder"] = "Example: Packing box bundle"
         self.fields["quantity"].widget.attrs["min"] = "1"
         self.fields["unit_price"].widget.attrs["min"] = "0"
         self.fields["unit_price"].widget.attrs["step"] = "0.01"
         self.fields["unit_price"].widget.attrs["placeholder"] = "0.00"
         self.fields["remark"].widget.attrs["placeholder"] = "Optional note about this purchase"
+
+
+class ExpensePersonForm(forms.ModelForm):
+    class Meta:
+        model = ExpensePerson
+        fields = ["name", "is_active"]
+        labels = {
+            "name": "Expense Person Name",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["name"].widget.attrs["class"] = "form-control"
+        self.fields["name"].widget.attrs["placeholder"] = "Example: Arun"
+        self.fields["is_active"].widget.attrs["class"] = "form-check-input"
+
+    def clean_name(self):
+        name = str(self.cleaned_data.get("name") or "").strip()
+        if not name:
+            raise forms.ValidationError("Enter an expense person name.")
+        queryset = ExpensePerson.objects.filter(name__iexact=name)
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise forms.ValidationError("This expense person already exists.")
+        return name
 
 
 class SignUpForm(UserCreationForm):

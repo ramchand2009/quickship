@@ -95,6 +95,78 @@
 
     <div class="col-xl-6">
         <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Expense People</h5></div>
+            <div class="card-block">
+                <div class="small text-muted mb-3">
+                    Add the names that should appear in the expense tracker dropdown.
+                </div>
+                {% if can_edit_operations %}
+                <form method="post" class="ops-admin-action-group">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save_expense_person">
+                    {% if editing_expense_person %}
+                        <input type="hidden" name="expense_person_id" value="{{ editing_expense_person.pk }}">
+                    {% endif %}
+                    <div class="w-100">
+                        <label class="form-label" for="{{ expense_person_form.name.id_for_label }}">{{ expense_person_form.name.label }}</label>
+                        {{ expense_person_form.name }}
+                    </div>
+                    <div class="form-check mt-2">
+                        {{ expense_person_form.is_active }}
+                        <label class="form-check-label" for="{{ expense_person_form.is_active.id_for_label }}">{{ expense_person_form.is_active.label }}</label>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary">
+                        {% if editing_expense_person %}Update Expense Person{% else %}Add Expense Person{% endif %}
+                    </button>
+                    {% if editing_expense_person %}
+                        <a href="{% url 'admin_utilities' %}" class="btn btn-outline-secondary">Cancel</a>
+                    {% endif %}
+                </form>
+                {% endif %}
+                <div class="ops-admin-table-wrap mt-3">
+                    <table class="table table-sm ops-admin-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Updated</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for person in expense_people %}
+                                <tr>
+                                    <td>{{ person.name }}</td>
+                                    <td>
+                                        {% if person.is_active %}
+                                            <span class="badge bg-light-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-light-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ person.updated_at|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        {% if can_edit_operations %}
+                                            <a href="{% url 'admin_utilities' %}?expense_person_edit={{ person.pk }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                        {% else %}
+                                            <span class="text-muted">Read only</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-muted">No expense people added yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
             <div class="card-header"><h5 class="mb-0">Demo Data Cleanup</h5></div>
             <div class="card-block">
                 <div class="small text-muted mb-3">

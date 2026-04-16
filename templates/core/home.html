@@ -68,6 +68,81 @@
         background: #fff;
     }
 
+    .dashboard-stock-list-card {
+        height: 100%;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 1rem;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        padding: 1rem 1.1rem;
+    }
+
+    .dashboard-stock-list-card.is-danger {
+        border-top: 4px solid #dc3545;
+    }
+
+    .dashboard-stock-list-card.is-warning {
+        border-top: 4px solid #f0ad4e;
+    }
+
+    .dashboard-stock-list-head {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .dashboard-stock-list-metric {
+        min-width: 110px;
+    }
+
+    .dashboard-stock-list-metric .metric-value {
+        display: block;
+        margin-top: 0.3rem;
+    }
+
+    .dashboard-stock-list-items {
+        flex: 1 1 auto;
+        display: grid;
+        gap: 0.65rem;
+    }
+
+    .dashboard-stock-list-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+        padding-bottom: 0.5rem;
+    }
+
+    .dashboard-stock-list-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .dashboard-stock-list-name {
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .dashboard-stock-list-meta {
+        color: #64748b;
+        font-size: 0.82rem;
+    }
+
+    .dashboard-stock-list-qty {
+        min-width: 72px;
+        text-align: right;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .dashboard-stock-list-empty {
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
     @media (max-width: 991.98px) {
         .dashboard-card .card-body {
             padding: 1rem;
@@ -79,6 +154,14 @@
 
         .dashboard-insight-card {
             padding: 0.8rem 0.9rem;
+        }
+
+        .dashboard-stock-list-head {
+            flex-direction: column;
+        }
+
+        .dashboard-stock-list-metric {
+            min-width: 0;
         }
     }
 
@@ -167,6 +250,57 @@
             </div>
         </div>
         {% endfor %}
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col-xl-6">
+            <div class="dashboard-stock-list-card is-danger">
+                <div class="dashboard-stock-list-head">
+                    <div class="dashboard-stock-list-metric">
+                        <div class="small text-muted text-uppercase">Out Of Stock</div>
+                        <span class="metric-value">{{ no_stock_count }}</span>
+                    </div>
+                    <div class="dashboard-stock-list-items">
+                        {% for product in no_stock_products %}
+                            <div class="dashboard-stock-list-row">
+                                <div>
+                                    <div class="dashboard-stock-list-name">{{ product.name }}</div>
+                                    <div class="dashboard-stock-list-meta">SKU: {{ product.sku|default:"-" }}</div>
+                                </div>
+                                <div class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</div>
+                            </div>
+                        {% empty %}
+                            <div class="dashboard-stock-list-empty">No products are currently out of stock.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <a href="{% url 'stock_management' %}" class="btn btn-sm btn-outline-primary mt-3">Open Stock Management</a>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="dashboard-stock-list-card is-warning">
+                <div class="dashboard-stock-list-head">
+                    <div class="dashboard-stock-list-metric">
+                        <div class="small text-muted text-uppercase">Low Qty Stock</div>
+                        <span class="metric-value">{{ low_stock_count }}</span>
+                    </div>
+                    <div class="dashboard-stock-list-items">
+                        {% for product in low_stock_products %}
+                            <div class="dashboard-stock-list-row">
+                                <div>
+                                    <div class="dashboard-stock-list-name">{{ product.name }}</div>
+                                    <div class="dashboard-stock-list-meta">Threshold {{ product.reorder_level }}</div>
+                                </div>
+                                <div class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</div>
+                            </div>
+                        {% empty %}
+                            <div class="dashboard-stock-list-empty">No products are currently in the low quantity range.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <a href="{% url 'stock_management' %}" class="btn btn-sm btn-outline-primary mt-3">Open Stock Management</a>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
