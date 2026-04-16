@@ -88,54 +88,45 @@
     .dashboard-stock-list-head {
         display: flex;
         gap: 1rem;
-        align-items: flex-start;
+        align-items: stretch;
         justify-content: space-between;
     }
 
     .dashboard-stock-list-metric {
-        min-width: 110px;
+        min-width: 112px;
+        padding-right: 0.85rem;
+        border-right: 1px solid rgba(15, 23, 42, 0.08);
     }
 
     .dashboard-stock-list-metric .metric-value {
         display: block;
         margin-top: 0.3rem;
+        font-size: 2rem;
     }
 
     .dashboard-stock-list-items {
         flex: 1 1 auto;
         display: grid;
-        gap: 0.65rem;
+        gap: 0.4rem;
     }
 
     .dashboard-stock-list-row {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-        padding-bottom: 0.5rem;
-    }
-
-    .dashboard-stock-list-row:last-child {
-        border-bottom: 0;
-        padding-bottom: 0;
+        align-items: baseline;
+        gap: 0.45rem;
+        color: #334155;
+        font-size: 0.95rem;
+        line-height: 1.4;
     }
 
     .dashboard-stock-list-name {
-        font-weight: 700;
+        font-weight: 600;
         color: #0f172a;
-    }
-
-    .dashboard-stock-list-meta {
-        color: #64748b;
-        font-size: 0.82rem;
     }
 
     .dashboard-stock-list-qty {
-        min-width: 72px;
-        text-align: right;
-        font-weight: 800;
-        color: #0f172a;
+        font-weight: 600;
+        color: #64748b;
     }
 
     .dashboard-stock-list-empty {
@@ -162,6 +153,10 @@
 
         .dashboard-stock-list-metric {
             min-width: 0;
+            border-right: 0;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+            padding-right: 0;
+            padding-bottom: 0.8rem;
         }
     }
 
@@ -259,15 +254,13 @@
                     <div class="dashboard-stock-list-metric">
                         <div class="small text-muted text-uppercase">Out Of Stock</div>
                         <span class="metric-value">{{ no_stock_count }}</span>
+                        <div class="small text-muted mt-1">Items</div>
                     </div>
                     <div class="dashboard-stock-list-items">
                         {% for product in no_stock_products %}
                             <div class="dashboard-stock-list-row">
-                                <div>
-                                    <div class="dashboard-stock-list-name">{{ product.name }}</div>
-                                    <div class="dashboard-stock-list-meta">SKU: {{ product.sku|default:"-" }}</div>
-                                </div>
-                                <div class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</div>
+                                <span class="dashboard-stock-list-name">{{ product.name }}</span>
+                                <span class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</span>
                             </div>
                         {% empty %}
                             <div class="dashboard-stock-list-empty">No products are currently out of stock.</div>
@@ -283,15 +276,13 @@
                     <div class="dashboard-stock-list-metric">
                         <div class="small text-muted text-uppercase">Low Qty Stock</div>
                         <span class="metric-value">{{ low_stock_count }}</span>
+                        <div class="small text-muted mt-1">Items</div>
                     </div>
                     <div class="dashboard-stock-list-items">
                         {% for product in low_stock_products %}
                             <div class="dashboard-stock-list-row">
-                                <div>
-                                    <div class="dashboard-stock-list-name">{{ product.name }}</div>
-                                    <div class="dashboard-stock-list-meta">Threshold {{ product.reorder_level }}</div>
-                                </div>
-                                <div class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</div>
+                                <span class="dashboard-stock-list-name">{{ product.name }}</span>
+                                <span class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</span>
                             </div>
                         {% empty %}
                             <div class="dashboard-stock-list-empty">No products are currently in the low quantity range.</div>

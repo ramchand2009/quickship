@@ -126,36 +126,23 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-stock-items {
     display: grid;
-    gap: 0.55rem;
+    gap: 0.42rem;
 }
 
 .ops-home-stock-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    border-bottom: 1px solid rgba(15,23,42,.06);
-    padding-bottom: 0.45rem;
-}
-
-.ops-home-stock-row:last-child {
-    border-bottom: 0;
-    padding-bottom: 0;
+    align-items: baseline;
+    gap: 0.45rem;
 }
 
 .ops-home-stock-name {
-    font-weight: 700;
+    font-weight: 600;
     color: #0f172a;
-}
-
-.ops-home-stock-meta {
-    color: #64748b;
-    font-size: 0.8rem;
 }
 
 .ops-home-stock-qty {
-    font-weight: 800;
-    color: #0f172a;
+    font-weight: 600;
+    color: #64748b;
     white-space: nowrap;
 }
 
@@ -252,11 +239,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 <div class="ops-home-stock-items">
                     {% for product in no_stock_products %}
                         <div class="ops-home-stock-row">
-                            <div>
-                                <div class="ops-home-stock-name">{{ product.name }}</div>
-                                <div class="ops-home-stock-meta">SKU: {{ product.sku|default:"-" }}</div>
-                            </div>
-                            <div class="ops-home-stock-qty">Qty {{ product.stock_quantity }}</div>
+                            <span class="ops-home-stock-name">{{ product.name }}</span>
+                            <span class="ops-home-stock-qty">Qty {{ product.stock_quantity }}</span>
                         </div>
                     {% empty %}
                         <div class="ops-home-stock-empty">No products are currently out of stock.</div>
@@ -275,11 +259,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 <div class="ops-home-stock-items">
                     {% for product in low_stock_products %}
                         <div class="ops-home-stock-row">
-                            <div>
-                                <div class="ops-home-stock-name">{{ product.name }}</div>
-                                <div class="ops-home-stock-meta">Threshold {{ product.reorder_level }}</div>
-                            </div>
-                            <div class="ops-home-stock-qty">Qty {{ product.stock_quantity }}</div>
+                            <span class="ops-home-stock-name">{{ product.name }}</span>
+                            <span class="ops-home-stock-qty">Qty {{ product.stock_quantity }}</span>
                         </div>
                     {% empty %}
                         <div class="ops-home-stock-empty">No products are currently in the low quantity range.</div>

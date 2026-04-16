@@ -57,6 +57,9 @@
             <div class="card-block">
                 <h6 class="mb-2">Tracking Number</h6>
                 <h5 class="mb-0">{{ order.tracking_number|default:"-" }}</h5>
+                <div class="small text-muted mt-1">
+                    {{ order.current_status_date_label }}: {{ order.current_status_date|date:"Y-m-d H:i:s T"|default:"-" }}
+                </div>
             </div>
         </div>
     </div>
@@ -81,24 +84,6 @@
                     <h5 class="mb-0">-</h5>
                     <div class="small text-muted mt-1">No queue attempts yet.</div>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header"><h5 class="mb-0">Status Dates</h5></div>
-            <div class="card-block">
-                <div class="row">
-                    {% for status_row in order.status_date_rows %}
-                        <div class="col-md-6 col-xl-3 mb-3 mb-xl-0">
-                            <div class="small text-muted text-uppercase">{{ status_row.label }}</div>
-                            <div class="fw-semibold mt-1">{{ status_row.value|date:"Y-m-d H:i:s T"|default:"-" }}</div>
-                        </div>
-                    {% endfor %}
-                </div>
             </div>
         </div>
     </div>
@@ -196,7 +181,8 @@
         <div class="card">
             <div class="card-header"><h5 class="mb-0">Tracking Details</h5></div>
             <div class="card-block">
-                <p class="mb-2"><strong>Current Tracking Number:</strong> {{ order.tracking_number|default:"-" }}</p>
+                <p class="mb-1"><strong>Current Tracking Number:</strong> {{ order.tracking_number|default:"-" }}</p>
+                <p class="mb-2 text-muted"><strong>{{ order.current_status_date_label }}:</strong> {{ order.current_status_date|date:"Y-m-d H:i:s T"|default:"-" }}</p>
                 {% if can_edit_manual_order_details %}
                     {% if order.local_status == "order_cancelled" %}
                         <p class="mb-0 text-muted">Tracking number cannot be updated for cancelled orders.</p>

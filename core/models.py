@@ -311,6 +311,41 @@ class ShiprocketOrder(models.Model):
         populated = [value for value in candidates if value]
         return max(populated) if populated else None
 
+    @property
+    def current_status_date_label(self):
+        label_map = {
+            self.STATUS_NEW: "Order Date",
+            self.STATUS_ACCEPTED: "Order Date",
+            self.STATUS_PACKED: "Packed Date",
+            self.STATUS_SHIPPED: "Shipped Date",
+            self.STATUS_DELIVERY_ISSUE: "Delivery Issue Date",
+            self.STATUS_OUT_FOR_DELIVERY: "Out For Delivery Date",
+            self.STATUS_DELIVERED: "Delivered Date",
+            self.STATUS_COMPLETED: "Completed Date",
+            self.STATUS_CANCELLED: "Cancelled Date",
+        }
+        return label_map.get(self.local_status, "Status Date")
+
+    @property
+    def current_status_date(self):
+        if self.local_status in {self.STATUS_NEW, self.STATUS_ACCEPTED}:
+            return self.order_date or self.created_at
+        if self.local_status == self.STATUS_PACKED:
+            return self.packed_at or self.updated_at
+        if self.local_status == self.STATUS_SHIPPED:
+            return self.shipped_at or self.updated_at
+        if self.local_status == self.STATUS_DELIVERY_ISSUE:
+            return self.updated_at
+        if self.local_status == self.STATUS_OUT_FOR_DELIVERY:
+            return self.out_for_delivery_at or self.updated_at
+        if self.local_status == self.STATUS_DELIVERED:
+            return self.delivered_at or self.updated_at
+        if self.local_status == self.STATUS_COMPLETED:
+            return self.completed_at or self.updated_at
+        if self.local_status == self.STATUS_CANCELLED:
+            return self.updated_at
+        return self.last_status_changed_at or self.updated_at
+
 
 class ProductCategory(models.Model):
     name = models.CharField(max_length=120, unique=True)
