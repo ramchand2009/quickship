@@ -7,9 +7,61 @@
   const LAST_SEEN_KEY = "mathukai:lastWooOrderSeenAt";
   const PROMPT_DISMISSED_KEY = "mathukai:orderNotificationPromptDismissed";
   const POLL_INTERVAL_MS = 30000;
+  let notificationAudioContext = null;
 
   function canUseNotifications() {
     return "Notification" in window && "serviceWorker" in navigator;
+  }
+
+  function prepareNotificationSound() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+    if (!notificationAudioContext) {
+      notificationAudioContext = new AudioContextClass();
+    }
+    if (notificationAudioContext.state === "suspended") {
+      notificationAudioContext.resume().catch(function () {});
+    }
+  }
+
+  function playNotificationSound() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+    if (!notificationAudioContext) {
+      notificationAudioContext = new AudioContextClass();
+    }
+    if (notificationAudioContext.state === "suspended") {
+      notificationAudioContext.resume().catch(function () {});
+    }
+    try {
+      const now = notificationAudioContext.currentTime;
+      const gain = notificationAudioContext.createGain();
+      const firstTone = notificationAudioContext.createOscillator();
+      const secondTone = notificationAudioContext.createOscillator();
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      gain.connect(notificationAudioContext.destination);
+
+      firstTone.type = "sine";
+      firstTone.frequency.setValueAtTime(880, now);
+      firstTone.connect(gain);
+      firstTone.start(now);
+      firstTone.stop(now + 0.18);
+
+      secondTone.type = "sine";
+      secondTone.frequency.setValueAtTime(1175, now + 0.2);
+      secondTone.connect(gain);
+      secondTone.start(now + 0.2);
+      secondTone.stop(now + 0.5);
+    } catch (error) {
+      console.warn("Unable to play order notification sound.", error);
+    }
   }
 
   function createNotificationPrompt() {
@@ -63,6 +115,7 @@
     closeButton.style.cssText = "border:0;border-radius:6px;padding:7px 10px;background:rgba(255,255,255,.12);color:#fff;font-weight:700";
 
     enableButton.addEventListener("click", function () {
+      prepareNotificationSound();
       Notification.requestPermission().then(function () {
         prompt.remove();
         startOrderNotificationPolling();
@@ -87,12 +140,13 @@
     navigator.serviceWorker.ready.then(function (registration) {
       const orderId = order.order_id || "New order";
       const customer = order.customer_name || "WooCommerce customer";
+      playNotificationSound();
       registration.showNotification("New WooCommerce order", {
         body: orderId + " · " + customer + " · Rs " + (order.total || "0"),
         tag: "woocommerce-order-" + String(order.id || orderId),
         renotify: true,
-        icon: "/static/pwa/icon-192.png?v=20260512-1",
-        badge: "/static/pwa/icon-192.png?v=20260512-1",
+        icon: "/static/pwa/icon-192.png?v=20260512-2",
+        badge: "/static/pwa/icon-192.png?v=20260512-2",
         data: {
           url: order.url || "/orders/management/"
         }
