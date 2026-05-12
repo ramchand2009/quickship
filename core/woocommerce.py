@@ -8,7 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import ShiprocketOrder
+from .models import ShiprocketOrder, WooCommerceSettings
 
 
 class WooCommerceAPIError(Exception):
@@ -39,11 +39,34 @@ WOOCOMMERCE_TO_LOCAL_STATUS = {
 
 
 def is_configured():
+    config = _get_config()
     return bool(
-        str(getattr(settings, "WOOCOMMERCE_STORE_URL", "") or "").strip()
-        and str(getattr(settings, "WOOCOMMERCE_CONSUMER_KEY", "") or "").strip()
-        and str(getattr(settings, "WOOCOMMERCE_CONSUMER_SECRET", "") or "").strip()
+        config["store_url"]
+        and config["consumer_key"]
+        and config["consumer_secret"]
     )
+
+
+def _get_config():
+    row = WooCommerceSettings.objects.order_by("-updated_at", "-created_at").first()
+    store_url = str(getattr(row, "store_url", "") or getattr(settings, "WOOCOMMERCE_STORE_URL", "") or "").strip()
+    consumer_key = str(
+        getattr(row, "consumer_key", "") or getattr(settings, "WOOCOMMERCE_CONSUMER_KEY", "") or ""
+    ).strip()
+    consumer_secret = str(
+        getattr(row, "consumer_secret", "") or getattr(settings, "WOOCOMMERCE_CONSUMER_SECRET", "") or ""
+    ).strip()
+    import_statuses = str(
+        getattr(row, "import_statuses", "") or getattr(settings, "WOOCOMMERCE_IMPORT_STATUSES", "") or ""
+    ).strip()
+    status_map = str(getattr(row, "status_map", "") or getattr(settings, "WOOCOMMERCE_STATUS_MAP", "") or "").strip()
+    return {
+        "store_url": store_url.rstrip("/"),
+        "consumer_key": consumer_key,
+        "consumer_secret": consumer_secret,
+        "import_statuses": import_statuses,
+        "status_map": status_map,
+    }
 
 
 def _require_config():
@@ -55,7 +78,7 @@ def _require_config():
 
 
 def _api_url(path, params=None):
-    store_url = str(settings.WOOCOMMERCE_STORE_URL or "").strip().rstrip("/")
+    store_url = _get_config()["store_url"]
     path = str(path or "").strip().lstrip("/")
     query = parse.urlencode(params or {}, doseq=True)
     url = f"{store_url}/wp-json/wc/v3/{path}"
@@ -64,7 +87,8 @@ def _api_url(path, params=None):
 
 def _json_request(path, method="GET", payload=None, params=None):
     _require_config()
-    credentials = f"{settings.WOOCOMMERCE_CONSUMER_KEY}:{settings.WOOCOMMERCE_CONSUMER_SECRET}"
+    config = _get_config()
+    credentials = f"{config['consumer_key']}:{config['consumer_secret']}"
     auth_value = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
     headers = {
         "Accept": "application/json",
@@ -150,7 +174,7 @@ def _extract_items(order):
 
 
 def _import_statuses():
-    configured = str(getattr(settings, "WOOCOMMERCE_IMPORT_STATUSES", "") or "").strip()
+    configured = _get_config()["import_statuses"]
     statuses = [status.strip() for status in configured.split(",") if status.strip()]
     return statuses or ["pending", "processing", "on-hold"]
 
@@ -161,7 +185,7 @@ def _local_status_for_woocommerce(status):
 
 def _status_map():
     mapping = dict(DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS)
-    raw_mapping = str(getattr(settings, "WOOCOMMERCE_STATUS_MAP", "") or "").strip()
+    raw_mapping = _get_config()["status_map"]
     if raw_mapping:
         try:
             configured = json.loads(raw_mapping)
@@ -170,6 +194,13 @@ def _status_map():
         if isinstance(configured, dict):
             mapping.update({str(key): str(value) for key, value in configured.items() if value})
     return mapping
+
+
+def check_connection():
+    response = _json_request("orders", params={"per_page": 1, "page": 1, "orderby": "date", "order": "desc"})
+    if not isinstance(response, list):
+        raise WooCommerceAPIError("WooCommerce connection succeeded but orders response was not a list.")
+    return {"ok": True, "sample_count": len(response)}
 
 
 def woocommerce_status_for_local_status(local_status):

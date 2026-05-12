@@ -64,6 +64,7 @@ from .forms import (
     WhatsAppApiSettingsForm,
     WhatsAppMessageTestForm,
     WhatsAppStatusTemplateConfigForm,
+    WooCommerceSettingsForm,
 )
 from .activity import log_order_activity
 from .monitoring import build_health_payload, get_operational_counters
@@ -83,6 +84,7 @@ from .models import (
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
+    WooCommerceSettings,
 )
 from .stock import (
     apply_manual_stock_movement,
@@ -101,6 +103,7 @@ from .system_status import get_dashboard_system_status, write_system_heartbeat
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .woocommerce import (
     WooCommerceAPIError,
+    check_connection as check_woocommerce_connection,
     is_configured as is_woocommerce_configured,
     sync_orders as sync_woocommerce_orders,
     update_order_status as update_woocommerce_order_status,
@@ -3734,6 +3737,7 @@ def whatsapp_settings(request):
     can_edit_operations = _can_edit_operations(request.user)
     webhook_token_configured = bool(str(getattr(settings, "WHATOMATE_WEBHOOK_TOKEN", "") or "").strip())
     settings_row = WhatsAppSettings.get_default()
+    woocommerce_settings_row = WooCommerceSettings.get_default()
     templates = WhatsAppTemplate.objects.all()[:100]
     template_placeholder_map = {}
     for item in templates:
@@ -3766,6 +3770,7 @@ def whatsapp_settings(request):
         }
 
     settings_form = WhatsAppApiSettingsForm(instance=settings_row, prefix="settings")
+    woocommerce_form = WooCommerceSettingsForm(instance=woocommerce_settings_row, prefix="woocommerce")
     message_form = WhatsAppMessageTestForm(
         instance=settings_row,
         prefix="message",
@@ -3899,6 +3904,29 @@ def whatsapp_settings(request):
 
             messages.error(request, "Unable to save WhatsApp settings. Check the settings form fields.")
 
+        elif action in {"save_woocommerce_settings", "check_woocommerce_connection"}:
+            woocommerce_form = WooCommerceSettingsForm(
+                request.POST,
+                instance=woocommerce_settings_row,
+                prefix="woocommerce",
+            )
+            if woocommerce_form.is_valid():
+                woocommerce_form.save()
+                if action == "save_woocommerce_settings":
+                    messages.success(request, "WooCommerce settings saved.")
+                    return redirect("whatsapp_settings")
+                try:
+                    result = check_woocommerce_connection()
+                except WooCommerceAPIError as exc:
+                    messages.error(request, f"WooCommerce connection failed: {exc}")
+                else:
+                    messages.success(
+                        request,
+                        f"WooCommerce connection successful. Sample orders returned: {result.get('sample_count', 0)}.",
+                    )
+                return redirect("whatsapp_settings")
+            messages.error(request, "Unable to save WooCommerce settings. Check the WooCommerce form fields.")
+
         elif action in {"send_test_message", "send_test_template"}:
             settings_form = WhatsAppApiSettingsForm(instance=settings_row, prefix="settings")
             message_form = WhatsAppMessageTestForm(
@@ -3993,6 +4021,7 @@ def whatsapp_settings(request):
         "core/whatsapp_settings.html",
         {
             "settings_form": settings_form,
+            "woocommerce_form": woocommerce_form,
             "message_form": message_form,
             "templates": templates,
             "template_placeholder_map": template_placeholder_map,

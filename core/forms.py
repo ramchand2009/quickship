@@ -18,6 +18,7 @@ from .models import (
     StockMovement,
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
+    WooCommerceSettings,
 )
 from .whatomate import ORDER_TEMPLATE_FIELD_CHOICES
 
@@ -565,6 +566,67 @@ class WhatsAppMessageTestForm(forms.ModelForm):
                 "placeholder": '{"name":"Mathukai","order_id":"SR123"}',
             }
         )
+
+
+class WooCommerceSettingsForm(forms.ModelForm):
+    class Meta:
+        model = WooCommerceSettings
+        fields = ["store_url", "consumer_key", "consumer_secret", "import_statuses", "status_map"]
+        labels = {
+            "store_url": "Store URL",
+            "consumer_key": "Consumer Key",
+            "consumer_secret": "Consumer Secret",
+            "import_statuses": "Import Statuses",
+            "status_map": "Status Map JSON",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["store_url"].widget.attrs.update(
+            {"class": "form-control", "placeholder": "https://your-store.com"}
+        )
+        self.fields["consumer_key"].widget.attrs.update(
+            {"class": "form-control", "placeholder": "ck_xxxxxxxxxxxxxxxxx"}
+        )
+        self.fields["consumer_secret"].widget = forms.PasswordInput(
+            render_value=True,
+            attrs={"class": "form-control", "placeholder": "cs_xxxxxxxxxxxxxxxxx"},
+        )
+        self.fields["import_statuses"].widget.attrs.update(
+            {"class": "form-control", "placeholder": "pending,processing,on-hold"}
+        )
+        self.fields["status_map"].widget = forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 4,
+                "placeholder": '{"order_accepted":"processing","shipped":"completed"}',
+            }
+        )
+
+    def clean_store_url(self):
+        value = str(self.cleaned_data.get("store_url") or "").strip().rstrip("/")
+        if value and not value.startswith(("http://", "https://")):
+            raise forms.ValidationError("Enter a full URL starting with https:// or http://.")
+        return value
+
+    def clean_import_statuses(self):
+        value = str(self.cleaned_data.get("import_statuses") or "").strip()
+        statuses = [item.strip() for item in value.split(",") if item.strip()]
+        if not statuses:
+            raise forms.ValidationError("Enter at least one WooCommerce status to import.")
+        return ",".join(statuses)
+
+    def clean_status_map(self):
+        value = str(self.cleaned_data.get("status_map") or "").strip()
+        if not value:
+            return ""
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise forms.ValidationError(f"Enter valid JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise forms.ValidationError("Status map must be a JSON object.")
+        return json.dumps(parsed, separators=(",", ":"))
 
 
 class WhatsAppStatusTemplateConfigForm(forms.ModelForm):

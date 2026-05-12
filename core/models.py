@@ -102,6 +102,31 @@ class WhatsAppSettings(models.Model):
         return cls.objects.create(test_message_text="Hi from Mathukai test message.")
 
 
+class WooCommerceSettings(models.Model):
+    store_url = models.CharField(max_length=255, blank=True)
+    consumer_key = models.CharField(max_length=255, blank=True)
+    consumer_secret = models.CharField(max_length=255, blank=True)
+    import_statuses = models.CharField(max_length=255, default="pending,processing,on-hold", blank=True)
+    status_map = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "WooCommerce Settings"
+        verbose_name_plural = "WooCommerce Settings"
+        ordering = ["-updated_at", "-created_at"]
+
+    def __str__(self):
+        return "WooCommerce Settings"
+
+    @classmethod
+    def get_default(cls):
+        settings_row = cls.objects.order_by("-updated_at", "-created_at").first()
+        if settings_row:
+            return settings_row
+        return cls.objects.create()
+
+
 class WhatsAppTemplate(models.Model):
     template_id = models.CharField(max_length=128, blank=True)
     name = models.CharField(max_length=160)

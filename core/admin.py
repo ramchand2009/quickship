@@ -16,6 +16,7 @@ from .models import (
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
+    WooCommerceSettings,
 )
 
 
@@ -75,6 +76,12 @@ class ShiprocketOrderAdmin(admin.ModelAdmin):
     )
     list_filter = ("source", "local_status", "status", "woocommerce_status", "payment_method")
     readonly_fields = ("raw_payload", "created_at", "updated_at")
+
+
+@admin.register(WooCommerceSettings)
+class WooCommerceSettingsAdmin(admin.ModelAdmin):
+    list_display = ("store_url", "import_statuses", "updated_at")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(SenderAddress)
