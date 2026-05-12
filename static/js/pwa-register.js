@@ -8,6 +8,7 @@
   const PROMPT_DISMISSED_KEY = "mathukai:orderNotificationPromptDismissed";
   const POLL_INTERVAL_MS = 30000;
   let notificationAudioContext = null;
+  let preferredSpeechVoice = null;
 
   function canUseNotifications() {
     return "Notification" in window && "serviceWorker" in navigator;
@@ -64,6 +65,37 @@
     }
   }
 
+  function loadPreferredSpeechVoice() {
+    if (!("speechSynthesis" in window)) {
+      return null;
+    }
+    const voices = window.speechSynthesis.getVoices();
+    preferredSpeechVoice = voices.find(function (voice) {
+      return voice.lang && voice.lang.toLowerCase().indexOf("en") === 0 && /female|samantha|zira|susan|karen|moira|tessa/i.test(voice.name);
+    }) || voices.find(function (voice) {
+      return voice.lang && voice.lang.toLowerCase().indexOf("en") === 0;
+    }) || voices[0] || null;
+    return preferredSpeechVoice;
+  }
+
+  function speakOrderNotification() {
+    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+      return;
+    }
+    try {
+      const utterance = new SpeechSynthesisUtterance("You have received a new order");
+      utterance.voice = preferredSpeechVoice || loadPreferredSpeechVoice();
+      utterance.lang = utterance.voice && utterance.voice.lang ? utterance.voice.lang : "en-IN";
+      utterance.rate = 0.95;
+      utterance.pitch = 1.1;
+      utterance.volume = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.warn("Unable to speak order notification.", error);
+    }
+  }
+
   function createNotificationPrompt() {
     if (!canUseNotifications() || Notification.permission !== "default") {
       return;
@@ -116,6 +148,7 @@
 
     enableButton.addEventListener("click", function () {
       prepareNotificationSound();
+      loadPreferredSpeechVoice();
       Notification.requestPermission().then(function () {
         prompt.remove();
         startOrderNotificationPolling();
@@ -141,12 +174,13 @@
       const orderId = order.order_id || "New order";
       const customer = order.customer_name || "WooCommerce customer";
       playNotificationSound();
+      speakOrderNotification();
       registration.showNotification("New WooCommerce order", {
         body: orderId + " · " + customer + " · Rs " + (order.total || "0"),
         tag: "woocommerce-order-" + String(order.id || orderId),
         renotify: true,
-        icon: "/static/pwa/icon-192.png?v=20260512-2",
-        badge: "/static/pwa/icon-192.png?v=20260512-2",
+        icon: "/static/pwa/icon-192.png?v=20260512-3",
+        badge: "/static/pwa/icon-192.png?v=20260512-3",
         data: {
           url: order.url || "/orders/management/"
         }
@@ -193,6 +227,10 @@
   }
 
   window.addEventListener("load", function () {
+    if ("speechSynthesis" in window) {
+      loadPreferredSpeechVoice();
+      window.speechSynthesis.onvoiceschanged = loadPreferredSpeechVoice;
+    }
     navigator.serviceWorker.register("/service-worker.js").then(function () {
       createNotificationPrompt();
       startOrderNotificationPolling();
