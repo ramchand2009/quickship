@@ -56,6 +56,9 @@ def _get_config():
     consumer_secret = str(
         getattr(row, "consumer_secret", "") or getattr(settings, "WOOCOMMERCE_CONSUMER_SECRET", "") or ""
     ).strip()
+    webhook_secret = str(
+        getattr(row, "webhook_secret", "") or getattr(settings, "WOOCOMMERCE_WEBHOOK_SECRET", "") or ""
+    ).strip()
     import_statuses = str(
         getattr(row, "import_statuses", "") or getattr(settings, "WOOCOMMERCE_IMPORT_STATUSES", "") or ""
     ).strip()
@@ -64,9 +67,14 @@ def _get_config():
         "store_url": store_url.rstrip("/"),
         "consumer_key": consumer_key,
         "consumer_secret": consumer_secret,
+        "webhook_secret": webhook_secret,
         "import_statuses": import_statuses,
         "status_map": status_map,
     }
+
+
+def get_webhook_secret():
+    return _get_config()["webhook_secret"]
 
 
 def _require_config():
@@ -224,50 +232,57 @@ def sync_orders():
 
     synced = 0
     for item in response:
-        order_id = item.get("id")
-        if not order_id:
-            continue
-
-        wc_status = str(item.get("status") or "").strip()
-        billing = _compact_address(item.get("billing") or {})
-        shipping = _compact_address(item.get("shipping") or {})
-        if not shipping.get("name"):
-            shipping["name"] = billing.get("name", "")
-        if not shipping.get("phone"):
-            shipping["phone"] = billing.get("phone", "")
-        if not shipping.get("email"):
-            shipping["email"] = billing.get("email", "")
-
-        order_number = str(item.get("number") or order_id)
-        source_order_id = f"WC-{order_id}"
-        defaults = {
-            "source": ShiprocketOrder.SOURCE_WOOCOMMERCE,
-            "woocommerce_order_id": str(order_id),
-            "woocommerce_order_key": str(item.get("order_key") or ""),
-            "woocommerce_status": wc_status,
-            "woocommerce_synced_at": timezone.now(),
-            "channel_order_id": order_number,
-            "customer_name": billing.get("name") or shipping.get("name") or "",
-            "customer_email": billing.get("email") or shipping.get("email") or "",
-            "customer_phone": billing.get("phone") or shipping.get("phone") or "",
-            "status": wc_status,
-            "payment_method": item.get("payment_method_title") or item.get("payment_method") or "",
-            "total": _to_decimal(item.get("total")),
-            "order_date": _parse_datetime(item.get("date_created_gmt") or item.get("date_created")),
-            "shipping_address": shipping,
-            "billing_address": billing,
-            "order_items": _extract_items(item),
-            "raw_payload": item,
-        }
-        existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
-        if not existing:
-            defaults["local_status"] = _local_status_for_woocommerce(wc_status)
-        ShiprocketOrder.objects.update_or_create(
-            shiprocket_order_id=source_order_id,
-            defaults=defaults,
-        )
-        synced += 1
+        order, created = import_order_payload(item)
+        if order:
+            synced += 1
     return synced
+
+
+def import_order_payload(item):
+    if not isinstance(item, dict):
+        return None, False
+    order_id = item.get("id")
+    if not order_id:
+        return None, False
+
+    wc_status = str(item.get("status") or "").strip()
+    billing = _compact_address(item.get("billing") or {})
+    shipping = _compact_address(item.get("shipping") or {})
+    if not shipping.get("name"):
+        shipping["name"] = billing.get("name", "")
+    if not shipping.get("phone"):
+        shipping["phone"] = billing.get("phone", "")
+    if not shipping.get("email"):
+        shipping["email"] = billing.get("email", "")
+
+    order_number = str(item.get("number") or order_id)
+    source_order_id = f"WC-{order_id}"
+    defaults = {
+        "source": ShiprocketOrder.SOURCE_WOOCOMMERCE,
+        "woocommerce_order_id": str(order_id),
+        "woocommerce_order_key": str(item.get("order_key") or ""),
+        "woocommerce_status": wc_status,
+        "woocommerce_synced_at": timezone.now(),
+        "channel_order_id": order_number,
+        "customer_name": billing.get("name") or shipping.get("name") or "",
+        "customer_email": billing.get("email") or shipping.get("email") or "",
+        "customer_phone": billing.get("phone") or shipping.get("phone") or "",
+        "status": wc_status,
+        "payment_method": item.get("payment_method_title") or item.get("payment_method") or "",
+        "total": _to_decimal(item.get("total")),
+        "order_date": _parse_datetime(item.get("date_created_gmt") or item.get("date_created")),
+        "shipping_address": shipping,
+        "billing_address": billing,
+        "order_items": _extract_items(item),
+        "raw_payload": item,
+    }
+    existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
+    if not existing:
+        defaults["local_status"] = _local_status_for_woocommerce(wc_status)
+    return ShiprocketOrder.objects.update_or_create(
+        shiprocket_order_id=source_order_id,
+        defaults=defaults,
+    )
 
 
 def update_order_status(order):

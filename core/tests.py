@@ -30,6 +30,7 @@ from .models import (
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
+    WooCommerceSettings,
 )
 from .system_status import write_system_heartbeat
 from .whatomate import (
@@ -39,7 +40,7 @@ from .whatomate import (
     send_order_enquiry_reply,
     send_test_whatsapp_message,
 )
-from .views import _build_webhook_test_payload, _send_internal_webhook_test
+from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signature, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .shiprocket import sync_orders
 from .woocommerce import sync_orders as sync_woocommerce_orders
@@ -137,6 +138,71 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.channel_order_id, "1001")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(order.order_items[0]["sku"], "TEA-1")
+
+    def test_woocommerce_webhook_imports_order_with_valid_signature(self):
+        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        payload = {
+            "id": 777,
+            "number": "1777",
+            "order_key": "wc_order_webhook",
+            "status": "processing",
+            "payment_method_title": "COD",
+            "total": "399.00",
+            "date_created": "2026-04-02T10:30:00",
+            "billing": {
+                "first_name": "Webhook",
+                "last_name": "Buyer",
+                "email": "webhook@example.com",
+                "phone": "9876543210",
+                "address_1": "Billing road",
+                "postcode": "600001",
+            },
+            "shipping": {
+                "first_name": "Webhook",
+                "last_name": "Buyer",
+                "address_1": "Delivery road",
+                "city": "Chennai",
+                "state": "TN",
+                "postcode": "600001",
+                "country": "IN",
+            },
+            "line_items": [
+                {"name": "Webhook Product", "sku": "WEBHOOK-SKU-1", "product_id": 71, "quantity": 1, "price": "399.00"}
+            ],
+        }
+        raw_body = json.dumps(payload).encode("utf-8")
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="order.created",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-777")
+        self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
+        self.assertEqual(order.channel_order_id, "1777")
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
+        self.assertTrue(
+            OrderActivityLog.objects.filter(
+                order=order,
+                title="WooCommerce webhook order imported",
+                is_success=True,
+            ).exists()
+        )
+
+    def test_woocommerce_webhook_rejects_invalid_signature(self):
+        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=json.dumps({"id": 778}).encode("utf-8"),
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE="wrong",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="WC-778").exists())
 
 
 class ShiprocketOrderStatusFormTests(TestCase):

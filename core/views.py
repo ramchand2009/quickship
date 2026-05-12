@@ -1,4 +1,5 @@
 import json
+import base64
 from collections import Counter
 import hashlib
 import hmac
@@ -104,8 +105,8 @@ from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_noti
 from .woocommerce import (
     WooCommerceAPIError,
     check_connection as check_woocommerce_connection,
-    is_configured as is_woocommerce_configured,
-    sync_orders as sync_woocommerce_orders,
+    get_webhook_secret as get_woocommerce_webhook_secret,
+    import_order_payload as import_woocommerce_order_payload,
     update_order_status as update_woocommerce_order_status,
 )
 from .whatomate import (
@@ -922,6 +923,17 @@ def _build_webhook_signature(payload_bytes, secret):
         payload_bytes,
         hashlib.sha256,
     ).hexdigest()
+
+
+def _build_woocommerce_webhook_signature(payload_bytes, secret):
+    if not payload_bytes or not secret:
+        return ""
+    digest = hmac.new(
+        str(secret).encode("utf-8"),
+        payload_bytes,
+        hashlib.sha256,
+    ).digest()
+    return base64.b64encode(digest).decode("ascii")
 
 
 def _build_webhook_test_payload():
@@ -3738,6 +3750,7 @@ def whatsapp_settings(request):
     webhook_token_configured = bool(str(getattr(settings, "WHATOMATE_WEBHOOK_TOKEN", "") or "").strip())
     settings_row = WhatsAppSettings.get_default()
     woocommerce_settings_row = WooCommerceSettings.get_default()
+    woocommerce_webhook_url = request.build_absolute_uri(reverse("woocommerce_webhook"))
     templates = WhatsAppTemplate.objects.all()[:100]
     template_placeholder_map = {}
     for item in templates:
@@ -4022,6 +4035,7 @@ def whatsapp_settings(request):
         {
             "settings_form": settings_form,
             "woocommerce_form": woocommerce_form,
+            "woocommerce_webhook_url": woocommerce_webhook_url,
             "message_form": message_form,
             "templates": templates,
             "template_placeholder_map": template_placeholder_map,
@@ -4781,6 +4795,63 @@ def whatomate_webhook(request):
     )
 
 
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def woocommerce_webhook(request):
+    if request.method == "GET":
+        return JsonResponse({"ok": True, "detail": "WooCommerce webhook endpoint"})
+
+    raw_body = request.body or b""
+    secret = get_woocommerce_webhook_secret()
+    if not secret:
+        return JsonResponse({"ok": False, "error": "WooCommerce webhook secret is not configured."}, status=401)
+
+    received_signature = str(request.headers.get("X-WC-Webhook-Signature") or "").strip()
+    expected_signature = _build_woocommerce_webhook_signature(raw_body, secret)
+    if not received_signature or not hmac.compare_digest(received_signature, expected_signature):
+        return JsonResponse({"ok": False, "error": "Invalid WooCommerce webhook signature."}, status=401)
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid JSON payload."}, status=400)
+
+    order, created = import_woocommerce_order_payload(payload)
+    if not order:
+        return JsonResponse({"ok": False, "error": "WooCommerce order payload did not include an order id."}, status=400)
+
+    log_order_activity(
+        order=order,
+        event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
+        title="WooCommerce webhook order imported" if created else "WooCommerce webhook order refreshed",
+        description="Order data was received automatically from WooCommerce.",
+        previous_status=order.local_status,
+        current_status=order.local_status,
+        metadata={
+            "source": "woocommerce_webhook",
+            "created": bool(created),
+            "webhook_topic": str(request.headers.get("X-WC-Webhook-Topic") or ""),
+            "webhook_resource": str(request.headers.get("X-WC-Webhook-Resource") or ""),
+            "webhook_event": str(request.headers.get("X-WC-Webhook-Event") or ""),
+            "woocommerce_order_id": order.woocommerce_order_id,
+            "woocommerce_status": order.woocommerce_status,
+        },
+        is_success=True,
+        triggered_by="woocommerce_webhook",
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "created": bool(created),
+            "order_pk": order.pk,
+            "order_id": order.shiprocket_order_id,
+            "channel_order_id": order.channel_order_id,
+            "local_status": order.local_status,
+            "woocommerce_status": order.woocommerce_status,
+        }
+    )
+
+
 @login_required
 def order_notification_config(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
@@ -4931,14 +5002,6 @@ def sync_shiprocket_orders(request):
         messages.error(request, str(exc))
     else:
         sync_messages.append(f"Shiprocket: {synced} orders refreshed")
-
-    if is_woocommerce_configured():
-        try:
-            woo_synced = sync_woocommerce_orders()
-        except WooCommerceAPIError as exc:
-            messages.error(request, f"WooCommerce sync failed: {exc}")
-        else:
-            sync_messages.append(f"WooCommerce: {woo_synced} orders refreshed")
 
     if sync_messages:
         messages.success(request, "Order sync completed. " + "; ".join(sync_messages) + ".")

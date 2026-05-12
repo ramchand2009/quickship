@@ -106,6 +106,7 @@ class WooCommerceSettings(models.Model):
     store_url = models.CharField(max_length=255, blank=True)
     consumer_key = models.CharField(max_length=255, blank=True)
     consumer_secret = models.CharField(max_length=255, blank=True)
+    webhook_secret = models.CharField(max_length=255, blank=True)
     import_statuses = models.CharField(max_length=255, default="pending,processing,on-hold", blank=True)
     status_map = models.TextField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)

@@ -571,11 +571,12 @@ class WhatsAppMessageTestForm(forms.ModelForm):
 class WooCommerceSettingsForm(forms.ModelForm):
     class Meta:
         model = WooCommerceSettings
-        fields = ["store_url", "consumer_key", "consumer_secret", "import_statuses", "status_map"]
+        fields = ["store_url", "consumer_key", "consumer_secret", "webhook_secret", "import_statuses", "status_map"]
         labels = {
             "store_url": "Store URL",
             "consumer_key": "Consumer Key",
             "consumer_secret": "Consumer Secret",
+            "webhook_secret": "Webhook Secret",
             "import_statuses": "Import Statuses",
             "status_map": "Status Map JSON",
         }
@@ -591,6 +592,10 @@ class WooCommerceSettingsForm(forms.ModelForm):
         self.fields["consumer_secret"].widget = forms.PasswordInput(
             render_value=True,
             attrs={"class": "form-control", "placeholder": "cs_xxxxxxxxxxxxxxxxx"},
+        )
+        self.fields["webhook_secret"].widget = forms.PasswordInput(
+            render_value=True,
+            attrs={"class": "form-control", "placeholder": "Use the same secret in WooCommerce webhook settings"},
         )
         self.fields["import_statuses"].widget.attrs.update(
             {"class": "form-control", "placeholder": "pending,processing,on-hold"}

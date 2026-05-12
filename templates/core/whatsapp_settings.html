@@ -103,6 +103,19 @@
                         {% endif %}
                     </div>
                     <div class="mb-3">
+                        <label class="form-label" for="{{ woocommerce_form.webhook_secret.id_for_label }}">{{ woocommerce_form.webhook_secret.label }}</label>
+                        {{ woocommerce_form.webhook_secret }}
+                        <div class="text-muted small mt-1">Use this same value in WooCommerce webhook settings.</div>
+                        {% if woocommerce_form.webhook_secret.errors %}
+                            <div class="text-danger small mt-1">{{ woocommerce_form.webhook_secret.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Webhook Delivery URL</label>
+                        <input type="text" class="form-control" value="{{ woocommerce_webhook_url }}" readonly>
+                        <div class="text-muted small mt-1">Create WooCommerce webhooks for order created and order updated using this URL.</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label" for="{{ woocommerce_form.import_statuses.id_for_label }}">{{ woocommerce_form.import_statuses.label }}</label>
                         {{ woocommerce_form.import_statuses }}
                         <div class="text-muted small mt-1">Comma-separated WooCommerce statuses to import, for example <code>pending,processing,on-hold</code>.</div>
