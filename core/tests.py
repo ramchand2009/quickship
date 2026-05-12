@@ -204,6 +204,26 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="WC-778").exists())
 
+    def test_woocommerce_webhook_accepts_query_secret_fallback(self):
+        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        payload = {
+            "id": 779,
+            "number": "1779",
+            "status": "processing",
+            "billing": {"first_name": "Query", "last_name": "Secret", "phone": "9876543210"},
+            "shipping": {"address_1": "Delivery road", "postcode": "600001"},
+            "line_items": [],
+        }
+        response = self.client.post(
+            f"{reverse('woocommerce_webhook')}?secret=woo-secret",
+            data=json.dumps(payload).encode("utf-8"),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-779")
+        self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
+
 
 class ShiprocketOrderStatusFormTests(TestCase):
     def test_status_form_excludes_current_and_previous_statuses(self):

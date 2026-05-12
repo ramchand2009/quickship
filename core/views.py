@@ -4806,10 +4806,21 @@ def woocommerce_webhook(request):
     if not secret:
         return JsonResponse({"ok": False, "error": "WooCommerce webhook secret is not configured."}, status=401)
 
+    query_secret = str(request.GET.get("secret") or "").strip()
     received_signature = str(request.headers.get("X-WC-Webhook-Signature") or "").strip()
     expected_signature = _build_woocommerce_webhook_signature(raw_body, secret)
-    if not received_signature or not hmac.compare_digest(received_signature, expected_signature):
-        return JsonResponse({"ok": False, "error": "Invalid WooCommerce webhook signature."}, status=401)
+    signature_ok = bool(received_signature and hmac.compare_digest(received_signature, expected_signature))
+    query_secret_ok = bool(query_secret and hmac.compare_digest(query_secret, secret))
+    if not signature_ok and not query_secret_ok:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Invalid WooCommerce webhook authentication.",
+                "signature_received": bool(received_signature),
+                "query_secret_received": bool(query_secret),
+            },
+            status=401,
+        )
 
     try:
         payload = json.loads(raw_body.decode("utf-8") or "{}")
@@ -4833,6 +4844,7 @@ def woocommerce_webhook(request):
             "webhook_topic": str(request.headers.get("X-WC-Webhook-Topic") or ""),
             "webhook_resource": str(request.headers.get("X-WC-Webhook-Resource") or ""),
             "webhook_event": str(request.headers.get("X-WC-Webhook-Event") or ""),
+            "auth_mode": "signature" if signature_ok else "query_secret",
             "woocommerce_order_id": order.woocommerce_order_id,
             "woocommerce_status": order.woocommerce_status,
         },

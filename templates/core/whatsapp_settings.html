@@ -114,6 +114,7 @@
                         <label class="form-label">Webhook Delivery URL</label>
                         <input type="text" class="form-control" value="{{ woocommerce_webhook_url }}" readonly>
                         <div class="text-muted small mt-1">Create WooCommerce webhooks for order created and order updated using this URL.</div>
+                        <div class="text-muted small mt-1">If WooCommerce keeps returning 401, use <code>{{ woocommerce_webhook_url }}?secret=YOUR_WEBHOOK_SECRET</code> as the Delivery URL.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="{{ woocommerce_form.import_statuses.id_for_label }}">{{ woocommerce_form.import_statuses.label }}</label>
