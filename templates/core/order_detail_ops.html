@@ -582,7 +582,8 @@
                 <span>{{ order.channel_order_id|default:"" }}</span>
             </div>
             <div class="ops-detail-order-row">
-                <h2>Order Id: {{ order.shiprocket_order_id }}</h2>
+                <h2>Order Id: {{ order.channel_order_id|default:order.shiprocket_order_id }}</h2>
+                <div class="small text-muted">{{ order.source_label }}</div>
                 <div class="ops-detail-status-badge">{{ order.get_local_status_display }}</div>
             </div>
 

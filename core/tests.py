@@ -42,6 +42,7 @@ from .whatomate import (
 from .views import _build_webhook_test_payload, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .shiprocket import sync_orders
+from .woocommerce import sync_orders as sync_woocommerce_orders
 
 
 class ShiprocketSyncTests(TestCase):
@@ -79,6 +80,63 @@ class ShiprocketSyncTests(TestCase):
         self.assertTrue(ShiprocketOrder.objects.filter(shiprocket_order_id="101").exists())
         self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="202").exists())
         self.assertEqual(ShiprocketOrder.objects.get(shiprocket_order_id="101").status, "NEW")
+
+
+class WooCommerceSyncTests(TestCase):
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_imports_woocommerce_orders(self, mock_json_request):
+        mock_json_request.return_value = [
+            {
+                "id": 501,
+                "number": "1001",
+                "order_key": "wc_order_abc",
+                "status": "processing",
+                "payment_method_title": "Razorpay",
+                "total": "499.00",
+                "date_created": "2026-04-01T10:30:00",
+                "billing": {
+                    "first_name": "Woo",
+                    "last_name": "Customer",
+                    "email": "woo@example.com",
+                    "phone": "9876543210",
+                    "address_1": "Billing street",
+                    "postcode": "600001",
+                },
+                "shipping": {
+                    "first_name": "Woo",
+                    "last_name": "Customer",
+                    "address_1": "Shipping street",
+                    "city": "Chennai",
+                    "state": "TN",
+                    "postcode": "600001",
+                    "country": "IN",
+                },
+                "line_items": [
+                    {
+                        "name": "Herbal Tea",
+                        "sku": "TEA-1",
+                        "product_id": 11,
+                        "quantity": 2,
+                        "price": "249.50",
+                    }
+                ],
+            }
+        ]
+
+        synced = sync_woocommerce_orders()
+
+        self.assertEqual(synced, 1)
+        order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-501")
+        self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
+        self.assertEqual(order.woocommerce_order_id, "501")
+        self.assertEqual(order.channel_order_id, "1001")
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
+        self.assertEqual(order.order_items[0]["sku"], "TEA-1")
 
 
 class ShiprocketOrderStatusFormTests(TestCase):
@@ -201,6 +259,41 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
                 event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
                 previous_status=ShiprocketOrder.STATUS_NEW,
                 current_status=ShiprocketOrder.STATUS_ACCEPTED,
+                is_success=True,
+            ).exists()
+        )
+
+    @patch("core.views.update_woocommerce_order_status")
+    def test_woocommerce_order_status_syncs_after_local_status_change(self, mock_update_woocommerce_order_status):
+        mock_update_woocommerce_order_status.return_value = {
+            "skipped": False,
+            "status": "processing",
+        }
+        order = ShiprocketOrder.objects.create(
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-9001",
+            woocommerce_order_id="9001",
+            woocommerce_status="pending",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        mock_update_woocommerce_order_status.assert_called_once()
+        self.assertTrue(
+            OrderActivityLog.objects.filter(
+                order=order,
+                title="WooCommerce status synced",
                 is_success=True,
             ).exists()
         )
@@ -4345,7 +4438,7 @@ class RoleAccessTests(TestCase):
 
         mock_sync_orders.assert_called_once()
         self.assertRedirects(response, f"{reverse('order_management')}?tab=new_order#order-management-section")
-        self.assertContains(response, "Shiprocket sync completed. 3 orders refreshed.")
+        self.assertContains(response, "Order sync completed. Shiprocket: 3 orders refreshed.")
 
     def test_ops_viewer_sees_sync_button_on_order_management(self):
         self.client.force_login(self.viewer)

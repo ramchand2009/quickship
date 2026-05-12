@@ -50,11 +50,13 @@ class ContactMessageAdmin(admin.ModelAdmin):
 @admin.register(ShiprocketOrder)
 class ShiprocketOrderAdmin(admin.ModelAdmin):
     list_display = (
+        "source",
         "shiprocket_order_id",
         "channel_order_id",
         "customer_name",
         "local_status",
         "status",
+        "woocommerce_status",
         "total",
         "order_date",
         "cancellation_reason",
@@ -65,12 +67,13 @@ class ShiprocketOrderAdmin(admin.ModelAdmin):
     )
     search_fields = (
         "shiprocket_order_id",
+        "woocommerce_order_id",
         "channel_order_id",
         "customer_name",
         "customer_email",
         "customer_phone",
     )
-    list_filter = ("local_status", "status", "payment_method")
+    list_filter = ("source", "local_status", "status", "woocommerce_status", "payment_method")
     readonly_fields = ("raw_payload", "created_at", "updated_at")
 
 

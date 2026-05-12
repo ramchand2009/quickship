@@ -183,7 +183,7 @@
                             <input type="text" name="order_id" value="{{ filters.order_id }}" class="form-control form-control-sm" placeholder="Order / Channel ID">
                             <input type="text" name="phone" value="{{ filters.phone }}" class="form-control form-control-sm" placeholder="Phone">
                             <select name="shiprocket_status" class="form-select form-select-sm">
-                                <option value="">All Shiprocket Status</option>
+                                <option value="">All Source Status</option>
                                 {% for value in shiprocket_status_values %}
                                     <option value="{{ value }}" {% if filters.shiprocket_status == value %}selected{% endif %}>{{ value }}</option>
                                 {% endfor %}
@@ -276,7 +276,7 @@
                                         </td>
                                         <td data-label="Order ID">
                                             <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</a>
-                                            <div class="text-muted small mt-1">Shiprocket: {{ item.order.shiprocket_order_id|default:"-" }}</div>
+                                            <div class="text-muted small mt-1">{{ item.order.source_label }}: {{ item.order.source_order_reference|default:"-" }}</div>
                                             <div class="text-muted small mt-1">Workflow: {{ item.order.get_local_status_display }}</div>
                                             <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number|default:"Not added" }}</div>
                                             {% if item.missing_packing_fields %}

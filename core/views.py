@@ -99,6 +99,12 @@ from .queue_alerts import send_queue_alert_test
 from .shiprocket import ShiprocketAPIError, sync_orders
 from .system_status import get_dashboard_system_status, write_system_heartbeat
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
+from .woocommerce import (
+    WooCommerceAPIError,
+    is_configured as is_woocommerce_configured,
+    sync_orders as sync_woocommerce_orders,
+    update_order_status as update_woocommerce_order_status,
+)
 from .whatomate import (
     ORDER_TEMPLATE_FIELD_CHOICES,
     WhatomateNotificationError,
@@ -1342,6 +1348,44 @@ def _apply_status_timestamps(order_obj):
     return order_obj
 
 
+def _sync_woocommerce_status_for_order(order, *, previous_status="", actor="", request=None):
+    if getattr(order, "source", "") != ShiprocketOrder.SOURCE_WOOCOMMERCE:
+        return {"skipped": True, "reason": "not_woocommerce"}
+    try:
+        result = update_woocommerce_order_status(order)
+    except WooCommerceAPIError as exc:
+        log_order_activity(
+            order=order,
+            event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
+            title="WooCommerce status sync failed",
+            description=str(exc),
+            previous_status=previous_status,
+            current_status=order.local_status,
+            metadata={"stage": "woocommerce_status_sync"},
+            is_success=False,
+            triggered_by=actor,
+        )
+        if request is not None:
+            messages.warning(request, f"Order moved locally, but WooCommerce status sync failed: {exc}")
+        return {"skipped": False, "error": str(exc)}
+
+    if result.get("skipped"):
+        return result
+
+    log_order_activity(
+        order=order,
+        event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
+        title="WooCommerce status synced",
+        description=f"WooCommerce status updated to {result.get('status') or '-'}",
+        previous_status=previous_status,
+        current_status=order.local_status,
+        metadata={"woocommerce_status": result.get("status")},
+        is_success=True,
+        triggered_by=actor,
+    )
+    return result
+
+
 def _order_management_filter_payload_from_request(request):
     return {
         "q": (request.GET.get("q") or "").strip(),
@@ -2329,6 +2373,15 @@ def bulk_update_shiprocket_order_status(request):
                 is_success=True,
                 triggered_by=actor,
             )
+            woo_sync_result = _sync_woocommerce_status_for_order(
+                updated_order,
+                previous_status=previous_status,
+                actor=actor,
+            )
+            if woo_sync_result.get("error"):
+                failed_count += 1
+                if len(failed_samples) < 5:
+                    failed_samples.append(f"{updated_order.shiprocket_order_id}: WooCommerce sync failed")
             try:
                 enqueue_result = enqueue_whatsapp_notification(
                     order=updated_order,
@@ -4842,12 +4895,24 @@ def sync_shiprocket_orders(request):
     if request.method != "POST":
         return redirect(redirect_url)
 
+    sync_messages = []
     try:
         synced = sync_orders()
     except ShiprocketAPIError as exc:
         messages.error(request, str(exc))
     else:
-        messages.success(request, f"Shiprocket sync completed. {synced} orders refreshed.")
+        sync_messages.append(f"Shiprocket: {synced} orders refreshed")
+
+    if is_woocommerce_configured():
+        try:
+            woo_synced = sync_woocommerce_orders()
+        except WooCommerceAPIError as exc:
+            messages.error(request, f"WooCommerce sync failed: {exc}")
+        else:
+            sync_messages.append(f"WooCommerce: {woo_synced} orders refreshed")
+
+    if sync_messages:
+        messages.success(request, "Order sync completed. " + "; ".join(sync_messages) + ".")
 
     return redirect(redirect_url)
 
@@ -5132,6 +5197,12 @@ def update_shiprocket_order_status(request, pk):
                 },
                 is_success=True,
                 triggered_by=actor,
+            )
+            _sync_woocommerce_status_for_order(
+                updated_order,
+                previous_status=previous_status,
+                actor=actor,
+                request=request,
             )
             try:
                 enqueue_result = enqueue_whatsapp_notification(

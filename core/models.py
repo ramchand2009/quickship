@@ -152,6 +152,12 @@ class WhatsAppStatusTemplateConfig(models.Model):
 
 
 class ShiprocketOrder(models.Model):
+    SOURCE_SHIPROCKET = "shiprocket"
+    SOURCE_WOOCOMMERCE = "woocommerce"
+    SOURCE_CHOICES = [
+        (SOURCE_SHIPROCKET, "Shiprocket"),
+        (SOURCE_WOOCOMMERCE, "WooCommerce"),
+    ]
     STATUS_NEW = "new_order"
     STATUS_ACCEPTED = "order_accepted"
     STATUS_PACKED = "order_packed"
@@ -215,7 +221,13 @@ class ShiprocketOrder(models.Model):
         ("pincode", "Pincode"),
     ]
 
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default=SOURCE_SHIPROCKET)
     shiprocket_order_id = models.CharField(max_length=64, unique=True)
+    woocommerce_order_id = models.CharField(max_length=64, blank=True, db_index=True)
+    woocommerce_order_key = models.CharField(max_length=128, blank=True)
+    woocommerce_status = models.CharField(max_length=64, blank=True)
+    woocommerce_synced_at = models.DateTimeField(null=True, blank=True)
+    woocommerce_status_synced_at = models.DateTimeField(null=True, blank=True)
     channel_order_id = models.CharField(max_length=128, blank=True)
     customer_name = models.CharField(max_length=160, blank=True)
     customer_email = models.EmailField(blank=True)
@@ -257,6 +269,16 @@ class ShiprocketOrder(models.Model):
 
     def __str__(self):
         return f"{self.shiprocket_order_id} - {self.customer_name or 'Unknown customer'}"
+
+    @property
+    def source_label(self):
+        return dict(self.SOURCE_CHOICES).get(self.source, self.source or "Shiprocket")
+
+    @property
+    def source_order_reference(self):
+        if self.source == self.SOURCE_WOOCOMMERCE:
+            return self.channel_order_id or self.shiprocket_order_id or ""
+        return self.shiprocket_order_id or ""
 
     def missing_fields_for_packing(self):
         shipping = self.display_shipping_address

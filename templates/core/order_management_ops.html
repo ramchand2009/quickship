@@ -896,7 +896,7 @@
                                     {% endwith %}
                                     <a class="ops-desktop-order-link" href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}">{{ order.channel_order_id|default:order.shiprocket_order_id }}</a>
                                     <span class="ops-desktop-subtext">{{ order.order_date|date:"d M y H:i"|default:"-" }}</span>
-                                    <span class="ops-desktop-subtext">Shiprocket: {{ order.shiprocket_order_id|default:"NA" }}</span>
+                                    <span class="ops-desktop-subtext">{{ order.source_label }}: {{ order.source_order_reference|default:"NA" }}</span>
                                     {% if item.stock_availability.has_shortage %}
                                         {% with shortage=item.stock_availability.shortages.0 %}
                                             <span class="ops-desktop-stock-alert">
@@ -976,7 +976,7 @@
                                     </div>
                                     <div class="ops-desktop-shipping-text">{{ order.current_status_date_label }}: {{ order.current_status_date|date:"d M y H:i"|default:"-" }}</div>
                                     {% if order.status %}
-                                        <div class="ops-desktop-shipping-text">SR Status: {{ order.status }}</div>
+                                        <div class="ops-desktop-shipping-text">{{ order.source_label }} Status: {{ order.status }}</div>
                                     {% endif %}
                                 </div>
 
