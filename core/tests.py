@@ -139,6 +139,33 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(order.order_items[0]["sku"], "TEA-1")
 
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_treats_woocommerce_gmt_order_date_as_utc(self, mock_json_request):
+        mock_json_request.return_value = [
+            {
+                "id": 502,
+                "number": "1002",
+                "status": "processing",
+                "total": "100.00",
+                "date_created": "2026-04-01T16:00:00",
+                "date_created_gmt": "2026-04-01T10:30:00",
+                "billing": {"first_name": "Time", "last_name": "Check"},
+                "shipping": {},
+                "line_items": [],
+            }
+        ]
+
+        sync_woocommerce_orders()
+
+        order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-502")
+        local_order_time = timezone.localtime(order.order_date)
+        self.assertEqual(local_order_time.strftime("%Y-%m-%d %H:%M"), "2026-04-01 16:00")
+
     def test_woocommerce_webhook_imports_order_with_valid_signature(self):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")
         payload = {

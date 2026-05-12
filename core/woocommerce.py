@@ -142,6 +142,21 @@ def _parse_datetime(value):
     return None
 
 
+def _parse_woocommerce_order_date(order):
+    if not isinstance(order, dict):
+        return None
+
+    gmt_value = str(order.get("date_created_gmt") or "").strip()
+    if gmt_value:
+        parsed_value = parse_datetime(gmt_value)
+        if parsed_value:
+            if timezone.is_naive(parsed_value):
+                return timezone.make_aware(parsed_value, timezone.UTC)
+            return parsed_value
+
+    return _parse_datetime(order.get("date_created"))
+
+
 def _compact_address(address):
     if not isinstance(address, dict):
         return {}
@@ -270,7 +285,7 @@ def import_order_payload(item):
         "status": wc_status,
         "payment_method": item.get("payment_method_title") or item.get("payment_method") or "",
         "total": _to_decimal(item.get("total")),
-        "order_date": _parse_datetime(item.get("date_created_gmt") or item.get("date_created")),
+        "order_date": _parse_woocommerce_order_date(item),
         "shipping_address": shipping,
         "billing_address": billing,
         "order_items": _extract_items(item),
