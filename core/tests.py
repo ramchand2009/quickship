@@ -251,6 +251,35 @@ class WooCommerceSyncTests(TestCase):
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-779")
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
 
+    def test_order_notifications_poll_returns_new_woocommerce_orders(self):
+        user = get_user_model().objects.create_user(username="notifyuser", password="testpass123")
+        old_order = ShiprocketOrder.objects.create(
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-NOTIFY-OLD",
+            channel_order_id="9000",
+            customer_name="Old Customer",
+        )
+        new_order = ShiprocketOrder.objects.create(
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-NOTIFY-NEW",
+            channel_order_id="9001",
+            customer_name="New Customer",
+            total="250.00",
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("order_notifications_poll"),
+            {"since": old_order.created_at.isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(len(payload["orders"]), 1)
+        self.assertEqual(payload["orders"][0]["id"], new_order.pk)
+        self.assertEqual(payload["orders"][0]["order_id"], "9001")
+
 
 class ShiprocketOrderStatusFormTests(TestCase):
     def test_status_form_excludes_current_and_previous_statuses(self):

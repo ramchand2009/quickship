@@ -27,7 +27,7 @@ from django.templatetags.static import static
 from django.template.defaultfilters import timesince
 from django.test import Client
 from django.urls import reverse
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
@@ -137,7 +137,7 @@ PWA_APP_NAME = "Mathukai Dashboard"
 PWA_SHORT_NAME = "Mathukai"
 PWA_THEME_COLOR = "#253142"
 PWA_BACKGROUND_COLOR = "#f4f7fa"
-PWA_ASSET_VERSION = "20260407-1"
+PWA_ASSET_VERSION = "20260512-1"
 PWA_CACHE_NAME = f"mathukai-pwa-{PWA_ASSET_VERSION}"
 
 
@@ -268,6 +268,27 @@ self.addEventListener("fetch", (event) => {{
     }})
   );
 }});
+
+self.addEventListener("notificationclick", (event) => {{
+  event.notification.close();
+  const targetUrl = event.notification && event.notification.data && event.notification.data.url
+    ? event.notification.data.url
+    : "/";
+  event.waitUntil(
+    self.clients.matchAll({{ type: "window", includeUncontrolled: true }}).then((clients) => {{
+      for (const client of clients) {{
+        if ("focus" in client) {{
+          client.navigate(targetUrl);
+          return client.focus();
+        }}
+      }}
+      if (self.clients.openWindow) {{
+        return self.clients.openWindow(targetUrl);
+      }}
+      return undefined;
+    }})
+  );
+}});
 """.strip()
     response = HttpResponse(body, content_type="application/javascript; charset=utf-8")
     response["Service-Worker-Allowed"] = "/"
@@ -284,6 +305,52 @@ def offline_page(request):
             "short_name": PWA_SHORT_NAME,
             "theme_color": PWA_THEME_COLOR,
         },
+    )
+
+
+@login_required
+@require_GET
+def order_notifications_poll(request):
+    since_text = str(request.GET.get("since") or "").strip()
+    since_value = parse_datetime(since_text) if since_text else None
+    if since_value and timezone.is_naive(since_value):
+        since_value = timezone.make_aware(since_value, timezone.get_current_timezone())
+
+    queryset = ShiprocketOrder.objects.filter(source=ShiprocketOrder.SOURCE_WOOCOMMERCE).order_by("-created_at")
+    latest_order = queryset.first()
+    latest_seen_at = latest_order.created_at if latest_order else None
+    if not since_value:
+        return JsonResponse(
+            {
+                "ok": True,
+                "latest_seen_at": latest_seen_at.isoformat() if latest_seen_at else "",
+                "orders": [],
+            }
+        )
+
+    orders = list(
+        queryset.filter(created_at__gt=since_value)
+        .order_by("created_at")[:10]
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "latest_seen_at": (orders[-1].created_at if orders else latest_seen_at).isoformat()
+            if (orders or latest_seen_at)
+            else "",
+            "orders": [
+                {
+                    "id": order.pk,
+                    "order_id": order.channel_order_id or order.shiprocket_order_id,
+                    "customer_name": order.customer_name or order.display_shipping_address.get("name") or "New customer",
+                    "total": str(order.total),
+                    "status": order.get_local_status_display(),
+                    "url": reverse("order_detail", args=[order.pk]),
+                    "created_at": order.created_at.isoformat(),
+                }
+                for order in orders
+            ],
+        }
     )
 
 
