@@ -4,6 +4,8 @@
   }
 
   const POLL_URL = "/orders/notifications/poll/";
+  const PUSH_CONFIG_URL = "/orders/notifications/push/config/";
+  const PUSH_SUBSCRIBE_URL = "/orders/notifications/push/subscribe/";
   const LAST_SEEN_KEY = "mathukai:lastWooOrderSeenAt";
   const PROMPT_DISMISSED_KEY = "mathukai:orderNotificationPromptDismissed";
   const POLL_INTERVAL_MS = 30000;
@@ -12,6 +14,28 @@
 
   function canUseNotifications() {
     return "Notification" in window && "serviceWorker" in navigator;
+  }
+
+  function getCookie(name) {
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    for (let index = 0; index < cookies.length; index += 1) {
+      const cookie = cookies[index].trim();
+      if (cookie.substring(0, name.length + 1) === name + "=") {
+        return decodeURIComponent(cookie.substring(name.length + 1));
+      }
+    }
+    return "";
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let index = 0; index < rawData.length; index += 1) {
+      outputArray[index] = rawData.charCodeAt(index);
+    }
+    return outputArray;
   }
 
   function prepareNotificationSound() {
@@ -179,8 +203,8 @@
         body: orderId + " · " + customer + " · Rs " + (order.total || "0"),
         tag: "woocommerce-order-" + String(order.id || orderId),
         renotify: true,
-        icon: "/static/pwa/icon-192.png?v=20260512-3",
-        badge: "/static/pwa/icon-192.png?v=20260512-3",
+        icon: "/static/pwa/icon-192.png?v=20260513-1",
+        badge: "/static/pwa/icon-192.png?v=20260513-1",
         data: {
           url: order.url || "/orders/management/"
         }
@@ -188,6 +212,54 @@
     }).catch(function (error) {
       console.warn("Unable to show order notification.", error);
     });
+  }
+
+  function subscribeToPushNotifications(registration) {
+    if (!registration || !("PushManager" in window) || Notification.permission !== "granted") {
+      return;
+    }
+    fetch(PUSH_CONFIG_URL, {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Push config failed with HTTP " + response.status);
+        }
+        return response.json();
+      })
+      .then(function (config) {
+        if (!config || !config.enabled || !config.public_key) {
+          return null;
+        }
+        return registration.pushManager.getSubscription().then(function (existingSubscription) {
+          if (existingSubscription) {
+            return existingSubscription;
+          }
+          return registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(config.public_key)
+          });
+        });
+      })
+      .then(function (subscription) {
+        if (!subscription) {
+          return;
+        }
+        return fetch(PUSH_SUBSCRIBE_URL, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+          },
+          body: JSON.stringify(subscription)
+        });
+      })
+      .catch(function (error) {
+        console.warn("Unable to register push notifications.", error);
+      });
   }
 
   function pollOrders() {
@@ -222,6 +294,7 @@
     if (!canUseNotifications() || Notification.permission !== "granted") {
       return;
     }
+    navigator.serviceWorker.ready.then(subscribeToPushNotifications);
     pollOrders();
     window.setInterval(pollOrders, POLL_INTERVAL_MS);
   }

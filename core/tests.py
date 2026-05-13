@@ -30,6 +30,7 @@ from .models import (
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
+    WebPushSubscription,
     WooCommerceSettings,
 )
 from .system_status import write_system_heartbeat
@@ -279,6 +280,38 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(len(payload["orders"]), 1)
         self.assertEqual(payload["orders"][0]["id"], new_order.pk)
         self.assertEqual(payload["orders"][0]["order_id"], "9001")
+
+    @override_settings(PWA_VAPID_PUBLIC_KEY="public-key", PWA_VAPID_PRIVATE_KEY="private-key")
+    def test_web_push_config_returns_public_key(self):
+        user = get_user_model().objects.create_user(username="pushconfig", password="testpass123")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("web_push_config"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["enabled"])
+        self.assertEqual(payload["public_key"], "public-key")
+
+    def test_web_push_subscribe_saves_subscription(self):
+        user = get_user_model().objects.create_user(username="pushuser", password="testpass123")
+        self.client.force_login(user)
+        payload = {
+            "endpoint": "https://push.example.com/subscription/abc",
+            "keys": {"p256dh": "p256dh-key", "auth": "auth-key"},
+        }
+
+        response = self.client.post(
+            reverse("web_push_subscribe"),
+            data=json.dumps(payload).encode("utf-8"),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        subscription = WebPushSubscription.objects.get(endpoint=payload["endpoint"])
+        self.assertEqual(subscription.user, user)
+        self.assertEqual(subscription.p256dh_key, "p256dh-key")
+        self.assertTrue(subscription.is_active)
 
 
 class ShiprocketOrderStatusFormTests(TestCase):

@@ -243,6 +243,10 @@ WOOCOMMERCE_WEBHOOK_SECRET = os.environ.get("WOOCOMMERCE_WEBHOOK_SECRET", "")
 WOOCOMMERCE_IMPORT_STATUSES = os.environ.get("WOOCOMMERCE_IMPORT_STATUSES", "pending,processing,on-hold")
 WOOCOMMERCE_STATUS_MAP = os.environ.get("WOOCOMMERCE_STATUS_MAP", "")
 
+PWA_VAPID_PUBLIC_KEY = os.environ.get("PWA_VAPID_PUBLIC_KEY", "")
+PWA_VAPID_PRIVATE_KEY = os.environ.get("PWA_VAPID_PRIVATE_KEY", "")
+PWA_VAPID_SUBJECT = os.environ.get("PWA_VAPID_SUBJECT", "mailto:admin@localhost")
+
 WHATOMATE_ENABLED = os.environ.get("WHATOMATE_ENABLED", "false")
 WHATOMATE_BASE_URL = os.environ.get("WHATOMATE_BASE_URL", "http://127.0.0.1:8080")
 WHATOMATE_API_KEY = os.environ.get("WHATOMATE_API_KEY", "")

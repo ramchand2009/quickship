@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 
 def normalize_sku(value):
@@ -126,6 +127,42 @@ class WooCommerceSettings(models.Model):
         if settings_row:
             return settings_row
         return cls.objects.create()
+
+
+class WebPushSubscription(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="web_push_subscriptions",
+    )
+    endpoint = models.URLField(max_length=1000, unique=True)
+    p256dh_key = models.TextField()
+    auth_key = models.TextField()
+    user_agent = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-created_at"]
+
+    def __str__(self):
+        owner = self.user.get_username() if self.user_id and self.user else "Unknown user"
+        return f"Push subscription for {owner}"
+
+    def to_subscription_info(self):
+        return {
+            "endpoint": self.endpoint,
+            "keys": {
+                "p256dh": self.p256dh_key,
+                "auth": self.auth_key,
+            },
+        }
 
 
 class WhatsAppTemplate(models.Model):

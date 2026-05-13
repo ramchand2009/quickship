@@ -85,6 +85,7 @@ from .models import (
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WhatsAppTemplate,
+    WebPushSubscription,
     WooCommerceSettings,
 )
 from .stock import (
@@ -99,6 +100,7 @@ from .stock import (
     validate_packing_scans,
 )
 from .queue_alerts import send_queue_alert_test
+from .push_notifications import send_new_order_push_notification, web_push_is_configured
 from .shiprocket import ShiprocketAPIError, sync_orders
 from .system_status import get_dashboard_system_status, write_system_heartbeat
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
@@ -137,7 +139,7 @@ PWA_APP_NAME = "Mathukai Dashboard"
 PWA_SHORT_NAME = "Mathukai"
 PWA_THEME_COLOR = "#253142"
 PWA_BACKGROUND_COLOR = "#f4f7fa"
-PWA_ASSET_VERSION = "20260512-3"
+PWA_ASSET_VERSION = "20260513-1"
 PWA_CACHE_NAME = f"mathukai-pwa-{PWA_ASSET_VERSION}"
 
 
@@ -289,6 +291,30 @@ self.addEventListener("notificationclick", (event) => {{
     }})
   );
 }});
+
+self.addEventListener("push", (event) => {{
+  let payload = {{}};
+  if (event.data) {{
+    try {{
+      payload = event.data.json();
+    }} catch (error) {{
+      payload = {{ body: event.data.text() }};
+    }}
+  }}
+
+  const title = payload.title || "New WooCommerce order";
+  const options = {{
+    body: payload.body || "You have received a new order",
+    tag: payload.tag || "woocommerce-order",
+    renotify: true,
+    icon: {json.dumps(_pwa_static_asset("pwa/icon-192.png"))},
+    badge: {json.dumps(_pwa_static_asset("pwa/icon-192.png"))},
+    data: {{
+      url: payload.url || "/orders/management/"
+    }}
+  }};
+  event.waitUntil(self.registration.showNotification(title, options));
+}});
 """.strip()
     response = HttpResponse(body, content_type="application/javascript; charset=utf-8")
     response["Service-Worker-Allowed"] = "/"
@@ -352,6 +378,48 @@ def order_notifications_poll(request):
             ],
         }
     )
+
+
+@login_required
+@require_GET
+def web_push_config(request):
+    return JsonResponse(
+        {
+            "ok": True,
+            "enabled": web_push_is_configured(),
+            "public_key": str(getattr(settings, "PWA_VAPID_PUBLIC_KEY", "") or "").strip(),
+        }
+    )
+
+
+@login_required
+@require_POST
+def web_push_subscribe(request):
+    try:
+        payload = json.loads((request.body or b"{}").decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid JSON payload."}, status=400)
+
+    endpoint = str(payload.get("endpoint") or "").strip()
+    keys = payload.get("keys") if isinstance(payload.get("keys"), dict) else {}
+    p256dh_key = str(keys.get("p256dh") or "").strip()
+    auth_key = str(keys.get("auth") or "").strip()
+    if not endpoint or not p256dh_key or not auth_key:
+        return JsonResponse({"ok": False, "error": "Invalid push subscription."}, status=400)
+
+    subscription, created = WebPushSubscription.objects.update_or_create(
+        endpoint=endpoint,
+        defaults={
+            "user": request.user,
+            "p256dh_key": p256dh_key,
+            "auth_key": auth_key,
+            "user_agent": str(request.headers.get("User-Agent") or "")[:1000],
+            "is_active": True,
+            "last_seen_at": timezone.now(),
+            "last_error": "",
+        },
+    )
+    return JsonResponse({"ok": True, "created": created, "subscription_id": subscription.pk})
 
 
 _TEMPLATE_TOKEN_PATTERN = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
@@ -4918,6 +4986,7 @@ def woocommerce_webhook(request):
         is_success=True,
         triggered_by="woocommerce_webhook",
     )
+    push_result = send_new_order_push_notification(order) if created else {"enabled": False, "sent": 0}
     return JsonResponse(
         {
             "ok": True,
@@ -4927,6 +4996,7 @@ def woocommerce_webhook(request):
             "channel_order_id": order.channel_order_id,
             "local_status": order.local_status,
             "woocommerce_status": order.woocommerce_status,
+            "push_notifications": push_result,
         }
     )
 
