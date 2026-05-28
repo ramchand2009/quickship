@@ -2,17 +2,22 @@
     position: sticky;
     top: 0;
     z-index: 20;
-    background: #fff;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-    padding: 0.95rem 1rem 0.85rem;
+    background: #faf8ff;
+    border-bottom: 1px solid #c5c5d3;
+    padding: 0.8rem 1rem;
 }
 
 .ops-mobile-topbar h1 {
     margin: 0;
-    font-size: 1.7rem;
+    font-size: 1.5rem;
     font-weight: 700;
+    line-height: 2rem;
+    color: #00236f;
+}
+
+.ops-mobile-topbar > h1,
+.ops-mobile-topbar-row h1 {
     text-align: center;
-    color: #14181f;
 }
 
 .ops-mobile-topbar-row {
@@ -22,18 +27,21 @@
     gap: 0.75rem;
 }
 
+.ops-mobile-topbar-row form {
+    margin: 0;
+}
+
 .ops-mobile-topbar-control {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: #f8fbff;
-    color: #243042;
+    border-radius: 0.25rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #00236f;
     text-decoration: none;
-    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .ops-mobile-topbar-control.is-hidden {
@@ -41,46 +49,50 @@
 }
 
 .ops-mobile-toolbar {
-    display: none;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
 }
 
 .ops-mobile-search {
     flex: 1 1 auto;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 999px;
-    padding: 0.8rem 1rem;
-    background: #f8fbff;
-    color: #243042;
-    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    min-height: 44px;
+    border: 1px solid #c5c5d3;
+    border-radius: 0.25rem;
+    padding: 0.75rem 1rem;
+    background: #ffffff;
+    color: #1a1b21;
 }
 
 .ops-mobile-search::placeholder {
-    color: #94a3b8;
+    color: #757682;
 }
 
 .ops-mobile-sync-btn {
-    border: 0;
-    border-radius: 999px;
-    padding: 0.82rem 1rem;
-    background: linear-gradient(135deg, #0f9ec1 0%, #1479b8 100%);
+    min-height: 44px;
+    border: 1px solid #1e3a8a;
+    border-radius: 0.25rem;
+    padding: 0.72rem 0.9rem;
+    background: #1e3a8a;
     color: #fff;
     font-weight: 700;
     white-space: nowrap;
-    box-shadow: 0 10px 20px rgba(20, 121, 184, 0.22);
 }
 
 .ops-mobile-sync-btn.is-secondary {
-    background: #d9e2ec;
-    color: #52606d;
+    border-color: #0d9488;
+    background: #ffffff;
+    color: #006a61;
 }
 
 @media (max-width: 767px) {
     .ops-mobile-topbar {
-        padding: 0.85rem 0.8rem 0.75rem;
+        padding: 0.75rem 1rem;
     }
 
     .ops-mobile-topbar h1 {
-        font-size: 1.55rem;
+        font-size: 1.45rem;
     }
 
     .ops-mobile-search {
