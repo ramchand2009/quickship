@@ -5,7 +5,7 @@
     </a>
     <a href="{% url 'order_management' %}?tab=all" class="{% if ops_mobile_nav_active == 'orders' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-box-open"></i></span>
-        <span class="ops-mobile-bottomnav-label">My Orders</span>
+        <span class="ops-mobile-bottomnav-label">Orders</span>
     </a>
     <a href="{% url 'stock_management' %}" class="{% if ops_mobile_nav_active == 'stock' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-boxes"></i></span>
@@ -13,7 +13,7 @@
     </a>
     <a href="{% url 'special_stock_issue_register' %}" class="{% if ops_mobile_nav_active == 'issue' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-gift"></i></span>
-        <span class="ops-mobile-bottomnav-label">Free Entry</span>
+        <span class="ops-mobile-bottomnav-label">Entry</span>
     </a>
     <a href="{% url 'expense_tracker' %}" class="{% if ops_mobile_nav_active == 'expenses' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-wallet"></i></span>

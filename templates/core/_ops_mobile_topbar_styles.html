@@ -1,10 +1,11 @@
 .ops-mobile-topbar {
     position: sticky;
     top: 0;
-    z-index: 20;
+    z-index: 50;
+    min-height: 64px;
     background: #faf8ff;
     border-bottom: 1px solid #c5c5d3;
-    padding: 0.8rem 1rem;
+    padding: 0.65rem 1rem;
 }
 
 .ops-mobile-topbar h1 {
@@ -13,11 +14,16 @@
     font-weight: 700;
     line-height: 2rem;
     color: #00236f;
+    letter-spacing: 0;
 }
 
 .ops-mobile-topbar > h1,
 .ops-mobile-topbar-row h1 {
     text-align: center;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .ops-mobile-topbar-row {
@@ -42,6 +48,14 @@
     background: transparent;
     color: #00236f;
     text-decoration: none;
+    font-size: 1.1rem;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.ops-mobile-topbar-control:hover,
+.ops-mobile-topbar-control:active {
+    background: #f4f3fa;
+    opacity: 0.85;
 }
 
 .ops-mobile-topbar-control.is-hidden {
@@ -78,6 +92,9 @@
     color: #fff;
     font-weight: 700;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ops-mobile-sync-btn.is-secondary {

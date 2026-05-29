@@ -12,19 +12,36 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-shell {
     min-height: 100vh;
-    padding: 0.45rem 0.85rem 6rem;
-    background:
-        radial-gradient(circle at top left, rgba(73,190,219,.16), transparent 32%),
-        linear-gradient(180deg,#f8fbff 0%,#eef3f8 100%);
+    padding: 0 0 6rem;
+    background: #faf8ff;
+    color: #1a1b21;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .ops-home-header {
-    padding: 0.75rem 0 0.95rem;
+    padding: 1rem 1rem 1.25rem;
+}
+
+.ops-home-eyebrow {
+    margin: 0;
+    color: #444651;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.ops-home-title {
+    margin: 0.15rem 0 0;
+    color: #1a1b21;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.75rem;
 }
 
 .ops-home-header p {
-    margin: 0;
-    color: #4b5563;
+    margin: 0.25rem 0 0;
+    color: #444651;
     line-height: 1.5;
 }
 
@@ -32,6 +49,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-month-grid {
     display: grid;
     gap: 0.85rem;
+    padding: 0 1rem;
 }
 
 .ops-home-grid {
@@ -43,11 +61,24 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-card {
-    background: rgba(255,255,255,.96);
-    border: 1px solid rgba(15,23,42,.08);
-    border-radius: 1.15rem;
-    box-shadow: 0 14px 28px rgba(15,23,42,.06);
+    background: #ffffff;
+    border: 1px solid #c5c5d3;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
     overflow: hidden;
+}
+
+.ops-home-month-grid .ops-home-card:first-child {
+    background: #1e3a8a;
+    border-color: #1e3a8a;
+}
+
+.ops-home-month-grid .ops-home-card:first-child .ops-home-card-label {
+    color: #90a8ff;
+}
+
+.ops-home-month-grid .ops-home-card:first-child .ops-home-card-value {
+    color: #ffffff;
 }
 
 .ops-home-card a {
@@ -55,49 +86,90 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-card-link {
-    display: block;
-    padding: 1rem 1rem 0.95rem;
+    display: flex;
+    min-height: 120px;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1rem;
     color: inherit;
 }
 
 .ops-home-card-label {
     display: block;
-    color: #64748b;
-    font-size: 0.82rem;
+    color: #444651;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1rem;
 }
 
 .ops-home-card-value {
     display: block;
     margin-top: 0.25rem;
-    color: #0f172a;
-    font-size: 1.7rem;
+    color: #1a1b21;
+    font-size: 1.5rem;
     font-weight: 800;
     line-height: 1;
 }
 
-.ops-home-card-tone-primary { border-top: 4px solid #1f6ea0; }
-.ops-home-card-tone-warning { border-top: 4px solid #d97706; }
-.ops-home-card-tone-info { border-top: 4px solid #0891b2; }
-.ops-home-card-tone-secondary { border-top: 4px solid #64748b; }
-.ops-home-card-tone-success { border-top: 4px solid #15803d; }
-.ops-home-card-tone-danger { border-top: 4px solid #dc2626; }
+.ops-home-card-tone-primary { border-left: 4px solid #1e3a8a; }
+.ops-home-card-tone-warning { border-left: 4px solid #ffb691; }
+.ops-home-card-tone-info { border-left: 4px solid #006a61; }
+.ops-home-card-tone-secondary { border-left: 4px solid #757682; }
+.ops-home-card-tone-success { border-left: 4px solid #006a61; }
+.ops-home-card-tone-danger { border-left: 4px solid #ba1a1a; }
+
+.ops-home-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 0 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.ops-home-action {
+    min-height: 92px;
+    border-radius: 0.5rem;
+    background: #e9e7ef;
+    color: #1a1b21;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.ops-home-action-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #dce1ff;
+    color: #00164e;
+}
 
 .ops-home-stock-list {
     display: grid;
-    gap: 0.85rem;
+    gap: 0.75rem;
     margin-top: 0.25rem;
+    padding: 0 1rem 1rem;
 }
 
 .ops-home-stock-card {
-    background: rgba(255,255,255,.96);
-    border: 1px solid rgba(15,23,42,.08);
-    border-radius: 1.15rem;
-    box-shadow: 0 14px 28px rgba(15,23,42,.06);
+    background: #ffffff;
+    border: 1px solid #c5c5d3;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
     padding: 1rem;
 }
 
-.ops-home-stock-card.is-danger { border-top: 4px solid #dc2626; }
-.ops-home-stock-card.is-warning { border-top: 4px solid #d97706; }
+.ops-home-stock-card.is-danger { border-left: 4px solid #ba1a1a; }
+.ops-home-stock-card.is-warning { border-left: 4px solid #ffb691; }
 
 .ops-home-stock-head {
     display: grid;
@@ -120,7 +192,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-stock-metric span {
-    color: #64748b;
+    color: #444651;
     font-size: 0.82rem;
 }
 
@@ -165,26 +237,28 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     align-items: center;
     gap: 0.75rem;
     margin: 0 0 0.75rem;
+    padding: 0 1rem;
 }
 
 .ops-home-section-head h3 {
     margin: 0;
     font-size: 1rem;
-    color: #0f172a;
+    color: #1a1b21;
 }
 
 .ops-home-section-head span {
-    color: #64748b;
+    color: #444651;
     font-size: 0.84rem;
 }
 
 @media (max-width: 767px) {
-    .ops-home-shell { padding: 0.4rem 0.7rem 6rem; }
+    .ops-home-shell { padding: 0 0 6rem; }
     .ops-home-grid { gap: 0.65rem; }
     .ops-home-card-link { padding: 0.9rem 0.9rem 0.85rem; }
     .ops-home-card-value { font-size: 1.45rem; }
     .ops-home-stock-head { grid-template-columns: 82px minmax(0, 1fr); }
     .ops-home-stock-metric strong { font-size: 1.65rem; }
+    .ops-home-actions { gap: 0.55rem; }
 }
 </style>
 {% endblock %}
@@ -192,10 +266,16 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 {% block content %}
 <div class="ops-home-shell">
     <div class="ops-mobile-topbar">
-        <h1>Home</h1>
+        <div class="ops-mobile-topbar-row">
+            <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
+            <h1>Mathukai</h1>
+            <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+        </div>
     </div>
 
     <div class="ops-home-header">
+        <div class="ops-home-eyebrow">Dashboard Overview</div>
+        <h2 class="ops-home-title">Welcome back, Admin</h2>
         <p>Monthly order status and stock overview.</p>
     </div>
 
@@ -212,6 +292,16 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </a>
             </div>
         {% endfor %}
+    </div>
+
+    <div class="ops-home-section-head mt-3">
+        <h3>Quick Actions</h3>
+    </div>
+    <div class="ops-home-actions">
+        <a href="{% url 'order_management' %}?tab=all" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-box-open"></i></span>Orders</a>
+        <a href="{% url 'stock_management' %}" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-boxes"></i></span>Stock</a>
+        <a href="{% url 'special_stock_issue_register' %}" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-gift"></i></span>Free Entry</a>
+        <a href="{% url 'expense_tracker' %}" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-wallet"></i></span>Expenses</a>
     </div>
 
     <div class="ops-home-section-head mt-3">

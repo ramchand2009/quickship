@@ -28,54 +28,57 @@
 
     .ops-detail-shell {
         min-height: 100vh;
-        background: linear-gradient(180deg, #f7f8fb 0%, #eef1f7 100%);
+        background: #faf8ff;
         padding-bottom: 6rem;
+        color: #1a1b21;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
     .ops-detail-stepper {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.7rem;
+        gap: 0.5rem;
         padding: 1rem 1rem 0.4rem;
     }
 
     .ops-detail-step {
         position: relative;
         text-align: center;
-        background: #e7eaee;
-        color: #2f3b52;
-        font-weight: 600;
-        padding: 1rem 0.25rem;
-        clip-path: polygon(0 0, 84% 0, 100% 50%, 84% 100%, 0 100%, 12% 50%);
+        background: #e9e7ef;
+        color: #444651;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.55rem 0.25rem;
+        border-radius: 999px;
     }
 
     .ops-detail-step.is-active,
     .ops-detail-step.is-complete {
-        background: #a8e9fb;
-        color: #172330;
+        background: #1e3a8a;
+        color: #ffffff;
     }
 
     .ops-detail-body {
-        padding: 0.8rem 0.8rem 1rem;
+        padding: 0.75rem 1rem 1rem;
         display: grid;
-        gap: 0.85rem;
+        gap: 0.75rem;
     }
 
     .ops-detail-card {
         background: #fff;
-        border-radius: 1.2rem;
-        padding: 1.2rem 1rem;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-        border: 1px solid rgba(15, 23, 42, 0.05);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border: 1px solid #c5c5d3;
     }
 
     .ops-detail-headline {
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-        color: #7b8794;
-        font-size: 1rem;
+        color: #444651;
+        font-size: 0.82rem;
     }
 
     .ops-detail-order-row {
@@ -85,32 +88,39 @@
         align-items: center;
         margin-top: 0.9rem;
         padding-bottom: 1rem;
-        border-bottom: 2px dashed rgba(148, 163, 184, 0.35);
+        border-bottom: 1px solid #c5c5d3;
     }
 
     .ops-detail-order-row h2 {
         margin: 0;
         font-size: 1rem;
-        color: #4b5563;
-        font-weight: 500;
+        color: #1a1b21;
+        font-weight: 700;
     }
 
     .ops-detail-status-badge {
-        color: #057a91;
-        font-size: 1.05rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        background: #86f2e4;
+        color: #006f66;
+        font-size: 0.78rem;
         font-weight: 800;
         text-align: right;
+        white-space: nowrap;
     }
 
     .ops-detail-section-title {
         margin: 1.05rem 0 0.8rem;
         font-size: 1.05rem;
         font-weight: 800;
-        color: #243042;
+        color: #00236f;
     }
 
     .ops-detail-address {
-        color: #4b5563;
+        color: #444651;
         font-size: 1rem;
         line-height: 1.55;
     }
@@ -127,7 +137,7 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 999px;
+        border-radius: 0.5rem;
         text-decoration: none;
         font-size: 1.3rem;
         font-weight: 700;
@@ -155,9 +165,9 @@
     .ops-detail-pill {
         display: inline-flex;
         padding: 0.5rem 0.85rem;
-        border-radius: 0.7rem;
-        background: #f7d7f0;
-        color: #9b2480;
+        border-radius: 0.5rem;
+        background: #dce1ff;
+        color: #00236f;
         font-weight: 700;
     }
 
@@ -177,7 +187,7 @@
     .ops-detail-edit-field label {
         display: block;
         margin-bottom: 0.35rem;
-        color: #243042;
+        color: #1a1b21;
         font-weight: 700;
         font-size: 0.93rem;
     }
@@ -185,9 +195,9 @@
     .ops-detail-edit-field input {
         width: 100%;
         min-height: 48px;
-        border-radius: 0.95rem;
-        border: 1px solid rgba(148, 163, 184, 0.45);
-        background: #f8fafc;
+        border-radius: 0.25rem;
+        border: 1px solid #c5c5d3;
+        background: #fff;
         padding: 0.8rem 0.9rem;
         color: #1f2933;
         font-size: 1rem;
@@ -195,8 +205,8 @@
 
     .ops-detail-edit-field input:focus {
         outline: none;
-        border-color: #0ea5e9;
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.14);
+        border-color: #1e3a8a;
+        box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
         background: #fff;
     }
 
@@ -207,24 +217,24 @@
     .ops-detail-edit-actions .btn {
         width: 100%;
         min-height: 48px;
-        border-radius: 999px;
+        border-radius: 0.5rem;
         font-weight: 700;
     }
 
     .ops-detail-edit-lock {
         margin-top: 0.9rem;
         padding: 0.9rem 1rem;
-        border-radius: 1rem;
-        background: #f8fafc;
-        color: #5b6573;
+        border-radius: 0.5rem;
+        background: #f4f3fa;
+        color: #444651;
         line-height: 1.45;
     }
 
     .ops-detail-tracking-current {
         margin-top: 0.9rem;
         padding: 0.9rem 1rem;
-        border-radius: 1rem;
-        background: #f8fafc;
+        border-radius: 0.5rem;
+        background: #f4f3fa;
         color: #1f2933;
         font-weight: 700;
     }
@@ -247,8 +257,8 @@
     .ops-detail-thumb {
         width: 88px;
         height: 88px;
-        border-radius: 1rem;
-        background: linear-gradient(135deg, #20c0f3 0%, #0496b7 100%);
+        border-radius: 0.5rem;
+        background: #1e3a8a;
         color: #fff;
         display: flex;
         align-items: center;
@@ -267,12 +277,12 @@
     .ops-detail-item-name {
         font-size: 1.05rem;
         font-weight: 700;
-        color: #1f2933;
+        color: #1a1b21;
         margin-bottom: 0.45rem;
     }
 
     .ops-detail-item-variant {
-        color: #6b7280;
+        color: #444651;
         font-size: 0.98rem;
     }
 
@@ -287,9 +297,9 @@
         display: inline-flex;
         margin-top: 0.75rem;
         padding: 0.4rem 0.7rem;
-        border-radius: 0.75rem;
-        background: #eef2f5;
-        color: #4b5563;
+        border-radius: 0.5rem;
+        background: #e9e7ef;
+        color: #444651;
         font-weight: 700;
     }
 
@@ -297,8 +307,8 @@
         margin-top: 0.9rem;
         padding: 0.8rem 0.9rem;
         border-radius: 0.5rem;
-        background: #fff4db;
-        color: #8a5a00;
+        background: #ffdbcb;
+        color: #773205;
         font-size: 0.92rem;
         line-height: 1.45;
     }
@@ -307,8 +317,9 @@
     .ops-detail-actions-card input[type="text"] {
         width: 100%;
         border: 0;
-        background: #f1f4fa;
-        border-radius: 0.9rem;
+        background: #fff;
+        border: 1px solid #c5c5d3;
+        border-radius: 0.25rem;
         padding: 0.92rem 1rem;
         font-size: 1rem;
         margin-top: 0.8rem;
@@ -331,15 +342,15 @@
 
     .ops-detail-scan-btn {
         border: 0;
-        border-radius: 0.9rem;
+        border-radius: 0.5rem;
         padding: 0.9rem 0.85rem;
         font-weight: 700;
         white-space: nowrap;
     }
 
     .ops-detail-scan-btn.is-primary {
-        background: #e0f2fe;
-        color: #0c6b8c;
+        background: #dce1ff;
+        color: #00236f;
     }
 
     .ops-detail-scan-btn.is-danger {
@@ -365,9 +376,9 @@
     .ops-detail-packing-wrap {
         margin-top: 1rem;
         padding: 1rem;
-        border-radius: 1rem;
-        background: #f8fbff;
-        border: 1px solid rgba(14, 116, 144, 0.15);
+        border-radius: 0.5rem;
+        background: #f4f3fa;
+        border: 1px solid #c5c5d3;
     }
 
     .ops-detail-packing-header {
@@ -391,8 +402,8 @@
         gap: 0.35rem;
         padding: 0.35rem 0.7rem;
         border-radius: 999px;
-        background: #e0f2fe;
-        color: #0c6b8c;
+        background: #dce1ff;
+        color: #00236f;
         font-size: 0.92rem;
         font-weight: 700;
     }
@@ -405,7 +416,7 @@
     }
 
     .ops-detail-packing-alert {
-        border-radius: 0.95rem;
+        border-radius: 0.5rem;
         padding: 0.8rem 0.9rem;
         font-size: 0.94rem;
         line-height: 1.45;
@@ -430,7 +441,7 @@
     }
 
     .ops-detail-packing-item {
-        border-radius: 1rem;
+        border-radius: 0.5rem;
         background: #fff;
         border: 1px solid rgba(148, 163, 184, 0.2);
         padding: 0.9rem;
@@ -503,7 +514,7 @@
     .ops-detail-scanner-panel {
         display: none;
         margin-top: 0.75rem;
-        border-radius: 1rem;
+        border-radius: 0.5rem;
         overflow: hidden;
         background: #0f172a;
         min-height: 220px;
@@ -531,25 +542,38 @@
 
     .ops-detail-action-btn {
         border: 0;
-        border-radius: 0.9rem;
+        border-radius: 0.5rem;
         padding: 0.95rem 0.8rem;
         font-size: 1rem;
         font-weight: 700;
     }
 
     .ops-detail-action-btn.is-primary {
-        background: #0b84a5;
+        background: #1e3a8a;
         color: #fff;
     }
 
     .ops-detail-action-btn.is-secondary {
-        background: #e7eaee;
-        color: #334155;
+        background: #e9e7ef;
+        color: #444651;
     }
 
     .ops-detail-empty-actions {
         color: #6b7280;
         margin-top: 0.8rem;
+    }
+
+    .ops-detail-card h5,
+    .ops-detail-card h6 {
+        color: #00236f;
+        font-weight: 700;
+    }
+
+    .ops-detail-action-grid .btn,
+    .ops-detail-edit-actions .btn,
+    .ops-detail-action-btn {
+        min-height: 48px;
+        border-radius: 0.5rem;
     }
 
     {% include "core/_ops_mobile_bottomnav_styles.html" %}
@@ -561,7 +585,7 @@
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
             <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-mobile-topbar-control" aria-label="Back to orders">&#8592;</a>
-            <h1>Order Details</h1>
+            <h1>#{{ order.channel_order_id|default:order.shiprocket_order_id }}</h1>
             <a href="{% url 'stock_management' %}" class="ops-mobile-topbar-control" aria-label="Open stock">
                 <i class="fas fa-boxes"></i>
             </a>
