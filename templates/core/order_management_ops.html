@@ -518,7 +518,7 @@
         display: flex;
         gap: 0.5rem;
         overflow-x: auto;
-        padding: 1rem 1rem 0.25rem;
+        padding: 0.85rem 1rem 0.55rem;
         background: #faf8ff;
         scrollbar-width: none;
     }
@@ -529,8 +529,8 @@
 
     .ops-mobile-tab {
         flex: 0 0 auto;
-        min-height: 32px;
-        padding: 0.45rem 0.9rem;
+        min-height: 22px;
+        padding: 0.28rem 0.9rem;
         text-align: center;
         color: #444651;
         background: #e9e7ef;
@@ -540,7 +540,7 @@
 
     .ops-mobile-tab strong {
         display: inline;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         font-weight: 700;
     }
 
@@ -561,7 +561,7 @@
     .ops-order-list {
         display: grid;
         gap: 0.75rem;
-        padding: 0.75rem 1rem 5rem;
+        padding: 0.2rem 1rem 5rem;
         background: #faf8ff;
     }
 
@@ -588,7 +588,7 @@
     }
 
     .ops-order-card-body {
-        padding: 1rem;
+        padding: 1rem 1rem 0.95rem;
     }
 
     .ops-order-topline {
@@ -596,16 +596,15 @@
         justify-content: space-between;
         gap: 0.85rem;
         align-items: flex-start;
-        margin-bottom: 0.65rem;
+        margin-bottom: 0.75rem;
     }
 
     .ops-order-id {
-        margin-bottom: 0.18rem;
+        margin: 0.1rem 0 0;
         color: #757682;
         font-size: 0.78rem;
-        font-weight: 700;
+        font-weight: 500;
         letter-spacing: 0.03em;
-        text-transform: uppercase;
     }
 
     .ops-order-customer {
@@ -617,18 +616,15 @@
     }
 
     .ops-order-address {
-        margin-top: 0.2rem;
-        color: #444651;
-        font-size: 0.86rem;
-        line-height: 1.25rem;
+        display: none;
     }
 
     .ops-order-status {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.24rem 0.55rem;
-        border-radius: 0.5rem;
+        padding: 0.34rem 0.55rem;
+        border-radius: 0.25rem;
         font-size: 0.76rem;
         font-weight: 800;
         line-height: 1rem;
@@ -639,8 +635,8 @@
     }
 
     .ops-order-status.status-pending {
-        background: #ffdbcb;
-        color: #773205;
+        background: #ffd8c7;
+        color: #7a2700;
     }
 
     .ops-order-status.status-accepted,
@@ -650,13 +646,13 @@
     }
 
     .ops-order-status.status-packed {
-        background: #86f2e4;
+        background: #7ce3d7;
         color: #006f66;
     }
 
     .ops-order-status.status-delivered {
         background: #dce1ff;
-        color: #264191;
+        color: #00236f;
     }
 
     .ops-order-status.status-cancelled {
@@ -666,43 +662,33 @@
 
     .ops-order-totalbox {
         flex: 0 0 auto;
-        min-width: 5.6rem;
+        min-width: 5rem;
         text-align: right;
     }
 
-    .ops-order-items,
-    .ops-order-total {
-        display: block;
-    }
-
     .ops-order-items {
-        margin-top: 0.55rem;
-        color: #444651;
-        font-size: 0.82rem;
-        font-weight: 600;
+        display: none;
     }
 
     .ops-order-total {
-        margin-top: 0.16rem;
-        color: #1a1b21;
-        font-size: 0.95rem;
-        font-weight: 800;
+        display: none;
     }
 
     .ops-order-facts {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
         gap: 0.9rem;
-        margin-top: 1rem;
-        padding-top: 1rem;
+        margin-top: 0;
+        padding-top: 0.85rem;
         border-top: 1px solid #c5c5d3;
+        align-items: center;
     }
 
     .ops-order-fact-label {
         display: block;
         color: #757682;
         font-size: 0.72rem;
-        font-weight: 700;
+        font-weight: 500;
         line-height: 1rem;
         text-transform: uppercase;
     }
@@ -711,19 +697,13 @@
         display: block;
         margin-top: 0.1rem;
         color: #1a1b21;
-        font-size: 0.88rem;
+        font-size: 0.86rem;
         font-weight: 700;
         line-height: 1.25rem;
     }
 
     .ops-order-card-meta {
-        display: flex;
-        justify-content: space-between;
-        gap: 0.85rem;
-        align-items: center;
-        margin-top: 0.9rem;
-        color: #444651;
-        font-size: 0.82rem;
+        display: none;
     }
 
     .ops-order-stock-alert {
@@ -750,8 +730,10 @@
         border-radius: 0;
         background: transparent;
         color: #00236f;
-        font-weight: 800;
+        font-weight: 500;
         white-space: nowrap;
+        align-self: end;
+        font-size: 1rem;
     }
 
     .ops-order-card-chevron {
@@ -787,7 +769,7 @@
 
     @media (max-width: 767px) {
         .ops-mobile-tabs {
-            padding: 0.85rem 1rem 0.2rem;
+            padding: 0.85rem 1rem 0.55rem;
         }
 
         .ops-mobile-tab {
@@ -1081,7 +1063,6 @@
                     <input type="hidden" name="tab" value="{{ active_tab }}">
                     <input type="text" name="q" value="{{ filters.q }}" class="ops-mobile-search" placeholder="Search by Order # or Customer">
                 </form>
-                <a href="{% url 'ops_print_queue' %}" class="ops-mobile-sync-btn is-secondary" style="text-decoration:none;">Labels</a>
             </div>
         </div>
 
@@ -1121,12 +1102,9 @@
                                     <span class="ops-order-fact-value">{{ item.order.order_date|date:"d M"|default:"-" }}</span>
                                 </div>
                                 <div>
-                                    <span class="ops-order-fact-label">Tracking</span>
-                                    <span class="ops-order-fact-value">{{ item.order.tracking_number|default:"Not added" }}</span>
-                                </div>
-                                <div>
-                                    <span class="ops-order-fact-label">Updated</span>
-                                    <span class="ops-order-fact-value">{{ item.order.current_status_date|date:"d-m g:i a"|default:"-" }}</span>
+                                    <span class="ops-order-card-cta">
+                                        View Detail <span class="ops-order-card-chevron">&#8250;</span>
+                                    </span>
                                 </div>
                             </div>
                             {% if item.stock_availability.has_shortage %}
@@ -1141,15 +1119,6 @@
                                     </div>
                                 {% endwith %}
                             {% endif %}
-                            <div class="ops-order-card-meta">
-                                <div>
-                                    {{ item.order.current_status_date_label|default:"Order" }}
-                                    <strong class="ms-1">Delivery</strong>
-                                </div>
-                                <div class="ops-order-card-cta">
-                                    View Detail <span class="ops-order-card-chevron">&#8250;</span>
-                                </div>
-                            </div>
                         </div>
                     </a>
                 {% endfor %}
