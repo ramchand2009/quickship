@@ -705,7 +705,7 @@
                                     data-status-action
                                     data-status-value="{{ action.value }}"
                                     data-requires-phone="false"
-                                    data-requires-tracking="false"
+                                    data-requires-tracking="{% if action.requires_tracking %}true{% else %}false{% endif %}"
                                     data-is-cancel="{% if action.is_cancel %}true{% else %}false{% endif %}"
                                 >
                                     {{ action.label }}
@@ -1350,11 +1350,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
             if (trackingInput && needsTracking) {
-                trackingInput.value = normalizeTrackingNumber(trackingInput.value);
-                if (trackingInput.value.length !== 13) {
+                let trackingValue = normalizeTrackingNumber(trackingInput.value);
+                if (!trackingValue) {
+                    trackingValue = normalizeTrackingNumber(window.prompt("Enter tracking number to move this order to Shipped:", "") || "");
+                }
+                trackingInput.value = trackingValue;
+                if (!isExactTrackingNumber(trackingInput.value)) {
                     event.preventDefault();
                     trackingInput.focus();
-                    window.alert("Enter a 13 character tracking number before shipping.");
+                    window.alert("Enter a valid tracking number in format AA123456789AA before shipping.");
                     return;
                 }
             }

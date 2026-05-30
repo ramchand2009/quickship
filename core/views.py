@@ -1363,7 +1363,7 @@ def _build_ops_viewer_detail_actions(order, status_form):
                     status_value == ShiprocketOrder.STATUS_ACCEPTED
                     and order.local_status == ShiprocketOrder.STATUS_NEW
                 ),
-                "requires_tracking": False,
+                "requires_tracking": status_value == ShiprocketOrder.STATUS_SHIPPED,
                 "is_cancel": status_value == ShiprocketOrder.STATUS_CANCELLED,
             }
         )
