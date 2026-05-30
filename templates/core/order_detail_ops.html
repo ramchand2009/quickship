@@ -926,7 +926,7 @@
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput" value="other">
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
                     <input type="hidden" name="order-{{ order.pk }}-packing_scan_payload" id="opsPackingScanPayload" value="[]">
-                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone|default:order.customer_phone }}">
+                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.resolved_customer_phone }}">
                     <input type="hidden" name="order-{{ order.pk }}-courier_name" id="opsCourierInput" value="{{ order.courier_name }}">
                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}">
                     <div class="ops-detail-action-grid">

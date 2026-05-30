@@ -386,6 +386,33 @@ class ShiprocketOrder(models.Model):
         }
 
     @property
+    def resolved_customer_phone(self):
+        candidates = [
+            self.manual_customer_phone,
+            (self.shipping_address or {}).get("phone") if isinstance(self.shipping_address, dict) else "",
+            (self.billing_address or {}).get("phone") if isinstance(self.billing_address, dict) else "",
+            self.customer_phone,
+        ]
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        for section_name in ["billing", "shipping"]:
+            section = payload.get(section_name)
+            if isinstance(section, dict):
+                candidates.append(section.get("phone"))
+        candidates.extend(
+            [
+                payload.get("billing_phone"),
+                payload.get("shipping_phone"),
+                payload.get("phone"),
+                payload.get("customer_phone"),
+            ]
+        )
+        for value in candidates:
+            phone = str(value or "").strip()
+            if phone:
+                return phone
+        return ""
+
+    @property
     def status_date_rows(self):
         return [
             {"label": "Order Date", "value": self.order_date},
