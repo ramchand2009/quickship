@@ -3584,6 +3584,30 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tracking: AA123456789AA")
 
+    def test_ops_viewer_order_management_renders_woocommerce_item_image(self):
+        ShiprocketOrder.objects.create(
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-ROLE-VIEWER-IMAGE-1",
+            channel_order_id="10025",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            customer_name="Image Customer",
+            order_items=[
+                {
+                    "sku": "MTHKLB01",
+                    "name": "Beetroot Lipbalm 8gm",
+                    "image": "https://example.com/lipbalm.jpg",
+                    "price": "90",
+                    "quantity": 3,
+                }
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "https://example.com/lipbalm.jpg")
+
     def test_ops_viewer_order_detail_shows_stock_shortage_alert(self):
         Product.objects.create(
             name="Viewer Short Stock",
