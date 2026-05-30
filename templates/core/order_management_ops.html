@@ -558,47 +558,10 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
 
-    .ops-mobile-summary {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem;
-        padding: 0.35rem 1rem 0.65rem;
-        background: #faf8ff;
-    }
-
-    .ops-mobile-summary-item {
-        min-width: 0;
-        padding: 0.65rem 0.75rem;
-        border: 1px solid #c5c5d3;
-        border-radius: 0.25rem;
-        background: #ffffff;
-    }
-
-    .ops-mobile-summary-label {
-        display: block;
-        color: #757682;
-        font-size: 0.72rem;
-        font-weight: 600;
-        line-height: 1rem;
-        text-transform: uppercase;
-    }
-
-    .ops-mobile-summary-value {
-        display: block;
-        margin-top: 0.12rem;
-        color: #00236f;
-        font-size: 1rem;
-        font-weight: 800;
-        line-height: 1.25rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
     .ops-order-list {
         display: grid;
         gap: 0.75rem;
-        padding: 0.1rem 1rem 5rem;
+        padding: 0.2rem 1rem 5rem;
         background: #faf8ff;
     }
 
@@ -718,12 +681,12 @@
 
     .ops-order-facts {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-        gap: 0.9rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.65rem;
         margin-top: 0;
         padding-top: 0.85rem;
         border-top: 1px solid #c5c5d3;
-        align-items: center;
+        align-items: start;
     }
 
     .ops-order-fact-label {
@@ -778,6 +741,12 @@
         font-size: 1rem;
         text-decoration: underline;
         text-underline-offset: 0.18rem;
+    }
+
+    .ops-order-card-action {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.65rem;
     }
 
     .ops-order-card-chevron {
@@ -1119,17 +1088,6 @@
             {% endfor %}
         </div>
 
-        <div class="ops-mobile-summary">
-            <div class="ops-mobile-summary-item">
-                <span class="ops-mobile-summary-label">Total Orders</span>
-                <span class="ops-mobile-summary-value">{{ tab_filter_count }}</span>
-            </div>
-            <div class="ops-mobile-summary-item">
-                <span class="ops-mobile-summary-label">Amount</span>
-                <span class="ops-mobile-summary-value">Rs {{ tab_filter_total_amount|floatformat:0 }}</span>
-            </div>
-        </div>
-
         {% if tab_orders %}
             <div class="ops-order-list">
                 {% for item in tab_orders %}
@@ -1168,10 +1126,18 @@
                                     <span class="ops-order-fact-value">{{ item.order.order_date|date:"d M"|default:"-" }}</span>
                                 </div>
                                 <div>
-                                    <span class="ops-order-card-cta">
-                                        View Detail <span class="ops-order-card-chevron">&#8250;</span>
-                                    </span>
+                                    <span class="ops-order-fact-label">Products</span>
+                                    <span class="ops-order-fact-value">{{ item.order.order_items|length }}</span>
                                 </div>
+                                <div>
+                                    <span class="ops-order-fact-label">Amount</span>
+                                    <span class="ops-order-fact-value">Rs {{ item.order.total|floatformat:0 }}</span>
+                                </div>
+                            </div>
+                            <div class="ops-order-card-action">
+                                <span class="ops-order-card-cta">
+                                    View Detail <span class="ops-order-card-chevron">&#8250;</span>
+                                </span>
                             </div>
                             {% if item.stock_availability.has_shortage %}
                                 {% with shortage=item.stock_availability.shortages.0 %}
