@@ -245,6 +245,8 @@ class ShiprocketOrderManualUpdateForm(forms.ModelForm):
 
 
 class ShiprocketOrderStatusForm(forms.ModelForm):
+    courier_name = forms.CharField(required=False)
+
     class Meta:
         model = ShiprocketOrder
         fields = ["local_status", "manual_customer_phone", "courier_name", "tracking_number", "cancellation_reason", "cancellation_note"]
@@ -270,6 +272,8 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
         self.fields["courier_name"].widget.attrs["placeholder"] = "Courier partner"
         self.fields["courier_name"].widget.attrs["style"] = "min-width: 190px;"
         self.fields["courier_name"].widget.attrs["title"] = "Courier Partner"
+        if self.instance and self.instance.pk and not self.is_bound:
+            self.fields["courier_name"].initial = self.instance.courier_name
         self.fields["tracking_number"].widget.attrs["class"] = "form-control form-control-sm"
         self.fields["tracking_number"].widget.attrs["placeholder"] = "Type tracking number manually (AA123456789AA)"
         self.fields["tracking_number"].widget.attrs["style"] = "min-width: 190px;"
@@ -364,6 +368,14 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
             cleaned_data["cancellation_note"] = ""
 
         return cleaned_data
+
+    def save(self, commit=True):
+        order = super().save(commit=False)
+        order.courier_name = self.cleaned_data.get("courier_name") or ""
+        if commit:
+            order.save()
+            self.save_m2m()
+        return order
 
 
 class ShiprocketOrderTrackingUpdateForm(forms.ModelForm):

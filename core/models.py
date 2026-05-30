@@ -312,7 +312,6 @@ class ShiprocketOrder(models.Model):
     local_status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_NEW)
     cancellation_reason = models.CharField(max_length=32, choices=CANCELLATION_REASON_CHOICES, blank=True)
     cancellation_note = models.CharField(max_length=255, blank=True)
-    courier_name = models.CharField(max_length=80, blank=True)
     tracking_number = models.CharField(max_length=128, blank=True)
     packed_at = models.DateTimeField(null=True, blank=True)
     shipped_at = models.DateTimeField(null=True, blank=True)
@@ -337,6 +336,17 @@ class ShiprocketOrder(models.Model):
     @property
     def source_label(self):
         return dict(self.SOURCE_CHOICES).get(self.source, self.source or "Shiprocket")
+
+    @property
+    def courier_name(self):
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        return str(payload.get("courier_name") or payload.get("courier") or "").strip()
+
+    @courier_name.setter
+    def courier_name(self, value):
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        payload = {**payload, "courier_name": str(value or "").strip()}
+        self.raw_payload = payload
 
     @property
     def source_order_reference(self):
