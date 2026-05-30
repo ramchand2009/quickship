@@ -1,4 +1,5 @@
 import json
+import re
 
 from django import forms
 from django.conf import settings
@@ -246,10 +247,11 @@ class ShiprocketOrderManualUpdateForm(forms.ModelForm):
 class ShiprocketOrderStatusForm(forms.ModelForm):
     class Meta:
         model = ShiprocketOrder
-        fields = ["local_status", "manual_customer_phone", "tracking_number", "cancellation_reason", "cancellation_note"]
+        fields = ["local_status", "manual_customer_phone", "courier_name", "tracking_number", "cancellation_reason", "cancellation_note"]
         labels = {
             "local_status": "Order Status",
             "manual_customer_phone": "Customer Mobile",
+            "courier_name": "Courier Partner",
             "tracking_number": "Tracking Number",
             "cancellation_reason": "Cancel Reason",
             "cancellation_note": "Cancel Note",
@@ -264,6 +266,10 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
         self.fields["manual_customer_phone"].widget.attrs["title"] = "Customer Mobile"
         self.fields["manual_customer_phone"].widget.attrs["inputmode"] = "tel"
         self.fields["manual_customer_phone"].widget.attrs["minlength"] = "10"
+        self.fields["courier_name"].widget.attrs["class"] = "form-control form-control-sm"
+        self.fields["courier_name"].widget.attrs["placeholder"] = "Courier partner"
+        self.fields["courier_name"].widget.attrs["style"] = "min-width: 190px;"
+        self.fields["courier_name"].widget.attrs["title"] = "Courier Partner"
         self.fields["tracking_number"].widget.attrs["class"] = "form-control form-control-sm"
         self.fields["tracking_number"].widget.attrs["placeholder"] = "Type tracking number manually (AA123456789AA)"
         self.fields["tracking_number"].widget.attrs["style"] = "min-width: 190px;"
@@ -294,7 +300,8 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
         cleaned_data = super().clean()
         selected_status = cleaned_data.get("local_status")
         selected_manual_customer_phone = (cleaned_data.get("manual_customer_phone") or "").strip()
-        selected_tracking_number = (cleaned_data.get("tracking_number") or "").strip()
+        selected_courier_name = (cleaned_data.get("courier_name") or "").strip()
+        selected_tracking_number = (cleaned_data.get("tracking_number") or "").strip().upper()
         selected_cancellation_reason = (cleaned_data.get("cancellation_reason") or "").strip()
 
         if not selected_status:
@@ -335,13 +342,18 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
             cleaned_data["manual_customer_phone"] = self.instance.manual_customer_phone
 
         if selected_status == ShiprocketOrder.STATUS_SHIPPED:
+            if not selected_courier_name:
+                self.add_error("courier_name", "Select courier partner before moving to shipped.")
+            else:
+                cleaned_data["courier_name"] = selected_courier_name
             if not selected_tracking_number:
                 self.add_error("tracking_number", "Enter tracking number before moving to shipped.")
-            elif len(selected_tracking_number) != 13:
-                self.add_error("tracking_number", "Tracking number must be exactly 13 characters.")
+            elif not re.fullmatch(r"[A-Z]{2}\d{9}[A-Z]{2}", selected_tracking_number):
+                self.add_error("tracking_number", "Tracking number must match format AA123456789AA.")
             else:
                 cleaned_data["tracking_number"] = selected_tracking_number
         else:
+            cleaned_data["courier_name"] = self.instance.courier_name
             cleaned_data["tracking_number"] = self.instance.tracking_number
 
         if selected_status == ShiprocketOrder.STATUS_CANCELLED:

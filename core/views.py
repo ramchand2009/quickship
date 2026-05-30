@@ -2463,6 +2463,7 @@ def bulk_update_shiprocket_order_status(request):
         payload = {
             f"{prefix}-local_status": target_status,
             f"{prefix}-manual_customer_phone": bulk_phone or order.manual_customer_phone,
+            f"{prefix}-courier_name": order.courier_name or "Self-Ship",
             f"{prefix}-tracking_number": bulk_tracking_number or order.tracking_number,
             f"{prefix}-cancellation_reason": bulk_cancellation_reason or order.cancellation_reason,
             f"{prefix}-cancellation_note": bulk_cancellation_note or order.cancellation_note,
@@ -5427,6 +5428,7 @@ def update_shiprocket_order_status(request, pk):
                 previous_status=previous_status,
                 current_status=updated_order.local_status,
                 metadata={
+                    "courier_name": updated_order.courier_name,
                     "tracking_number": updated_order.tracking_number,
                     "cancellation_reason": updated_order.cancellation_reason,
                     "cancellation_note": updated_order.cancellation_note,

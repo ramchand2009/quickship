@@ -1028,6 +1028,7 @@
                                                     <input type="hidden" name="order-{{ order.pk }}-local_status" value="{{ action.value }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" value="">
                                                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
+                                                    <input type="hidden" name="order-{{ order.pk }}-courier_name" value="{{ order.courier_name|default:'Self-Ship' }}">
                                                     {% if action.requires_phone %}
                                                         <input
                                                             type="tel"
@@ -1069,6 +1070,7 @@
                                                     <input type="hidden" name="return_query" value="{{ page_base_query }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-local_status" value="{{ action.value }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-courier_name" value="{{ order.courier_name|default:'Self-Ship' }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" value="{{ order.tracking_number }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" value="">
                                                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">

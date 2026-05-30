@@ -325,6 +325,239 @@
         margin-top: 0.8rem;
     }
 
+    .ops-tracking-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: none;
+        min-height: 100vh;
+        overflow-y: auto;
+        background: #faf8ff;
+        color: #1a1b21;
+        padding-bottom: 5rem;
+    }
+
+    .ops-tracking-screen.is-open {
+        display: block;
+    }
+
+    .ops-tracking-header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #c5c5d3;
+        background: #faf8ff;
+    }
+
+    .ops-tracking-back {
+        width: 44px;
+        height: 44px;
+        border: 0;
+        background: transparent;
+        color: #00236f;
+        font-size: 1.9rem;
+        line-height: 1;
+    }
+
+    .ops-tracking-header h2 {
+        margin: 0;
+        color: #00236f;
+        font-size: 1.2rem;
+        font-weight: 800;
+        line-height: 1.35;
+    }
+
+    .ops-tracking-content {
+        display: grid;
+        gap: 1.45rem;
+        padding: 1.25rem 1rem 1rem;
+    }
+
+    .ops-tracking-order-card {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem;
+        border: 1px solid #c5c5d3;
+        border-radius: 0.5rem;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .ops-tracking-label {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: #444651;
+        font-size: 0.82rem;
+        font-weight: 800;
+    }
+
+    .ops-tracking-kicker {
+        display: block;
+        color: #444651;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .ops-tracking-order-card strong {
+        display: block;
+        color: #00236f;
+        font-size: 1.3rem;
+        line-height: 1.55rem;
+    }
+
+    .ops-tracking-customer {
+        text-align: right;
+        font-weight: 700;
+    }
+
+    .ops-courier-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+    }
+
+    .ops-courier-btn {
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 0.85rem;
+        border: 1px solid #c5c5d3;
+        border-radius: 0.5rem;
+        background: #fff;
+        color: #1a1b21;
+        font-size: 1rem;
+        font-weight: 700;
+        text-align: left;
+    }
+
+    .ops-courier-btn.is-selected {
+        border-color: #00236f;
+        background: #1e3a8a;
+        color: #fff;
+    }
+
+    .ops-courier-icon {
+        width: 26px;
+        text-align: center;
+        font-size: 1.2rem;
+    }
+
+    .ops-tracking-input-wrap {
+        position: relative;
+    }
+
+    .ops-tracking-input {
+        width: 100%;
+        min-height: 56px;
+        border: 1px solid #c5c5d3;
+        border-radius: 0.5rem;
+        background: #fff;
+        color: #1a1b21;
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 0.9rem 3.4rem 0.9rem 1rem;
+        text-transform: uppercase;
+    }
+
+    .ops-tracking-input:focus {
+        outline: none;
+        border-color: #00236f;
+        box-shadow: 0 0 0 3px rgba(0, 35, 111, 0.12);
+    }
+
+    .ops-tracking-scan {
+        position: absolute;
+        right: 0.35rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 44px;
+        height: 44px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #00236f;
+        font-size: 1.35rem;
+        font-weight: 800;
+    }
+
+    .ops-tracking-hint,
+    .ops-tracking-error {
+        margin: 0.45rem 0 0;
+        font-size: 0.88rem;
+        line-height: 1.35;
+    }
+
+    .ops-tracking-hint {
+        color: #444651;
+        font-style: italic;
+    }
+
+    .ops-tracking-error {
+        display: none;
+        color: #ba1a1a;
+        font-weight: 700;
+    }
+
+    .ops-tracking-status-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+    }
+
+    .ops-tracking-status-option {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #c5c5d3;
+        border-radius: 0.5rem;
+        background: #fff;
+        color: #1a1b21;
+        font-weight: 800;
+    }
+
+    .ops-tracking-status-option.is-selected {
+        border-color: #00236f;
+        background: #1e3a8a;
+        color: #fff;
+    }
+
+    .ops-tracking-actions {
+        display: grid;
+        gap: 0.75rem;
+        padding-top: 0.4rem;
+    }
+
+    .ops-tracking-save,
+    .ops-tracking-cancel {
+        min-height: 52px;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .ops-tracking-save {
+        border: 0;
+        background: #00236f;
+        color: #fff;
+    }
+
+    .ops-tracking-cancel {
+        border: 1px solid #006a61;
+        background: transparent;
+        color: #006a61;
+    }
+
     .ops-detail-tracking-wrap {
         margin-top: 0.8rem;
     }
@@ -695,6 +928,7 @@
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
                     <input type="hidden" name="order-{{ order.pk }}-packing_scan_payload" id="opsPackingScanPayload" value="[]">
                     <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone|default:order.customer_phone }}">
+                    <input type="hidden" name="order-{{ order.pk }}-courier_name" id="opsCourierInput" value="{{ order.courier_name }}">
                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}">
                     <div class="ops-detail-action-grid">
                         {% for action in ops_mobile_actions %}
@@ -720,6 +954,58 @@
         </div>
     </div>
 
+    <div class="ops-tracking-screen" id="opsTrackingScreen" aria-hidden="true">
+        <div class="ops-tracking-header">
+            <button type="button" class="ops-tracking-back" id="opsTrackingBackButton" aria-label="Back to order details">&#8592;</button>
+            <h2>Update Tracking Information</h2>
+        </div>
+        <div class="ops-tracking-content">
+            <section class="ops-tracking-order-card">
+                <div>
+                    <span class="ops-tracking-kicker">Order Reference</span>
+                    <strong>#{{ order.channel_order_id|default:order.shiprocket_order_id }}</strong>
+                </div>
+                <div class="ops-tracking-customer">
+                    <span class="ops-tracking-kicker">Customer</span>
+                    {{ order.display_shipping_address.name|default:order.customer_name|default:"-" }}
+                </div>
+            </section>
+
+            <section>
+                <label class="ops-tracking-label">Courier Partner</label>
+                <div class="ops-courier-grid" id="opsCourierGrid">
+                    <button type="button" class="ops-courier-btn" data-courier-choice="Delhivery"><span class="ops-courier-icon"><i class="fas fa-truck"></i></span>Delhivery</button>
+                    <button type="button" class="ops-courier-btn" data-courier-choice="Blue Dart"><span class="ops-courier-icon"><i class="fas fa-tachometer-alt"></i></span>Blue Dart</button>
+                    <button type="button" class="ops-courier-btn" data-courier-choice="Ecom Express"><span class="ops-courier-icon"><i class="fas fa-cube"></i></span>Ecom Express</button>
+                    <button type="button" class="ops-courier-btn" data-courier-choice="India Post"><span class="ops-courier-icon"><i class="far fa-envelope"></i></span>India Post</button>
+                </div>
+            </section>
+
+            <section>
+                <label for="opsTrackingScreenInput" class="ops-tracking-label">Tracking ID / AWB Number</label>
+                <div class="ops-tracking-input-wrap">
+                    <input type="text" id="opsTrackingScreenInput" class="ops-tracking-input" value="{{ order.tracking_number }}" placeholder="AA123456789AA" autocomplete="off" autocapitalize="characters" spellcheck="false">
+                    <button type="button" class="ops-tracking-scan" aria-label="Scan barcode"><i class="fas fa-barcode"></i></button>
+                </div>
+                <p class="ops-tracking-hint">Scan barcode or enter ID manually</p>
+                <p class="ops-tracking-error" id="opsTrackingScreenError"></p>
+            </section>
+
+            <section>
+                <label class="ops-tracking-label">Initial Shipment Status</label>
+                <div class="ops-tracking-status-row">
+                    <button type="button" class="ops-tracking-status-option is-selected">Shipped</button>
+                    <button type="button" class="ops-tracking-status-option">In Transit</button>
+                </div>
+            </section>
+
+            <div class="ops-tracking-actions">
+                <button type="button" class="ops-tracking-save" id="opsTrackingSaveButton"><i class="far fa-save me-2"></i>Save &amp; Update Status</button>
+                <button type="button" class="ops-tracking-cancel" id="opsTrackingCancelButton">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="orders" ops_mobile_nav_sync_return="order_management" %}
 </div>
 
@@ -733,8 +1019,16 @@ document.addEventListener("DOMContentLoaded", function () {
     const statusTargetInput = document.getElementById("opsStatusTargetInput");
     const cancelReasonInput = document.getElementById("opsCancelReasonInput");
     const phoneInput = document.getElementById("opsPhoneInput");
+    const courierInput = document.getElementById("opsCourierInput");
     const trackingWrap = document.getElementById("opsTrackingWrap");
     const trackingInput = document.getElementById("opsTrackingInput");
+    const trackingScreen = document.getElementById("opsTrackingScreen");
+    const trackingScreenInput = document.getElementById("opsTrackingScreenInput");
+    const trackingScreenError = document.getElementById("opsTrackingScreenError");
+    const trackingSaveButton = document.getElementById("opsTrackingSaveButton");
+    const trackingCancelButton = document.getElementById("opsTrackingCancelButton");
+    const trackingBackButton = document.getElementById("opsTrackingBackButton");
+    const courierButtons = Array.from(document.querySelectorAll("[data-courier-choice]"));
     const scanStartButton = document.getElementById("opsScanStartButton");
     const scanStopButton = document.getElementById("opsScanStopButton");
     const scanStatus = document.getElementById("opsScanStatus");
@@ -767,6 +1061,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let trackingConfirmTimeout = null;
     let pendingTrackingValue = "";
     let activeActionButton = null;
+    let pendingShipButton = null;
 
     const normalizeTrackingNumber = function (rawValue) {
         return String(rawValue || "")
@@ -777,6 +1072,59 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const isExactTrackingNumber = function (value) {
         return TRACKING_NUMBER_PATTERN.test(String(value || ""));
+    };
+
+    const setSelectedCourier = function (courierName) {
+        const normalizedCourier = String(courierName || "").trim();
+        if (courierInput) {
+            courierInput.value = normalizedCourier;
+        }
+        courierButtons.forEach(function (button) {
+            button.classList.toggle("is-selected", button.getAttribute("data-courier-choice") === normalizedCourier);
+        });
+    };
+
+    const getSelectedCourier = function () {
+        return String(courierInput ? courierInput.value : "").trim();
+    };
+
+    const setTrackingScreenError = function (message) {
+        if (!trackingScreenError) {
+            return;
+        }
+        trackingScreenError.textContent = message || "";
+        trackingScreenError.style.display = message ? "block" : "none";
+    };
+
+    const openTrackingScreen = function (button) {
+        pendingShipButton = button;
+        setTrackingScreenError("");
+        if (trackingScreenInput && trackingInput) {
+            trackingScreenInput.value = normalizeTrackingNumber(trackingInput.value);
+        }
+        if (!getSelectedCourier()) {
+            setSelectedCourier("Delhivery");
+        } else {
+            setSelectedCourier(getSelectedCourier());
+        }
+        if (trackingScreen) {
+            trackingScreen.classList.add("is-open");
+            trackingScreen.setAttribute("aria-hidden", "false");
+        }
+        if (trackingScreenInput) {
+            window.setTimeout(function () {
+                trackingScreenInput.focus();
+            }, 60);
+        }
+    };
+
+    const closeTrackingScreen = function () {
+        if (trackingScreen) {
+            trackingScreen.classList.remove("is-open");
+            trackingScreen.setAttribute("aria-hidden", "true");
+        }
+        pendingShipButton = null;
+        setTrackingScreenError("");
     };
 
     const normalizeBarcodeValue = function (rawValue) {
@@ -1334,6 +1682,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const isCancel = button.getAttribute("data-is-cancel") === "true";
             const needsPacking = targetStatus === "order_packed";
             setFieldVisibility(button);
+            if (needsTracking && !button.hasAttribute("data-tracking-confirmed")) {
+                event.preventDefault();
+                openTrackingScreen(button);
+                return;
+            }
+            button.removeAttribute("data-tracking-confirmed");
             if (statusTargetInput) {
                 statusTargetInput.value = targetStatus;
             }
@@ -1350,15 +1704,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
             if (trackingInput && needsTracking) {
-                let trackingValue = normalizeTrackingNumber(trackingInput.value);
-                if (!trackingValue) {
-                    trackingValue = normalizeTrackingNumber(window.prompt("Enter tracking number to move this order to Shipped:", "") || "");
-                }
-                trackingInput.value = trackingValue;
+                trackingInput.value = normalizeTrackingNumber(trackingInput.value);
                 if (!isExactTrackingNumber(trackingInput.value)) {
                     event.preventDefault();
-                    trackingInput.focus();
                     window.alert("Enter a valid tracking number in format AA123456789AA before shipping.");
+                    openTrackingScreen(button);
                     return;
                 }
             }
@@ -1394,6 +1744,62 @@ document.addEventListener("DOMContentLoaded", function () {
         trackingInput.addEventListener("change", function () {
             trackingInput.value = normalizeTrackingNumber(trackingInput.value);
         });
+    }
+
+    courierButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            setSelectedCourier(button.getAttribute("data-courier-choice"));
+            setTrackingScreenError("");
+        });
+    });
+
+    if (trackingScreenInput) {
+        trackingScreenInput.addEventListener("input", function () {
+            trackingScreenInput.value = normalizeTrackingNumber(trackingScreenInput.value);
+            setTrackingScreenError("");
+        });
+    }
+
+    const saveTrackingScreen = function () {
+        const courierName = getSelectedCourier();
+        const trackingValue = normalizeTrackingNumber(trackingScreenInput ? trackingScreenInput.value : "");
+        if (!courierName) {
+            setTrackingScreenError("Select courier partner before saving.");
+            return;
+        }
+        if (!isExactTrackingNumber(trackingValue)) {
+            setTrackingScreenError("Enter a valid tracking number in format AA123456789AA.");
+            if (trackingScreenInput) {
+                trackingScreenInput.focus();
+            }
+            return;
+        }
+        if (courierInput) {
+            courierInput.value = courierName;
+        }
+        if (trackingInput) {
+            trackingInput.value = trackingValue;
+        }
+        if (pendingShipButton) {
+            pendingShipButton.setAttribute("data-tracking-confirmed", "true");
+            if (typeof pendingShipButton.click === "function") {
+                pendingShipButton.click();
+            } else {
+                form.requestSubmit(pendingShipButton);
+            }
+        }
+    };
+
+    if (trackingSaveButton) {
+        trackingSaveButton.addEventListener("click", saveTrackingScreen);
+    }
+
+    if (trackingCancelButton) {
+        trackingCancelButton.addEventListener("click", closeTrackingScreen);
+    }
+
+    if (trackingBackButton) {
+        trackingBackButton.addEventListener("click", closeTrackingScreen);
     }
 
     if (scanStartButton) {
