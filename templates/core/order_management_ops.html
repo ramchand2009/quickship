@@ -880,7 +880,7 @@
 
                 <div class="ops-desktop-toolbar-actions">
                     {% if can_sync_orders %}
-                        <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                        <form method="post" action="{% url 'sync_orders' %}">
                             {% csrf_token %}
                             <input type="hidden" name="return_to" value="order_management">
                             <input type="hidden" name="return_query" value="{{ page_base_query }}">
@@ -930,7 +930,6 @@
                                     {% endwith %}
                                     <a class="ops-desktop-order-link" href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}">{{ order.channel_order_id|default:order.shiprocket_order_id }}</a>
                                     <span class="ops-desktop-subtext">{{ order.order_date|date:"d M y H:i"|default:"-" }}</span>
-                                    <span class="ops-desktop-subtext">{{ order.source_label }}: {{ order.source_order_reference|default:"NA" }}</span>
                                     {% if item.stock_availability.has_shortage %}
                                         {% with shortage=item.stock_availability.shortages.0 %}
                                             <span class="ops-desktop-stock-alert">
@@ -1009,9 +1008,6 @@
                                         {% endif %}
                                     </div>
                                     <div class="ops-desktop-shipping-text">{{ order.current_status_date_label }}: {{ order.current_status_date|date:"d M y H:i"|default:"-" }}</div>
-                                    {% if order.status %}
-                                        <div class="ops-desktop-shipping-text">{{ order.source_label }} Status: {{ order.status }}</div>
-                                    {% endif %}
                                 </div>
 
                                 <div class="ops-desktop-cell">
@@ -1108,7 +1104,7 @@
                 <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
                 <h1>Mathukai</h1>
                 {% if can_sync_orders %}
-                    <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                    <form method="post" action="{% url 'sync_orders' %}">
                         {% csrf_token %}
                         <input type="hidden" name="return_to" value="order_management">
                         <input type="hidden" name="return_query" value="{{ page_base_query }}">

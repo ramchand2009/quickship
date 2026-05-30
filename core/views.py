@@ -101,7 +101,6 @@ from .stock import (
 )
 from .queue_alerts import send_queue_alert_test
 from .push_notifications import send_new_order_push_notification, web_push_is_configured
-from .shiprocket import ShiprocketAPIError, sync_orders
 from .system_status import get_dashboard_system_status, write_system_heartbeat
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .woocommerce import (
@@ -109,6 +108,7 @@ from .woocommerce import (
     check_connection as check_woocommerce_connection,
     get_webhook_secret as get_woocommerce_webhook_secret,
     import_order_payload as import_woocommerce_order_payload,
+    sync_orders as sync_woocommerce_orders,
     update_order_status as update_woocommerce_order_status,
 )
 from .whatomate import (
@@ -5140,18 +5140,18 @@ def signup(request):
 def sync_shiprocket_orders(request):
     redirect_url = _resolve_ops_redirect(request, default_name="home")
     if not _can_sync_orders(request.user):
-        messages.error(request, "Your role cannot run Shiprocket sync.")
+        messages.error(request, "Your role cannot sync orders.")
         return redirect(redirect_url)
     if request.method != "POST":
         return redirect(redirect_url)
 
     sync_messages = []
     try:
-        synced = sync_orders()
-    except ShiprocketAPIError as exc:
+        synced = sync_woocommerce_orders()
+    except WooCommerceAPIError as exc:
         messages.error(request, str(exc))
     else:
-        sync_messages.append(f"Shiprocket: {synced} orders refreshed")
+        sync_messages.append(f"WooCommerce: {synced} orders refreshed")
 
     if sync_messages:
         messages.success(request, "Order sync completed. " + "; ".join(sync_messages) + ".")

@@ -23,7 +23,7 @@
     <div class="col-md-6 col-xl-3">
         <div class="card order-stat-card">
             <div class="card-block">
-                <h6 class="mb-2">{{ order.source_label }} Status</h6>
+                <h6 class="mb-2">Source Status</h6>
                 <h5 class="mb-0">{{ order.status|default:"Pending" }}</h5>
             </div>
         </div>
@@ -415,7 +415,7 @@
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header"><h5 class="mb-0">Raw {{ order.source_label }} Payload</h5></div>
+            <div class="card-header"><h5 class="mb-0">Raw Order Payload</h5></div>
             <div class="card-block">
                 {% if can_view_raw_payload %}
                     <pre class="bg-light p-3 mb-0 small" style="white-space: pre-wrap;">{{ order.raw_payload|pprint }}</pre>

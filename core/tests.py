@@ -1736,7 +1736,7 @@ class OrderManagementViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "<th>Shiprocket Status</th>", html=True)
         self.assertContains(response, order.channel_order_id)
-        self.assertContains(response, f"Shiprocket: {order.shiprocket_order_id}")
+        self.assertNotContains(response, f"Shiprocket: {order.shiprocket_order_id}")
         self.assertContains(response, "Workflow: Order Accepted")
         self.assertContains(response, "Tracking: 1234567890123")
         self.assertContains(response, "Packing Checklist")
@@ -3545,7 +3545,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Customer phone for Accept action")
         self.assertContains(response, "ops-order-card")
         self.assertContains(response, order.channel_order_id)
-        self.assertContains(response, f"Shiprocket: {order.shiprocket_order_id}")
+        self.assertNotContains(response, f"Shiprocket: {order.shiprocket_order_id}")
         self.assertContains(response, "Order Date:")
         self.assertContains(response, reverse("order_detail", args=[order.pk]))
         self.assertNotContains(response, 'data-row-update-form', html=False)
@@ -4597,8 +4597,8 @@ class RoleAccessTests(TestCase):
         self.assertRedirects(response, reverse("order_management"))
         self.assertContains(response, "cannot access product categories")
 
-    @patch("core.views.sync_orders")
-    def test_ops_viewer_can_run_shiprocket_sync_from_order_management(self, mock_sync_orders):
+    @patch("core.views.sync_woocommerce_orders")
+    def test_ops_viewer_can_run_woocommerce_sync_from_order_management(self, mock_sync_orders):
         mock_sync_orders.return_value = 3
         self.client.force_login(self.viewer)
 
@@ -4613,7 +4613,7 @@ class RoleAccessTests(TestCase):
 
         mock_sync_orders.assert_called_once()
         self.assertRedirects(response, f"{reverse('order_management')}?tab=new_order#order-management-section")
-        self.assertContains(response, "Order sync completed. Shiprocket: 3 orders refreshed.")
+        self.assertContains(response, "Order sync completed. WooCommerce: 3 orders refreshed.")
 
     def test_ops_viewer_sees_sync_button_on_order_management(self):
         self.client.force_login(self.viewer)

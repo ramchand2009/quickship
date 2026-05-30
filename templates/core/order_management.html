@@ -71,7 +71,7 @@
                 <div class="order-management-sticky mb-3">
                     <div class="card-header-right order-management-actions d-flex gap-2 align-items-center mb-2">
                         {% if can_sync_orders %}
-                            <form method="post" action="{% url 'sync_shiprocket_orders' %}">
+                            <form method="post" action="{% url 'sync_orders' %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="return_to" value="order_management">
                                 <input type="hidden" name="return_query" value="{{ page_base_query }}">
@@ -276,7 +276,6 @@
                                         </td>
                                         <td data-label="Order ID">
                                             <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</a>
-                                            <div class="text-muted small mt-1">{{ item.order.source_label }}: {{ item.order.source_order_reference|default:"-" }}</div>
                                             <div class="text-muted small mt-1">Workflow: {{ item.order.get_local_status_display }}</div>
                                             <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number|default:"Not added" }}</div>
                                             {% if item.missing_packing_fields %}

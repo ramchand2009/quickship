@@ -122,6 +122,7 @@ urlpatterns = [
     path("projects/", project_list, name="project_list"),
     path("projects/<int:pk>/", project_detail, name="project_detail"),
     path("contact/", contact, name="contact"),
+    path("orders/sync/", sync_shiprocket_orders, name="sync_orders"),
     path("shiprocket/sync/", sync_shiprocket_orders, name="sync_shiprocket_orders"),
     path(
         "accounts/login/",
