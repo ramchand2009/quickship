@@ -896,7 +896,19 @@
                                 <div class="ops-desktop-cell">
                                     {% with status_value=order.local_status %}
                                         <span class="ops-desktop-status-pill {% if status_value == 'new_order' %}ops-status-pending{% elif status_value == 'order_accepted' %}ops-status-accepted{% elif status_value == 'order_packed' %}ops-status-packed{% elif status_value == 'shipped' or status_value == 'out_for_delivery' %}ops-status-shipped{% elif status_value == 'delivered' or status_value == 'completed' %}ops-status-delivered{% elif status_value == 'order_cancelled' %}ops-status-cancelled{% else %}ops-status-default{% endif %}">
-                                            {{ order.get_local_status_display }}
+                                            {% if status_value == 'order_accepted' or status_value == 'order_packed' %}
+                                                Accepted
+                                            {% elif status_value == 'shipped' or status_value == 'out_for_delivery' %}
+                                                Shipped
+                                            {% elif status_value == 'delivered' or status_value == 'completed' %}
+                                                Completed
+                                            {% elif status_value == 'new_order' %}
+                                                Pending
+                                            {% elif status_value == 'order_cancelled' %}
+                                                Cancelled
+                                            {% else %}
+                                                {{ order.get_local_status_display }}
+                                            {% endif %}
                                         </span>
                                     {% endwith %}
                                     <a class="ops-desktop-order-link" href="{% url 'order_detail' order.pk %}?tab={{ active_tab }}">{{ order.channel_order_id|default:order.shiprocket_order_id }}</a>
@@ -1119,13 +1131,13 @@
                                         {% if item.order.local_status == 'new_order' %}
                                             Pending
                                         {% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}
-                                            Packed
+                                            Accepted
+                                        {% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}
+                                            Shipped
                                         {% elif item.order.local_status == 'delivered' or item.order.local_status == 'completed' %}
                                             Completed
                                         {% elif item.order.local_status == 'order_cancelled' %}
                                             Cancelled
-                                        {% elif item.order.local_status == 'out_for_delivery' %}
-                                            Out
                                         {% else %}
                                             {{ item.order.get_local_status_display }}
                                         {% endif %}

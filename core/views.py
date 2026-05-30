@@ -1269,7 +1269,8 @@ def _ops_viewer_status_tabs():
     return [
         {"key": OPS_VIEWER_TAB_ALL, "label": "All"},
         {"key": OPS_VIEWER_TAB_PENDING, "label": "Pending"},
-        {"key": OPS_VIEWER_TAB_ACCEPTED, "label": "Packed"},
+        {"key": OPS_VIEWER_TAB_ACCEPTED, "label": "Accepted"},
+        {"key": OPS_VIEWER_TAB_SHIPPED, "label": "Shipped"},
         {"key": OPS_VIEWER_TAB_COMPLETED, "label": "Completed"},
         {"key": OPS_VIEWER_TAB_CANCELLED, "label": "Cancelled"},
     ]
@@ -1308,6 +1309,7 @@ def _build_ops_viewer_status_counts():
         OPS_VIEWER_TAB_ALL: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ALL).count(),
         OPS_VIEWER_TAB_PENDING: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_PENDING).count(),
         OPS_VIEWER_TAB_ACCEPTED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ACCEPTED).count(),
+        OPS_VIEWER_TAB_SHIPPED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_SHIPPED).count(),
         OPS_VIEWER_TAB_COMPLETED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_COMPLETED).count(),
         OPS_VIEWER_TAB_CANCELLED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_CANCELLED).count(),
     }
@@ -1330,7 +1332,6 @@ def _ops_viewer_stage_key(status_value):
 def _ops_viewer_action_label(status_value, fallback_label):
     label_map = {
         ShiprocketOrder.STATUS_ACCEPTED: "Accept Order",
-        ShiprocketOrder.STATUS_PACKED: "Pack Order",
         ShiprocketOrder.STATUS_SHIPPED: "Ship Order",
         ShiprocketOrder.STATUS_DELIVERY_ISSUE: "Mark Delivery Issue",
         ShiprocketOrder.STATUS_OUT_FOR_DELIVERY: "Out For Delivery",
@@ -1344,11 +1345,7 @@ def _ops_viewer_action_label(status_value, fallback_label):
 def _preferred_status_action_order():
     return [
         ShiprocketOrder.STATUS_ACCEPTED,
-        ShiprocketOrder.STATUS_PACKED,
         ShiprocketOrder.STATUS_SHIPPED,
-        ShiprocketOrder.STATUS_DELIVERED,
-        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
-        ShiprocketOrder.STATUS_DELIVERY_ISSUE,
         ShiprocketOrder.STATUS_COMPLETED,
         ShiprocketOrder.STATUS_CANCELLED,
     ]
@@ -1366,7 +1363,7 @@ def _build_ops_viewer_detail_actions(order, status_form):
                     status_value == ShiprocketOrder.STATUS_ACCEPTED
                     and order.local_status == ShiprocketOrder.STATUS_NEW
                 ),
-                "requires_tracking": status_value == ShiprocketOrder.STATUS_SHIPPED,
+                "requires_tracking": False,
                 "is_cancel": status_value == ShiprocketOrder.STATUS_CANCELLED,
             }
         )

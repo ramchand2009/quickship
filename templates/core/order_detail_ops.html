@@ -596,7 +596,7 @@
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'pending' or ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'pending' %}is-active{% endif %}">Pending</div>
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'accepted' %}is-active{% endif %}">Accepted</div>
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'shipped' %}is-active{% endif %}">Shipped</div>
-        <div class="ops-detail-step {% if ops_mobile_stage_key == 'delivered' %}is-active is-complete{% endif %}">Delivered</div>
+        <div class="ops-detail-step {% if ops_mobile_stage_key == 'delivered' %}is-active is-complete{% endif %}">Completed</div>
     </div>
 
     <div class="ops-detail-body">
@@ -694,11 +694,11 @@
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput" value="other">
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
                     <input type="hidden" name="order-{{ order.pk }}-packing_scan_payload" id="opsPackingScanPayload" value="[]">
-                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone }}">
+                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone|default:order.customer_phone }}">
                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}">
                     <div class="ops-detail-action-grid">
                         {% for action in ops_mobile_actions %}
-                            {% if action.value == 'order_accepted' or action.value == 'order_cancelled' %}
+                            {% if action.value == 'order_accepted' or action.value == 'shipped' or action.value == 'completed' or action.value == 'order_cancelled' %}
                                 <button
                                     type="submit"
                                     class="ops-detail-action-btn is-{{ action.tone }}"

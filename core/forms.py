@@ -335,9 +335,7 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
             cleaned_data["manual_customer_phone"] = self.instance.manual_customer_phone
 
         if selected_status == ShiprocketOrder.STATUS_SHIPPED:
-            if not selected_tracking_number:
-                self.add_error("tracking_number", "Enter tracking number before moving to shipped.")
-            elif len(selected_tracking_number) != 13:
+            if selected_tracking_number and len(selected_tracking_number) != 13:
                 self.add_error("tracking_number", "Tracking number must be exactly 13 characters.")
             else:
                 cleaned_data["tracking_number"] = selected_tracking_number
