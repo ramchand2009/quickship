@@ -719,6 +719,23 @@
         color: #006a61;
     }
 
+    .ops-order-tracking {
+        margin-top: 0.55rem;
+        padding-top: 0.55rem;
+        border-top: 1px dashed rgba(197, 197, 211, 0.8);
+    }
+
+    .ops-order-tracking-value {
+        display: block;
+        margin-top: 0.1rem;
+        color: #00236f;
+        font-size: 0.82rem;
+        font-weight: 800;
+        line-height: 1rem;
+        letter-spacing: 0.04em;
+        overflow-wrap: anywhere;
+    }
+
     .ops-order-card-meta {
         display: none;
     }
@@ -1162,6 +1179,12 @@
                                     <span class="ops-order-fact-value">Rs {{ item.order.total|floatformat:0 }}</span>
                                 </div>
                             </div>
+                            {% if item.order.local_status == 'shipped' and item.order.tracking_number %}
+                                <div class="ops-order-tracking">
+                                    <span class="ops-order-fact-label">Tracking</span>
+                                    <span class="ops-order-tracking-value">{{ item.order.tracking_number }}</span>
+                                </div>
+                            {% endif %}
                             <div class="ops-order-card-action">
                                 <span class="ops-order-card-cta">
                                     View Details <span class="ops-order-card-chevron">&#8594;</span>
