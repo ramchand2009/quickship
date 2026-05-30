@@ -135,6 +135,7 @@ OPS_VIEWER_TAB_PENDING = "pending"
 OPS_VIEWER_TAB_ACCEPTED = "accepted"
 OPS_VIEWER_TAB_SHIPPED = "shipped"
 OPS_VIEWER_TAB_COMPLETED = "completed"
+OPS_VIEWER_TAB_CANCELLED = "cancelled"
 PWA_APP_NAME = "Mathukai Dashboard"
 PWA_SHORT_NAME = "Mathukai"
 PWA_THEME_COLOR = "#253142"
@@ -1268,9 +1269,9 @@ def _ops_viewer_status_tabs():
     return [
         {"key": OPS_VIEWER_TAB_ALL, "label": "All"},
         {"key": OPS_VIEWER_TAB_PENDING, "label": "Pending"},
-        {"key": OPS_VIEWER_TAB_ACCEPTED, "label": "Accepted"},
-        {"key": OPS_VIEWER_TAB_SHIPPED, "label": "Shipped"},
+        {"key": OPS_VIEWER_TAB_ACCEPTED, "label": "Packed"},
         {"key": OPS_VIEWER_TAB_COMPLETED, "label": "Completed"},
+        {"key": OPS_VIEWER_TAB_CANCELLED, "label": "Cancelled"},
     ]
 
 
@@ -1296,6 +1297,8 @@ def _ops_viewer_filter_queryset(queryset, active_tab):
                 ShiprocketOrder.STATUS_COMPLETED,
             ]
         )
+    if active_tab == OPS_VIEWER_TAB_CANCELLED:
+        return queryset.filter(local_status=ShiprocketOrder.STATUS_CANCELLED)
     return queryset.exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
 
 
@@ -1305,8 +1308,8 @@ def _build_ops_viewer_status_counts():
         OPS_VIEWER_TAB_ALL: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ALL).count(),
         OPS_VIEWER_TAB_PENDING: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_PENDING).count(),
         OPS_VIEWER_TAB_ACCEPTED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ACCEPTED).count(),
-        OPS_VIEWER_TAB_SHIPPED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_SHIPPED).count(),
         OPS_VIEWER_TAB_COMPLETED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_COMPLETED).count(),
+        OPS_VIEWER_TAB_CANCELLED: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_CANCELLED).count(),
     }
 
 

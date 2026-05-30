@@ -516,7 +516,7 @@
 
     .ops-mobile-tabs {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.45rem;
         overflow-x: auto;
         padding: 0.85rem 1rem 0.55rem;
         background: #faf8ff;
@@ -530,7 +530,7 @@
     .ops-mobile-tab {
         flex: 0 0 auto;
         min-height: 22px;
-        padding: 0.28rem 0.9rem;
+        padding: 0.28rem 0.86rem;
         text-align: center;
         color: #444651;
         background: #e9e7ef;
@@ -545,7 +545,7 @@
     }
 
     .ops-mobile-tab span {
-        display: inline;
+        display: none;
         margin-left: 0.25rem;
         font-size: 0.75rem;
         color: inherit;
@@ -588,7 +588,7 @@
     }
 
     .ops-order-card-body {
-        padding: 1rem 1rem 0.95rem;
+        padding: 0.95rem 0.95rem 0.9rem;
     }
 
     .ops-order-topline {
@@ -596,15 +596,15 @@
         justify-content: space-between;
         gap: 0.85rem;
         align-items: flex-start;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.72rem;
     }
 
     .ops-order-id {
-        margin: 0.1rem 0 0;
+        margin: 0.04rem 0 0;
         color: #757682;
         font-size: 0.78rem;
         font-weight: 500;
-        letter-spacing: 0.03em;
+        letter-spacing: 0;
     }
 
     .ops-order-customer {
@@ -651,6 +651,11 @@
     }
 
     .ops-order-status.status-delivered {
+        background: #dce1ff;
+        color: #00236f;
+    }
+
+    .ops-order-status.status-completed {
         background: #dce1ff;
         color: #00236f;
     }
@@ -734,6 +739,8 @@
         white-space: nowrap;
         align-self: end;
         font-size: 1rem;
+        text-decoration: underline;
+        text-underline-offset: 0.18rem;
     }
 
     .ops-order-card-chevron {
@@ -1082,14 +1089,25 @@
                         <div class="ops-order-card-body">
                             <div class="ops-order-topline">
                                 <div>
-                                    <div class="ops-order-id">#{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</div>
                                     <div class="ops-order-customer">{{ item.order.display_shipping_address.name|default:item.order.customer_name|default:"Unknown Customer" }}</div>
-                                    <div class="ops-order-address">{{ item.order.display_shipping_address.address_1|default:"Address not available"|truncatechars:42 }}</div>
+                                    <div class="ops-order-id">#{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</div>
                                 </div>
                                 <div class="ops-order-totalbox">
-                                    <div class="ops-order-status {% if item.order.local_status == 'new_order' %}status-pending{% elif item.order.local_status == 'order_accepted' %}status-accepted{% elif item.order.local_status == 'order_packed' %}status-packed{% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}status-shipped{% elif item.order.local_status == 'delivered' or item.order.local_status == 'completed' %}status-delivered{% elif item.order.local_status == 'order_cancelled' %}status-cancelled{% else %}status-default{% endif %}">{{ item.order.get_local_status_display }}</div>
-                                    <span class="ops-order-items">{{ item.order.order_items|length }} Item{{ item.order.order_items|length|pluralize }}</span>
-                                    <span class="ops-order-total">Rs {{ item.order.total|floatformat:0 }}</span>
+                                    <div class="ops-order-status {% if item.order.local_status == 'new_order' %}status-pending{% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}status-packed{% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}status-shipped{% elif item.order.local_status == 'delivered' %}status-delivered{% elif item.order.local_status == 'completed' %}status-completed{% elif item.order.local_status == 'order_cancelled' %}status-cancelled{% else %}status-default{% endif %}">
+                                        {% if item.order.local_status == 'new_order' %}
+                                            Pending
+                                        {% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}
+                                            Packed
+                                        {% elif item.order.local_status == 'delivered' or item.order.local_status == 'completed' %}
+                                            Completed
+                                        {% elif item.order.local_status == 'order_cancelled' %}
+                                            Cancelled
+                                        {% elif item.order.local_status == 'out_for_delivery' %}
+                                            Out
+                                        {% else %}
+                                            {{ item.order.get_local_status_display }}
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
                             <div class="ops-order-facts">
