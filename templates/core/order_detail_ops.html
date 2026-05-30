@@ -861,7 +861,7 @@
             <div class="ops-detail-contact-actions">
                 {% if order.display_shipping_address.phone %}
                     <a href="https://wa.me/{{ order.display_shipping_address.phone|cut:'+' }}" target="_blank" rel="noopener" class="is-whatsapp" aria-label="WhatsApp customer"><i class="fab fa-whatsapp"></i></a>
-                    <a href="tel:{{ order.display_shipping_address.phone }}" class="is-phone" aria-label="Call customer"><i class="fas fa-phone-alt"></i></a>
+                    <a href="tel:{{ order.display_shipping_address.phone }}" class="is-phone" aria-label="Call customer"><i class="fas fa-phone"></i></a>
                 {% endif %}
             </div>
 
