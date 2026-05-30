@@ -642,104 +642,6 @@
 
         <div class="ops-detail-card">
             <div class="ops-detail-items-head">
-                <h5 class="mb-0">Edit Delivery Details</h5>
-            </div>
-            {% if order.is_manual_edit_locked %}
-                <div class="ops-detail-edit-lock">
-                    Manual shipping edits are locked after the order reaches shipped.
-                </div>
-            {% elif can_edit_manual_order_details %}
-                <div class="ops-detail-edit-note">
-                    Update the customer phone, address, and pincode here. These manual values will be used in order screens, packing lists, and shipping labels.
-                </div>
-                <form method="post" action="{% url 'update_shiprocket_order' order.pk %}">
-                    {% csrf_token %}
-                    <div class="ops-detail-edit-grid">
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_customer_phone.id_for_label }}">{{ form.manual_customer_phone.label }}</label>
-                            {{ form.manual_customer_phone }}
-                        </div>
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_shipping_address_1.id_for_label }}">{{ form.manual_shipping_address_1.label }}</label>
-                            {{ form.manual_shipping_address_1 }}
-                        </div>
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_shipping_address_2.id_for_label }}">{{ form.manual_shipping_address_2.label }}</label>
-                            {{ form.manual_shipping_address_2 }}
-                        </div>
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_shipping_city.id_for_label }}">{{ form.manual_shipping_city.label }}</label>
-                            {{ form.manual_shipping_city }}
-                        </div>
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_shipping_state.id_for_label }}">{{ form.manual_shipping_state.label }}</label>
-                            {{ form.manual_shipping_state }}
-                        </div>
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_shipping_country.id_for_label }}">{{ form.manual_shipping_country.label }}</label>
-                            {{ form.manual_shipping_country }}
-                        </div>
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ form.manual_shipping_pincode.id_for_label }}">{{ form.manual_shipping_pincode.label }}</label>
-                            {{ form.manual_shipping_pincode }}
-                        </div>
-                    </div>
-                    <div class="ops-detail-edit-actions">
-                        <button type="submit" class="btn btn-primary">Save Delivery Details</button>
-                    </div>
-                </form>
-            {% elif request.user.is_authenticated %}
-                <div class="ops-detail-edit-lock">
-                    Your role is read-only for manual order edits.
-                </div>
-            {% else %}
-                <div class="ops-detail-edit-lock">
-                    Login is required to edit manual customer details.
-                </div>
-            {% endif %}
-        </div>
-
-        <div class="ops-detail-card">
-            <div class="ops-detail-items-head">
-                <h5 class="mb-0">Tracking Number</h5>
-            </div>
-            <div class="ops-detail-tracking-current">
-                <div>Current: {{ order.tracking_number|default:"Not added" }}</div>
-                <div class="small text-muted mt-1">{{ order.current_status_date_label }}: {{ order.current_status_date|date:"d-m-Y g:i a"|default:"-" }}</div>
-            </div>
-            {% if order.local_status == "order_cancelled" %}
-                <div class="ops-detail-edit-lock">
-                    Tracking number cannot be updated for cancelled orders.
-                </div>
-            {% elif can_edit_manual_order_details %}
-                <div class="ops-detail-edit-note">
-                    Update the tracking number here if it was entered wrongly earlier.
-                </div>
-                <form method="post" action="{% url 'update_shiprocket_order_tracking' order.pk %}">
-                    {% csrf_token %}
-                    <div class="ops-detail-edit-grid">
-                        <div class="ops-detail-edit-field">
-                            <label for="{{ tracking_form.tracking_number.id_for_label }}">{{ tracking_form.tracking_number.label }}</label>
-                            {{ tracking_form.tracking_number }}
-                        </div>
-                    </div>
-                    <div class="ops-detail-edit-actions">
-                        <button type="submit" class="btn btn-primary">Save Tracking Number</button>
-                    </div>
-                </form>
-            {% elif request.user.is_authenticated %}
-                <div class="ops-detail-edit-lock">
-                    Your role is read-only for tracking edits.
-                </div>
-            {% else %}
-                <div class="ops-detail-edit-lock">
-                    Login is required to edit the tracking number.
-                </div>
-            {% endif %}
-        </div>
-
-        <div class="ops-detail-card">
-            <div class="ops-detail-items-head">
                 <h5 class="mb-0">Order Details</h5>
                 <span>{{ order.order_items|length }} Items</span>
             </div>
@@ -781,17 +683,7 @@
         </div>
 
         <div class="ops-detail-card ops-detail-actions-card">
-            <h5 class="mb-0">Update Order</h5>
-            {% if can_print_packing_list or can_print_shipping_label %}
-                <div class="ops-detail-action-grid">
-                    {% if can_print_packing_list %}
-                        <a href="{% url 'packing_list' order.pk %}" target="_blank" rel="noopener" class="ops-detail-action-btn is-secondary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Print Packing List</a>
-                    {% endif %}
-                    {% if can_print_shipping_label %}
-                        <a href="{% url 'shipping_label_4x6' order.pk %}" target="_blank" rel="noopener" class="ops-detail-action-btn is-secondary" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Print Shipping Label</a>
-                    {% endif %}
-                </div>
-            {% endif %}
+            <h5 class="mb-0">Order Actions</h5>
             {% if can_update_order_status and ops_mobile_actions %}
                 <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" id="opsDetailStatusForm">
                     {% csrf_token %}
@@ -799,131 +691,26 @@
                     <input type="hidden" name="return_to" value="order_management">
                     <input type="hidden" name="return_query" value="tab={{ return_tab|default:'all' }}">
                     <input type="hidden" name="order-{{ order.pk }}-local_status" id="opsStatusTargetInput">
-                    <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput">
+                    <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" id="opsCancelReasonInput" value="other">
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
                     <input type="hidden" name="order-{{ order.pk }}-packing_scan_payload" id="opsPackingScanPayload" value="[]">
-                    <input type="tel" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone }}" placeholder="Customer phone for Accept action">
-                    {% if ops_pack_action_available %}
-                        <div
-                            id="opsPackingWrap"
-                            class="ops-detail-packing-wrap"
-                            data-total-expected="{{ packing_scan_total_expected_quantity }}"
-                            data-has-setup-issues="{% if packing_scan_unmatched_items or packing_scan_missing_barcodes %}true{% else %}false{% endif %}"
-                        >
-                            <div class="ops-detail-packing-header">
-                                <h6>Packing Verification</h6>
-                                <div class="ops-detail-packing-counter">
-                                    <span id="opsPackingCounter">0 / {{ packing_scan_total_expected_quantity }}</span>
-                                </div>
-                            </div>
-                            <div class="ops-detail-packing-note">
-                                Scan every product SKU label before packing. If a product quantity is 2, scan the same SKU label 2 times.
-                            </div>
-                            {% if packing_scan_unmatched_items %}
-                                <div class="ops-detail-packing-alert is-warning">
-                                    Product mapping is missing for these order items:
-                                    <ul class="ops-detail-packing-list">
-                                        {% for item in packing_scan_unmatched_items %}
-                                            <li>{{ item.name }} x{{ item.quantity }}{% if item.identifier %} ({{ item.identifier }}){% endif %}</li>
-                                        {% endfor %}
-                                    </ul>
-                                </div>
-                            {% endif %}
-                            {% if packing_scan_missing_barcodes %}
-                                <div class="ops-detail-packing-alert is-warning">
-                                    Add a local SKU to these products before packing:
-                                    <ul class="ops-detail-packing-list">
-                                        {% for item in packing_scan_missing_barcodes %}
-                                            <li>{{ item.name }}{% if item.sku %} ({{ item.sku }}){% endif %}</li>
-                                        {% endfor %}
-                                    </ul>
-                                </div>
-                            {% endif %}
-                            <div id="opsPackingFeedback" class="ops-detail-packing-alert{% if packing_scan_unmatched_items or packing_scan_missing_barcodes %} is-warning{% endif %}">
-                                {% if packing_scan_unmatched_items or packing_scan_missing_barcodes %}
-                                    Fix the packing setup issues before scanning.
-                                {% else %}
-                                    No items scanned yet. Start scanning or type the product SKU label manually.
-                                {% endif %}
-                            </div>
-                            <div class="ops-detail-packing-manual-row">
-                                <input type="text" id="opsPackingScanInput" placeholder="Scan or type product SKU label">
-                                <button type="button" id="opsPackingAddButton" class="ops-detail-scan-btn is-primary">Add Scan</button>
-                            </div>
-                            <div class="ops-detail-scanner-row mt-2">
-                                <button type="button" id="opsPackingScanStartButton" class="ops-detail-scan-btn is-primary">Scan Barcode</button>
-                                <button type="button" id="opsPackingScanStopButton" class="ops-detail-scan-btn is-danger" style="display:none;">Stop Scan</button>
-                                <button type="button" id="opsPackingResetButton" class="ops-detail-scan-btn">Reset</button>
-                            </div>
-                            <div id="opsPackingScanStatus" class="ops-detail-scan-status">
-                                Use the camera or a scanner gun to capture product SKU labels.
-                            </div>
-                            <div id="opsPackingScannerPanel" class="ops-detail-scanner-panel">
-                                <div class="camera-scanner-stage camera-scanner-stage--wide">
-                                    <video id="opsPackingScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
-                                    <div class="camera-scanner-guide" aria-hidden="true"></div>
-                                    <div class="camera-scanner-hint" aria-hidden="true">Align barcode with red line</div>
-                                </div>
-                            </div>
-                            <div class="ops-detail-packing-checklist mt-3">
-                                {% for requirement in packing_scan_requirements %}
-                                    <div
-                                        class="ops-detail-packing-item"
-                                        data-packing-requirement
-                                        data-barcode="{{ requirement.scan_code|default:requirement.barcode }}"
-                                        data-expected="{{ requirement.expected_quantity }}"
-                                    >
-                                        <div class="ops-detail-packing-item-top">
-                                            <div>
-                                                <div class="ops-detail-packing-item-name">{{ requirement.name }}</div>
-                                                <div class="ops-detail-packing-item-meta">
-                                                    SKU: {{ requirement.sku|default:"-" }}<br>
-                                                    Scan SKU: {{ requirement.scan_code|default:"Not set" }}
-                                                </div>
-                                            </div>
-                                            <div class="ops-detail-packing-qty">
-                                                <strong><span data-scanned-count>0</span> / {{ requirement.expected_quantity }}</strong>
-                                                <span>Scanned</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                {% empty %}
-                                    <div class="ops-detail-packing-alert is-warning mb-0">
-                                        No packable products were found for this order.
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {{ packing_scan_requirements|json_script:"opsPackingRequirementsData" }}
-                    {% endif %}
-                    <div id="opsTrackingWrap" class="ops-detail-tracking-wrap">
-                        <div class="ops-detail-scanner-row">
-                            <input type="text" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}" placeholder="Type tracking number manually (AA123456789AA)" autocomplete="off" autocapitalize="characters" spellcheck="false">
-                            <button type="button" id="opsScanStartButton" class="ops-detail-scan-btn is-primary">Scan Barcode</button>
-                            <button type="button" id="opsScanStopButton" class="ops-detail-scan-btn is-danger" style="display:none;">Stop Scan</button>
-                        </div>
-                        <div id="opsScanStatus" class="ops-detail-scan-status">Manual option: type tracking number here in format AA123456789AA, or scan barcode.</div>
-                        <div id="opsScannerPanel" class="ops-detail-scanner-panel">
-                            <div class="camera-scanner-stage camera-scanner-stage--wide">
-                                <video id="opsScannerVideo" class="ops-detail-scanner-video" playsinline muted></video>
-                                <div class="camera-scanner-guide" aria-hidden="true"></div>
-                                <div class="camera-scanner-hint" aria-hidden="true">Align barcode with red line</div>
-                            </div>
-                        </div>
-                    </div>
+                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.display_shipping_address.phone|default:order.manual_customer_phone }}">
+                    <input type="hidden" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}">
                     <div class="ops-detail-action-grid">
                         {% for action in ops_mobile_actions %}
-                            <button
-                                type="submit"
-                                class="ops-detail-action-btn is-{{ action.tone }}"
-                                data-status-action
-                                data-status-value="{{ action.value }}"
-                                data-requires-phone="{% if action.requires_phone %}true{% else %}false{% endif %}"
-                                data-requires-tracking="{% if action.requires_tracking %}true{% else %}false{% endif %}"
-                                data-is-cancel="{% if action.is_cancel %}true{% else %}false{% endif %}"
-                            >
-                                {{ action.label }}
-                            </button>
+                            {% if action.value == 'order_accepted' or action.value == 'order_cancelled' %}
+                                <button
+                                    type="submit"
+                                    class="ops-detail-action-btn is-{{ action.tone }}"
+                                    data-status-action
+                                    data-status-value="{{ action.value }}"
+                                    data-requires-phone="false"
+                                    data-requires-tracking="false"
+                                    data-is-cancel="{% if action.is_cancel %}true{% else %}false{% endif %}"
+                                >
+                                    {{ action.label }}
+                                </button>
+                            {% endif %}
                         {% endfor %}
                     </div>
                 </form>
