@@ -558,10 +558,47 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
 
+    .ops-mobile-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        padding: 0.35rem 1rem 0.65rem;
+        background: #faf8ff;
+    }
+
+    .ops-mobile-summary-item {
+        min-width: 0;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #c5c5d3;
+        border-radius: 0.25rem;
+        background: #ffffff;
+    }
+
+    .ops-mobile-summary-label {
+        display: block;
+        color: #757682;
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1rem;
+        text-transform: uppercase;
+    }
+
+    .ops-mobile-summary-value {
+        display: block;
+        margin-top: 0.12rem;
+        color: #00236f;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.25rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .ops-order-list {
         display: grid;
         gap: 0.75rem;
-        padding: 0.2rem 1rem 5rem;
+        padding: 0.1rem 1rem 5rem;
         background: #faf8ff;
     }
 
@@ -1080,6 +1117,17 @@
                     <span>{{ status_counts|get_item:tab.key }}</span>
                 </a>
             {% endfor %}
+        </div>
+
+        <div class="ops-mobile-summary">
+            <div class="ops-mobile-summary-item">
+                <span class="ops-mobile-summary-label">Total Orders</span>
+                <span class="ops-mobile-summary-value">{{ tab_filter_count }}</span>
+            </div>
+            <div class="ops-mobile-summary-item">
+                <span class="ops-mobile-summary-label">Amount</span>
+                <span class="ops-mobile-summary-value">Rs {{ tab_filter_total_amount|floatformat:0 }}</span>
+            </div>
         </div>
 
         {% if tab_orders %}
