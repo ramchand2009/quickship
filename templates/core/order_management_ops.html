@@ -1029,7 +1029,7 @@
                                                         <input
                                                             type="tel"
                                                             name="order-{{ order.pk }}-manual_customer_phone"
-                                                            value="{{ address.phone|default:order.manual_customer_phone }}"
+                                                            value="{{ address.phone|default:order.manual_customer_phone|default:order.customer_phone }}"
                                                             class="ops-desktop-inline-input"
                                                             placeholder="Customer phone for Accept action"
                                                             minlength="10"
@@ -1038,7 +1038,7 @@
                                                         <input type="hidden" name="order-{{ order.pk }}-tracking_number" value="{{ order.tracking_number }}">
                                                     {% endif %}
                                                     {% if action.requires_tracking %}
-                                                        <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone }}">
+                                                        <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone|default:order.customer_phone }}">
                                                         <input
                                                             type="text"
                                                             name="order-{{ order.pk }}-tracking_number"
@@ -1065,7 +1065,7 @@
                                                     <input type="hidden" name="return_to" value="order_management">
                                                     <input type="hidden" name="return_query" value="{{ page_base_query }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-local_status" value="{{ action.value }}">
-                                                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone }}">
+                                                    <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" value="{{ address.phone|default:order.manual_customer_phone|default:order.customer_phone }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-courier_name" value="{{ order.courier_name|default:'Self-Ship' }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" value="{{ order.tracking_number }}">
                                                     <input type="hidden" name="order-{{ order.pk }}-cancellation_reason" value="">

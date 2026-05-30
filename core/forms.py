@@ -333,7 +333,16 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
                 )
 
         if selected_status == ShiprocketOrder.STATUS_ACCEPTED and current_status == ShiprocketOrder.STATUS_NEW:
-            candidate_phone = selected_manual_customer_phone or self.instance.manual_customer_phone or ""
+            display_phone = ""
+            if self.instance:
+                display_phone = (self.instance.display_shipping_address.get("phone") or "").strip()
+            candidate_phone = (
+                selected_manual_customer_phone
+                or self.instance.manual_customer_phone
+                or display_phone
+                or self.instance.customer_phone
+                or ""
+            )
             if not candidate_phone:
                 self.add_error("manual_customer_phone", "Enter customer mobile before accepting the order.")
             else:

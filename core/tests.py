@@ -473,6 +473,44 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
             ).exists()
         )
 
+    @patch("core.views.update_woocommerce_order_status")
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_woocommerce_accept_uses_existing_customer_phone(
+        self,
+        mock_enqueue_whatsapp_notification,
+        mock_update_woocommerce_order_status,
+    ):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        mock_update_woocommerce_order_status.return_value = {
+            "skipped": False,
+            "status": "processing",
+        }
+        order = ShiprocketOrder.objects.create(
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-9002",
+            woocommerce_order_id="9002",
+            customer_phone="9876543210",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            shipping_address={"name": "Phone Fallback", "address_1": "Street 1"},
+        )
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertEqual(order.manual_customer_phone, "9876543210")
+
     @patch("core.views.enqueue_whatsapp_notification")
     def test_accept_status_deducts_stock_by_matching_sku(self, mock_enqueue_whatsapp_notification):
         mock_enqueue_whatsapp_notification.return_value = {
