@@ -3283,6 +3283,30 @@ def _shipping_labels_pdf_response(orders, sender, *, filename_prefix):
     return response
 
 
+@login_required
+def shipping_label_pdf(request, pk):
+    if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
+        messages.error(request, "Your role cannot access shipping label PDF.")
+        return redirect("order_management")
+    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
+        messages.error(request, "Shipping label PDF is available only for accepted or packed orders.")
+        return redirect("order_detail", pk=order.pk)
+
+    sender = SenderAddress.get_default()
+    order_reference = (
+        str(order.channel_order_id or order.shiprocket_order_id or order.pk)
+        .strip()
+        .replace("/", "-")
+        .replace("\\", "-")
+    )
+    return _shipping_labels_pdf_response(
+        [order],
+        sender,
+        filename_prefix=f"shipping-label-{order_reference}",
+    )
+
+
 def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
     sender = SenderAddress.get_default()
     orders_query = ShiprocketOrder.objects.filter(

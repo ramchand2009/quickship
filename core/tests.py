@@ -1241,6 +1241,7 @@ class ShippingLabelViewTests(TestCase):
         self.assertContains(response, "Sender Street 5")
         self.assertEqual(order.label_print_count, 0)
         self.assertIsNone(order.last_label_printed_at)
+        self.assertContains(response, reverse("shipping_label_pdf", args=[order.pk]))
 
     def test_track_shipping_label_print_increments_count(self):
         order = ShiprocketOrder.objects.create(
@@ -1281,6 +1282,30 @@ class ShippingLabelViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Accepted Receiver")
+        self.assertContains(response, reverse("shipping_label_pdf", args=[order.pk]))
+
+    def test_shipping_label_pdf_downloads_for_accepted_order(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-LABEL-PDF-ACCEPTED-1",
+            channel_order_id="CH-PDF-ACCEPTED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            shipping_address={
+                "name": "Accepted PDF Receiver",
+                "phone": "9000000000",
+                "address_1": "Accepted PDF Street 1",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "India",
+                "pincode": "600001",
+            },
+        )
+
+        response = self.client.get(reverse("shipping_label_pdf", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("shipping-label-CH-PDF-ACCEPTED-1", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
 
     def test_track_shipping_label_print_increments_count_for_accepted_order(self):
         order = ShiprocketOrder.objects.create(
@@ -1390,6 +1415,7 @@ class ShippingLabelViewTests(TestCase):
         self.assertContains(response, "Helett H30C Pro")
         self.assertContains(response, "This sample label is for printer setup only.")
         self.assertContains(response, reverse("print_queue"))
+        self.assertNotContains(response, "Save PDF")
         self.assertNotContains(response, "track-print/")
 
 

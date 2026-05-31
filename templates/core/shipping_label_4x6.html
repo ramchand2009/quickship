@@ -41,6 +41,11 @@
         >
             {{ print_button_label|default:"Print 4x6 Label" }}
         </button>
+        {% if pdf_download_url %}
+            <a href="{{ pdf_download_url }}">Save PDF</a>
+        {% elif order.pk %}
+            <a href="{% url 'shipping_label_pdf' order.pk %}">Save PDF</a>
+        {% endif %}
         {% if back_url %}
             <a href="{{ back_url }}">{{ back_label|default:"Back" }}</a>
         {% elif order.pk %}
