@@ -927,7 +927,7 @@
                     <input type="hidden" name="order-{{ order.pk }}-cancellation_note" value="">
                     <input type="hidden" name="order-{{ order.pk }}-packing_scan_payload" id="opsPackingScanPayload" value="[]">
                     <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.resolved_customer_phone }}">
-                    <input type="hidden" name="order-{{ order.pk }}-courier_name" id="opsCourierInput" value="{{ order.courier_name }}">
+                    <input type="hidden" name="order-{{ order.pk }}-courier_name" id="opsCourierInput" value="India Post">
                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}">
                     <div class="ops-detail-action-grid">
                         {% for action in ops_mobile_actions %}
@@ -995,16 +995,6 @@
             </section>
 
             <section>
-                <label class="ops-tracking-label">Courier Partner</label>
-                <div class="ops-courier-grid" id="opsCourierGrid">
-                    <button type="button" class="ops-courier-btn" data-courier-choice="Delhivery"><span class="ops-courier-icon"><i class="fas fa-truck"></i></span>Delhivery</button>
-                    <button type="button" class="ops-courier-btn" data-courier-choice="Blue Dart"><span class="ops-courier-icon"><i class="fas fa-tachometer-alt"></i></span>Blue Dart</button>
-                    <button type="button" class="ops-courier-btn" data-courier-choice="Ecom Express"><span class="ops-courier-icon"><i class="fas fa-cube"></i></span>Ecom Express</button>
-                    <button type="button" class="ops-courier-btn" data-courier-choice="India Post"><span class="ops-courier-icon"><i class="far fa-envelope"></i></span>India Post</button>
-                </div>
-            </section>
-
-            <section>
                 <label for="opsTrackingScreenInput" class="ops-tracking-label">Tracking ID / AWB Number</label>
                 <div class="ops-tracking-input-wrap">
                     <input type="text" id="opsTrackingScreenInput" class="ops-tracking-input" value="{{ order.tracking_number }}" placeholder="AA123456789AA" autocomplete="off" autocapitalize="characters" spellcheck="false">
@@ -1012,14 +1002,6 @@
                 </div>
                 <p class="ops-tracking-hint">Scan barcode or enter ID manually</p>
                 <p class="ops-tracking-error" id="opsTrackingScreenError"></p>
-            </section>
-
-            <section>
-                <label class="ops-tracking-label">Initial Shipment Status</label>
-                <div class="ops-tracking-status-row">
-                    <button type="button" class="ops-tracking-status-option is-selected">Shipped</button>
-                    <button type="button" class="ops-tracking-status-option">In Transit</button>
-                </div>
             </section>
 
             <div class="ops-tracking-actions">
@@ -1051,7 +1033,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const trackingSaveButton = document.getElementById("opsTrackingSaveButton");
     const trackingCancelButton = document.getElementById("opsTrackingCancelButton");
     const trackingBackButton = document.getElementById("opsTrackingBackButton");
-    const courierButtons = Array.from(document.querySelectorAll("[data-courier-choice]"));
     const scanStartButton = document.getElementById("opsScanStartButton");
     const scanStopButton = document.getElementById("opsScanStopButton");
     const scanStatus = document.getElementById("opsScanStatus");
@@ -1097,18 +1078,12 @@ document.addEventListener("DOMContentLoaded", function () {
         return TRACKING_NUMBER_PATTERN.test(String(value || ""));
     };
 
-    const setSelectedCourier = function (courierName) {
-        const normalizedCourier = String(courierName || "").trim();
-        if (courierInput) {
-            courierInput.value = normalizedCourier;
-        }
-        courierButtons.forEach(function (button) {
-            button.classList.toggle("is-selected", button.getAttribute("data-courier-choice") === normalizedCourier);
-        });
-    };
+    const DEFAULT_COURIER = "India Post";
 
-    const getSelectedCourier = function () {
-        return String(courierInput ? courierInput.value : "").trim();
+    const setDefaultCourier = function () {
+        if (courierInput) {
+            courierInput.value = DEFAULT_COURIER;
+        }
     };
 
     const setTrackingScreenError = function (message) {
@@ -1125,11 +1100,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (trackingScreenInput && trackingInput) {
             trackingScreenInput.value = normalizeTrackingNumber(trackingInput.value);
         }
-        if (!getSelectedCourier()) {
-            setSelectedCourier("Delhivery");
-        } else {
-            setSelectedCourier(getSelectedCourier());
-        }
+        setDefaultCourier();
         if (trackingScreen) {
             trackingScreen.classList.add("is-open");
             trackingScreen.setAttribute("aria-hidden", "false");
@@ -1769,13 +1740,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    courierButtons.forEach(function (button) {
-        button.addEventListener("click", function () {
-            setSelectedCourier(button.getAttribute("data-courier-choice"));
-            setTrackingScreenError("");
-        });
-    });
-
     if (trackingScreenInput) {
         trackingScreenInput.addEventListener("input", function () {
             trackingScreenInput.value = normalizeTrackingNumber(trackingScreenInput.value);
@@ -1784,12 +1748,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     const saveTrackingScreen = function () {
-        const courierName = getSelectedCourier();
         const trackingValue = normalizeTrackingNumber(trackingScreenInput ? trackingScreenInput.value : "");
-        if (!courierName) {
-            setTrackingScreenError("Select courier partner before saving.");
-            return;
-        }
         if (!isExactTrackingNumber(trackingValue)) {
             setTrackingScreenError("Enter a valid tracking number in format AA123456789AA.");
             if (trackingScreenInput) {
@@ -1798,7 +1757,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
         if (courierInput) {
-            courierInput.value = courierName;
+            courierInput.value = DEFAULT_COURIER;
         }
         if (trackingInput) {
             trackingInput.value = trackingValue;

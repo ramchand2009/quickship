@@ -4180,6 +4180,10 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Print Shipping Label")
         self.assertContains(response, "Ship Order")
         self.assertContains(response, reverse("shipping_label_4x6", args=[order.pk]))
+        self.assertContains(response, 'id="opsCourierInput"')
+        self.assertContains(response, 'value="India Post"')
+        self.assertNotContains(response, "Courier Partner")
+        self.assertNotContains(response, "Initial Shipment Status")
         self.assertNotContains(response, "Packing Verification")
 
     @patch("core.views.enqueue_whatsapp_notification")
@@ -4303,13 +4307,14 @@ class RoleAccessTests(TestCase):
                 "active_tab": "accepted",
                 f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_SHIPPED,
                 f"order-{order.pk}-tracking_number": "AA123456789AA",
-                f"order-{order.pk}-courier_name": "Self-Ship",
+                f"order-{order.pk}-courier_name": "India Post",
             },
             follow=True,
         )
 
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_SHIPPED)
+        self.assertEqual(order.courier_name, "India Post")
         self.assertContains(response, "Order moved to the selected tab.")
 
     def test_ops_viewer_order_detail_shipped_action_shows_barcode_scanner_ui(self):
@@ -4338,6 +4343,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Ship Order")
         self.assertContains(response, "Scan Barcode")
         self.assertContains(response, "opsScannerPanel")
+        self.assertNotContains(response, "Courier Partner")
+        self.assertNotContains(response, "Initial Shipment Status")
 
     def test_ops_viewer_packed_order_detail_shows_shipping_label_option(self):
         order = ShiprocketOrder.objects.create(
