@@ -1262,6 +1262,39 @@ class ShippingLabelViewTests(TestCase):
             ).exists()
         )
 
+    def test_shipping_label_page_renders_for_accepted_order(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-LABEL-ACCEPTED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            shipping_address={
+                "name": "Accepted Receiver",
+                "phone": "9000000000",
+                "address_1": "Accepted Street 1",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "India",
+                "pincode": "600001",
+            },
+        )
+
+        response = self.client.get(reverse("shipping_label_4x6", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Accepted Receiver")
+
+    def test_track_shipping_label_print_increments_count_for_accepted_order(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-LABEL-TRACK-ACCEPTED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+        )
+
+        response = self.client.post(reverse("track_shipping_label_print", args=[order.pk]))
+        order.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(order.label_print_count, 1)
+        self.assertIsNotNone(order.last_label_printed_at)
+
     def test_shipping_label_redirects_for_non_packed_order(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-LABEL-NOT-PACKED-1",
@@ -4063,7 +4096,7 @@ class RoleAccessTests(TestCase):
         self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
         self.assertEqual(order.tracking_number, "BB123456789BB")
 
-    def test_ops_viewer_accepted_order_detail_shows_packing_list_option(self):
+    def test_ops_viewer_accepted_order_detail_hides_mobile_packing_options(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-PACK-1",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
@@ -4086,10 +4119,10 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "accepted"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Print Packing List")
-        self.assertContains(response, reverse("packing_list", args=[order.pk]))
+        self.assertNotContains(response, "Print Packing List")
+        self.assertNotContains(response, reverse("packing_list", args=[order.pk]))
 
-    def test_ops_viewer_accepted_order_detail_shows_packing_scan_ui(self):
+    def test_ops_viewer_accepted_order_detail_shows_label_and_ship_actions_without_packing_ui(self):
         Product.objects.create(
             name="Packing Soap",
             sku="PACK-SKU-UI-1",
@@ -4118,11 +4151,10 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "accepted"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Packing Verification")
-        self.assertContains(response, "opsPackingScanPayload")
-        self.assertContains(response, "PACK-SKU-UI-1")
-        self.assertContains(response, "Scan SKU: PACK-SKU-UI-1")
-        self.assertContains(response, "0 / 2")
+        self.assertContains(response, "Print Shipping Label")
+        self.assertContains(response, "Ship Order")
+        self.assertContains(response, reverse("shipping_label_4x6", args=[order.pk]))
+        self.assertNotContains(response, "Packing Verification")
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_ops_viewer_cannot_pack_without_scanning_full_quantity(self, mock_enqueue_whatsapp_notification):
@@ -4165,7 +4197,7 @@ class RoleAccessTests(TestCase):
 
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
-        self.assertContains(response, "Scan all products before packing")
+        self.assertContains(response, "Invalid order status selected")
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_ops_viewer_cannot_pack_with_mismatched_barcode(self, mock_enqueue_whatsapp_notification):
@@ -4208,10 +4240,10 @@ class RoleAccessTests(TestCase):
 
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
-        self.assertContains(response, "Product is not matched for this order")
+        self.assertContains(response, "Invalid order status selected")
 
     @patch("core.views.enqueue_whatsapp_notification")
-    def test_ops_viewer_can_pack_after_scanning_every_required_barcode(self, mock_enqueue_whatsapp_notification):
+    def test_ops_viewer_can_ship_accepted_order_after_printing_label_flow(self, mock_enqueue_whatsapp_notification):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": False,
             "reason": "disabled",
@@ -4243,14 +4275,15 @@ class RoleAccessTests(TestCase):
             reverse("update_shiprocket_order_status", args=[order.pk]),
             {
                 "active_tab": "accepted",
-                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_PACKED,
-                f"order-{order.pk}-packing_scan_payload": json.dumps(["PACK-SKU-OK-1", "PACK-SKU-OK-1"]),
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_SHIPPED,
+                f"order-{order.pk}-tracking_number": "AA123456789AA",
+                f"order-{order.pk}-courier_name": "Self-Ship",
             },
             follow=True,
         )
 
         order.refresh_from_db()
-        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_PACKED)
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_SHIPPED)
         self.assertContains(response, "Order moved to the selected tab.")
 
     def test_ops_viewer_order_detail_shipped_action_shows_barcode_scanner_ui(self):

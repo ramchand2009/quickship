@@ -2657,10 +2657,7 @@ def order_detail(request, pk):
     ops_mobile_actions = _build_ops_viewer_detail_actions(order, status_form)
     packing_scan_summary = build_packing_scan_requirements(order)
     stock_availability = summarize_order_stock_availability(order)
-    pack_action_available = any(
-        action.get("value") == ShiprocketOrder.STATUS_PACKED
-        for action in ops_mobile_actions
-    )
+    pack_action_available = False
     return render(
         request,
         "core/order_detail_ops.html" if ops_mobile_mode else "core/order_detail.html",
@@ -2690,7 +2687,10 @@ def order_detail(request, pk):
                 ShiprocketOrder.STATUS_ACCEPTED,
                 ShiprocketOrder.STATUS_PACKED,
             },
-            "can_print_shipping_label": order.local_status == ShiprocketOrder.STATUS_PACKED,
+            "can_print_shipping_label": order.local_status in {
+                ShiprocketOrder.STATUS_ACCEPTED,
+                ShiprocketOrder.STATUS_PACKED,
+            },
             "return_tab": (request.GET.get("tab") or "").strip(),
             "activity_filters": {
                 "event": activity_event if activity_event in valid_events else "",
@@ -2783,8 +2783,8 @@ def shipping_label_4x6(request, pk):
         messages.error(request, "Your role cannot access shipping label.")
         return redirect("order_management")
     order = get_object_or_404(ShiprocketOrder, pk=pk)
-    if order.local_status != ShiprocketOrder.STATUS_PACKED:
-        messages.error(request, "Shipping label is available only for packed orders.")
+    if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
+        messages.error(request, "Shipping label is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
     sender = SenderAddress.get_default()
@@ -5863,8 +5863,8 @@ def run_restore_dry_run(request):
 @require_POST
 def track_shipping_label_print(request, pk):
     order = get_object_or_404(ShiprocketOrder, pk=pk)
-    if order.local_status != ShiprocketOrder.STATUS_PACKED:
-        return JsonResponse({"ok": False, "error": "Only packed orders can be tracked."}, status=400)
+    if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
+        return JsonResponse({"ok": False, "error": "Only accepted or packed orders can be tracked."}, status=400)
 
     printed_at = timezone.now()
     ShiprocketOrder.objects.filter(pk=order.pk).update(
