@@ -23,34 +23,45 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-header { padding:1rem 0 .9rem; }
 .ops-stock-header p { margin:0; color:#444651; line-height:1.45; }
 .ops-stock-header a { color:#00236f; text-decoration:none; font-weight:700; }
-.ops-stock-search-form { position:relative; order:3; margin:.9rem 0 .9rem; }
+.ops-stock-topbar-actions { display:flex; align-items:center; justify-content:flex-end; gap:.55rem; }
+.ops-stock-profile-dot { width:36px; height:36px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#006a61,#00236f); color:#fff; box-shadow:0 1px 4px rgba(0,0,0,.18); font-size:.92rem; }
+.ops-stock-visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.ops-stock-search-form { position:relative; order:3; margin:1.15rem 0 1rem; }
 .ops-stock-search-form .ops-stock-search-icon { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:#444651; pointer-events:none; }
-.ops-stock-search-form .ops-stock-search-input { width:100%; min-height:44px; border:1px solid #c5c5d3; border-radius:.5rem; background:#f4f3fa; color:#1a1b21; padding:.72rem 3.1rem .72rem 2.55rem; outline:none; }
+.ops-stock-search-form .ops-stock-search-input { width:100%; min-height:52px; border:1px solid #c5c5d3; border-radius:.25rem; background:#f4f3fa; color:#1a1b21; padding:.72rem 3.1rem .72rem 2.55rem; outline:none; font-size:1rem; }
 .ops-stock-search-form .ops-stock-search-input:focus { border-color:#00236f; box-shadow:0 0 0 3px rgba(0,35,111,.12); }
 .ops-stock-search-form .ops-stock-search-submit { position:absolute; right:.25rem; top:.25rem; width:38px; height:38px; border:0; border-radius:.45rem; background:#00236f; color:#fff; display:inline-flex; align-items:center; justify-content:center; }
 .ops-stock-viewtabs { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.35rem; margin-bottom:1rem; scrollbar-width:none; }
+.ops-stock-viewtabs.is-compact-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .ops-stock-viewtabs::-webkit-scrollbar { display:none; }
 .ops-stock-viewtab { display:inline-flex; align-items:center; justify-content:center; padding:.45rem .9rem; border-radius:999px; border:1px solid #c5c5d3; background:#e9e7ef; color:#444651; text-decoration:none; font-weight:700; white-space:nowrap; font-size:.78rem; }
 .ops-stock-viewtab.is-active { background:#1e3a8a; color:#fff; border-color:#1e3a8a; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 .ops-stock-summary, .ops-stock-main, .ops-stock-grid, .ops-stock-list, .ops-stock-row-2, .ops-stock-details { display:grid; gap:.9rem; }
 .ops-stock-summary { display:flex; gap:.75rem; overflow-x:auto; margin:0 -1rem 1rem; padding:0 1rem .25rem; scrollbar-width:none; }
 .ops-stock-summary::-webkit-scrollbar { display:none; }
-.ops-stock-summary-card { flex:0 0 160px; min-height:108px; border-radius:.5rem; padding:1rem; display:flex; flex-direction:column; justify-content:space-between; }
+.ops-stock-summary-card { flex:0 0 184px; min-height:136px; border-radius:.5rem; padding:1rem; display:flex; flex-direction:column; justify-content:space-between; }
 .ops-stock-summary-card:first-child { background:#1e3a8a; border-color:#1e3a8a; }
 .ops-stock-summary-card:first-child span { color:#90a8ff; }
 .ops-stock-summary-card:first-child strong { color:#fff; }
+.ops-stock-summary-card.is-list-primary { background:#fff; border-color:#c5c5d3; }
+.ops-stock-summary-card.is-list-primary span { color:#1a1b21; }
+.ops-stock-summary-card.is-list-primary strong { color:#1a1b21; }
 .ops-stock-summary-icon { width:32px; height:32px; border-radius:.35rem; display:inline-flex; align-items:center; justify-content:center; background:#dce1ff; color:#264191; }
 .ops-stock-summary-card.is-danger { border-left:4px solid #ba1a1a; }
 .ops-stock-summary-card.is-danger .ops-stock-summary-icon { background:#ffdad6; color:#ba1a1a; }
 .ops-stock-summary-card.is-muted .ops-stock-summary-icon { background:#e3e1e9; color:#444651; }
-.ops-stock-summary-card span { display:block; color:#444651; font-size:.78rem; font-weight:600; }
-.ops-stock-summary-card strong { display:block; margin-top:.25rem; font-size:1.5rem; color:#1a1b21; line-height:1; }
-.ops-stock-sync-strip { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.55rem; padding:.8rem 0; margin:.1rem 0 .9rem; border-top:1px solid rgba(197,197,211,.55); border-bottom:1px solid rgba(197,197,211,.55); }
+.ops-stock-summary-topline { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
+.ops-stock-trend { color:#006a61; font-size:.72rem; font-weight:800; }
+.ops-stock-action-badge { display:inline-flex; align-items:center; justify-content:center; padding:.18rem .4rem; border-radius:.2rem; background:#ffdad6; color:#93000a; font-size:.58rem; font-weight:900; text-transform:uppercase; }
+.ops-stock-summary-card span { display:block; color:#444651; font-size:.68rem; font-weight:800; text-transform:uppercase; }
+.ops-stock-summary-card strong { display:block; margin-top:.25rem; font-size:1.55rem; color:#1a1b21; line-height:1; }
+.ops-stock-sync-strip { display:grid; grid-template-columns:1fr; gap:.45rem; padding:.8rem 0; margin:.35rem 0 1rem; border-top:1px solid rgba(197,197,211,.55); border-bottom:1px solid rgba(197,197,211,.55); }
 .ops-stock-sync-strip .ops-stock-btn { display:inline-flex; align-items:center; justify-content:center; gap:.55rem; text-decoration:none; }
 .ops-stock-sync-strip .ops-stock-link-btn { gap:.55rem; }
+.ops-stock-sync-meta { text-align:center; color:#444651; font-size:.74rem; font-weight:500; }
 .ops-stock-filter-chips { display:flex; gap:.55rem; overflow-x:auto; margin:0 -1rem 1rem; padding:0 1rem .2rem; scrollbar-width:none; }
 .ops-stock-filter-chips::-webkit-scrollbar { display:none; }
-.ops-stock-filter-chip { min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:.55rem 1rem; border-radius:999px; border:1px solid #c5c5d3; background:#e9e7ef; color:#444651; font-weight:700; white-space:nowrap; text-decoration:none; }
+.ops-stock-filter-chip { min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:.55rem 1rem; border-radius:.75rem; border:1px solid #c5c5d3; background:#e9e7ef; color:#444651; font-weight:700; white-space:nowrap; text-decoration:none; }
 .ops-stock-filter-chip.is-active { border-color:#00236f; background:#00236f; color:#fff; }
 .ops-stock-card { border-radius:.5rem; overflow:hidden; }
 .ops-stock-hero { background:#fff; border-left:4px solid #1e3a8a; }
@@ -87,14 +98,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-link-btn { display:inline-flex; align-items:center; justify-content:center; border:1px solid #0d9488; background:#fff; color:#006a61; width:100%; }
 .ops-stock-note { padding:.9rem 1rem; border-radius:.5rem; background:#ffdbcb; color:#773205; font-size:.9rem; }
 .ops-stock-item, .ops-stock-movement { border-radius:.5rem; padding:1rem; }
-.ops-stock-product-card { padding:0; overflow:hidden; background:#fff; border:1px solid #c5c5d3; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.ops-stock-product-card { padding:0; overflow:hidden; background:#fff; border:1px solid #c5c5d3; border-radius:.5rem; box-shadow:0 1px 3px rgba(0,0,0,.05); }
 .ops-stock-product-card.is-alert { background:rgba(255,218,214,.18); border-color:rgba(186,26,26,.24); }
 .ops-stock-product-body { display:flex; gap:1rem; padding:1rem; align-items:flex-start; }
-.ops-stock-product-thumb { width:64px; height:64px; flex:0 0 64px; border-radius:.25rem; border:1px solid #c5c5d3; background:#f4f3fa; color:#00236f; display:inline-flex; align-items:center; justify-content:center; font-size:1.25rem; font-weight:800; overflow:hidden; }
+.ops-stock-product-thumb { width:74px; height:74px; flex:0 0 74px; border-radius:.1rem; border:1px solid #c5c5d3; background:linear-gradient(135deg,#f4f3fa,#e3e1e9); color:#00236f; display:inline-flex; align-items:center; justify-content:center; font-size:1.25rem; font-weight:800; overflow:hidden; }
 .ops-stock-product-main { min-width:0; flex:1 1 auto; }
 .ops-stock-product-title-row { display:flex; justify-content:space-between; gap:.65rem; align-items:flex-start; }
 .ops-stock-product-title-wrap { min-width:0; }
-.ops-stock-product-title { margin:0; color:#1a1b21; font-size:1rem; font-weight:700; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ops-stock-product-title { margin:0; color:#1a1b21; font-size:1rem; font-weight:500; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ops-stock-product-sku { margin:.1rem 0 0; color:#444651; font-size:.82rem; font-weight:600; overflow-wrap:anywhere; }
 .ops-stock-product-status { display:inline-flex; align-items:center; gap:.25rem; flex:0 0 auto; padding:.17rem .5rem; border-radius:999px; background:#86f2e4; color:#006f66; font-size:.64rem; line-height:1rem; text-transform:uppercase; font-weight:800; }
 .ops-stock-product-status.is-low, .ops-stock-product-status.is-out { background:#ffdad6; color:#93000a; }
@@ -103,13 +114,15 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-product-metric strong { display:block; margin-top:.1rem; color:#1a1b21; font-size:1.25rem; line-height:1.4rem; }
 .ops-stock-product-metric strong.is-low { color:#ba1a1a; }
 .ops-stock-level { margin-top:.8rem; }
-.ops-stock-level-row { display:flex; justify-content:space-between; gap:.75rem; color:#444651; font-size:.82rem; font-weight:600; }
+.ops-stock-level-row { display:flex; justify-content:space-between; gap:.75rem; color:#444651; font-size:.82rem; font-weight:500; }
+.ops-stock-level-row strong { color:#1a1b21; }
 .ops-stock-level-track { height:6px; margin-top:.35rem; border-radius:999px; overflow:hidden; background:#e3e1e9; }
 .ops-stock-level-fill { height:100%; border-radius:999px; background:#006a61; }
 .ops-stock-level-fill.is-low { background:#ba1a1a; }
 .ops-stock-product-actions { display:flex; gap:.55rem; margin-top:.85rem; }
-.ops-stock-product-actions .ops-stock-btn { min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:.45rem; text-decoration:none; flex:1 1 auto; }
+.ops-stock-product-actions .ops-stock-btn { min-height:52px; display:inline-flex; align-items:center; justify-content:center; gap:.45rem; text-decoration:none; flex:1 1 auto; font-size:1.05rem; }
 .ops-stock-product-more { width:44px; height:44px; flex:0 0 44px; border:1px solid #c5c5d3; border-radius:.5rem; background:#fff; color:#444651; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+.ops-stock-product-actions .ops-stock-product-more { width:52px; height:52px; flex-basis:52px; }
 .ops-stock-item-head h4 { margin:0; font-size:1rem; font-weight:700; color:#1a1b21; }
 .ops-stock-meta { margin-top:.22rem; color:#444651; font-size:.9rem; word-break:break-word; }
 .ops-stock-qty { min-width:4.8rem; text-align:right; }
@@ -135,7 +148,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-search-card { order:6; }
 .ops-stock-main { order:7; }
 @media (min-width: 1200px) { .ops-stock-shell { padding:.35rem 1.5rem 2rem; } .ops-stock-topbar { justify-content:flex-end; } .ops-stock-main { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); } }
-@media (max-width: 767px) { .ops-stock-row-2, .ops-stock-details, .ops-stock-card-actions { grid-template-columns:1fr; } .ops-stock-topbar, .ops-stock-item-head { flex-direction:column; align-items:stretch; } .ops-stock-actions { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .ops-stock-pill, .ops-stock-actions form, .ops-stock-actions form button { width:100%; } .ops-stock-qty { text-align:left; } .ops-stock-card-body { padding:.9rem; } .ops-stock-shell { padding:0 1rem 6rem; } .ops-stock-header { padding:.9rem 0 .75rem; } .ops-stock-header p { margin-top:.35rem; } .ops-stock-check { padding:.65rem .8rem; } .ops-stock-viewtabs { gap:.5rem; } .ops-stock-viewtab { padding:.45rem .9rem; } .ops-stock-sync-strip { grid-template-columns:1fr 1fr; } }
+@media (max-width: 767px) { .ops-stock-row-2, .ops-stock-details, .ops-stock-card-actions { grid-template-columns:1fr; } .ops-stock-topbar, .ops-stock-item-head { flex-direction:column; align-items:stretch; } .ops-stock-actions { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .ops-stock-pill, .ops-stock-actions form, .ops-stock-actions form button { width:100%; } .ops-stock-qty { text-align:left; } .ops-stock-card-body { padding:.9rem; } .ops-stock-shell { padding:0 1rem 6rem; } .ops-stock-header { padding:.35rem 0 0; } .ops-stock-header p { margin-top:.35rem; } .ops-stock-check { padding:.65rem .8rem; } .ops-stock-viewtabs { gap:.5rem; } .ops-stock-viewtab { padding:.45rem .9rem; } }
 {% include "core/_ops_mobile_bottomnav_styles.html" %}
 </style>
 {% endblock %}
@@ -146,11 +159,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         <div class="ops-mobile-topbar-row">
             <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
             <h1>Mathukai</h1>
-            <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+            <div class="ops-stock-topbar-actions">
+                <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+                <span class="ops-stock-profile-dot"><i class="fas fa-user-friends"></i></span>
+            </div>
         </div>
     </div>
 
-    <div class="ops-stock-header">
+    <div class="ops-stock-header {% if active_view == 'list' %}ops-stock-visually-hidden{% endif %}">
         <p>Manage products, stock updates, and SmartBiz mappings with a simpler ops view. <a href="{% url 'stock_management' %}">Refresh View</a></p>
     </div>
 
@@ -166,7 +182,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </form>
     {% endif %}
 
-    <div class="ops-stock-viewtabs">
+    <div class="ops-stock-viewtabs {% if active_view == 'list' %}is-compact-hidden{% endif %}">
         <a href="{% url 'stock_management' %}?view=list" class="ops-stock-viewtab {% if active_view == 'list' %}is-active{% endif %}">Stock List</a>
         <a href="{% url 'stock_management' %}?view=manage{% if editing_product %}&edit={{ editing_product.pk }}{% endif %}" class="ops-stock-viewtab {% if active_view == 'manage' %}is-active{% endif %}">Manage Stock</a>
         <a href="{% url 'stock_management' %}?view=more" class="ops-stock-viewtab {% if active_view == 'more' %}is-active{% endif %}">More</a>
@@ -191,28 +207,39 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     {% endif %}
 
     <div class="ops-stock-summary">
-        <div class="ops-stock-summary-card">
-            <div class="ops-stock-summary-icon"><i class="fas fa-tags"></i></div>
+        <div class="ops-stock-summary-card {% if active_view == 'list' %}is-list-primary{% endif %}">
+            <div class="ops-stock-summary-topline">
+                <div class="ops-stock-summary-icon"><i class="fas fa-shapes"></i></div>
+                <span class="ops-stock-trend"><i class="fas fa-chart-line"></i> +{{ low_stock_count|add:no_stock_count }}</span>
+            </div>
             <div><span>Total SKUs</span><strong>{{ total_products_count }}</strong></div>
         </div>
         <div class="ops-stock-summary-card is-danger">
-            <div class="ops-stock-summary-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="ops-stock-summary-topline">
+                <div class="ops-stock-summary-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                {% if low_stock_count %}<span class="ops-stock-action-badge">Action</span>{% endif %}
+            </div>
             <div><span>Low Stock</span><strong>{{ low_stock_count }}</strong></div>
         </div>
         <div class="ops-stock-summary-card is-muted">
-            <div class="ops-stock-summary-icon"><i class="fas fa-box-open"></i></div>
+            <div class="ops-stock-summary-topline">
+                <div class="ops-stock-summary-icon"><i class="fas fa-clipboard-list"></i></div>
+            </div>
             <div><span>Out of Stock</span><strong>{{ no_stock_count }}</strong></div>
         </div>
         <div class="ops-stock-summary-card">
-            <div class="ops-stock-summary-icon"><i class="fas fa-layer-group"></i></div>
+            <div class="ops-stock-summary-topline">
+                <div class="ops-stock-summary-icon"><i class="fas fa-layer-group"></i></div>
+            </div>
             <div><span>Categories</span><strong>{{ product_categories|length }}</strong></div>
         </div>
     </div>
 
     {% if active_view == 'list' %}
     <div class="ops-stock-sync-strip">
-        <a href="{% url 'stock_management' %}?view=manage" class="ops-stock-btn"><i class="fas fa-sync-alt"></i> Update Stock</a>
-        <a href="{% url 'special_stock_issue_register' %}" class="ops-stock-link-btn"><i class="fas fa-gift"></i> Free Entry</a>
+        <a href="{% url 'stock_management' %}?view=manage" class="ops-stock-btn"><i class="fas fa-sync-alt"></i> Sync with WooCommerce</a>
+        <div class="ops-stock-sync-meta">Last sync: <strong>use refresh to sync latest stock</strong></div>
+        <a href="{% url 'special_stock_issue_register' %}" class="ops-stock-visually-hidden">Free Entry</a>
     </div>
 
     <div class="ops-stock-filter-chips">
