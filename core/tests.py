@@ -3719,6 +3719,37 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tracking: AA123456789AA")
 
+    def test_ops_viewer_order_management_shows_grouped_tab_counts(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-COUNT-ACCEPTED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Accepted Count",
+            shipping_address={"name": "Accepted Count", "address_1": "Accepted Street"},
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-COUNT-PACKED-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            customer_name="Packed Count",
+            shipping_address={"name": "Packed Count", "address_1": "Packed Street"},
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-COUNT-SHIPPED-1",
+            local_status=ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+            customer_name="Shipped Count",
+            shipping_address={"name": "Shipped Count", "address_1": "Shipped Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"), {"tab": "accepted"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<span>2</span>', html=False)
+        self.assertContains(response, '<span>1</span>', html=False)
+        self.assertContains(response, "display: inline-flex")
+        self.assertContains(response, "Accepted Count")
+        self.assertContains(response, "Packed Count")
+        self.assertNotContains(response, "Shipped Count")
+
     def test_ops_viewer_order_management_renders_woocommerce_item_image(self):
         ShiprocketOrder.objects.create(
             source=ShiprocketOrder.SOURCE_WOOCOMMERCE,

@@ -547,17 +547,29 @@
     }
 
     .ops-mobile-tab span {
-        display: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         margin-left: 0.25rem;
+        min-width: 1.3rem;
+        min-height: 1.3rem;
+        padding: 0.12rem 0.38rem;
+        border-radius: 999px;
         font-size: 0.75rem;
-        color: inherit;
-        background: transparent;
+        font-weight: 800;
+        color: #444651;
+        background: rgba(255, 255, 255, 0.78);
     }
 
     .ops-mobile-tab.is-active {
         color: #ffffff;
         background: #00236f;
         box-shadow: 0 3px 8px rgba(0, 35, 111, 0.16);
+    }
+
+    .ops-mobile-tab.is-active span {
+        color: #00236f;
+        background: #ffffff;
     }
 
     .ops-order-list {

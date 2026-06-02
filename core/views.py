@@ -1315,6 +1315,34 @@ def _build_ops_viewer_status_counts():
     }
 
 
+def _ops_viewer_status_counts_from_map(status_map):
+    active_total = sum(
+        int(status_map.get(status, 0) or 0)
+        for status in [
+            ShiprocketOrder.STATUS_NEW,
+            ShiprocketOrder.STATUS_ACCEPTED,
+            ShiprocketOrder.STATUS_PACKED,
+            ShiprocketOrder.STATUS_SHIPPED,
+            ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+            ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+            ShiprocketOrder.STATUS_DELIVERED,
+            ShiprocketOrder.STATUS_COMPLETED,
+        ]
+    )
+    return {
+        OPS_VIEWER_TAB_ALL: active_total,
+        OPS_VIEWER_TAB_PENDING: int(status_map.get(ShiprocketOrder.STATUS_NEW, 0) or 0),
+        OPS_VIEWER_TAB_ACCEPTED: int(status_map.get(ShiprocketOrder.STATUS_ACCEPTED, 0) or 0)
+        + int(status_map.get(ShiprocketOrder.STATUS_PACKED, 0) or 0),
+        OPS_VIEWER_TAB_SHIPPED: int(status_map.get(ShiprocketOrder.STATUS_SHIPPED, 0) or 0)
+        + int(status_map.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0) or 0)
+        + int(status_map.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0) or 0),
+        OPS_VIEWER_TAB_COMPLETED: int(status_map.get(ShiprocketOrder.STATUS_DELIVERED, 0) or 0)
+        + int(status_map.get(ShiprocketOrder.STATUS_COMPLETED, 0) or 0),
+        OPS_VIEWER_TAB_CANCELLED: int(status_map.get(ShiprocketOrder.STATUS_CANCELLED, 0) or 0),
+    }
+
+
 def _ops_viewer_stage_key(status_value):
     if status_value in {ShiprocketOrder.STATUS_NEW, ShiprocketOrder.STATUS_CANCELLED}:
         return "pending"
@@ -1670,6 +1698,7 @@ def _build_orders_dashboard_context(request):
     for tab in status_tabs:
         tab_orders = ShiprocketOrder.objects.filter(local_status=tab["key"])
         status_counts[tab["key"]] = tab_orders.count()
+    ops_status_counts = _ops_viewer_status_counts_from_map(status_counts)
     if not active_tab:
         active_tab = next(
             (tab["key"] for tab in status_tabs if status_counts.get(tab["key"], 0) > 0),
@@ -1720,6 +1749,7 @@ def _build_orders_dashboard_context(request):
     monthly_rows = monthly_orders.values("local_status").annotate(total=Count("id"))
     monthly_status_map = {row["local_status"]: int(row["total"] or 0) for row in monthly_rows}
     monthly_total = sum(monthly_status_map.values())
+    monthly_ops_status_counts = _ops_viewer_status_counts_from_map(monthly_status_map)
     monthly_sales_total = monthly_orders.exclude(
         local_status=ShiprocketOrder.STATUS_CANCELLED
     ).aggregate(total_amount=Sum("total")).get("total_amount") or 0
@@ -1899,43 +1929,39 @@ def _build_orders_dashboard_context(request):
         monthly_status_cards = [
             {
                 "label": "All",
-                "count": monthly_total,
+                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_ALL],
                 "tone": "primary",
                 "url": f"{reverse('order_management')}?tab=all",
             },
             {
                 "label": "Pending",
-                "count": monthly_status_map.get(ShiprocketOrder.STATUS_NEW, 0),
+                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_PENDING],
                 "tone": "warning",
                 "url": f"{reverse('order_management')}?tab=pending",
             },
             {
                 "label": "Accepted",
-                "count": monthly_status_map.get(ShiprocketOrder.STATUS_ACCEPTED, 0)
-                + monthly_status_map.get(ShiprocketOrder.STATUS_PACKED, 0),
+                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_ACCEPTED],
                 "tone": "info",
                 "url": f"{reverse('order_management')}?tab=accepted",
             },
             {
                 "label": "Shipped",
-                "count": monthly_status_map.get(ShiprocketOrder.STATUS_SHIPPED, 0)
-                + monthly_status_map.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0)
-                + monthly_status_map.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0),
+                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_SHIPPED],
                 "tone": "secondary",
                 "url": f"{reverse('order_management')}?tab=shipped",
             },
             {
                 "label": "Completed",
-                "count": monthly_status_map.get(ShiprocketOrder.STATUS_DELIVERED, 0)
-                + monthly_status_map.get(ShiprocketOrder.STATUS_COMPLETED, 0),
+                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_COMPLETED],
                 "tone": "success",
                 "url": f"{reverse('order_management')}?tab=completed",
             },
             {
                 "label": "Cancelled",
-                "count": monthly_status_map.get(ShiprocketOrder.STATUS_CANCELLED, 0),
-                "tone": "danger" if monthly_status_map.get(ShiprocketOrder.STATUS_CANCELLED, 0) else "success",
-                "url": f"{reverse('order_management')}?tab=all",
+                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_CANCELLED],
+                "tone": "danger" if monthly_ops_status_counts[OPS_VIEWER_TAB_CANCELLED] else "success",
+                "url": f"{reverse('order_management')}?tab=cancelled",
             },
         ]
     else:
@@ -1958,30 +1984,27 @@ def _build_orders_dashboard_context(request):
         },
         {
             "title": "Pending",
-            "count": work_queues["new_orders"]["count"],
+            "count": ops_status_counts[OPS_VIEWER_TAB_PENDING],
             "tone": "warning",
-            "url": f"{reverse('order_management')}?tab=all",
+            "url": f"{reverse('order_management')}?tab=pending",
         },
         {
             "title": "To Pack",
-            "count": status_counts.get(ShiprocketOrder.STATUS_ACCEPTED, 0),
+            "count": ops_status_counts[OPS_VIEWER_TAB_ACCEPTED],
             "tone": "info",
-            "url": f"{reverse('order_management')}?tab=all",
+            "url": f"{reverse('order_management')}?tab=accepted",
         },
         {
             "title": "Shipped",
-            "count": status_counts.get(ShiprocketOrder.STATUS_SHIPPED, 0)
-            + status_counts.get(ShiprocketOrder.STATUS_DELIVERY_ISSUE, 0)
-            + status_counts.get(ShiprocketOrder.STATUS_OUT_FOR_DELIVERY, 0),
+            "count": ops_status_counts[OPS_VIEWER_TAB_SHIPPED],
             "tone": "secondary",
-            "url": f"{reverse('order_management')}?tab=all",
+            "url": f"{reverse('order_management')}?tab=shipped",
         },
         {
             "title": "Completed",
-            "count": status_counts.get(ShiprocketOrder.STATUS_DELIVERED, 0)
-            + status_counts.get(ShiprocketOrder.STATUS_COMPLETED, 0),
+            "count": ops_status_counts[OPS_VIEWER_TAB_COMPLETED],
             "tone": "success",
-            "url": f"{reverse('order_management')}?tab=all",
+            "url": f"{reverse('order_management')}?tab=completed",
         },
         {
             "title": "Queue Failed",
