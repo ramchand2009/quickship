@@ -3650,12 +3650,35 @@ class RoleAccessTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
 
-    def test_ops_viewer_home_redirects_to_order_management(self):
+    def test_ops_viewer_home_shows_live_order_counts(self):
+        previous_month = timezone.now() - timedelta(days=35)
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-HOME-OLD-PACKED-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            customer_name="Old Packed Count",
+            order_date=previous_month,
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-HOME-ACCEPTED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Accepted Count",
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-HOME-SHIPPED-1",
+            local_status=ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+            customer_name="Shipped Count",
+        )
         self.client.force_login(self.viewer)
 
         response = self.client.get(reverse("home"))
 
-        self.assertRedirects(response, reverse("order_management"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Live order status and stock overview.")
+        self.assertContains(response, '<span class="ops-home-card-label">Accepted</span>', html=False)
+        self.assertContains(response, '<span class="ops-home-card-value">2</span>', html=False)
+        self.assertContains(response, '<span class="ops-home-card-label">Shipped</span>', html=False)
+        self.assertContains(response, '<span class="ops-home-card-value">1</span>', html=False)
+        self.assertContains(response, f"{reverse('order_management')}?tab=accepted")
 
     def test_ops_viewer_sidebar_shows_order_management_and_stock_management_only(self):
         order = ShiprocketOrder.objects.create(

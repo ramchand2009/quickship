@@ -1749,7 +1749,6 @@ def _build_orders_dashboard_context(request):
     monthly_rows = monthly_orders.values("local_status").annotate(total=Count("id"))
     monthly_status_map = {row["local_status"]: int(row["total"] or 0) for row in monthly_rows}
     monthly_total = sum(monthly_status_map.values())
-    monthly_ops_status_counts = _ops_viewer_status_counts_from_map(monthly_status_map)
     monthly_sales_total = monthly_orders.exclude(
         local_status=ShiprocketOrder.STATUS_CANCELLED
     ).aggregate(total_amount=Sum("total")).get("total_amount") or 0
@@ -1929,38 +1928,38 @@ def _build_orders_dashboard_context(request):
         monthly_status_cards = [
             {
                 "label": "All",
-                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_ALL],
+                "count": ops_status_counts[OPS_VIEWER_TAB_ALL],
                 "tone": "primary",
                 "url": f"{reverse('order_management')}?tab=all",
             },
             {
                 "label": "Pending",
-                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_PENDING],
+                "count": ops_status_counts[OPS_VIEWER_TAB_PENDING],
                 "tone": "warning",
                 "url": f"{reverse('order_management')}?tab=pending",
             },
             {
                 "label": "Accepted",
-                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_ACCEPTED],
+                "count": ops_status_counts[OPS_VIEWER_TAB_ACCEPTED],
                 "tone": "info",
                 "url": f"{reverse('order_management')}?tab=accepted",
             },
             {
                 "label": "Shipped",
-                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_SHIPPED],
+                "count": ops_status_counts[OPS_VIEWER_TAB_SHIPPED],
                 "tone": "secondary",
                 "url": f"{reverse('order_management')}?tab=shipped",
             },
             {
                 "label": "Completed",
-                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_COMPLETED],
+                "count": ops_status_counts[OPS_VIEWER_TAB_COMPLETED],
                 "tone": "success",
                 "url": f"{reverse('order_management')}?tab=completed",
             },
             {
                 "label": "Cancelled",
-                "count": monthly_ops_status_counts[OPS_VIEWER_TAB_CANCELLED],
-                "tone": "danger" if monthly_ops_status_counts[OPS_VIEWER_TAB_CANCELLED] else "success",
+                "count": ops_status_counts[OPS_VIEWER_TAB_CANCELLED],
+                "tone": "danger" if ops_status_counts[OPS_VIEWER_TAB_CANCELLED] else "success",
                 "url": f"{reverse('order_management')}?tab=cancelled",
             },
         ]
