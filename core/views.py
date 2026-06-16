@@ -5009,9 +5009,18 @@ def woocommerce_webhook(request):
     except (UnicodeDecodeError, json.JSONDecodeError):
         return JsonResponse({"ok": False, "error": "Invalid JSON payload."}, status=400)
 
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "error": "Payload must be a JSON object."}, status=400)
+
     order, created = import_woocommerce_order_payload(payload)
     if not order:
-        return JsonResponse({"ok": False, "error": "WooCommerce order payload did not include an order id."}, status=400)
+        return JsonResponse(
+            {
+                "ok": True,
+                "ignored": True,
+                "detail": "WooCommerce webhook validation received without an order id.",
+            }
+        )
 
     log_order_activity(
         order=order,

@@ -232,6 +232,21 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="WC-778").exists())
 
+    def test_woocommerce_webhook_accepts_signed_validation_without_order_id(self):
+        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        raw_body = b"{}"
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="order.created",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["ignored"], True)
+        self.assertFalse(ShiprocketOrder.objects.exists())
+
     def test_woocommerce_webhook_accepts_query_secret_fallback(self):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")
         payload = {
