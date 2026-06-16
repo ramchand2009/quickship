@@ -5004,15 +5004,34 @@ def woocommerce_webhook(request):
             status=401,
         )
 
-    try:
-        payload = json.loads(raw_body.decode("utf-8") or "{}")
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    def fallback_sync_response(detail):
+        try:
+            synced = sync_woocommerce_orders()
+        except WooCommerceAPIError as exc:
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "ignored": True,
+                    "fallback_sync": False,
+                    "fallback_error": str(exc),
+                    "detail": detail,
+                }
+            )
         return JsonResponse(
             {
                 "ok": True,
                 "ignored": True,
-                "detail": "WooCommerce webhook validation received without a JSON order payload.",
+                "fallback_sync": True,
+                "synced": synced,
+                "detail": detail,
             }
+        )
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return fallback_sync_response(
+            "WooCommerce webhook did not include a JSON order payload; fallback sync attempted."
         )
 
     if not isinstance(payload, dict):
@@ -5020,12 +5039,8 @@ def woocommerce_webhook(request):
 
     order, created = import_woocommerce_order_payload(payload)
     if not order:
-        return JsonResponse(
-            {
-                "ok": True,
-                "ignored": True,
-                "detail": "WooCommerce webhook validation received without an order id.",
-            }
+        return fallback_sync_response(
+            "WooCommerce webhook did not include an order id; fallback sync attempted."
         )
 
     log_order_activity(

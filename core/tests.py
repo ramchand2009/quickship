@@ -264,8 +264,10 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="WC-778").exists())
 
-    def test_woocommerce_webhook_accepts_signed_validation_without_order_id(self):
+    @patch("core.views.sync_woocommerce_orders")
+    def test_woocommerce_webhook_accepts_signed_validation_without_order_id(self, mock_sync_orders):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        mock_sync_orders.return_value = 1
         raw_body = b"{}"
         response = self.client.post(
             reverse("woocommerce_webhook"),
@@ -277,10 +279,15 @@ class WooCommerceSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["ignored"], True)
+        self.assertEqual(response.json()["fallback_sync"], True)
+        self.assertEqual(response.json()["synced"], 1)
+        mock_sync_orders.assert_called_once()
         self.assertFalse(ShiprocketOrder.objects.exists())
 
-    def test_woocommerce_webhook_accepts_signed_non_json_validation_payload(self):
+    @patch("core.views.sync_woocommerce_orders")
+    def test_woocommerce_webhook_accepts_signed_non_json_validation_payload(self, mock_sync_orders):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        mock_sync_orders.return_value = 1
         raw_body = b"webhook_id=123"
         response = self.client.post(
             reverse("woocommerce_webhook"),
@@ -292,6 +299,9 @@ class WooCommerceSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["ignored"], True)
+        self.assertEqual(response.json()["fallback_sync"], True)
+        self.assertEqual(response.json()["synced"], 1)
+        mock_sync_orders.assert_called_once()
         self.assertFalse(ShiprocketOrder.objects.exists())
 
     def test_woocommerce_webhook_accepts_query_secret_fallback(self):
