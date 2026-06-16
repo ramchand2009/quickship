@@ -5007,7 +5007,13 @@ def woocommerce_webhook(request):
     try:
         payload = json.loads(raw_body.decode("utf-8") or "{}")
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return JsonResponse({"ok": False, "error": "Invalid JSON payload."}, status=400)
+        return JsonResponse(
+            {
+                "ok": True,
+                "ignored": True,
+                "detail": "WooCommerce webhook validation received without a JSON order payload.",
+            }
+        )
 
     if not isinstance(payload, dict):
         return JsonResponse({"ok": False, "error": "Payload must be a JSON object."}, status=400)
