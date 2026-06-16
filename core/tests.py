@@ -133,12 +133,44 @@ class WooCommerceSyncTests(TestCase):
         synced = sync_woocommerce_orders()
 
         self.assertEqual(synced, 1)
+        mock_json_request.assert_called_once()
+        self.assertIn("whatsapp-draft", mock_json_request.call_args.kwargs["params"]["status"])
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-501")
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
         self.assertEqual(order.woocommerce_order_id, "501")
         self.assertEqual(order.channel_order_id, "1001")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(order.order_items[0]["sku"], "TEA-1")
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_imports_whatsapp_draft_orders_as_new_orders(self, mock_json_request):
+        WooCommerceSettings.objects.create(import_statuses="pending,processing,on-hold")
+        mock_json_request.return_value = [
+            {
+                "id": 503,
+                "number": "1003",
+                "status": "whatsapp-draft",
+                "total": "150.00",
+                "date_created": "2026-04-01T10:35:00",
+                "billing": {"first_name": "Ramachandran", "last_name": "", "phone": "9876543210"},
+                "shipping": {},
+                "line_items": [],
+            }
+        ]
+
+        synced = sync_woocommerce_orders()
+
+        self.assertEqual(synced, 1)
+        self.assertIn("whatsapp-draft", mock_json_request.call_args.kwargs["params"]["status"])
+        order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-503")
+        self.assertEqual(order.channel_order_id, "1003")
+        self.assertEqual(order.woocommerce_status, "whatsapp-draft")
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
 
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",

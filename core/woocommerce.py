@@ -27,10 +27,14 @@ DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS = {
     ShiprocketOrder.STATUS_CANCELLED: "cancelled",
 }
 
+DEFAULT_IMPORT_STATUSES = ["pending", "processing", "on-hold", "whatsapp-draft"]
+
 WOOCOMMERCE_TO_LOCAL_STATUS = {
     "pending": ShiprocketOrder.STATUS_NEW,
     "processing": ShiprocketOrder.STATUS_NEW,
     "on-hold": ShiprocketOrder.STATUS_NEW,
+    "whatsapp-draft": ShiprocketOrder.STATUS_NEW,
+    "wc-whatsapp-draft": ShiprocketOrder.STATUS_NEW,
     "cancelled": ShiprocketOrder.STATUS_CANCELLED,
     "refunded": ShiprocketOrder.STATUS_CANCELLED,
     "failed": ShiprocketOrder.STATUS_CANCELLED,
@@ -199,7 +203,12 @@ def _extract_items(order):
 def _import_statuses():
     configured = _get_config()["import_statuses"]
     statuses = [status.strip() for status in configured.split(",") if status.strip()]
-    return statuses or ["pending", "processing", "on-hold"]
+    normalized_statuses = {status.lower() for status in statuses}
+    for status in DEFAULT_IMPORT_STATUSES:
+        if status.lower() not in normalized_statuses:
+            statuses.append(status)
+            normalized_statuses.add(status.lower())
+    return statuses
 
 
 def _local_status_for_woocommerce(status):
