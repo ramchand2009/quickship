@@ -233,7 +233,7 @@ class WooCommerceSyncTests(TestCase):
         WOOCOMMERCE_CONSUMER_SECRET="cs_test",
     )
     @patch("core.woocommerce._json_request")
-    def test_sync_orders_uses_billing_postcode_when_shipping_postcode_is_blank(self, mock_json_request):
+    def test_sync_orders_uses_billing_address_when_shipping_address_is_blank(self, mock_json_request):
         mock_json_request.return_value = [
             {
                 "id": 504,
@@ -244,11 +244,15 @@ class WooCommerceSyncTests(TestCase):
                 "billing": {
                     "first_name": "Ramachandran",
                     "phone": "9876543210",
+                    "address_1": "No 38 5th Street jeevan Adambakkam",
+                    "city": "Chennai",
+                    "state": "TN",
                     "postcode": "600088",
+                    "country": "IN",
                 },
                 "shipping": {
                     "first_name": "Ramachandran",
-                    "address_1": "Test 3rd street",
+                    "address_1": "",
                     "postcode": "",
                 },
                 "line_items": [],
@@ -258,17 +262,29 @@ class WooCommerceSyncTests(TestCase):
         sync_woocommerce_orders()
 
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-504")
+        self.assertEqual(order.shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(order.shipping_address["city"], "Chennai")
         self.assertEqual(order.shipping_address["pincode"], "600088")
+        self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
         self.assertEqual(order.display_shipping_address["pincode"], "600088")
 
-    def test_display_shipping_address_falls_back_to_billing_pincode(self):
+    def test_display_shipping_address_falls_back_to_billing_address(self):
         order = ShiprocketOrder.objects.create(
-            shiprocket_order_id="WC-EXISTING-PIN-1",
+            shiprocket_order_id="WC-EXISTING-ADDRESS-1",
             source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
-            shipping_address={"name": "Existing Customer", "address_1": "Delivery road", "pincode": ""},
-            billing_address={"pincode": "600088"},
+            shipping_address={"name": "Existing Customer", "address_1": "", "pincode": ""},
+            billing_address={
+                "address_1": "No 38 5th Street jeevan Adambakkam",
+                "address_2": "Near Station",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "IN",
+                "pincode": "600088",
+            },
         )
 
+        self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(order.display_shipping_address["city"], "Chennai")
         self.assertEqual(order.display_shipping_address["pincode"], "600088")
 
     @override_settings(
@@ -4922,6 +4938,33 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Products")
         self.assertContains(response, "Recent Movements")
         self.assertContains(response, "More Tab Product")
+
+    def test_ops_viewer_order_management_uses_billing_address_fallback(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-BILLING-ADDRESS-1",
+            channel_order_id="346",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Ramachandran",
+            customer_phone="+919952975768",
+            shipping_address={"name": "Ramachandran", "phone": "+919952975768", "address_1": ""},
+            billing_address={
+                "address_1": "No 38 5th Street jeevan Adambakkam",
+                "city": "Chennai",
+                "pincode": "600088",
+            },
+            order_items=[{"name": "Lip Serum", "sku": "MO-SER-007", "quantity": 1, "price": "130"}],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"), {"tab": ShiprocketOrder.STATUS_ACCEPTED})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.channel_order_id)
+        self.assertContains(response, "No 38 5th Street jeevan Adambakkam")
+        self.assertContains(response, "Chennai")
+        self.assertContains(response, "600088")
+        self.assertNotContains(response, "Address not available")
 
     def test_ops_viewer_completed_tab_shows_delivered_orders(self):
         delivered_order = ShiprocketOrder.objects.create(
