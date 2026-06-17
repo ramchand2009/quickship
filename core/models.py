@@ -370,6 +370,7 @@ class ShiprocketOrder(models.Model):
     @property
     def display_shipping_address(self):
         shipping = self.shipping_address or {}
+        billing = self.billing_address or {}
         return {
             "name": self.manual_customer_name or shipping.get("name") or self.customer_name,
             "email": self.manual_customer_email or shipping.get("email") or self.customer_email,
@@ -380,7 +381,7 @@ class ShiprocketOrder(models.Model):
             "city": self.manual_shipping_city or shipping.get("city") or "",
             "state": self.manual_shipping_state or shipping.get("state") or "",
             "country": self.manual_shipping_country or shipping.get("country") or "",
-            "pincode": self.manual_shipping_pincode or shipping.get("pincode") or "",
+            "pincode": self.manual_shipping_pincode or shipping.get("pincode") or billing.get("pincode") or "",
             "latitude": shipping.get("latitude"),
             "longitude": shipping.get("longitude"),
         }

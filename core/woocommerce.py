@@ -278,6 +278,8 @@ def import_order_payload(item):
         shipping["phone"] = billing.get("phone", "")
     if not shipping.get("email"):
         shipping["email"] = billing.get("email", "")
+    if not shipping.get("pincode"):
+        shipping["pincode"] = billing.get("pincode", "")
 
     order_number = str(item.get("number") or order_id)
     source_order_id = f"WC-{order_id}"

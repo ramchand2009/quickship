@@ -178,6 +178,50 @@ class WooCommerceSyncTests(TestCase):
         WOOCOMMERCE_CONSUMER_SECRET="cs_test",
     )
     @patch("core.woocommerce._json_request")
+    def test_sync_orders_uses_billing_postcode_when_shipping_postcode_is_blank(self, mock_json_request):
+        mock_json_request.return_value = [
+            {
+                "id": 504,
+                "number": "1004",
+                "status": "processing",
+                "total": "150.00",
+                "date_created": "2026-04-01T10:35:00",
+                "billing": {
+                    "first_name": "Ramachandran",
+                    "phone": "9876543210",
+                    "postcode": "600088",
+                },
+                "shipping": {
+                    "first_name": "Ramachandran",
+                    "address_1": "Test 3rd street",
+                    "postcode": "",
+                },
+                "line_items": [],
+            }
+        ]
+
+        sync_woocommerce_orders()
+
+        order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-504")
+        self.assertEqual(order.shipping_address["pincode"], "600088")
+        self.assertEqual(order.display_shipping_address["pincode"], "600088")
+
+    def test_display_shipping_address_falls_back_to_billing_pincode(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-EXISTING-PIN-1",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shipping_address={"name": "Existing Customer", "address_1": "Delivery road", "pincode": ""},
+            billing_address={"pincode": "600088"},
+        )
+
+        self.assertEqual(order.display_shipping_address["pincode"], "600088")
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
     def test_sync_orders_treats_woocommerce_gmt_order_date_as_utc(self, mock_json_request):
         mock_json_request.return_value = [
             {
