@@ -14,6 +14,31 @@ def normalize_channel_product_id(value):
     return str(value or "").strip()
 
 
+def compact_woocommerce_address(address):
+    if not isinstance(address, dict):
+        return {}
+    first_name = str(address.get("first_name") or "").strip()
+    last_name = str(address.get("last_name") or "").strip()
+    return {
+        "name": " ".join(value for value in [first_name, last_name] if value).strip(),
+        "email": address.get("email") or "",
+        "phone": address.get("phone") or "",
+        "address_1": address.get("address_1") or "",
+        "address_2": address.get("address_2") or "",
+        "city": address.get("city") or "",
+        "state": address.get("state") or "",
+        "country": address.get("country") or "",
+        "pincode": address.get("postcode") or address.get("pincode") or "",
+    }
+
+
+def first_present(*values):
+    for value in values:
+        if value is not None and str(value).strip():
+            return value
+    return ""
+
+
 class Project(models.Model):
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
@@ -369,21 +394,81 @@ class ShiprocketOrder(models.Model):
 
     @property
     def display_shipping_address(self):
-        shipping = self.shipping_address or {}
-        billing = self.billing_address or {}
+        shipping = self.shipping_address if isinstance(self.shipping_address, dict) else {}
+        billing = self.billing_address if isinstance(self.billing_address, dict) else {}
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        raw_shipping = compact_woocommerce_address(payload.get("shipping") or {})
+        raw_billing = compact_woocommerce_address(payload.get("billing") or {})
         return {
-            "name": self.manual_customer_name or shipping.get("name") or self.customer_name,
-            "email": self.manual_customer_email or shipping.get("email") or self.customer_email,
-            "phone": self.manual_customer_phone or shipping.get("phone") or self.customer_phone,
-            "alternate_phone": self.manual_customer_alternate_phone or shipping.get("alternate_phone") or "",
-            "address_1": self.manual_shipping_address_1 or shipping.get("address_1") or billing.get("address_1") or "",
-            "address_2": self.manual_shipping_address_2 or shipping.get("address_2") or billing.get("address_2") or "",
-            "city": self.manual_shipping_city or shipping.get("city") or billing.get("city") or "",
-            "state": self.manual_shipping_state or shipping.get("state") or billing.get("state") or "",
-            "country": self.manual_shipping_country or shipping.get("country") or billing.get("country") or "",
-            "pincode": self.manual_shipping_pincode or shipping.get("pincode") or billing.get("pincode") or "",
-            "latitude": shipping.get("latitude"),
-            "longitude": shipping.get("longitude"),
+            "name": first_present(
+                self.manual_customer_name,
+                shipping.get("name"),
+                raw_shipping.get("name"),
+                billing.get("name"),
+                raw_billing.get("name"),
+                self.customer_name,
+            ),
+            "email": first_present(
+                self.manual_customer_email,
+                shipping.get("email"),
+                raw_shipping.get("email"),
+                billing.get("email"),
+                raw_billing.get("email"),
+                self.customer_email,
+            ),
+            "phone": first_present(
+                self.manual_customer_phone,
+                shipping.get("phone"),
+                raw_shipping.get("phone"),
+                billing.get("phone"),
+                raw_billing.get("phone"),
+                self.customer_phone,
+            ),
+            "alternate_phone": first_present(self.manual_customer_alternate_phone, shipping.get("alternate_phone")),
+            "address_1": first_present(
+                self.manual_shipping_address_1,
+                shipping.get("address_1"),
+                raw_shipping.get("address_1"),
+                billing.get("address_1"),
+                raw_billing.get("address_1"),
+            ),
+            "address_2": first_present(
+                self.manual_shipping_address_2,
+                shipping.get("address_2"),
+                raw_shipping.get("address_2"),
+                billing.get("address_2"),
+                raw_billing.get("address_2"),
+            ),
+            "city": first_present(
+                self.manual_shipping_city,
+                shipping.get("city"),
+                raw_shipping.get("city"),
+                billing.get("city"),
+                raw_billing.get("city"),
+            ),
+            "state": first_present(
+                self.manual_shipping_state,
+                shipping.get("state"),
+                raw_shipping.get("state"),
+                billing.get("state"),
+                raw_billing.get("state"),
+            ),
+            "country": first_present(
+                self.manual_shipping_country,
+                shipping.get("country"),
+                raw_shipping.get("country"),
+                billing.get("country"),
+                raw_billing.get("country"),
+            ),
+            "pincode": first_present(
+                self.manual_shipping_pincode,
+                shipping.get("pincode"),
+                raw_shipping.get("pincode"),
+                billing.get("pincode"),
+                raw_billing.get("pincode"),
+            ),
+            "latitude": first_present(shipping.get("latitude"), raw_shipping.get("latitude")),
+            "longitude": first_present(shipping.get("longitude"), raw_shipping.get("longitude")),
         }
 
     @property

@@ -182,8 +182,22 @@ def _compact_address(address):
         "city": address.get("city") or "",
         "state": address.get("state") or "",
         "country": address.get("country") or "",
-        "pincode": address.get("postcode") or "",
+        "pincode": address.get("postcode") or address.get("pincode") or "",
     }
+
+
+def _merge_billing_into_shipping(billing, shipping):
+    merged = dict(shipping or {})
+    billing = billing or {}
+    for contact_key in ["name", "phone", "email"]:
+        if not merged.get(contact_key):
+            merged[contact_key] = billing.get(contact_key, "")
+
+    has_billing_address = any(billing.get(key) for key in ["address_1", "address_2", "city", "state", "country", "pincode"])
+    if has_billing_address:
+        for address_key in ["address_1", "address_2", "city", "state", "country", "pincode"]:
+            merged[address_key] = billing.get(address_key) or merged.get(address_key, "")
+    return merged
 
 
 def _extract_items(order):
@@ -447,15 +461,7 @@ def import_order_payload(item):
     wc_status = str(item.get("status") or "").strip()
     billing = _compact_address(item.get("billing") or {})
     shipping = _compact_address(item.get("shipping") or {})
-    if not shipping.get("name"):
-        shipping["name"] = billing.get("name", "")
-    if not shipping.get("phone"):
-        shipping["phone"] = billing.get("phone", "")
-    if not shipping.get("email"):
-        shipping["email"] = billing.get("email", "")
-    for address_key in ["address_1", "address_2", "city", "state", "country", "pincode"]:
-        if not shipping.get(address_key):
-            shipping[address_key] = billing.get(address_key, "")
+    shipping = _merge_billing_into_shipping(billing, shipping)
 
     order_number = str(item.get("number") or order_id)
     source_order_id = f"WC-{order_id}"

@@ -287,6 +287,55 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.display_shipping_address["city"], "Chennai")
         self.assertEqual(order.display_shipping_address["pincode"], "600088")
 
+    def test_display_shipping_address_falls_back_to_raw_woocommerce_billing_payload(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-EXISTING-ADDRESS-RAW",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shipping_address={"name": "Ramachandran", "phone": "+919952975768", "address_1": ""},
+            billing_address={},
+            raw_payload={
+                "billing": {
+                    "first_name": "Ramachandran",
+                    "phone": "+919952975768",
+                    "address_1": "No 38 5th Street jeevan Adambakkam",
+                    "city": "Chennai",
+                    "state": "TN",
+                    "postcode": "600088",
+                    "country": "IN",
+                },
+                "shipping": {"first_name": "Ramachandran", "address_1": ""},
+            },
+        )
+
+        self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(order.display_shipping_address["city"], "Chennai")
+        self.assertEqual(order.display_shipping_address["pincode"], "600088")
+
+    def test_repair_woocommerce_addresses_backfills_shipping_from_billing_payload(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-REPAIR-ADDRESS-1",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shipping_address={"name": "Ramachandran", "address_1": ""},
+            billing_address={},
+            raw_payload={
+                "billing": {
+                    "first_name": "Ramachandran",
+                    "phone": "+919952975768",
+                    "address_1": "No 38 5th Street jeevan Adambakkam",
+                    "city": "Chennai",
+                    "postcode": "600088",
+                    "country": "IN",
+                }
+            },
+        )
+
+        call_command("repair_woocommerce_addresses", "--confirm", stdout=StringIO())
+
+        order.refresh_from_db()
+        self.assertEqual(order.billing_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(order.shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(order.shipping_address["pincode"], "600088")
+
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
         WOOCOMMERCE_CONSUMER_KEY="ck_test",
