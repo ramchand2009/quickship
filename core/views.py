@@ -109,6 +109,7 @@ from .woocommerce import (
     get_webhook_secret as get_woocommerce_webhook_secret,
     import_order_payload as import_woocommerce_order_payload,
     sync_orders as sync_woocommerce_orders,
+    sync_products as sync_woocommerce_products,
     update_order_status as update_woocommerce_order_status,
 )
 from .whatomate import (
@@ -3646,6 +3647,23 @@ def stock_management(request):
                     messages.info(request, "No SmartBiz mappings needed updating.")
                 return redirect(redirect_url)
             messages.error(request, "Unable to apply bulk SmartBiz mappings. Check the pasted rows.")
+        elif action == "sync_woocommerce_products":
+            try:
+                summary = sync_woocommerce_products()
+            except WooCommerceAPIError as exc:
+                messages.error(request, f"WooCommerce product sync failed: {exc}")
+            else:
+                messages.success(
+                    request,
+                    (
+                        "WooCommerce products synced. "
+                        f"Created {summary['created']}, updated {summary['updated']}, "
+                        f"unchanged {summary['unchanged']}, skipped {summary['skipped']}."
+                    ),
+                )
+                if summary.get("variations_seen"):
+                    messages.info(request, f"Included {summary['variations_seen']} WooCommerce variation(s).")
+            return redirect(redirect_url)
         elif action == "reconcile_stock":
             summary = reconcile_missed_stock_deductions(actor=actor)
             if summary["movement_count"]:

@@ -45,6 +45,7 @@ from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signa
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .shiprocket import sync_orders
 from .woocommerce import sync_orders as sync_woocommerce_orders
+from .woocommerce import sync_products as sync_woocommerce_products
 
 
 class ShiprocketSyncTests(TestCase):
@@ -141,6 +142,60 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.channel_order_id, "1001")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(order.order_items[0]["sku"], "TEA-1")
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_sync_products_imports_woocommerce_products_and_variations(self, mock_json_request):
+        mock_json_request.side_effect = [
+            [
+                {
+                    "id": 11,
+                    "name": "Goat Milk Soap",
+                    "type": "simple",
+                    "status": "publish",
+                    "sku": "soap-100",
+                    "stock_quantity": 12,
+                    "categories": [{"name": "Soap"}],
+                },
+                {
+                    "id": 12,
+                    "name": "Amla Juice",
+                    "type": "variable",
+                    "status": "publish",
+                    "sku": "",
+                    "stock_quantity": None,
+                    "categories": [{"name": "Juice"}],
+                    "variations": [121],
+                },
+            ],
+            [
+                {
+                    "id": 121,
+                    "sku": "amla-500",
+                    "stock_quantity": 5,
+                    "attributes": [{"name": "Size", "option": "500 ml"}],
+                }
+            ],
+        ]
+
+        summary = sync_woocommerce_products()
+
+        self.assertEqual(summary["created"], 2)
+        self.assertEqual(summary["variations_seen"], 1)
+        soap = Product.objects.get(sku="SOAP-100")
+        self.assertEqual(soap.name, "Goat Milk Soap")
+        self.assertEqual(soap.stock_quantity, 12)
+        self.assertEqual(soap.smartbiz_product_id, "11")
+        self.assertEqual(soap.category_master.name, "Soap")
+        amla = Product.objects.get(sku="AMLA-500")
+        self.assertEqual(amla.name, "Amla Juice - 500 ml")
+        self.assertEqual(amla.stock_quantity, 5)
+        self.assertEqual(amla.smartbiz_product_id, "121")
+        self.assertEqual(amla.category_master.name, "Juice")
 
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
@@ -3606,6 +3661,50 @@ class PruneOpsDataCommandTests(TestCase):
         self.assertTrue(WhatsAppNotificationLog.objects.filter(pk=failure_log.pk).exists())
 
 
+class FreshStartInventoryCommandTests(TestCase):
+    def test_fresh_start_inventory_requires_confirm_for_deletion(self):
+        product = Product.objects.create(name="Reset Product", sku="RESET-1", stock_quantity=4)
+        ShiprocketOrder.objects.create(shiprocket_order_id="RESET-ORDER-1")
+
+        stdout = StringIO()
+        call_command("fresh_start_inventory", stdout=stdout)
+
+        self.assertIn("Fresh start dry run", stdout.getvalue())
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())
+        self.assertTrue(ShiprocketOrder.objects.filter(shiprocket_order_id="RESET-ORDER-1").exists())
+
+    def test_fresh_start_inventory_deletes_orders_products_and_related_rows(self):
+        product = Product.objects.create(name="Reset Product", sku="RESET-1", stock_quantity=4)
+        order = ShiprocketOrder.objects.create(shiprocket_order_id="RESET-ORDER-1")
+        StockMovement.objects.create(
+            product=product,
+            order=order,
+            shiprocket_order_id=order.shiprocket_order_id,
+            movement_type=StockMovement.TYPE_MANUAL_ADD,
+            quantity_delta=4,
+            quantity_before=0,
+            quantity_after=4,
+        )
+        OrderActivityLog.objects.create(order=order, shiprocket_order_id=order.shiprocket_order_id)
+        WhatsAppNotificationLog.objects.create(order=order, shiprocket_order_id=order.shiprocket_order_id)
+        WhatsAppNotificationQueue.objects.create(
+            order=order,
+            shiprocket_order_id=order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_STATUS_CHANGE,
+        )
+
+        stdout = StringIO()
+        call_command("fresh_start_inventory", "--confirm", stdout=stdout)
+
+        self.assertIn("Fresh start complete", stdout.getvalue())
+        self.assertFalse(Product.objects.exists())
+        self.assertFalse(ShiprocketOrder.objects.exists())
+        self.assertFalse(StockMovement.objects.exists())
+        self.assertFalse(OrderActivityLog.objects.exists())
+        self.assertFalse(WhatsAppNotificationLog.objects.exists())
+        self.assertFalse(WhatsAppNotificationQueue.objects.exists())
+
+
 class BackupRestoreCommandTests(TestCase):
     def test_restore_local_data_dry_run(self):
         base_dir = Path(__file__).resolve().parents[1]
@@ -4487,7 +4586,7 @@ class RoleAccessTests(TestCase):
         self.assertEqual(order.courier_name, "India Post")
         self.assertContains(response, "Order moved to the selected tab.")
 
-    def test_ops_viewer_order_detail_shipped_action_shows_barcode_scanner_ui(self):
+    def test_ops_viewer_order_detail_shipped_action_uses_manual_tracking_entry(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-SHIP-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
@@ -4511,8 +4610,10 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Ship Order")
-        self.assertContains(response, "Scan Barcode")
-        self.assertContains(response, "opsScannerPanel")
+        self.assertContains(response, "Tracking ID / AWB Number")
+        self.assertContains(response, "Enter tracking ID manually")
+        self.assertNotContains(response, "Scan Barcode")
+        self.assertNotContains(response, "opsScannerPanel")
         self.assertNotContains(response, "Courier Partner")
         self.assertNotContains(response, "Initial Shipment Status")
 
@@ -4615,14 +4716,15 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Stock Management")
-        self.assertContains(response, "Stock List")
-        self.assertContains(response, "Manage Stock")
-        self.assertContains(response, "More")
+        self.assertContains(response, "WooCommerce synced inventory")
+        self.assertContains(response, "Sync Products from WooCommerce")
+        self.assertContains(response, "Product Detail")
+        self.assertContains(response, "Stock Actions")
+        self.assertContains(response, "Recent Movements")
         self.assertContains(response, "ops-stock-shell")
-        self.assertContains(response, "Stock Qty Table")
-        self.assertContains(response, "Free Entry")
-        self.assertNotContains(response, "Low Stock Products")
-        self.assertNotContains(response, "Recent Stock Movements")
+        self.assertContains(response, "Free / Sample Issue")
+        self.assertNotContains(response, "Add Product")
+        self.assertNotContains(response, "Stock Qty Table")
         self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
 
     def test_ops_viewer_can_access_special_stock_issue_register(self):
@@ -4749,11 +4851,13 @@ class RoleAccessTests(TestCase):
         self.assertEqual(movement.notes, "Festival sample pack")
         self.assertContains(response, "Issued 3 unit(s) of Issue Product (ISSUE-1) as sample stock to Demo Customer.")
 
-    def test_ops_viewer_stock_qty_table_uses_requested_column_order(self):
+    def test_ops_viewer_stock_cards_show_requested_product_fields(self):
         Product.objects.create(
             name="Column Order Product",
             sku="COLUMN-ORDER-1",
+            category="Soap",
             stock_quantity=9,
+            reorder_level=2,
             is_active=True,
         )
         self.client.force_login(self.viewer)
@@ -4761,12 +4865,12 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"))
 
         self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertLess(content.index("<th>Category</th>"), content.index("<th>Product</th>"))
-        self.assertLess(content.index("<th>Product</th>"), content.index("<th>Stock Qty</th>"))
-        self.assertLess(content.index("<th>Stock Qty</th>"), content.index("<th>SKU</th>"))
-        self.assertLess(content.index("<th>SKU</th>"), content.index("<th>Status</th>"))
-        self.assertLess(content.index("<th>Status</th>"), content.index("<th>Update Qty</th>"))
+        self.assertContains(response, "Column Order Product")
+        self.assertContains(response, "COLUMN-ORDER-1")
+        self.assertContains(response, "Current")
+        self.assertContains(response, "Threshold")
+        self.assertContains(response, "Category")
+        self.assertContains(response, "In Stock")
 
     def test_ops_viewer_stock_qty_table_is_grouped_by_category(self):
         drink = ProductCategory.objects.create(name="Drink")
@@ -4800,11 +4904,11 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"), {"view": "manage"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Quick Stock Update")
-        self.assertContains(response, "Reconcile Accepted Orders")
-        self.assertContains(response, 'name="return_view" value="manage"', html=False)
+        self.assertContains(response, "Stock Actions")
+        self.assertContains(response, "Reconcile Missing Deductions")
+        self.assertContains(response, "Sync Products from WooCommerce")
 
-    def test_ops_viewer_more_tab_shows_products_and_recent_movements(self):
+    def test_ops_viewer_stock_dashboard_shows_products_and_recent_movements(self):
         Product.objects.create(
             name="More Tab Product",
             sku="MORE-TAB-1",
@@ -4815,9 +4919,8 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"), {"view": "more"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Low Stock Products")
         self.assertContains(response, "Products")
-        self.assertContains(response, "Recent Stock Movements")
+        self.assertContains(response, "Recent Movements")
         self.assertContains(response, "More Tab Product")
 
     def test_ops_viewer_completed_tab_shows_delivered_orders(self):
@@ -4991,6 +5094,28 @@ class StockManagementViewTests(TestCase):
         self.assertEqual(product.smartbiz_product_id, "smartbiz-product-1")
         self.assertEqual(product.stock_quantity, 14)
         self.assertContains(response, "Saved product Amla Juice")
+
+    @patch("core.views.sync_woocommerce_products")
+    def test_stock_management_can_sync_products_from_woocommerce(self, mock_sync_products):
+        mock_sync_products.return_value = {
+            "products_seen": 2,
+            "variations_seen": 1,
+            "created": 2,
+            "updated": 1,
+            "unchanged": 0,
+            "skipped": 0,
+        }
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {"form_action": "sync_woocommerce_products"},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("stock_management"))
+        mock_sync_products.assert_called_once()
+        self.assertContains(response, "WooCommerce products synced. Created 2, updated 1")
+        self.assertContains(response, "Included 1 WooCommerce variation")
 
     def test_stock_management_shows_category_in_product_table(self):
         Product.objects.create(

@@ -8,7 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import ShiprocketOrder, WooCommerceSettings
+from .models import Product, ProductCategory, ShiprocketOrder, WooCommerceSettings, normalize_sku
 
 
 class WooCommerceAPIError(Exception):
@@ -129,6 +129,13 @@ def _to_decimal(value):
         return Decimal("0")
 
 
+def _to_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_datetime(value):
     raw_value = str(value or "").strip()
     if not raw_value:
@@ -198,6 +205,174 @@ def _extract_items(order):
             }
         )
     return normalized
+
+
+def _first_category_name(product):
+    categories = product.get("categories") if isinstance(product, dict) else []
+    if not isinstance(categories, list):
+        return ""
+    for category in categories:
+        if isinstance(category, dict):
+            name = str(category.get("name") or "").strip()
+            if name:
+                return name
+    return ""
+
+
+def _variation_name(parent_product, variation):
+    parent_name = str(parent_product.get("name") or "").strip()
+    attributes = variation.get("attributes") if isinstance(variation, dict) else []
+    options = []
+    if isinstance(attributes, list):
+        for attribute in attributes:
+            if not isinstance(attribute, dict):
+                continue
+            option = str(attribute.get("option") or "").strip()
+            if option:
+                options.append(option)
+    if parent_name and options:
+        return f"{parent_name} - {', '.join(options)}"
+    return str(variation.get("name") or parent_name or "").strip()
+
+
+def _normalized_product_row(product, *, parent_product=None):
+    if not isinstance(product, dict):
+        return None
+
+    parent = parent_product if isinstance(parent_product, dict) else {}
+    sku = normalize_sku(product.get("sku"))
+    if not sku:
+        return None
+
+    product_id = product.get("id")
+    parent_id = parent.get("id")
+    external_id = str(product_id or "").strip()
+    if not external_id:
+        return None
+
+    category_name = _first_category_name(parent or product)
+    stock_quantity = _to_int(product.get("stock_quantity"), default=0)
+    name = _variation_name(parent, product) if parent else str(product.get("name") or "").strip()
+    if not name:
+        name = sku
+
+    status = str(product.get("status") or parent.get("status") or "").strip().lower()
+    return {
+        "name": name,
+        "sku": sku,
+        "stock_quantity": stock_quantity,
+        "category": category_name,
+        "smartbiz_product_id": external_id,
+        "is_active": status not in {"trash", "deleted"},
+        "woocommerce_product_id": str(parent_id or product_id or "").strip(),
+        "woocommerce_variation_id": str(product_id or "").strip() if parent_id else "",
+    }
+
+
+def _get_or_create_product_category(name):
+    category_name = str(name or "").strip()
+    if not category_name:
+        return None
+    existing = ProductCategory.objects.filter(name__iexact=category_name).first()
+    if existing:
+        return existing
+    return ProductCategory.objects.create(name=category_name, is_active=True)
+
+
+def _sync_product_row(row):
+    sku = normalize_sku(row.get("sku"))
+    external_id = str(row.get("smartbiz_product_id") or "").strip()
+    if not sku or not external_id:
+        return "skipped"
+
+    product = Product.objects.filter(sku=sku).first()
+    if not product:
+        product = Product.objects.filter(smartbiz_product_id__iexact=external_id).first()
+
+    if product and product.sku != sku and Product.objects.filter(sku=sku).exclude(pk=product.pk).exists():
+        return "skipped"
+    if product and Product.objects.filter(smartbiz_product_id__iexact=external_id).exclude(pk=product.pk).exists():
+        return "skipped"
+
+    category = _get_or_create_product_category(row.get("category"))
+    defaults = {
+        "name": row.get("name") or sku,
+        "category": row.get("category") or "",
+        "category_master": category,
+        "sku": sku,
+        "smartbiz_product_id": external_id,
+        "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
+        "is_active": bool(row.get("is_active", True)),
+    }
+    if not product:
+        Product.objects.create(**defaults)
+        return "created"
+
+    changed_fields = []
+    for field_name, value in defaults.items():
+        if getattr(product, field_name) != value:
+            setattr(product, field_name, value)
+            changed_fields.append(field_name)
+    if changed_fields:
+        product.save(update_fields=[*changed_fields, "updated_at"])
+        return "updated"
+    return "unchanged"
+
+
+def _fetch_paginated(path, params=None, *, per_page=100):
+    rows = []
+    page = 1
+    while True:
+        page_params = {**(params or {}), "per_page": per_page, "page": page}
+        response = _json_request(path, params=page_params)
+        if not isinstance(response, list):
+            raise WooCommerceAPIError(f"WooCommerce {path} response was not a list.")
+        rows.extend(response)
+        if len(response) < per_page:
+            break
+        page += 1
+    return rows
+
+
+def sync_products():
+    products = _fetch_paginated(
+        "products",
+        params={"status": "any", "orderby": "id", "order": "asc"},
+    )
+    summary = {
+        "products_seen": len(products),
+        "variations_seen": 0,
+        "created": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "skipped": 0,
+    }
+
+    for product in products:
+        row = _normalized_product_row(product)
+        if row:
+            summary[_sync_product_row(row)] += 1
+        elif normalize_sku(product.get("sku")):
+            summary["skipped"] += 1
+
+        variation_ids = product.get("variations")
+        should_fetch_variations = str(product.get("type") or "").lower() == "variable" or bool(variation_ids)
+        if not should_fetch_variations:
+            continue
+
+        variations = _fetch_paginated(
+            f"products/{product.get('id')}/variations",
+            params={"status": "any", "orderby": "id", "order": "asc"},
+        )
+        summary["variations_seen"] += len(variations)
+        for variation in variations:
+            row = _normalized_product_row(variation, parent_product=product)
+            if not row:
+                summary["skipped"] += 1
+                continue
+            summary[_sync_product_row(row)] += 1
+
+    return summary
 
 
 def _import_statuses():
