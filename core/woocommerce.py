@@ -189,14 +189,17 @@ def _compact_address(address):
 def _merge_billing_into_shipping(billing, shipping):
     merged = dict(shipping or {})
     billing = billing or {}
-    for contact_key in ["name", "phone", "email"]:
-        if not merged.get(contact_key):
-            merged[contact_key] = billing.get(contact_key, "")
 
     has_billing_address = any(billing.get(key) for key in ["address_1", "address_2", "city", "state", "country", "pincode"])
     if has_billing_address:
+        for contact_key in ["name", "phone", "email"]:
+            merged[contact_key] = billing.get(contact_key) or merged.get(contact_key, "")
         for address_key in ["address_1", "address_2", "city", "state", "country", "pincode"]:
             merged[address_key] = billing.get(address_key) or merged.get(address_key, "")
+    else:
+        for contact_key in ["name", "phone", "email"]:
+            if not merged.get(contact_key):
+                merged[contact_key] = billing.get(contact_key, "")
     return merged
 
 

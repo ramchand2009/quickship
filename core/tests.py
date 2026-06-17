@@ -256,8 +256,10 @@ class WooCommerceSyncTests(TestCase):
                     "country": "IN",
                 },
                 "shipping": {
-                    "first_name": "Ramachandran",
-                    "address_1": "",
+                    "first_name": "Shipping",
+                    "phone": "1111111111",
+                    "address_1": "Wrong Shipping Street",
+                    "city": "Wrong City",
                     "postcode": "",
                 },
                 "line_items": [],
@@ -270,6 +272,7 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
         self.assertEqual(order.shipping_address["city"], "Chennai")
         self.assertEqual(order.shipping_address["pincode"], "600088")
+        self.assertEqual(order.shipping_address["phone"], "9876543210")
         self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
         self.assertEqual(order.display_shipping_address["pincode"], "600088")
 
@@ -288,6 +291,34 @@ class WooCommerceSyncTests(TestCase):
             },
         )
 
+        self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(order.display_shipping_address["city"], "Chennai")
+        self.assertEqual(order.display_shipping_address["pincode"], "600088")
+
+    def test_display_shipping_address_prefers_billing_for_woocommerce_orders(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-BILLING-FIRST-1",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shipping_address={
+                "name": "Shipping Name",
+                "phone": "1111111111",
+                "address_1": "Old Shipping Street",
+                "city": "Old City",
+                "pincode": "",
+            },
+            billing_address={
+                "name": "Ramachandran",
+                "phone": "+919952975768",
+                "address_1": "No 38 5th Street jeevan Adambakkam",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "IN",
+                "pincode": "600088",
+            },
+        )
+
+        self.assertEqual(order.display_shipping_address["name"], "Ramachandran")
+        self.assertEqual(order.display_shipping_address["phone"], "+919952975768")
         self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
         self.assertEqual(order.display_shipping_address["city"], "Chennai")
         self.assertEqual(order.display_shipping_address["pincode"], "600088")
