@@ -249,6 +249,22 @@ def _variation_name(parent_product, variation):
     return str(variation.get("name") or parent_name or "").strip()
 
 
+def _product_image_url(product, *, parent_product=None):
+    if isinstance(product, dict):
+        image = product.get("image")
+        if isinstance(image, dict) and image.get("src"):
+            return str(image.get("src") or "").strip()
+        images = product.get("images")
+        if isinstance(images, list):
+            for image in images:
+                if isinstance(image, dict) and image.get("src"):
+                    return str(image.get("src") or "").strip()
+
+    if isinstance(parent_product, dict):
+        return _product_image_url(parent_product)
+    return ""
+
+
 def _normalized_product_row(product, *, parent_product=None):
     if not isinstance(product, dict):
         return None
@@ -276,6 +292,7 @@ def _normalized_product_row(product, *, parent_product=None):
         "sku": sku,
         "stock_quantity": stock_quantity,
         "category": category_name,
+        "image_url": _product_image_url(product, parent_product=parent),
         "smartbiz_product_id": external_id,
         "is_active": status not in {"trash", "deleted"},
         "woocommerce_product_id": str(parent_id or product_id or "").strip(),
@@ -315,6 +332,7 @@ def _sync_product_row(row):
         "category_master": category,
         "sku": sku,
         "smartbiz_product_id": external_id,
+        "image_url": row.get("image_url") or "",
         "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
         "is_active": bool(row.get("is_active", True)),
     }

@@ -84,6 +84,11 @@
                         {{ product_form.smartbiz_product_id }}
                         <div class="form-text">Map the SmartBiz internal product or variant ID from the product URL/order item so stock can match incoming orders.</div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Product Image URL</label>
+                        {{ product_form.image_url }}
+                        <div class="form-text">Synced from WooCommerce product images.</div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Opening Stock</label>
@@ -228,6 +233,7 @@
                     <table class="table table-hover">
                         <thead>
                                 <tr>
+                                    <th>Image</th>
                                     <th>Name</th>
                                     <th>Category</th>
                                     <th>SKU</th>
@@ -242,6 +248,13 @@
                         <tbody>
                             {% for product in products %}
                                 <tr>
+                                    <td>
+                                        {% if product.image_url %}
+                                            <img src="{{ product.image_url }}" alt="{{ product.name|default:'Product' }}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #dee2e6;">
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ product.name }}</td>
                                     <td>{{ product.category_label|default:"-" }}</td>
                                     <td>{{ product.sku }}</td>
@@ -266,7 +279,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="9" class="text-muted">No products found.</td>
+                                    <td colspan="10" class="text-muted">No products found.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

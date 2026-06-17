@@ -415,10 +415,21 @@ class ShiprocketOrderTrackingUpdateForm(forms.ModelForm):
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ["name", "category_master", "sku", "smartbiz_product_id", "barcode", "stock_quantity", "reorder_level", "is_active"]
+        fields = [
+            "name",
+            "category_master",
+            "sku",
+            "smartbiz_product_id",
+            "barcode",
+            "image_url",
+            "stock_quantity",
+            "reorder_level",
+            "is_active",
+        ]
         labels = {
             "category_master": "Category",
             "smartbiz_product_id": "SmartBiz Product/Variant ID",
+            "image_url": "Product Image URL",
             "stock_quantity": "Opening Stock",
             "reorder_level": "Low Stock Threshold",
             "is_active": "Active",
@@ -426,7 +437,7 @@ class ProductForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ["name", "sku", "smartbiz_product_id", "barcode", "stock_quantity", "reorder_level"]:
+        for name in ["name", "sku", "smartbiz_product_id", "barcode", "image_url", "stock_quantity", "reorder_level"]:
             self.fields[name].widget.attrs["class"] = "form-control"
         self.fields["category_master"].queryset = ProductCategory.objects.filter(is_active=True).order_by("name")
         self.fields["category_master"].required = False
@@ -435,6 +446,7 @@ class ProductForm(forms.ModelForm):
         self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
         self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
         self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "06d3d905-2768-4f8c-8ce5-22c7fed3c54d"
+        self.fields["image_url"].widget.attrs["placeholder"] = "Synced from WooCommerce"
         self.fields["name"].widget.attrs["placeholder"] = "Product name"
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
 

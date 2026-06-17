@@ -160,6 +160,7 @@ class WooCommerceSyncTests(TestCase):
                     "sku": "soap-100",
                     "stock_quantity": 12,
                     "categories": [{"name": "Soap"}],
+                    "images": [{"src": "https://shop.example.com/images/goat-milk-soap.jpg"}],
                 },
                 {
                     "id": 12,
@@ -169,6 +170,7 @@ class WooCommerceSyncTests(TestCase):
                     "sku": "",
                     "stock_quantity": None,
                     "categories": [{"name": "Juice"}],
+                    "images": [{"src": "https://shop.example.com/images/amla-parent.jpg"}],
                     "variations": [121],
                 },
             ],
@@ -178,6 +180,7 @@ class WooCommerceSyncTests(TestCase):
                     "sku": "amla-500",
                     "stock_quantity": 5,
                     "attributes": [{"name": "Size", "option": "500 ml"}],
+                    "image": {"src": "https://shop.example.com/images/amla-500.jpg"},
                 }
             ],
         ]
@@ -190,11 +193,13 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(soap.name, "Goat Milk Soap")
         self.assertEqual(soap.stock_quantity, 12)
         self.assertEqual(soap.smartbiz_product_id, "11")
+        self.assertEqual(soap.image_url, "https://shop.example.com/images/goat-milk-soap.jpg")
         self.assertEqual(soap.category_master.name, "Soap")
         amla = Product.objects.get(sku="AMLA-500")
         self.assertEqual(amla.name, "Amla Juice - 500 ml")
         self.assertEqual(amla.stock_quantity, 5)
         self.assertEqual(amla.smartbiz_product_id, "121")
+        self.assertEqual(amla.image_url, "https://shop.example.com/images/amla-500.jpg")
         self.assertEqual(amla.category_master.name, "Juice")
 
     @override_settings(
@@ -5214,6 +5219,7 @@ class StockManagementViewTests(TestCase):
             name="Goat Milk Soap",
             category="Soap",
             sku="SKU-CATEGORY-1",
+            image_url="https://shop.example.com/images/goat-milk-soap.jpg",
             stock_quantity=8,
         )
 
@@ -5222,6 +5228,7 @@ class StockManagementViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Category")
         self.assertContains(response, "Soap")
+        self.assertContains(response, 'src="https://shop.example.com/images/goat-milk-soap.jpg"', html=False)
 
     def test_stock_management_can_filter_products_by_category(self):
         soap = ProductCategory.objects.create(name="Soap")

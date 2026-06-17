@@ -48,7 +48,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-product-card { display:block; color:inherit; text-decoration:none; overflow:hidden; }
 .ops-stock-product-card:hover, .ops-stock-product-card:focus { color:inherit; text-decoration:none; border-color:#0f766e; box-shadow:0 2px 8px rgba(15,118,110,.12); }
 .ops-stock-product-body { display:grid; grid-template-columns:48px minmax(0,1fr); gap:.75rem; padding:.9rem; }
-.ops-stock-product-thumb { width:48px; height:48px; border-radius:.45rem; border:1px solid #d8dee6; background:#eef2f6; color:#263442; display:inline-flex; align-items:center; justify-content:center; font-size:1rem; font-weight:900; }
+.ops-stock-product-thumb { width:48px; height:48px; border-radius:.45rem; border:1px solid #d8dee6; background:#eef2f6; color:#263442; display:inline-flex; align-items:center; justify-content:center; font-size:1rem; font-weight:900; overflow:hidden; }
+.ops-stock-product-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
 .ops-stock-product-main { min-width:0; }
 .ops-stock-product-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
 .ops-stock-product-title { margin:0; color:#111827; font-size:.98rem; line-height:1.25; font-weight:850; overflow-wrap:anywhere; }
@@ -183,7 +184,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     {% for product in products %}
                         <a href="{% url 'stock_management' %}?view=manage&edit={{ product.pk }}" class="ops-stock-product-card" aria-label="Open {{ product.name }}">
                             <div class="ops-stock-product-body">
-                                <div class="ops-stock-product-thumb">{{ product.name|default:"S"|slice:":1" }}</div>
+                                <div class="ops-stock-product-thumb">
+                                    {% if product.image_url %}
+                                        <img src="{{ product.image_url }}" alt="{{ product.name|default:'Product' }}">
+                                    {% else %}
+                                        {{ product.name|default:"S"|slice:":1" }}
+                                    {% endif %}
+                                </div>
                                 <div class="ops-stock-product-main">
                                     <div class="ops-stock-product-title-row">
                                         <div>
@@ -266,6 +273,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <div class="ops-stock-field"><label for="{{ product_form.smartbiz_product_id.id_for_label }}">WooCommerce Product / Variation ID</label>{{ product_form.smartbiz_product_id }}</div>
                                 <div class="ops-stock-field"><label for="{{ product_form.barcode.id_for_label }}">Barcode</label>{{ product_form.barcode }}</div>
                             </div>
+                            <div class="ops-stock-field"><label for="{{ product_form.image_url.id_for_label }}">Product Image URL</label>{{ product_form.image_url }}</div>
                             <div class="ops-stock-row-2">
                                 <div class="ops-stock-field"><label for="{{ product_form.stock_quantity.id_for_label }}">Current Stock</label>{{ product_form.stock_quantity }}</div>
                                 <div class="ops-stock-field"><label for="{{ product_form.reorder_level.id_for_label }}">Low Stock Threshold</label>{{ product_form.reorder_level }}</div>

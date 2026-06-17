@@ -584,6 +584,7 @@ class Product(models.Model):
     sku = models.CharField(max_length=120, unique=True)
     barcode = models.CharField(max_length=120, blank=True, null=True, unique=True)
     smartbiz_product_id = models.CharField(max_length=160, blank=True, null=True, unique=True)
+    image_url = models.URLField(max_length=1000, blank=True)
     stock_quantity = models.IntegerField(default=0)
     reorder_level = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
