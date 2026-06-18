@@ -44,6 +44,7 @@ from .whatomate import (
 from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signature, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .shiprocket import sync_orders
+from .woocommerce import import_order_payload as import_woocommerce_order_payload
 from .woocommerce import sync_orders as sync_woocommerce_orders
 from .woocommerce import sync_products as sync_woocommerce_products
 
@@ -208,7 +209,7 @@ class WooCommerceSyncTests(TestCase):
         WOOCOMMERCE_CONSUMER_SECRET="cs_test",
     )
     @patch("core.woocommerce._json_request")
-    def test_sync_orders_imports_whatsapp_draft_orders_as_new_orders(self, mock_json_request):
+    def test_sync_orders_skips_whatsapp_draft_orders_until_billing_address_exists(self, mock_json_request):
         WooCommerceSettings.objects.create(import_statuses="pending,processing,on-hold")
         mock_json_request.return_value = [
             {
@@ -225,12 +226,83 @@ class WooCommerceSyncTests(TestCase):
 
         synced = sync_woocommerce_orders()
 
-        self.assertEqual(synced, 1)
+        self.assertEqual(synced, 0)
         self.assertIn("whatsapp-draft", mock_json_request.call_args.kwargs["params"]["status"])
+        self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="WC-503").exists())
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_imports_whatsapp_draft_after_billing_address_arrives(self, mock_json_request):
+        mock_json_request.return_value = [
+            {
+                "id": 503,
+                "number": "1003",
+                "status": "whatsapp-draft",
+                "total": "150.00",
+                "date_created": "2026-04-01T10:35:00",
+                "billing": {
+                    "first_name": "Ramachandran",
+                    "phone": "9876543210",
+                    "address_1": "No 38 5th Street jeevan Adambakkam",
+                    "city": "Chennai",
+                    "postcode": "600088",
+                },
+                "shipping": {},
+                "line_items": [],
+            }
+        ]
+
+        synced = sync_woocommerce_orders()
+
+        self.assertEqual(synced, 1)
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-503")
         self.assertEqual(order.channel_order_id, "1003")
         self.assertEqual(order.woocommerce_status, "whatsapp-draft")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
+        self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+
+    def test_import_order_payload_preserves_existing_address_when_update_has_no_billing_address(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-9005",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            woocommerce_order_id="9005",
+            woocommerce_status="whatsapp-draft",
+            billing_address={
+                "name": "Ramachandran",
+                "phone": "9876543210",
+                "address_1": "No 38 5th Street jeevan Adambakkam",
+                "city": "Chennai",
+                "pincode": "600088",
+            },
+            shipping_address={
+                "name": "Ramachandran",
+                "phone": "9876543210",
+                "address_1": "No 38 5th Street jeevan Adambakkam",
+                "city": "Chennai",
+                "pincode": "600088",
+            },
+        )
+
+        refreshed, created = import_woocommerce_order_payload(
+            {
+                "id": 9005,
+                "number": "9005",
+                "status": "processing",
+                "billing": {"first_name": "Ramachandran", "phone": "9876543210"},
+                "shipping": {},
+                "line_items": [],
+            }
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(refreshed.pk, order.pk)
+        refreshed.refresh_from_db()
+        self.assertEqual(refreshed.billing_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+        self.assertEqual(refreshed.shipping_address["pincode"], "600088")
 
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",

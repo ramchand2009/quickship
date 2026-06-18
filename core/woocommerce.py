@@ -203,6 +203,10 @@ def _merge_billing_into_shipping(billing, shipping):
     return merged
 
 
+def _has_delivery_address(address):
+    return any((address or {}).get(key) for key in ["address_1", "address_2", "city", "state", "country", "pincode"])
+
+
 def _extract_items(order):
     normalized = []
     for item in order.get("line_items") or []:
@@ -482,10 +486,20 @@ def import_order_payload(item):
     wc_status = str(item.get("status") or "").strip()
     billing = _compact_address(item.get("billing") or {})
     shipping = _compact_address(item.get("shipping") or {})
-    shipping = _merge_billing_into_shipping(billing, shipping)
+    has_billing_address = _has_delivery_address(billing)
 
     order_number = str(item.get("number") or order_id)
     source_order_id = f"WC-{order_id}"
+    existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
+    if not existing and not has_billing_address:
+        return None, False
+
+    if has_billing_address:
+        shipping = _merge_billing_into_shipping(billing, shipping)
+    elif existing:
+        billing = existing.billing_address if isinstance(existing.billing_address, dict) else {}
+        shipping = existing.shipping_address if isinstance(existing.shipping_address, dict) else {}
+
     defaults = {
         "source": ShiprocketOrder.SOURCE_WOOCOMMERCE,
         "woocommerce_order_id": str(order_id),
@@ -505,7 +519,6 @@ def import_order_payload(item):
         "order_items": _extract_items(item),
         "raw_payload": item,
     }
-    existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
     if not existing:
         defaults["local_status"] = _local_status_for_woocommerce(wc_status)
     return ShiprocketOrder.objects.update_or_create(
