@@ -10,7 +10,7 @@
                 <h5 class="mb-0">WhatsApp API Settings</h5>
             </div>
             <div class="card-block">
-                <p class="text-muted">Configure WhatsApp Cloud API for order update notifications. For direct Meta Cloud API, use <code>https://graph.facebook.com/v23.0</code> and enter your Phone Number ID below.</p>
+                <p class="text-muted">Configure Libromi WhatsApp API for order update notifications. Use <code>https://wa-api.cloud</code> and your Libromi access token.</p>
                 <div class="mb-3">
                     {% if webhook_token_configured %}
                         <span class="badge badge-light-success bg-light-success">Webhook Token: Configured</span>
@@ -55,7 +55,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ settings_form.account_id.id_for_label }}">{{ settings_form.account_id.label }}</label>
                         {{ settings_form.account_id }}
-                        <div class="text-muted small mt-1">Required for direct Meta Cloud API. This is the WhatsApp Business Phone Number ID used in the Graph API URL.</div>
+                        <div class="text-muted small mt-1">Optional. Keep your WhatsApp Business phone number ID here for reference if Libromi provides one.</div>
                         {% if settings_form.account_id.errors %}
                             <div class="text-danger small mt-1">{{ settings_form.account_id.errors|join:", " }}</div>
                         {% endif %}
