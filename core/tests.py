@@ -47,6 +47,7 @@ from .shiprocket import sync_orders
 from .woocommerce import import_order_payload as import_woocommerce_order_payload
 from .woocommerce import sync_orders as sync_woocommerce_orders
 from .woocommerce import sync_products as sync_woocommerce_products
+from .woocommerce import woocommerce_status_for_local_status
 
 
 class ShiprocketSyncTests(TestCase):
@@ -303,6 +304,24 @@ class WooCommerceSyncTests(TestCase):
         refreshed.refresh_from_db()
         self.assertEqual(refreshed.billing_address["address_1"], "No 38 5th Street jeevan Adambakkam")
         self.assertEqual(refreshed.shipping_address["pincode"], "600088")
+
+    def test_woocommerce_status_mapping_rejects_local_status_values(self):
+        WooCommerceSettings.objects.create(
+            status_map=json.dumps({ShiprocketOrder.STATUS_ACCEPTED: ShiprocketOrder.STATUS_ACCEPTED})
+        )
+
+        self.assertEqual(
+            woocommerce_status_for_local_status(ShiprocketOrder.STATUS_ACCEPTED),
+            "processing",
+        )
+
+    def test_woocommerce_status_mapping_accepts_wc_prefixed_status_values(self):
+        WooCommerceSettings.objects.create(status_map=json.dumps({ShiprocketOrder.STATUS_ACCEPTED: "wc-processing"}))
+
+        self.assertEqual(
+            woocommerce_status_for_local_status(ShiprocketOrder.STATUS_ACCEPTED),
+            "processing",
+        )
 
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",

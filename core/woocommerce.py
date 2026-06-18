@@ -27,6 +27,19 @@ DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS = {
     ShiprocketOrder.STATUS_CANCELLED: "cancelled",
 }
 
+ALLOWED_WOOCOMMERCE_ORDER_STATUSES = {
+    "auto-draft",
+    "pending",
+    "whatsapp-draft",
+    "processing",
+    "on-hold",
+    "completed",
+    "cancelled",
+    "refunded",
+    "failed",
+    "checkout-draft",
+}
+
 DEFAULT_IMPORT_STATUSES = ["pending", "processing", "on-hold", "whatsapp-draft"]
 
 WOOCOMMERCE_TO_LOCAL_STATUS = {
@@ -442,6 +455,16 @@ def _status_map():
     return mapping
 
 
+def _normalize_woocommerce_status_value(value, local_status):
+    status = str(value or "").strip().lower()
+    status = status.removeprefix("wc-")
+    if status in DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS:
+        status = DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS[status]
+    if status in ALLOWED_WOOCOMMERCE_ORDER_STATUSES:
+        return status
+    return DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS.get(str(local_status or "").strip(), "")
+
+
 def check_connection():
     response = _json_request("orders", params={"per_page": 1, "page": 1, "orderby": "date", "order": "desc"})
     if not isinstance(response, list):
@@ -450,7 +473,8 @@ def check_connection():
 
 
 def woocommerce_status_for_local_status(local_status):
-    return _status_map().get(str(local_status or "").strip())
+    local_status = str(local_status or "").strip()
+    return _normalize_woocommerce_status_value(_status_map().get(local_status), local_status)
 
 
 def sync_orders():
