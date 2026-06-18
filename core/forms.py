@@ -556,8 +556,15 @@ class WhatsAppApiSettingsForm(forms.ModelForm):
         self.fields["enabled"].widget.attrs["class"] = "form-check-input"
         self.fields["api_base_url"].widget.attrs["class"] = "form-control"
         self.fields["api_base_url"].widget.attrs["placeholder"] = "https://wa-api.cloud"
-        self.fields["api_key"].widget.attrs["class"] = "form-control"
-        self.fields["api_key"].widget.attrs["placeholder"] = "Paste Libromi access token"
+        self.fields["api_key"].widget = forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Paste Libromi access token",
+                "spellcheck": "false",
+                "autocomplete": "off",
+            }
+        )
         self.fields["account_id"].widget.attrs["class"] = "form-control"
         self.fields["account_id"].widget.attrs["placeholder"] = "Optional phone number ID / account ID"
         self.fields["account_name"].widget.attrs["class"] = "form-control"
