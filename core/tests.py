@@ -38,7 +38,9 @@ from .whatomate import (
     WhatomateNotificationError,
     _build_template_params_for_status,
     _create_contact,
+    _get_headers,
     send_order_enquiry_reply,
+    send_test_template_message,
     send_test_whatsapp_message,
 )
 from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signature, _send_internal_webhook_test
@@ -2846,6 +2848,60 @@ class WhatomateTextSendTests(TestCase):
             {
                 "type": "text",
                 "text": "Test ping",
+            },
+        )
+
+    def test_libromi_headers_use_bearer_token_from_api_key(self):
+        headers = _get_headers(
+            {
+                "base_url": "https://wa-api.cloud",
+                "api_key": "libromi_token_123",
+            }
+        )
+
+        self.assertEqual(headers["Authorization"], "Bearer libromi_token_123")
+        self.assertNotIn("X-API-Key", headers)
+
+    @patch("core.whatomate._json_request")
+    def test_libromi_template_message_uses_cloud_api_payload(self, mock_json_request):
+        mock_json_request.return_value = {"status": "success", "id": "wamid_123"}
+
+        result = send_test_template_message(
+            phone_number="9952975768",
+            template_name="optin_templet",
+            template_params={"1": "SR-1001"},
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://wa-api.cloud",
+                "api_key": "libromi_token_123",
+            },
+        )
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["endpoint"], "/api/v1/messages")
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "to": "919952975768",
+                "type": "template",
+                "template": {
+                    "name": "optin_templet",
+                    "language": {
+                        "code": "en",
+                        "policy": "deterministic",
+                    },
+                    "components": [
+                        {
+                            "type": "body",
+                            "parameters": [
+                                {
+                                    "type": "text",
+                                    "text": "SR-1001",
+                                }
+                            ],
+                        }
+                    ],
+                },
             },
         )
 

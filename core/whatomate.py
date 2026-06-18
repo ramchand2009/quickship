@@ -91,15 +91,39 @@ def _get_base_url(config):
     if not raw_base_url:
         raise WhatomateNotificationError("WhatsApp API link is not configured.")
     normalized = raw_base_url.rstrip("/")
+    for suffix in ("/api/v1/messages", "/api/v1"):
+        if normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)]
     if normalized.endswith("/api"):
         normalized = normalized[: -len("/api")]
     return normalized.rstrip("/")
+
+
+def _is_libromi_cloud_api(config):
+    raw_base_url = str(config.get("base_url") or "").strip().lower()
+    return "wa-api.cloud" in raw_base_url or "libromi" in raw_base_url
+
+
+def _bearer_header_value(token):
+    token = str(token or "").strip()
+    if not token:
+        return ""
+    if token.lower().startswith("bearer "):
+        return token
+    return f"Bearer {token}"
 
 
 def _get_headers(config):
     headers = {"Content-Type": "application/json"}
     api_key = str(config.get("api_key") or "").strip()
     access_token = str(config.get("access_token") or "").strip()
+    if _is_libromi_cloud_api(config):
+        token = access_token or api_key
+        bearer_value = _bearer_header_value(token)
+        if bearer_value:
+            headers["Authorization"] = bearer_value
+            return headers
+        raise WhatomateNotificationError("Libromi access token is missing.")
     if api_key:
         headers["X-API-Key"] = api_key
         return headers
@@ -236,6 +260,88 @@ def _normalize_template_params_for_api(template_params):
     return {}
 
 
+def _ordered_template_param_values(template_params):
+    normalized = _normalize_template_params_for_api(template_params)
+    if not normalized:
+        return []
+
+    keys = list(normalized.keys())
+    if all(str(key).isdigit() for key in keys):
+        keys = sorted(keys, key=lambda key: int(str(key)))
+    return [str(normalized.get(key) or "") for key in keys]
+
+
+def _build_libromi_template_payload(phone_number, template_name, template_params, config):
+    template_name = str(template_name or "").strip()
+    if not template_name:
+        raise WhatomateNotificationError("Template name is required for Libromi template messages.")
+
+    language_code = str(config.get("template_language") or config.get("language") or "en").strip() or "en"
+    payload = {
+        "to": str(phone_number or "").strip(),
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {
+                "code": language_code,
+                "policy": "deterministic",
+            },
+        },
+    }
+
+    parameters = _to_component_parameters(_ordered_template_param_values(template_params))
+    if parameters:
+        payload["template"]["components"] = [
+            {
+                "type": "body",
+                "parameters": parameters,
+            }
+        ]
+    return payload
+
+
+def _send_libromi_template_message(phone_number, template_name, template_params, config):
+    endpoint = "/api/v1/messages"
+    payload = _build_libromi_template_payload(
+        phone_number=phone_number,
+        template_name=template_name,
+        template_params=template_params,
+        config=config,
+    )
+    response_payload = _json_request(endpoint, config=config, method="POST", payload=payload)
+    return {
+        "endpoint": endpoint,
+        "request_payload": dict(payload),
+        "response_payload": response_payload if isinstance(response_payload, (dict, list)) else {},
+        "external_message_id": _extract_message_id(response_payload),
+    }
+
+
+def _build_libromi_text_payload(phone_number, message_text):
+    text = str(message_text or "").strip()
+    if not text:
+        raise WhatomateNotificationError("WhatsApp message text is empty.")
+    return {
+        "to": str(phone_number or "").strip(),
+        "type": "text",
+        "text": {
+            "body": text,
+        },
+    }
+
+
+def _send_libromi_text_message(phone_number, message_text, config):
+    endpoint = "/api/v1/messages"
+    payload = _build_libromi_text_payload(phone_number, message_text)
+    response_payload = _json_request(endpoint, config=config, method="POST", payload=payload)
+    return {
+        "endpoint": endpoint,
+        "request_payload": dict(payload),
+        "response_payload": response_payload if isinstance(response_payload, (dict, list)) else {},
+        "external_message_id": _extract_message_id(response_payload),
+    }
+
+
 def _build_template_attempts(phone_number, template_name, template_params, config, template_id=""):
     normalized_params = _normalize_template_params_for_api(template_params)
     template_name = str(template_name or "").strip()
@@ -290,6 +396,14 @@ def _send_template_by_fallback(phone_number, template_name, template_params, con
     if not template_name and not template_id:
         raise WhatomateNotificationError("Template name or template ID is required.")
     normalized_params = _normalize_template_params_for_api(template_params)
+
+    if _is_libromi_cloud_api(config):
+        return _send_libromi_template_message(
+            phone_number=phone_number,
+            template_name=template_name,
+            template_params=normalized_params,
+            config=config,
+        )
 
     # Prefer existing contact_id flow when available.
     contact_id = ""
@@ -580,6 +694,9 @@ def _format_order_message(template_text, order):
 
 
 def _send_text_message_to_phone(phone_number, contact_name, message_text, config):
+    if _is_libromi_cloud_api(config):
+        return _send_libromi_text_message(phone_number, message_text, config)
+
     contact_id = _ensure_contact_id(
         phone_number=phone_number,
         name=contact_name,
