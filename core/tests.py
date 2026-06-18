@@ -41,6 +41,7 @@ from .whatomate import (
     _get_headers,
     check_api_connection,
     send_order_enquiry_reply,
+    send_order_status_update,
     send_test_template_message,
     send_test_whatsapp_message,
     sync_templates_from_api,
@@ -2974,6 +2975,56 @@ class WhatomateTextSendTests(TestCase):
         )
 
         self.assertTrue(result["sent"])
+        self.assertEqual(result["endpoint"], "/api/v1/messages")
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "to": "919952975768",
+                "type": "template",
+                "template": {
+                    "name": "order_confirm_1",
+                    "language": {
+                        "code": "en",
+                        "policy": "deterministic",
+                    },
+                    "components": [
+                        {
+                            "type": "body",
+                        }
+                    ],
+                },
+            },
+        )
+
+    @patch("core.whatomate._json_request")
+    def test_accepted_order_uses_configured_libromi_confirmation_template(self, mock_json_request):
+        mock_json_request.return_value = {"status": "success", "id": "wamid_accepted_123"}
+        settings_row = WhatsAppSettings.get_default()
+        settings_row.enabled = True
+        settings_row.api_base_url = "https://wa-api.cloud"
+        settings_row.api_key = "libromi_token_123"
+        settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
+        WhatsAppStatusTemplateConfig.objects.update_or_create(
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            defaults={
+                "enabled": True,
+                "template_name": "order_confirm_1",
+                "template_param_mapping": {},
+            },
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ACCEPTED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Test Customer",
+            customer_phone="9952975768",
+            shipping_address={"phone": "9952975768", "name": "Test Customer"},
+        )
+
+        result = send_order_status_update(order, previous_status=ShiprocketOrder.STATUS_NEW)
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["mode"], "template")
+        self.assertEqual(result["template_name"], "order_confirm_1")
         self.assertEqual(result["endpoint"], "/api/v1/messages")
         self.assertEqual(
             mock_json_request.call_args.kwargs["payload"],
