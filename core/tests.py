@@ -39,9 +39,11 @@ from .whatomate import (
     _build_template_params_for_status,
     _create_contact,
     _get_headers,
+    check_api_connection,
     send_order_enquiry_reply,
     send_test_template_message,
     send_test_whatsapp_message,
+    sync_templates_from_api,
 )
 from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signature, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
@@ -2862,6 +2864,32 @@ class WhatomateTextSendTests(TestCase):
         self.assertEqual(headers["Authorization"], "Bearer libromi_token_123")
         self.assertNotIn("X-API-Key", headers)
 
+    def test_libromi_check_connection_validates_config_without_contact_api_probe(self):
+        result = check_api_connection(
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://wa-api.cloud",
+                "api_key": "libromi_token_123",
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["provider"], "libromi")
+        self.assertEqual(result["endpoint"], "/api/v1/messages")
+
+    def test_libromi_template_sync_is_not_required(self):
+        result = sync_templates_from_api(
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://wa-api.cloud",
+                "api_key": "libromi_token_123",
+            }
+        )
+
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["provider"], "libromi")
+        self.assertEqual(result["synced_count"], 0)
+
     @patch("core.whatomate._json_request")
     def test_libromi_template_message_uses_cloud_api_payload(self, mock_json_request):
         mock_json_request.return_value = {"status": "success", "id": "wamid_123"}
@@ -4049,6 +4077,33 @@ class WhatsAppStatusTemplateMappingTests(TestCase):
                 "1": "Mapped Customer",
                 "2": "TRK1234567890",
                 "3": "9000009999",
+            },
+        )
+
+    def test_manual_mapping_is_used_when_template_metadata_is_not_synced(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-MANUAL-MAP-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Fallback Name",
+            shipping_address={"name": "Manual Customer", "phone": "9876543210"},
+        )
+
+        params = _build_template_params_for_status(
+            [],
+            order,
+            field_mapping={
+                "1": "customer_name",
+                "2": "order_id",
+                "3": "status",
+            },
+        )
+
+        self.assertEqual(
+            params,
+            {
+                "1": "Manual Customer",
+                "2": "SR-MANUAL-MAP-1",
+                "3": "Order Accepted",
             },
         )
 

@@ -592,13 +592,18 @@ class WhatsAppMessageTestForm(forms.ModelForm):
                 "placeholder": "Hi from Mathukai test message.",
             }
         )
-        choice_items = [("", "Select template")]
-        if template_choices:
-            choice_items.extend(template_choices)
-        self.fields["test_template_name"].widget = forms.Select(
-            choices=choice_items,
-            attrs={"class": "form-select"},
+        known_templates = [choice[0] for choice in (template_choices or []) if choice and choice[0]]
+        self.fields["test_template_name"].widget = forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Example: optin_templet",
+                "list": "whatsapp-template-name-options",
+            },
         )
+        self.fields["test_template_name"].help_text = (
+            "Enter the exact approved Libromi template name."
+        )
+        self.template_name_options = known_templates
         self.fields["test_template_params"].widget = forms.Textarea(
             attrs={
                 "class": "form-control",
@@ -675,7 +680,7 @@ class WooCommerceSettingsForm(forms.ModelForm):
 
 
 class WhatsAppStatusTemplateConfigForm(forms.ModelForm):
-    template_param_mapping = forms.CharField(required=False, widget=forms.HiddenInput())
+    template_param_mapping = forms.CharField(required=False)
     ORDER_FIELD_CHOICES = ORDER_TEMPLATE_FIELD_CHOICES
     ORDER_FIELD_KEYS = {key for key, _ in ORDER_FIELD_CHOICES}
 
@@ -694,16 +699,26 @@ class WhatsAppStatusTemplateConfigForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["enabled"].widget.attrs["class"] = "form-check-input"
         self.fields["template_id"].widget.attrs["class"] = "form-control"
-        self.fields["template_id"].widget.attrs["placeholder"] = "Optional template UUID override"
+        self.fields["template_id"].widget.attrs["placeholder"] = "Optional provider template ID"
 
-        choice_items = [("", "No template")]
-        if template_choices:
-            choice_items.extend(template_choices)
-        self.fields["template_name"].widget = forms.Select(
-            choices=choice_items,
-            attrs={"class": "form-select"},
+        known_templates = [choice[0] for choice in (template_choices or []) if choice and choice[0]]
+        self.fields["template_name"].widget = forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Example: optin_templet",
+                "list": "whatsapp-template-name-options",
+            },
         )
+        self.fields["template_name"].help_text = "Enter the exact approved Libromi template name."
+        self.template_name_options = known_templates
         self.fields["template_param_mapping"].required = False
+        self.fields["template_param_mapping"].widget = forms.Textarea(
+            attrs={
+                "class": "form-control form-control-sm",
+                "rows": 2,
+                "placeholder": '{"1":"customer_name","2":"order_id"}',
+            }
+        )
         if not self.is_bound:
             raw_mapping = self.initial.get("template_param_mapping")
             if isinstance(raw_mapping, dict):

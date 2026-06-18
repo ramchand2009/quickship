@@ -147,7 +147,7 @@
                 <h5 class="mb-0">Template Message Test</h5>
             </div>
             <div class="card-block">
-                <p class="text-muted">Send test messages using free text or a synced template with placeholders.</p>
+                <p class="text-muted">Send test messages using free text or an approved Libromi template name with placeholders.</p>
                 <form method="post">
                     {% csrf_token %}
                     <div class="mb-3">
@@ -167,6 +167,14 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ message_form.test_template_name.id_for_label }}">{{ message_form.test_template_name.label }}</label>
                         {{ message_form.test_template_name }}
+                        <datalist id="whatsapp-template-name-options">
+                            {% for item in templates %}
+                                <option value="{{ item.name }}"></option>
+                            {% endfor %}
+                        </datalist>
+                        {% if message_form.test_template_name.help_text %}
+                            <div class="text-muted small mt-1">{{ message_form.test_template_name.help_text }}</div>
+                        {% endif %}
                         {% if message_form.test_template_name.errors %}
                             <div class="text-danger small mt-1">{{ message_form.test_template_name.errors|join:", " }}</div>
                         {% endif %}
@@ -178,7 +186,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ message_form.test_template_params.id_for_label }}">{{ message_form.test_template_params.label }}</label>
                         {{ message_form.test_template_params }}
-                        <div class="text-muted small mt-1">Auto-filled from placeholder inputs. Example: {"name":"Mathukai","order_id":"SR123"}</div>
+                        <div class="text-muted small mt-1">Use exact parameter order from Libromi. Example: {"1":"Ram","2":"SR123"}</div>
                         {% if message_form.test_template_params.errors %}
                             <div class="text-danger small mt-1">{{ message_form.test_template_params.errors|join:", " }}</div>
                         {% endif %}
@@ -354,7 +362,7 @@
                         </table>
                     </div>
                 {% else %}
-                    <p class="text-muted mb-0">No templates synced yet. Click <strong>Sync Templates</strong>.</p>
+                    <p class="text-muted mb-0">No synced templates. For Libromi, enter approved template names manually.</p>
                 {% endif %}
             </div>
         </div>
@@ -367,7 +375,7 @@
 <script>
     (function () {
         const mapNode = document.getElementById("template-placeholder-map");
-        const templateSelect = document.querySelector("select[name='message-test_template_name']");
+        const templateSelect = document.querySelector("[name='message-test_template_name']");
         const paramsField = document.querySelector("textarea[name='message-test_template_params']");
         const container = document.getElementById("templatePlaceholderInputs");
         if (!mapNode || !templateSelect || !paramsField || !container) {
@@ -380,8 +388,6 @@
         } catch (error) {
             placeholderMap = {};
         }
-
-        paramsField.setAttribute("readonly", "readonly");
 
         function getTokens() {
             const value = templateSelect.value || "";
@@ -437,8 +443,7 @@
             container.innerHTML = "";
 
             if (!tokens.length) {
-                container.innerHTML = '<p class="text-muted small mb-0">No detected placeholders for this template.</p>';
-                paramsField.value = "{}";
+                container.innerHTML = '<p class="text-muted small mb-0">No synced placeholders for this template. Enter parameter JSON manually below.</p>';
                 return;
             }
 

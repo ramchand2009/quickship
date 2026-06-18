@@ -35,7 +35,7 @@
         min-width: 480px;
     }
 
-    .order-notification-config-table .template-name-cell .form-select {
+    .order-notification-config-table .template-name-cell .form-control {
         min-width: 280px;
     }
 
@@ -96,7 +96,7 @@
             text-transform: uppercase;
         }
 
-        .order-notification-config-table .template-name-cell .form-select,
+        .order-notification-config-table .template-name-cell .form-control,
         .order-notification-config-table .template-id-cell .form-control,
         .order-notification-config-table .placeholder-preview,
         .order-notification-config-table .placeholder-preview .form-control,
@@ -125,11 +125,16 @@
             </div>
             <div class="card-block">
                 <p class="text-muted">
-                    Configure which WhatsApp template should be sent for each order status.
-                    Synced templates available: <strong>{{ template_count }}</strong>.
+                    Configure which approved Libromi WhatsApp template should be sent for each order status.
+                    Synced template suggestions available: <strong>{{ template_count }}</strong>.
                 </p>
                 <form method="post">
                     {% csrf_token %}
+                    <datalist id="whatsapp-template-name-options">
+                        {% for item in template_rows %}
+                            <option value="{{ item.name }}"></option>
+                        {% endfor %}
+                    </datalist>
                     <div class="table-responsive ops-config-table-wrap">
                         <table class="table table-sm table-hover align-middle order-notification-config-table">
                             <thead>
@@ -157,6 +162,9 @@
                                         </td>
                                         <td class="template-name-cell" data-label="Template Name">
                                             {{ row.form.template_name }}
+                                            {% if row.form.template_name.help_text %}
+                                                <div class="text-muted small mt-1">{{ row.form.template_name.help_text }}</div>
+                                            {% endif %}
                                             {% if row.form.template_name.errors %}
                                                 <div class="text-danger small mt-1">{{ row.form.template_name.errors|join:", " }}</div>
                                             {% endif %}
@@ -168,8 +176,8 @@
                                             {% endif %}
                                         </td>
                                         <td class="placeholder-preview" data-label="Placeholder Mapping">
+                                            <div class="small text-muted mb-1">For Libromi, map parameters in exact template order. Example: {"1":"customer_name","2":"order_id"}</div>
                                             {{ row.form.template_param_mapping }}
-                                            <div class="small text-muted mb-1">Map each placeholder to order data field. Leave empty for auto mapping.</div>
                                             <div class="border rounded p-2 bg-light" data-placeholder-container></div>
                                             <div class="mt-2">
                                                 <div class="small fw-semibold mb-1">Template Preview</div>
@@ -287,8 +295,8 @@
         }
 
         function renderRow(row) {
-            const templateSelect = row.querySelector("select[name$='-template_name']");
-            const mappingInput = row.querySelector("input[name$='-template_param_mapping']");
+            const templateSelect = row.querySelector("[name$='-template_name']");
+            const mappingInput = row.querySelector("[name$='-template_param_mapping']");
             const placeholderContainer = row.querySelector("[data-placeholder-container]");
             const previewContainer = row.querySelector("[data-preview-container]");
             const previewMeta = row.querySelector("[data-preview-meta]");
@@ -337,8 +345,7 @@
             }
 
             if (!tokens.length) {
-                placeholderContainer.innerHTML = '<div class="text-muted small">No detected placeholders for selected template.</div>';
-                mappingInput.value = "{}";
+                placeholderContainer.innerHTML = '<div class="text-muted small">No synced placeholder metadata. Use the JSON mapping field above for Libromi parameter order.</div>';
                 renderPreview();
                 return;
             }
@@ -413,7 +420,7 @@
         }
 
         document.querySelectorAll("[data-status-config-row]").forEach((row) => {
-            const templateSelect = row.querySelector("select[name$='-template_name']");
+            const templateSelect = row.querySelector("[name$='-template_name']");
             const enabledCheckbox = row.querySelector("input[type='checkbox'][name$='-enabled']");
             if (!templateSelect) {
                 return;

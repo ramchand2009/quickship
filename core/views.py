@@ -4088,7 +4088,13 @@ def whatsapp_settings(request):
                     except WhatomateNotificationError as exc:
                         messages.error(request, f"Template sync failed: {exc}")
                     else:
-                        messages.success(request, f"Templates synced: {sync_result.get('synced_count', 0)}")
+                        if sync_result.get("skipped") and sync_result.get("provider") == "libromi":
+                            messages.info(
+                                request,
+                                "Template sync is not required for Libromi. Enter approved template names manually.",
+                            )
+                        else:
+                            messages.success(request, f"Templates synced: {sync_result.get('synced_count', 0)}")
                     return redirect("whatsapp_settings")
 
                 if action == "send_webhook_test":
@@ -5187,6 +5193,7 @@ def order_notification_config(request):
         {
             "status_rows": status_rows,
             "template_count": len(template_rows),
+            "template_rows": template_rows,
             "template_placeholder_map": template_placeholder_map,
             "template_preview_text_map": template_preview_text_map,
             "status_sample_context_map": status_sample_context_map,

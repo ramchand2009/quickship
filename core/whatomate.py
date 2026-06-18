@@ -851,6 +851,11 @@ def send_no_order_found_reply(phone_number, inbound_message_text="", config_over
 
 def check_api_connection(config_overrides=None):
     config = _resolve_runtime_config(config_overrides)
+    if _is_libromi_cloud_api(config):
+        _get_base_url(config)
+        _get_headers(config)
+        return {"ok": True, "endpoint": "/api/v1/messages", "provider": "libromi"}
+
     probe_paths = [
         "/api/contacts?limit=1",
         "/api/templates?limit=1",
@@ -875,6 +880,9 @@ def check_api_connection(config_overrides=None):
 
 def sync_templates_from_api(config_overrides=None):
     config = _resolve_runtime_config(config_overrides)
+    if _is_libromi_cloud_api(config):
+        return {"synced_count": 0, "skipped": True, "provider": "libromi"}
+
     response = _json_request("/api/templates?limit=200", config=config, method="GET")
     items = _extract_items(response)
     if not items:
@@ -1073,6 +1081,12 @@ def _resolve_context_value(context, token):
 def _build_template_params_for_status(placeholders, order, field_mapping=None):
     context = _build_order_template_context(order)
     mapping = field_mapping if isinstance(field_mapping, dict) else {}
+    if not placeholders:
+        if mapping:
+            placeholders = list(mapping.keys())
+        else:
+            return {}
+
     if not placeholders:
         return {}
 
