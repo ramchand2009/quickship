@@ -10,7 +10,7 @@
                 <h5 class="mb-0">WhatsApp API Settings</h5>
             </div>
             <div class="card-block">
-                <p class="text-muted">Configure your self-hosted Whatomate API link and API key for order update notifications.</p>
+                <p class="text-muted">Configure your WhatsApp API link and access token for order update notifications. For Libromi, use <code>https://wa-api.cloud</code>.</p>
                 <div class="mb-3">
                     {% if webhook_token_configured %}
                         <span class="badge badge-light-success bg-light-success">Webhook Token: Configured</span>
@@ -47,7 +47,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ settings_form.account_name.id_for_label }}">{{ settings_form.account_name.label }}</label>
                         {{ settings_form.account_name }}
-                        <div class="text-muted small mt-1">Use the exact Whatomate account name shown on the account card, for example <code>Mathukai_Updates</code>.</div>
+                        <div class="text-muted small mt-1">Optional. Use the account name shown in your WhatsApp provider panel if one is required.</div>
                         {% if settings_form.account_name.errors %}
                             <div class="text-danger small mt-1">{{ settings_form.account_name.errors|join:", " }}</div>
                         {% endif %}
@@ -55,7 +55,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ settings_form.account_id.id_for_label }}">{{ settings_form.account_id.label }}</label>
                         {{ settings_form.account_id }}
-                        <div class="text-muted small mt-1">Optional, but useful if you want Quickship to target one specific Whatomate account.</div>
+                        <div class="text-muted small mt-1">Optional. For Libromi or Cloud API setups, store the WhatsApp Business phone number ID here for reference.</div>
                         {% if settings_form.account_id.errors %}
                             <div class="text-danger small mt-1">{{ settings_form.account_id.errors|join:", " }}</div>
                         {% endif %}

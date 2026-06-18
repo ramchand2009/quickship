@@ -546,22 +546,22 @@ class WhatsAppApiSettingsForm(forms.ModelForm):
         labels = {
             "enabled": "Enable WhatsApp Updates",
             "api_base_url": "API Link",
-            "api_key": "API Key",
-            "account_id": "Whatomate Account ID",
-            "account_name": "Whatomate Account Name",
+            "api_key": "API Key / Access Token",
+            "account_id": "Account / Phone Number ID",
+            "account_name": "Account Name",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["enabled"].widget.attrs["class"] = "form-check-input"
         self.fields["api_base_url"].widget.attrs["class"] = "form-control"
-        self.fields["api_base_url"].widget.attrs["placeholder"] = "http://127.0.0.1:8080"
+        self.fields["api_base_url"].widget.attrs["placeholder"] = "https://wa-api.cloud"
         self.fields["api_key"].widget.attrs["class"] = "form-control"
-        self.fields["api_key"].widget.attrs["placeholder"] = "whm_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        self.fields["api_key"].widget.attrs["placeholder"] = "Paste Libromi access token"
         self.fields["account_id"].widget.attrs["class"] = "form-control"
-        self.fields["account_id"].widget.attrs["placeholder"] = "acc_1234567890"
+        self.fields["account_id"].widget.attrs["placeholder"] = "Optional phone number ID / account ID"
         self.fields["account_name"].widget.attrs["class"] = "form-control"
-        self.fields["account_name"].widget.attrs["placeholder"] = "Mathukai_Updates"
+        self.fields["account_name"].widget.attrs["placeholder"] = "Optional account name"
 
 
 class WhatsAppMessageTestForm(forms.ModelForm):
