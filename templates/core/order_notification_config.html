@@ -125,7 +125,7 @@
             </div>
             <div class="card-block">
                 <p class="text-muted">
-                    Configure which approved Libromi WhatsApp template should be sent for each order status.
+                    Configure which approved WhatsApp Cloud API template should be sent for each order status.
                     Synced template suggestions available: <strong>{{ template_count }}</strong>.
                 </p>
                 <form method="post">
@@ -176,7 +176,7 @@
                                             {% endif %}
                                         </td>
                                         <td class="placeholder-preview" data-label="Placeholder Mapping">
-                                            <div class="small text-muted mb-1">For Libromi, map parameters in exact template order. Example: {"1":"customer_name","2":"order_id"}</div>
+                                            <div class="small text-muted mb-1">Map parameters in exact template order. Example: {"1":"customer_name","2":"order_id"}</div>
                                             {{ row.form.template_param_mapping }}
                                             <div class="border rounded p-2 bg-light" data-placeholder-container></div>
                                             <div class="mt-2">
@@ -345,7 +345,7 @@
             }
 
             if (!tokens.length) {
-                placeholderContainer.innerHTML = '<div class="text-muted small">No synced placeholder metadata. Use the JSON mapping field above for Libromi parameter order.</div>';
+                placeholderContainer.innerHTML = '<div class="text-muted small">No synced placeholder metadata. Use the JSON mapping field above for parameter order.</div>';
                 renderPreview();
                 return;
             }

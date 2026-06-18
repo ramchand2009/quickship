@@ -555,11 +555,11 @@ class WhatsAppApiSettingsForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["enabled"].widget.attrs["class"] = "form-check-input"
         self.fields["api_base_url"].widget.attrs["class"] = "form-control"
-        self.fields["api_base_url"].widget.attrs["placeholder"] = "https://wa-api.cloud"
+        self.fields["api_base_url"].widget.attrs["placeholder"] = "https://graph.facebook.com/v23.0"
         self.fields["api_key"].widget.attrs["class"] = "form-control"
-        self.fields["api_key"].widget.attrs["placeholder"] = "Paste Libromi access token"
+        self.fields["api_key"].widget.attrs["placeholder"] = "Paste WhatsApp Cloud API access token"
         self.fields["account_id"].widget.attrs["class"] = "form-control"
-        self.fields["account_id"].widget.attrs["placeholder"] = "Optional phone number ID / account ID"
+        self.fields["account_id"].widget.attrs["placeholder"] = "Required for direct Meta Cloud API"
         self.fields["account_name"].widget.attrs["class"] = "form-control"
         self.fields["account_name"].widget.attrs["placeholder"] = "Optional account name"
 

@@ -10,7 +10,7 @@
                 <h5 class="mb-0">WhatsApp API Settings</h5>
             </div>
             <div class="card-block">
-                <p class="text-muted">Configure your WhatsApp API link and access token for order update notifications. For Libromi, use <code>https://wa-api.cloud</code>.</p>
+                <p class="text-muted">Configure WhatsApp Cloud API for order update notifications. For direct Meta Cloud API, use <code>https://graph.facebook.com/v23.0</code> and enter your Phone Number ID below.</p>
                 <div class="mb-3">
                     {% if webhook_token_configured %}
                         <span class="badge badge-light-success bg-light-success">Webhook Token: Configured</span>
@@ -55,7 +55,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ settings_form.account_id.id_for_label }}">{{ settings_form.account_id.label }}</label>
                         {{ settings_form.account_id }}
-                        <div class="text-muted small mt-1">Optional. For Libromi or Cloud API setups, store the WhatsApp Business phone number ID here for reference.</div>
+                        <div class="text-muted small mt-1">Required for direct Meta Cloud API. This is the WhatsApp Business Phone Number ID used in the Graph API URL.</div>
                         {% if settings_form.account_id.errors %}
                             <div class="text-danger small mt-1">{{ settings_form.account_id.errors|join:", " }}</div>
                         {% endif %}
@@ -186,7 +186,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="{{ message_form.test_template_params.id_for_label }}">{{ message_form.test_template_params.label }}</label>
                         {{ message_form.test_template_params }}
-                        <div class="text-muted small mt-1">Use exact parameter order from Libromi. Example: {"1":"Ram","2":"SR123"}</div>
+                        <div class="text-muted small mt-1">Use exact template parameter order. Example: {"1":"Ram","2":"SR123"}</div>
                         {% if message_form.test_template_params.errors %}
                             <div class="text-danger small mt-1">{{ message_form.test_template_params.errors|join:", " }}</div>
                         {% endif %}
@@ -362,7 +362,7 @@
                         </table>
                     </div>
                 {% else %}
-                    <p class="text-muted mb-0">No synced templates. For Libromi, enter approved template names manually.</p>
+                    <p class="text-muted mb-0">No synced templates. Enter approved WhatsApp template names manually.</p>
                 {% endif %}
             </div>
         </div>

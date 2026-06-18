@@ -2877,6 +2877,31 @@ class WhatomateTextSendTests(TestCase):
         self.assertEqual(result["provider"], "libromi")
         self.assertEqual(result["endpoint"], "/api/v1/messages")
 
+    def test_meta_cloud_check_connection_requires_phone_number_id(self):
+        with self.assertRaises(WhatomateNotificationError):
+            check_api_connection(
+                config_overrides={
+                    "enabled": True,
+                    "base_url": "https://graph.facebook.com/v23.0",
+                    "api_key": "meta_token_123",
+                    "account_id": "",
+                }
+            )
+
+    def test_meta_cloud_check_connection_uses_phone_number_messages_endpoint(self):
+        result = check_api_connection(
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://graph.facebook.com/v23.0",
+                "api_key": "meta_token_123",
+                "account_id": "1234567890",
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["provider"], "meta")
+        self.assertEqual(result["endpoint"], "/1234567890/messages")
+
     def test_libromi_template_sync_is_not_required(self):
         result = sync_templates_from_api(
             config_overrides={
@@ -2910,6 +2935,51 @@ class WhatomateTextSendTests(TestCase):
         self.assertEqual(
             mock_json_request.call_args.kwargs["payload"],
             {
+                "to": "919952975768",
+                "type": "template",
+                "template": {
+                    "name": "optin_templet",
+                    "language": {
+                        "code": "en",
+                        "policy": "deterministic",
+                    },
+                    "components": [
+                        {
+                            "type": "body",
+                            "parameters": [
+                                {
+                                    "type": "text",
+                                    "text": "SR-1001",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+    @patch("core.whatomate._json_request")
+    def test_meta_cloud_template_message_uses_graph_api_payload(self, mock_json_request):
+        mock_json_request.return_value = {"messages": [{"id": "wamid_123"}]}
+
+        result = send_test_template_message(
+            phone_number="9952975768",
+            template_name="optin_templet",
+            template_params={"1": "SR-1001"},
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://graph.facebook.com/v23.0",
+                "api_key": "meta_token_123",
+                "account_id": "1234567890",
+            },
+        )
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["endpoint"], "/1234567890/messages")
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "messaging_product": "whatsapp",
                 "to": "919952975768",
                 "type": "template",
                 "template": {
