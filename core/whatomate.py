@@ -301,12 +301,14 @@ def _build_cloud_api_template_payload(phone_number, template_name, template_para
 
     parameters = _to_component_parameters(_ordered_template_param_values(template_params))
     if parameters:
-        payload["template"]["components"] = [
-            {
-                "type": "body",
-                "parameters": parameters,
-            }
-        ]
+        body_component = {
+            "type": "body",
+            "parameters": parameters,
+        }
+    else:
+        body_component = {"type": "body"}
+    if parameters or _is_libromi_cloud_api(config):
+        payload["template"]["components"] = [body_component]
     if _is_libromi_cloud_api(config):
         payload.pop("messaging_product", None)
     return payload

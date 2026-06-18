@@ -2959,6 +2959,43 @@ class WhatomateTextSendTests(TestCase):
         )
 
     @patch("core.whatomate._json_request")
+    def test_libromi_template_message_without_parameters_keeps_body_component(self, mock_json_request):
+        mock_json_request.return_value = {"status": "success", "id": "wamid_123"}
+
+        result = send_test_template_message(
+            phone_number="9952975768",
+            template_name="order_confirm_1",
+            template_params={},
+            config_overrides={
+                "enabled": True,
+                "base_url": "https://wa-api.cloud",
+                "api_key": "libromi_token_123",
+            },
+        )
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["endpoint"], "/api/v1/messages")
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "to": "919952975768",
+                "type": "template",
+                "template": {
+                    "name": "order_confirm_1",
+                    "language": {
+                        "code": "en",
+                        "policy": "deterministic",
+                    },
+                    "components": [
+                        {
+                            "type": "body",
+                        }
+                    ],
+                },
+            },
+        )
+
+    @patch("core.whatomate._json_request")
     def test_meta_cloud_template_message_uses_graph_api_payload(self, mock_json_request):
         mock_json_request.return_value = {"messages": [{"id": "wamid_123"}]}
 
