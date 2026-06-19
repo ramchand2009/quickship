@@ -1101,7 +1101,7 @@ def _build_order_template_context(order):
 def _build_order_payment_template_params(order):
     context = _build_order_template_context(order)
     return {
-        "1": context.get("customer_name") or "Customer",
+        "1": context.get("channel_order_id") or context.get("order_id") or "",
         "2": context.get("amount") or context.get("total") or "",
     }
 

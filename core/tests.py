@@ -1385,6 +1385,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         )
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-PAY-PLAN-1",
+            channel_order_id="WC-1001",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             total="1250.00",
             shipping_address={"name": "Template Customer", "phone": "9876543210"},
@@ -1395,7 +1396,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertTrue(plan["sendable"])
         self.assertEqual(plan["mode"], "template")
         self.assertEqual(plan["template_name"], "order_payment")
-        self.assertEqual(plan["template_params"], {"1": "Template Customer", "2": "1250.00"})
+        self.assertEqual(plan["template_params"], {"1": "WC-1001", "2": "1250.00"})
         self.assertEqual(plan["phone_number"], "919876543210")
 
     @patch("core.views._attempt_inline_queue_send")
@@ -3187,6 +3188,65 @@ class WhatomateTextSendTests(TestCase):
                                 {
                                     "type": "text",
                                     "text": "AA123456789AA",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+    @patch("core.whatomate._json_request")
+    def test_completed_order_uses_delivered_libromi_template(self, mock_json_request):
+        mock_json_request.return_value = {"status": "success", "id": "wamid_delivered_123"}
+        settings_row = WhatsAppSettings.get_default()
+        settings_row.enabled = True
+        settings_row.api_base_url = "https://wa-api.cloud"
+        settings_row.api_key = "libromi_token_123"
+        settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
+        WhatsAppStatusTemplateConfig.objects.update_or_create(
+            local_status=ShiprocketOrder.STATUS_COMPLETED,
+            defaults={
+                "enabled": True,
+                "template_name": "order_delivered",
+                "template_param_mapping": {
+                    "1": "channel_order_id",
+                },
+            },
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-9002",
+            channel_order_id="9002",
+            local_status=ShiprocketOrder.STATUS_COMPLETED,
+            customer_name="Test Customer",
+            customer_phone="9952975768",
+            shipping_address={"phone": "9952975768", "name": "Test Customer"},
+        )
+
+        result = send_order_status_update(order, previous_status=ShiprocketOrder.STATUS_SHIPPED)
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["mode"], "template")
+        self.assertEqual(result["template_name"], "order_delivered")
+        self.assertEqual(result["endpoint"], "/api/v1/messages")
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "to": "919952975768",
+                "type": "template",
+                "template": {
+                    "name": "order_delivered",
+                    "language": {
+                        "code": "en",
+                        "policy": "deterministic",
+                    },
+                    "components": [
+                        {
+                            "type": "body",
+                            "parameters": [
+                                {
+                                    "type": "text",
+                                    "text": "9002",
                                 },
                             ],
                         }
