@@ -51,6 +51,40 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     padding: 0 1rem;
 }
 
+.ops-home-sales-card {
+    margin: 0 1rem 0.75rem;
+    padding: 1rem;
+    border: 1px solid #1e3a8a;
+    border-radius: 0.5rem;
+    background: #1e3a8a;
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+
+.ops-home-sales-label {
+    display: block;
+    color: #90a8ff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1rem;
+}
+
+.ops-home-sales-value {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 1.7rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.ops-home-sales-meta {
+    display: block;
+    margin-top: 0.3rem;
+    color: #dce1ff;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
 .ops-home-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-bottom: 1.75rem;
@@ -280,6 +314,12 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         <p>Live order status and stock overview.</p>
     </div>
 
+    <div class="ops-home-sales-card">
+        <span class="ops-home-sales-label">This Month Order Amount</span>
+        <span class="ops-home-sales-value">Rs {{ monthly_sales_total|floatformat:2 }}</span>
+        <span class="ops-home-sales-meta">{{ current_month_label }}</span>
+    </div>
+
     <div class="ops-home-month-grid">
         {% for card in monthly_status_cards %}
             <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
@@ -289,16 +329,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </a>
             </div>
         {% endfor %}
-    </div>
-
-    <div class="ops-home-section-head mt-3">
-        <h3>Quick Actions</h3>
-    </div>
-    <div class="ops-home-actions">
-        <a href="{% url 'order_management' %}?tab=all" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-box-open"></i></span>Orders</a>
-        <a href="{% url 'stock_management' %}" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-boxes"></i></span>Stock</a>
-        <a href="{% url 'special_stock_issue_register' %}" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-gift"></i></span>Free Entry</a>
-        <a href="{% url 'expense_tracker' %}" class="ops-home-action"><span class="ops-home-action-icon"><i class="fas fa-wallet"></i></span>Expenses</a>
     </div>
 
     <div class="ops-home-section-head">

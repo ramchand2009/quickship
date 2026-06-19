@@ -4542,16 +4542,25 @@ class RoleAccessTests(TestCase):
             local_status=ShiprocketOrder.STATUS_PACKED,
             customer_name="Old Packed Count",
             order_date=previous_month,
+            total="999.00",
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-HOME-ACCEPTED-1",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             customer_name="Accepted Count",
+            total="1200.50",
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-HOME-SHIPPED-1",
             local_status=ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
             customer_name="Shipped Count",
+            total="300.00",
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-HOME-CANCELLED-1",
+            local_status=ShiprocketOrder.STATUS_CANCELLED,
+            customer_name="Cancelled Count",
+            total="700.00",
         )
         self.client.force_login(self.viewer)
 
@@ -4559,6 +4568,8 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Live order status and stock overview.")
+        self.assertContains(response, "This Month Order Amount")
+        self.assertContains(response, "Rs 1500.50")
         self.assertContains(response, '<span class="ops-home-card-label">Accepted</span>', html=False)
         self.assertContains(response, '<span class="ops-home-card-value">2</span>', html=False)
         self.assertContains(response, '<span class="ops-home-card-label">Shipped</span>', html=False)
