@@ -3047,6 +3047,71 @@ class WhatomateTextSendTests(TestCase):
         )
 
     @patch("core.whatomate._json_request")
+    def test_shipped_order_uses_woocommerce_order_number_in_libromi_template(self, mock_json_request):
+        mock_json_request.return_value = {"status": "success", "id": "wamid_shipped_123"}
+        settings_row = WhatsAppSettings.get_default()
+        settings_row.enabled = True
+        settings_row.api_base_url = "https://wa-api.cloud"
+        settings_row.api_key = "libromi_token_123"
+        settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
+        WhatsAppStatusTemplateConfig.objects.update_or_create(
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            defaults={
+                "enabled": True,
+                "template_name": "order_shipped_1",
+                "template_param_mapping": {
+                    "1": "channel_order_id",
+                    "2": "tracking_number",
+                },
+            },
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-9001",
+            channel_order_id="9001",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            customer_name="Test Customer",
+            customer_phone="9952975768",
+            tracking_number="AA123456789AA",
+            shipping_address={"phone": "9952975768", "name": "Test Customer"},
+        )
+
+        result = send_order_status_update(order, previous_status=ShiprocketOrder.STATUS_PACKED)
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["mode"], "template")
+        self.assertEqual(result["template_name"], "order_shipped_1")
+        self.assertEqual(result["endpoint"], "/api/v1/messages")
+        self.assertEqual(
+            mock_json_request.call_args.kwargs["payload"],
+            {
+                "to": "919952975768",
+                "type": "template",
+                "template": {
+                    "name": "order_shipped_1",
+                    "language": {
+                        "code": "en",
+                        "policy": "deterministic",
+                    },
+                    "components": [
+                        {
+                            "type": "body",
+                            "parameters": [
+                                {
+                                    "type": "text",
+                                    "text": "9001",
+                                },
+                                {
+                                    "type": "text",
+                                    "text": "AA123456789AA",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+    @patch("core.whatomate._json_request")
     def test_meta_cloud_template_message_uses_graph_api_payload(self, mock_json_request):
         mock_json_request.return_value = {"messages": [{"id": "wamid_123"}]}
 
