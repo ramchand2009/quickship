@@ -4,6 +4,7 @@ import hashlib
 from urllib import error, parse, request
 
 from django.conf import settings
+from django.utils import timezone
 
 
 class WhatomateNotificationError(Exception):
@@ -1097,6 +1098,14 @@ def _build_order_template_context(order):
     return context
 
 
+def _build_order_payment_template_params(order):
+    context = _build_order_template_context(order)
+    return {
+        "1": context.get("customer_name") or "Customer",
+        "2": context.get("amount") or context.get("total") or "",
+    }
+
+
 def build_order_template_context(order):
     return _build_order_template_context(order)
 
@@ -1270,6 +1279,43 @@ def build_order_status_idempotency_payload(order):
     return plan
 
 
+def build_order_payment_reminder_idempotency_payload(order):
+    config = _resolve_runtime_config()
+    if not _is_enabled(config):
+        return {"sendable": False, "reason": "disabled", "status": order.local_status, "config": config}
+
+    raw_phone = (
+        order.display_shipping_address.get("phone")
+        or order.manual_customer_phone
+        or order.customer_phone
+    )
+    phone_number = _normalize_phone_number(raw_phone, config)
+    if len(phone_number) < 10:
+        raise WhatomateNotificationError("Customer mobile is missing or invalid for payment reminder.")
+
+    plan = {
+        "sendable": True,
+        "mode": "template",
+        "status": order.local_status,
+        "phone_number": phone_number,
+        "template_name": "order_payment",
+        "template_id": "",
+        "template_params": _build_order_payment_template_params(order),
+        "config": config,
+    }
+    payload = {
+        "order_id": str(order.shiprocket_order_id or "").strip(),
+        "trigger": "payment_reminder",
+        "phone_number": phone_number,
+        "template_name": "order_payment",
+        "reminder_date": timezone.localdate().isoformat(),
+        "payment_received_at": order.payment_received_at.isoformat() if order.payment_received_at else "",
+    }
+    signature = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    plan["idempotency_key"] = hashlib.sha256(signature.encode("utf-8")).hexdigest()
+    return plan
+
+
 def send_order_status_update(order, previous_status=None):
     plan = _build_status_notification_plan(order)
     if not plan.get("sendable"):
@@ -1312,6 +1358,34 @@ def send_order_status_update(order, previous_status=None):
         "response_payload": send_result.get("response_payload", {}) if isinstance(send_result, dict) else {},
         "endpoint": send_result.get("endpoint", "") if isinstance(send_result, dict) else "",
         "external_message_id": send_result.get("external_message_id", "") if isinstance(send_result, dict) else "",
+    }
+
+
+def send_order_payment_reminder(order):
+    plan = build_order_payment_reminder_idempotency_payload(order)
+    if not plan.get("sendable"):
+        return {"sent": False, "reason": plan.get("reason", "not_configured"), "status": order.local_status}
+
+    config = plan.get("config") or _resolve_runtime_config()
+    phone_number = str(plan.get("phone_number") or "").strip()
+    template_name = str(plan.get("template_name") or "").strip()
+    template_result = _send_template_by_fallback(
+        phone_number=phone_number,
+        template_name=template_name,
+        template_params=plan.get("template_params") or {},
+        config=config,
+    )
+    return {
+        "sent": True,
+        "mode": "template",
+        "status": order.local_status,
+        "phone_number": phone_number,
+        "template_name": template_name,
+        "template_id": "",
+        "request_payload": template_result.get("request_payload", {}) if isinstance(template_result, dict) else {},
+        "response_payload": template_result.get("response_payload", {}) if isinstance(template_result, dict) else {},
+        "endpoint": template_result.get("endpoint", "") if isinstance(template_result, dict) else "",
+        "external_message_id": template_result.get("external_message_id", "") if isinstance(template_result, dict) else "",
     }
 
 

@@ -773,12 +773,17 @@
         margin-top: 1rem;
     }
 
+    .ops-detail-action-grid form {
+        margin: 0;
+    }
+
     .ops-detail-action-btn {
         border: 0;
         border-radius: 0.5rem;
         padding: 0.95rem 0.8rem;
         font-size: 1rem;
         font-weight: 700;
+        width: 100%;
     }
 
     .ops-detail-action-btn.is-primary {
@@ -870,6 +875,18 @@
                 </div>
                 <div class="ops-detail-pill">{{ order.payment_method|default:"Cash on Delivery" }}</div>
             </div>
+            <div class="ops-detail-inline-row">
+                <div>
+                    <div class="fw-semibold">Payment Status</div>
+                </div>
+                <div class="ops-detail-pill">
+                    {% if order.payment_received_at %}
+                        Received
+                    {% else %}
+                        Pending
+                    {% endif %}
+                </div>
+            </div>
         </div>
 
         <div class="ops-detail-card">
@@ -916,6 +933,24 @@
 
         <div class="ops-detail-card ops-detail-actions-card">
             <h5 class="mb-0">Order Actions</h5>
+            {% if can_update_order_status and not order.payment_received_at and order.local_status == 'order_accepted' or can_update_order_status and not order.payment_received_at and order.local_status == 'order_packed' %}
+                <div class="ops-detail-action-grid">
+                    <form method="post" action="{% url 'send_order_payment_reminder' order.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="active_tab" value="{{ return_tab|default:'all' }}">
+                        <input type="hidden" name="return_to" value="order_management">
+                        <input type="hidden" name="return_query" value="tab={{ return_tab|default:'all' }}">
+                        <button type="submit" class="ops-detail-action-btn is-secondary">Send Payment Reminder</button>
+                    </form>
+                    <form method="post" action="{% url 'mark_order_payment_received' order.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="active_tab" value="{{ return_tab|default:'all' }}">
+                        <input type="hidden" name="return_to" value="order_management">
+                        <input type="hidden" name="return_query" value="tab={{ return_tab|default:'all' }}">
+                        <button type="submit" class="ops-detail-action-btn is-primary">Mark Payment Received</button>
+                    </form>
+                </div>
+            {% endif %}
             {% if can_update_order_status and ops_mobile_actions %}
                 <form method="post" action="{% url 'update_shiprocket_order_status' order.pk %}" id="opsDetailStatusForm">
                     {% csrf_token %}

@@ -5737,6 +5737,116 @@ def resend_shiprocket_order_whatsapp(request, pk):
 
 @login_required
 @require_POST
+def send_order_payment_reminder(request, pk):
+    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    actor = _request_actor(request)
+    redirect_tab = (request.POST.get("active_tab") or "").strip()
+    if (request.POST.get("return_to") or "").strip():
+        redirect_url = _resolve_ops_redirect(request, default_name="home", active_tab=redirect_tab)
+    else:
+        redirect_url = reverse("order_detail", args=[order.pk])
+        if redirect_tab:
+            redirect_url = f"{redirect_url}?tab={redirect_tab}"
+    if not _can_update_order_status(request.user):
+        messages.error(request, "Your role cannot send payment reminders.")
+        return redirect(redirect_url)
+    if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
+        messages.warning(request, "Payment reminders are available after the order is accepted.")
+        return redirect(redirect_url)
+    if order.payment_received_at:
+        messages.info(request, "Payment is already marked as received for this order.")
+        return redirect(redirect_url)
+
+    try:
+        enqueue_result = enqueue_whatsapp_notification(
+            order=order,
+            trigger=WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER,
+            previous_status=order.local_status,
+            current_status=order.local_status,
+            initiated_by=actor,
+        )
+    except Exception as exc:
+        log_order_activity(
+            order=order,
+            event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_FAILED,
+            title="Payment reminder queueing failed",
+            description=str(exc),
+            previous_status=order.local_status,
+            current_status=order.local_status,
+            metadata={"stage": "enqueue", "trigger": WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER},
+            is_success=False,
+            triggered_by=actor,
+        )
+        messages.error(request, f"Payment reminder queueing failed: {exc}")
+        return redirect(redirect_url)
+
+    queue_job = enqueue_result.get("job")
+    if enqueue_result.get("queued") and queue_job:
+        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="payment_reminder")
+        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
+            messages.success(request, f"Payment reminder sent successfully (Job #{processed_job.pk}).")
+        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
+            error_text = str(processed_job.last_error or "Unknown error").strip()
+            messages.warning(request, f"Payment reminder failed for Job #{processed_job.pk}: {error_text}")
+        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
+            messages.warning(request, f"Payment reminder queued (Job #{processed_job.pk}); retry is scheduled.")
+        else:
+            messages.success(request, f"Payment reminder queued (Job #{queue_job.pk}).")
+        return redirect(redirect_url)
+
+    reason = str(enqueue_result.get("reason") or "").strip()
+    if reason == "duplicate_pending" and queue_job:
+        messages.warning(request, f"Matching payment reminder is already queued (Job #{queue_job.pk}).")
+    elif reason == "already_sent":
+        messages.info(request, "Payment reminder was already sent for this payment state.")
+    elif reason == "disabled":
+        messages.warning(request, "WhatsApp updates are disabled in settings.")
+    else:
+        messages.warning(request, "Payment reminder skipped.")
+    return redirect(redirect_url)
+
+
+@login_required
+@require_POST
+def mark_order_payment_received(request, pk):
+    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    actor = _request_actor(request)
+    redirect_tab = (request.POST.get("active_tab") or "").strip()
+    if (request.POST.get("return_to") or "").strip():
+        redirect_url = _resolve_ops_redirect(request, default_name="home", active_tab=redirect_tab)
+    else:
+        redirect_url = reverse("order_detail", args=[order.pk])
+        if redirect_tab:
+            redirect_url = f"{redirect_url}?tab={redirect_tab}"
+    if not _can_update_order_status(request.user):
+        messages.error(request, "Your role cannot mark payment received.")
+        return redirect(redirect_url)
+    if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
+        messages.warning(request, "Payment can be marked received after the order is accepted.")
+        return redirect(redirect_url)
+    if order.payment_received_at:
+        messages.info(request, "Payment is already marked as received.")
+        return redirect(redirect_url)
+
+    order.payment_received_at = timezone.now()
+    order.save(update_fields=["payment_received_at", "updated_at"])
+    log_order_activity(
+        order=order,
+        event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+        title="Payment marked received",
+        description="Customer payment was marked as received.",
+        previous_status=order.local_status,
+        current_status=order.local_status,
+        metadata={"payment_received_at": order.payment_received_at.isoformat()},
+        is_success=True,
+        triggered_by=actor,
+    )
+    messages.success(request, "Payment marked as received.")
+    return redirect(redirect_url)
+
+
+@login_required
+@require_POST
 def bulk_resend_shiprocket_order_whatsapp(request):
     redirect_tab = (request.POST.get("active_tab") or "").strip()
     redirect_url = _resolve_ops_redirect(request, default_name="home", active_tab=redirect_tab)

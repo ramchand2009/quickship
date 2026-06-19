@@ -8,7 +8,9 @@ from .activity import log_order_activity
 from .models import OrderActivityLog, ShiprocketOrder, WhatsAppNotificationLog, WhatsAppNotificationQueue
 from .whatomate import (
     WhatomateNotificationError,
+    build_order_payment_reminder_idempotency_payload,
     build_order_status_idempotency_payload,
+    send_order_payment_reminder,
     send_order_status_update,
 )
 
@@ -61,7 +63,10 @@ def enqueue_whatsapp_notification(
     payload=None,
     max_attempts=3,
 ):
-    plan = build_order_status_idempotency_payload(order)
+    if trigger == WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER:
+        plan = build_order_payment_reminder_idempotency_payload(order)
+    else:
+        plan = build_order_status_idempotency_payload(order)
     if not plan.get("sendable"):
         reason = str(plan.get("reason") or "not_configured").strip()
         log_order_activity(
@@ -235,7 +240,10 @@ def _execute_job(job):
             "response_payload": {"status": "duplicate_skipped"},
         }
 
-    result = send_order_status_update(order, previous_status=job.previous_status or order.local_status)
+    if job.trigger == WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER:
+        result = send_order_payment_reminder(order)
+    else:
+        result = send_order_status_update(order, previous_status=job.previous_status or order.local_status)
     if not result.get("sent"):
         reason = str(result.get("reason") or "unknown").strip()
         raise WhatomateNotificationError(f"WhatsApp update not sent: {reason}")

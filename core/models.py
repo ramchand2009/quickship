@@ -343,6 +343,7 @@ class ShiprocketOrder(models.Model):
     out_for_delivery_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    payment_received_at = models.DateTimeField(null=True, blank=True)
     label_print_count = models.PositiveIntegerField(default=0)
     last_label_printed_at = models.DateTimeField(null=True, blank=True)
     shipping_address = models.JSONField(default=dict, blank=True)
@@ -782,6 +783,7 @@ class OrderActivityLog(models.Model):
 class WhatsAppNotificationLog(models.Model):
     TRIGGER_STATUS_CHANGE = "status_change"
     TRIGGER_RESEND = "resend"
+    TRIGGER_PAYMENT_REMINDER = "payment_reminder"
     TRIGGER_TEST_MESSAGE = "test_message"
     TRIGGER_TEST_TEMPLATE = "test_template"
     TRIGGER_WEBHOOK_STATUS = "webhook_status"
@@ -789,6 +791,7 @@ class WhatsAppNotificationLog(models.Model):
     TRIGGER_CHOICES = [
         (TRIGGER_STATUS_CHANGE, "Status Change"),
         (TRIGGER_RESEND, "Resend"),
+        (TRIGGER_PAYMENT_REMINDER, "Payment Reminder"),
         (TRIGGER_TEST_MESSAGE, "Test Message"),
         (TRIGGER_TEST_TEMPLATE, "Test Template"),
         (TRIGGER_WEBHOOK_STATUS, "Webhook Status"),

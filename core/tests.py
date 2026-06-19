@@ -36,6 +36,7 @@ from .models import (
 from .system_status import write_system_heartbeat
 from .whatomate import (
     WhatomateNotificationError,
+    build_order_payment_reminder_idempotency_payload,
     _build_template_params_for_status,
     _create_contact,
     _get_headers,
@@ -1313,6 +1314,89 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertRedirects(response, f"{reverse('home')}?tab={ShiprocketOrder.STATUS_PACKED}")
         mock_enqueue_whatsapp_notification.assert_called_once()
         self.assertContains(response, "WhatsApp resend queueing failed")
+
+    @patch("core.views._attempt_inline_queue_send")
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_accepted_order_payment_reminder_queues_template_message(
+        self,
+        mock_enqueue_whatsapp_notification,
+        mock_attempt_inline_queue_send,
+    ):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": True,
+            "reason": "queued",
+            "job": type("Job", (), {"pk": 401})(),
+        }
+        mock_attempt_inline_queue_send.return_value = type(
+            "ProcessedJob",
+            (),
+            {"pk": 401, "status": WhatsAppNotificationQueue.STATUS_SUCCESS, "last_error": ""},
+        )()
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-PAY-REMINDER-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="799.00",
+            shipping_address={"name": "Payment Customer", "phone": "9876543210"},
+        )
+
+        response = self.client.post(
+            reverse("send_order_payment_reminder", args=[order.pk]),
+            {"active_tab": ShiprocketOrder.STATUS_ACCEPTED},
+            follow=True,
+        )
+
+        self.assertRedirects(response, f"{reverse('order_detail', args=[order.pk])}?tab={ShiprocketOrder.STATUS_ACCEPTED}")
+        mock_enqueue_whatsapp_notification.assert_called_once()
+        _, kwargs = mock_enqueue_whatsapp_notification.call_args
+        self.assertEqual(kwargs["trigger"], WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER)
+        mock_attempt_inline_queue_send.assert_called_once()
+        self.assertContains(response, "Payment reminder sent successfully")
+
+    def test_mark_payment_received_sets_timestamp_and_logs_activity(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-PAY-RECEIVED-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="799.00",
+        )
+
+        response = self.client.post(
+            reverse("mark_order_payment_received", args=[order.pk]),
+            {"active_tab": ShiprocketOrder.STATUS_ACCEPTED},
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, f"{reverse('order_detail', args=[order.pk])}?tab={ShiprocketOrder.STATUS_ACCEPTED}")
+        self.assertIsNotNone(order.payment_received_at)
+        self.assertTrue(
+            OrderActivityLog.objects.filter(
+                order=order,
+                event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                title="Payment marked received",
+            ).exists()
+        )
+        self.assertContains(response, "Payment marked as received")
+
+    def test_payment_reminder_plan_uses_order_payment_template(self):
+        WhatsAppSettings.objects.create(
+            enabled=True,
+            api_base_url="https://wa-api.cloud",
+            api_key="token-123",
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-PAY-PLAN-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="1250.00",
+            shipping_address={"name": "Template Customer", "phone": "9876543210"},
+        )
+
+        plan = build_order_payment_reminder_idempotency_payload(order)
+
+        self.assertTrue(plan["sendable"])
+        self.assertEqual(plan["mode"], "template")
+        self.assertEqual(plan["template_name"], "order_payment")
+        self.assertEqual(plan["template_params"], {"1": "Template Customer", "2": "1250.00"})
+        self.assertEqual(plan["phone_number"], "919876543210")
 
     @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")

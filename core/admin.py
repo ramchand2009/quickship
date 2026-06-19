@@ -61,6 +61,7 @@ class ShiprocketOrderAdmin(admin.ModelAdmin):
         "total",
         "order_date",
         "cancellation_reason",
+        "payment_received_at",
         "label_print_count",
         "last_label_printed_at",
         "completed_at",

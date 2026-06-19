@@ -129,6 +129,45 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Payment Follow-up</h5>
+                {% if order.payment_received_at %}
+                    <span class="badge badge-light-success bg-light-success">Received</span>
+                {% else %}
+                    <span class="badge badge-light-warning bg-light-warning">Pending</span>
+                {% endif %}
+            </div>
+            <div class="card-block">
+                <p class="mb-2 text-muted">
+                    <strong>Payment Method:</strong> {{ order.payment_method|default:"-" }} |
+                    <strong>Total:</strong> Rs {{ order.total|floatformat:0 }}
+                </p>
+                {% if order.payment_received_at %}
+                    <p class="mb-0 text-muted">Marked received on {{ order.payment_received_at|date:"Y-m-d H:i:s T" }}.</p>
+                {% elif can_update_order_status and order.local_status == "order_accepted" or can_update_order_status and order.local_status == "order_packed" %}
+                    <div class="d-flex gap-2 flex-wrap">
+                        <form method="post" action="{% url 'send_order_payment_reminder' order.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="active_tab" value="{{ return_tab|default:order.local_status }}">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Send Payment Reminder</button>
+                        </form>
+                        <form method="post" action="{% url 'mark_order_payment_received' order.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="active_tab" value="{{ return_tab|default:order.local_status }}">
+                            <button type="submit" class="btn btn-sm btn-success">Mark Payment Received</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">Payment follow-up is available after the order is accepted.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Products</h5>
                 <span class="text-muted small">Payment Method: {{ order.payment_method|default:"-" }}</span>
             </div>
