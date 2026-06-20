@@ -37,6 +37,36 @@
     padding: 0;
 }
 
+button.is-submitting,
+input[type="submit"].is-submitting {
+    cursor: wait;
+    opacity: 0.78;
+}
+
+button.is-submitting-primary {
+    position: relative;
+    transform: translateY(1px);
+}
+
+button.is-submitting-primary::after {
+    content: "";
+    display: inline-block;
+    width: 0.85em;
+    height: 0.85em;
+    margin-left: 0.45rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    vertical-align: -0.12em;
+    animation: mathukai-submit-spin 0.75s linear infinite;
+}
+
+@keyframes mathukai-submit-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .order-stat-card .card-block {
     padding: 1rem 1.15rem;
 }

@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="{% static 'assets/css/plugins/animate.min.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/plugins/perfect-scrollbar.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}">
-    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=20260320-5">
+    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=20260320-6">
     {% block extrastyle %}{% endblock %}
 </head>
 {% with current=request.resolver_match.url_name %}
@@ -235,6 +235,67 @@
     <script src="{% static 'assets/js/plugins/perfect-scrollbar.min.js' %}"></script>
     <script src="{% static 'assets/js/pcoded.js' %}"></script>
     <script src="{% static 'js/pwa-register.js' %}?v=20260513-1"></script>
+    <script>
+    (function () {
+        const submitSelector = "button[type='submit'], input[type='submit']";
+
+        document.addEventListener("click", function (event) {
+            const submitter = event.target.closest(submitSelector);
+            if (!submitter || !submitter.form) {
+                return;
+            }
+            submitter.form.dataset.pendingSubmitterId = submitter.id || "";
+            submitter.form._mathukaiSubmitter = submitter;
+        }, true);
+
+        document.addEventListener("submit", function (event) {
+            const form = event.target;
+            if (!form || form.tagName !== "FORM") {
+                return;
+            }
+            if (event.defaultPrevented) {
+                return;
+            }
+            if (String(form.method || "get").toLowerCase() !== "post" || form.dataset.submitLock === "off") {
+                return;
+            }
+            if (form.dataset.isSubmitting === "true") {
+                event.preventDefault();
+                return;
+            }
+
+            form.dataset.isSubmitting = "true";
+
+            const submitter =
+                event.submitter ||
+                form._mathukaiSubmitter ||
+                (form.dataset.pendingSubmitterId ? document.getElementById(form.dataset.pendingSubmitterId) : null);
+
+            if (submitter && submitter.name && !submitter.disabled) {
+                const hiddenInput = document.createElement("input");
+                hiddenInput.type = "hidden";
+                hiddenInput.name = submitter.name;
+                hiddenInput.value = submitter.value;
+                hiddenInput.dataset.submitLockSurrogate = "true";
+                form.appendChild(hiddenInput);
+            }
+
+            const submitControls = form.querySelectorAll(submitSelector);
+            submitControls.forEach(function (control) {
+                if (control.disabled) {
+                    return;
+                }
+                control.disabled = true;
+                control.setAttribute("aria-busy", "true");
+                control.classList.add("is-submitting");
+            });
+
+            if (submitter) {
+                submitter.classList.add("is-submitting-primary");
+            }
+        });
+    })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 {% endwith %}
