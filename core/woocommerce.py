@@ -41,6 +41,7 @@ ALLOWED_WOOCOMMERCE_ORDER_STATUSES = {
 }
 
 DEFAULT_IMPORT_STATUSES = ["pending", "processing", "on-hold", "whatsapp-draft"]
+CUSTOMER_PHONE_LOOKUP_PAGE_LIMIT = 50
 
 WOOCOMMERCE_TO_LOCAL_STATUS = {
     "pending": ShiprocketOrder.STATUS_NEW,
@@ -203,17 +204,32 @@ def _find_unique_customer_id_by_phone(phone):
     if len(digits) > 10:
         search_terms.append(digits[-10:])
 
-    customers_by_id = {}
-    for term in dict.fromkeys(search_terms):
-        customers = _json_request("customers", params={"search": term, "per_page": 100})
+    def collect_matches(params):
+        matches = {}
+        customers = _json_request("customers", params=params)
         if not isinstance(customers, list):
-            continue
+            return matches, 0
         for customer in customers:
             if not isinstance(customer, dict):
                 continue
             customer_id = _to_int(customer.get("id"))
             if customer_id and _customer_matches_phone(customer, phone_keys):
-                customers_by_id[customer_id] = customer
+                matches[customer_id] = customer
+        return matches, len(customers)
+
+    customers_by_id = {}
+    for term in dict.fromkeys(search_terms):
+        term_matches, _customer_count = collect_matches({"search": term, "per_page": 100})
+        customers_by_id.update(term_matches)
+
+    if not customers_by_id:
+        for page in range(1, CUSTOMER_PHONE_LOOKUP_PAGE_LIMIT + 1):
+            page_matches, customer_count = collect_matches({"per_page": 100, "page": page})
+            customers_by_id.update(page_matches)
+            if len(customers_by_id) > 1:
+                return None
+            if customer_count < 100:
+                break
 
     if len(customers_by_id) != 1:
         return None
@@ -237,6 +253,27 @@ def _assign_guest_order_customer_by_phone(order_payload, phone):
 
     order_payload["customer_id"] = customer_id
     return customer_id
+
+
+def _assign_order_record_customer_by_phone(order):
+    if getattr(order, "source", "") != ShiprocketOrder.SOURCE_WOOCOMMERCE:
+        return None
+    wc_order_id = str(order.woocommerce_order_id or "").strip()
+    if not wc_order_id:
+        return None
+
+    payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
+    order_payload = dict(payload)
+    order_payload["id"] = wc_order_id
+    if "customer_id" not in order_payload:
+        order_payload["customer_id"] = 0
+
+    assigned_customer_id = _assign_guest_order_customer_by_phone(order_payload, order.resolved_customer_phone)
+    if not assigned_customer_id:
+        return None
+
+    order.raw_payload = order_payload
+    return assigned_customer_id
 
 
 def _parse_datetime(value):
@@ -650,10 +687,13 @@ def update_order_status(order):
     wc_order_id = str(order.woocommerce_order_id or "").strip()
     if not wc_order_id:
         return {"skipped": True, "reason": "missing_woocommerce_order_id"}
+    assigned_customer_id = _assign_order_record_customer_by_phone(order)
     target_status = woocommerce_status_for_local_status(order.local_status)
     if not target_status:
         return {"skipped": True, "reason": "no_status_mapping"}
     if str(order.woocommerce_status or "").strip().lower() == target_status.lower():
+        if assigned_customer_id:
+            order.save(update_fields=["raw_payload", "updated_at"])
         return {"skipped": True, "reason": "already_synced", "status": target_status}
 
     response = _json_request(f"orders/{wc_order_id}", method="PUT", payload={"status": target_status})
@@ -661,5 +701,13 @@ def update_order_status(order):
     order.woocommerce_status = updated_status
     order.status = updated_status
     order.woocommerce_status_synced_at = timezone.now()
-    order.save(update_fields=["woocommerce_status", "status", "woocommerce_status_synced_at", "updated_at"])
-    return {"skipped": False, "status": updated_status, "response": response}
+    update_fields = ["woocommerce_status", "status", "woocommerce_status_synced_at", "updated_at"]
+    if assigned_customer_id:
+        update_fields.append("raw_payload")
+    order.save(update_fields=update_fields)
+    return {
+        "skipped": False,
+        "status": updated_status,
+        "response": response,
+        "assigned_customer_id": assigned_customer_id,
+    }

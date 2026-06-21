@@ -53,6 +53,7 @@ from .shiprocket import sync_orders
 from .woocommerce import import_order_payload as import_woocommerce_order_payload
 from .woocommerce import sync_orders as sync_woocommerce_orders
 from .woocommerce import sync_products as sync_woocommerce_products
+from .woocommerce import update_order_status as update_woocommerce_order_status
 from .woocommerce import woocommerce_status_for_local_status
 
 
@@ -351,6 +352,40 @@ class WooCommerceSyncTests(TestCase):
         self.assertTrue(created)
         self.assertEqual(order.raw_payload["customer_id"], 0)
         self.assertEqual(mock_json_request.call_count, 1)
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_update_status_assigns_guest_order_even_when_status_already_synced(self, mock_json_request):
+        mock_json_request.side_effect = [
+            [],
+            [{"id": 902, "billing": {"phone": "9876543210"}}],
+            {"id": 7003, "customer_id": 902},
+        ]
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="WC-7003",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            woocommerce_order_id="7003",
+            woocommerce_status="processing",
+            status="processing",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543210",
+            billing_address={"phone": "9876543210"},
+            raw_payload={"id": 7003, "customer_id": 0, "billing": {"phone": "9876543210"}},
+        )
+
+        result = update_woocommerce_order_status(order)
+
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["reason"], "already_synced")
+        order.refresh_from_db()
+        self.assertEqual(order.raw_payload["customer_id"], 902)
+        self.assertEqual(mock_json_request.call_args_list[2].args[0], "orders/7003")
+        self.assertEqual(mock_json_request.call_args_list[2].kwargs["method"], "PUT")
+        self.assertEqual(mock_json_request.call_args_list[2].kwargs["payload"], {"customer_id": 902})
 
     def test_import_order_payload_preserves_existing_address_when_update_has_no_billing_address(self):
         order = ShiprocketOrder.objects.create(
