@@ -149,6 +149,96 @@ def _to_int(value, default=0):
         return default
 
 
+def _normalize_phone_digits(value):
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def _phone_match_keys(value):
+    digits = _normalize_phone_digits(value)
+    keys = set()
+    if digits:
+        keys.add(digits)
+    if len(digits) > 10:
+        keys.add(digits[-10:])
+    return keys
+
+
+def _customer_phone_values(customer):
+    values = []
+    if not isinstance(customer, dict):
+        return values
+
+    billing = customer.get("billing")
+    if isinstance(billing, dict):
+        values.append(billing.get("phone"))
+
+    meta_data = customer.get("meta_data")
+    if isinstance(meta_data, list):
+        for row in meta_data:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("key") or "").strip().lower()
+            if key in {"billing_phone", "phone", "mobile", "customer_phone"}:
+                values.append(row.get("value"))
+
+    return values
+
+
+def _customer_matches_phone(customer, phone_keys):
+    for value in _customer_phone_values(customer):
+        if _phone_match_keys(value) & phone_keys:
+            return True
+    return False
+
+
+def _find_unique_customer_id_by_phone(phone):
+    phone_keys = _phone_match_keys(phone)
+    if not phone_keys:
+        return None
+
+    search_terms = []
+    digits = _normalize_phone_digits(phone)
+    if digits:
+        search_terms.append(digits)
+    if len(digits) > 10:
+        search_terms.append(digits[-10:])
+
+    customers_by_id = {}
+    for term in dict.fromkeys(search_terms):
+        customers = _json_request("customers", params={"search": term, "per_page": 100})
+        if not isinstance(customers, list):
+            continue
+        for customer in customers:
+            if not isinstance(customer, dict):
+                continue
+            customer_id = _to_int(customer.get("id"))
+            if customer_id and _customer_matches_phone(customer, phone_keys):
+                customers_by_id[customer_id] = customer
+
+    if len(customers_by_id) != 1:
+        return None
+    return next(iter(customers_by_id))
+
+
+def _assign_guest_order_customer_by_phone(order_payload, phone):
+    if not isinstance(order_payload, dict):
+        return None
+    order_id = order_payload.get("id")
+    if not order_id or _to_int(order_payload.get("customer_id")):
+        return None
+
+    try:
+        customer_id = _find_unique_customer_id_by_phone(phone)
+        if not customer_id:
+            return None
+        _json_request(f"orders/{order_id}", method="PUT", payload={"customer_id": customer_id})
+    except WooCommerceAPIError:
+        return None
+
+    order_payload["customer_id"] = customer_id
+    return customer_id
+
+
 def _parse_datetime(value):
     raw_value = str(value or "").strip()
     if not raw_value:
@@ -543,6 +633,9 @@ def import_order_payload(item):
         "order_items": _extract_items(item),
         "raw_payload": item,
     }
+    assigned_customer_id = _assign_guest_order_customer_by_phone(item, defaults["customer_phone"])
+    if assigned_customer_id:
+        defaults["raw_payload"] = item
     if not existing:
         defaults["local_status"] = _local_status_for_woocommerce(wc_status)
     return ShiprocketOrder.objects.update_or_create(

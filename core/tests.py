@@ -106,6 +106,7 @@ class WooCommerceSyncTests(TestCase):
                 "id": 501,
                 "number": "1001",
                 "order_key": "wc_order_abc",
+                "customer_id": 44,
                 "status": "processing",
                 "payment_method_title": "Razorpay",
                 "total": "499.00",
@@ -222,6 +223,7 @@ class WooCommerceSyncTests(TestCase):
             {
                 "id": 503,
                 "number": "1003",
+                "customer_id": 44,
                 "status": "whatsapp-draft",
                 "total": "150.00",
                 "date_created": "2026-04-01T10:35:00",
@@ -271,6 +273,84 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.woocommerce_status, "whatsapp-draft")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(order.display_shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_import_guest_order_assigns_unique_customer_matching_billing_phone(self, mock_json_request):
+        mock_json_request.side_effect = [
+            [
+                {
+                    "id": 902,
+                    "billing": {"phone": "+91 98765 43210"},
+                }
+            ],
+            {"id": 7001, "customer_id": 902},
+        ]
+
+        order, created = import_woocommerce_order_payload(
+            {
+                "id": 7001,
+                "number": "7001",
+                "customer_id": 0,
+                "status": "processing",
+                "billing": {
+                    "first_name": "Mapped",
+                    "last_name": "Customer",
+                    "phone": "9876543210",
+                    "address_1": "Mapped street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [],
+            }
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(order.raw_payload["customer_id"], 902)
+        self.assertEqual(
+            mock_json_request.call_args_list[1].args[0],
+            "orders/7001",
+        )
+        self.assertEqual(mock_json_request.call_args_list[1].kwargs["method"], "PUT")
+        self.assertEqual(mock_json_request.call_args_list[1].kwargs["payload"], {"customer_id": 902})
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_import_guest_order_does_not_assign_when_phone_matches_multiple_customers(self, mock_json_request):
+        mock_json_request.return_value = [
+            {"id": 902, "billing": {"phone": "9876543210"}},
+            {"id": 903, "billing": {"phone": "+91 98765 43210"}},
+        ]
+
+        order, created = import_woocommerce_order_payload(
+            {
+                "id": 7002,
+                "number": "7002",
+                "customer_id": 0,
+                "status": "processing",
+                "billing": {
+                    "first_name": "Duplicate",
+                    "last_name": "Customer",
+                    "phone": "9876543210",
+                    "address_1": "Duplicate street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [],
+            }
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(order.raw_payload["customer_id"], 0)
+        self.assertEqual(mock_json_request.call_count, 1)
 
     def test_import_order_payload_preserves_existing_address_when_update_has_no_billing_address(self):
         order = ShiprocketOrder.objects.create(
@@ -480,11 +560,12 @@ class WooCommerceSyncTests(TestCase):
             {
                 "id": 502,
                 "number": "1002",
+                "customer_id": 44,
                 "status": "processing",
                 "total": "100.00",
                 "date_created": "2026-04-01T16:00:00",
                 "date_created_gmt": "2026-04-01T10:30:00",
-                "billing": {"first_name": "Time", "last_name": "Check"},
+                "billing": {"first_name": "Time", "last_name": "Check", "address_1": "Clock street"},
                 "shipping": {},
                 "line_items": [],
             }
@@ -607,7 +688,12 @@ class WooCommerceSyncTests(TestCase):
             "id": 779,
             "number": "1779",
             "status": "processing",
-            "billing": {"first_name": "Query", "last_name": "Secret", "phone": "9876543210"},
+            "billing": {
+                "first_name": "Query",
+                "last_name": "Secret",
+                "phone": "9876543210",
+                "address_1": "Delivery road",
+            },
             "shipping": {"address_1": "Delivery road", "postcode": "600001"},
             "line_items": [],
         }
