@@ -47,14 +47,15 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-product-card, .ops-stock-panel, .ops-stock-movement { background:#fff; border:1px solid #d8dee6; border-radius:.5rem; box-shadow:0 1px 3px rgba(15,23,42,.05); }
 .ops-stock-product-card { display:block; color:inherit; text-decoration:none; overflow:hidden; }
 .ops-stock-product-card:hover, .ops-stock-product-card:focus { color:inherit; text-decoration:none; border-color:#0f766e; box-shadow:0 2px 8px rgba(15,118,110,.12); }
-.ops-stock-product-body { display:grid; grid-template-columns:48px minmax(0,1fr); gap:.75rem; padding:.9rem; }
-.ops-stock-product-thumb { width:48px; height:48px; border-radius:.45rem; border:1px solid #d8dee6; background:#eef2f6; color:#263442; display:inline-flex; align-items:center; justify-content:center; font-size:1rem; font-weight:900; overflow:hidden; }
+.ops-stock-product-body { display:grid; grid-template-columns:56px minmax(0,1fr); gap:.75rem; padding:.95rem 1rem; align-items:center; }
+.ops-stock-product-thumb { width:56px; height:56px; border-radius:1rem; border:1px solid #e2e8f0; background:#f8fafc; color:#1f2937; display:inline-flex; align-items:center; justify-content:center; font-size:1rem; font-weight:900; overflow:hidden; }
 .ops-stock-product-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
 .ops-stock-product-main { min-width:0; }
-.ops-stock-product-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
-.ops-stock-product-title { margin:0; color:#111827; font-size:.98rem; line-height:1.25; font-weight:850; overflow-wrap:anywhere; }
-.ops-stock-product-sku { margin:.15rem 0 0; color:#52606d; font-size:.77rem; font-weight:700; overflow-wrap:anywhere; }
-.ops-stock-status { flex:0 0 auto; display:inline-flex; align-items:center; gap:.25rem; border-radius:999px; padding:.18rem .5rem; font-size:.65rem; line-height:1rem; text-transform:uppercase; font-weight:900; background:#dcfce7; color:#166534; }
+.ops-stock-product-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; }
+.ops-stock-product-title { margin:0; color:#111827; font-size:1rem; line-height:1.25; font-weight:800; overflow-wrap:anywhere; }
+.ops-stock-product-sku { margin:.25rem 0 0; color:#475569; font-size:.78rem; font-weight:600; overflow-wrap:anywhere; }
+.ops-stock-product-details { margin:.25rem 0 0; color:#475569; font-size:.82rem; line-height:1.4; }
+.ops-stock-status { flex:0 0 auto; display:inline-flex; align-items:center; gap:.25rem; border-radius:999px; padding:.18rem .55rem; font-size:.65rem; line-height:1rem; text-transform:uppercase; font-weight:900; background:#dcfce7; color:#166534; }
 .ops-stock-status.is-low { background:#fef3c7; color:#92400e; }
 .ops-stock-status.is-out, .ops-stock-status.is-inactive { background:#fee2e2; color:#991b1b; }
 .ops-stock-product-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem; margin-top:.75rem; padding-top:.75rem; border-top:1px dashed #d8dee6; }
@@ -195,7 +196,15 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                     <div class="ops-stock-product-title-row">
                                         <div>
                                             <h3 class="ops-stock-product-title">{{ product.name }}</h3>
-                                            <p class="ops-stock-product-sku">{{ product.sku|default:"SKU unavailable" }}</p>
+                                            <p class="ops-stock-product-details">
+                                                {% if product.is_no_stock %}
+                                                    Out of stock
+                                                {% else %}
+                                                    {{ product.stock_quantity }} in stock
+                                                {% endif %}
+                                                • {{ product.category_label|default:"Uncategorized" }}
+                                            </p>
+                                            <p class="ops-stock-product-sku">SKU: {{ product.sku|default:"-" }}</p>
                                         </div>
                                         {% if not product.is_active %}
                                             <span class="ops-stock-status is-inactive"><i class="fas fa-pause-circle"></i> Inactive</span>
@@ -220,9 +229,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                             <span>Category</span>
                                             <strong>{{ product.category_label|default:"-" }}</strong>
                                         </div>
-                                    </div>
-                                    <div class="ops-stock-level-track">
-                                        <div class="ops-stock-level-fill {% if product.is_no_stock %}is-out{% elif product.is_low_stock %}is-low{% endif %}" style="width:{% if product.is_no_stock %}5{% elif product.is_low_stock %}38{% else %}100{% endif %}%"></div>
                                     </div>
                                 </div>
                             </div>

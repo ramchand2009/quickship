@@ -1,73 +1,65 @@
-Project Summary (as of March 19, 2026, IST)
+This project is a Django 6 operations platform for Mathukai order management. It manages orders, inventory, packing, shipping labels, WhatsApp notifications, webhooks, and admin diagnostics.
+Main Purpose
+It helps an operations team handle ecommerce orders from intake through packing, shipping, delivery, completion, cancellation, and customer notification.
+Core Features
+Order management
+Syncs/imports orders from Shiprocket and WooCommerce
+Tracks local order lifecycle: new, accepted, packed, shipped, delivery issue, out for delivery, delivered, completed, cancelled
+Supports manual order/customer/address edits before shipment
+Includes bulk status updates, saved views, undo, CSV export, and order detail pages
 
-This is a Django operations app for order workflow + WhatsApp notifications, with:
+Packing and print workflows
+Packing queue
+Packing lists
+Barcode/scan-based packing validation
+4x6 shipping labels
+Bulk labels and PDF generation
+Print tracking/counts
 
-Shiprocket sync/status flow
-WhatsApp (Whatomate) send, resend, queue/retry
-Delivery webhook tracking/logs
-Packing/print workflows
-Admin/ops tooling, health, backups, diagnostics
-Everything Completed Today
+Inventory / stock
+Product catalog with SKU, barcode, category, image, stock quantity, reorder level
+Stock deduction/restoration tied to order status transitions
+Manual stock movements
+Special stock issue register for free/sample/complimentary stock
 
-1) Core flow fixes
+WhatsApp notifications
+Integrates with Whatomate / WhatsApp APIs
+Sends order status updates, payment reminders, test messages/templates
+Has queue processing with retries, failed queue handling, delivery logs, webhook updates, and template configuration
 
-Fixed WhatsApp resend not sending in some cases.
-Fixed WhatsApp logs visibility/filter behavior.
-Fixed delivery status display fallback (shows sent until webhook updates).
-Fixed webhook test failures (host handling issue causing HTTP 400).
-Corrected timezone/log display consistency to IST.
-2) Order operations UX
+Webhooks
+Whatomate webhook for WhatsApp delivery/incoming status
+WooCommerce webhook for order updates
+Webhook diagnostics and stale webhook warnings
 
-Added tracking-number entry + barcode scanner flow in order status move.
-Added “Retry Failed Queue” action from dashboard.
-Added KPI cards for today’s WhatsApp sent / failed / retried.
-3) Access control
+Operations/admin tooling
+Dashboard with queue, health, stock, and order status views
+Role-based access: admin and read-only ops_viewer
+Health endpoint: /healthz/
+Metrics endpoint: /metrics/
+Integration smoke checks
+Audit CSV export
+Backup/restore commands
+Error digest and incident snapshot commands
+Login lockout/rate limiting
 
-Implemented role-based access:
-admin (full operational access)
-ops_viewer (read-only)
-Enforced read-only restrictions on mutating actions.
-Added admin shortcut for user/role management.
-4) WhatsApp settings & diagnostics
-
-Added webhook token configured/missing badge.
-Added “Send Webhook Test” button.
-Added “Send Queue Alert Test” button.
-Added template sync/check API actions and improved error messages.
-5) Logging, health, and observability
-
-Added rotating file logs (logs/app.log).
-Added /healthz endpoint.
-Added /metrics endpoint (Prometheus-style text metrics).
-Added stale webhook warning banner for admin users when callbacks are old.
-6) Backup, restore, and runtime maintenance
-
-Added nightly local backup command/script.
-Added restore command with safe dry-run and confirmation mode.
-Added dashboard “Run Restore Dry-Run” action.
-Added runtime cleanup command (old heartbeats/rotated logs).
-Added startup preflight check command (preflight_check).
-7) Incident/ops tooling
-
-Added integration smoke command + dashboard trigger.
-Added error digest command (console + optional email).
-Added incident snapshot export command (health + recent queue/log/activity JSON).
-Added audit CSV export with date filters.
-8) Security hardening
-
-Moved major security/runtime controls to .env:
-DJANGO_DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS
-secure cookies flags
-proxy SSL header option
-Added login brute-force lockout/rate limiting.
-9) Documentation
-
-Expanded OPERATIONS.md with runbooks for worker, smoke, backup/restore, alerts, metrics, digest, snapshot, and preflight.
-Current Quality Status
-
-manage.py check passes.
-Full test suite passes: 89 tests OK.
-Multiple smoke commands were run successfully during implementation.
-If you want, I can also generate a one-page “team handover note” from this summary (with exact daily run commands and env checklist).
-
-
+Tech Stack
+Backend: Django 6.0.2
+Database: SQLite locally, PostgreSQL supported via env/database URL
+Static files: WhiteNoise
+PDF labels: ReportLab
+Push notifications: pywebpush
+Deployment support: Docker, docker-compose, Gunicorn, Hostinger/EasyPanel docs
+Important Folders
+core/ - main Django app: models, views, integrations, stock, queue, monitoring
+templates/core/ - UI pages for orders, stock, labels, WhatsApp, dashboards
+static/ - CSS, JS, PWA assets, admin theme assets
+scripts/ - Windows scheduled task helpers for backup and WhatsApp worker
+docker/ - container entrypoint
+backups/, logs/ - runtime operational data
+Current Known Status From Docs
+The handover says:
+manage.py check passes
+core.tests passed with 89 tests at the time of the handover
+The app has production runbooks in OPERATIONS.md and HANDOVER.md
+In short: this is a fairly complete small-business operations dashboard for ecommerce fulfillment, with order sync, shipping workflow, stock control, WhatsApp customer messaging, and deployment/monitoring utilities.
