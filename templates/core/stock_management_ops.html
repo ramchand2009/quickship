@@ -8,10 +8,29 @@ body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
 body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
 body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
 {% include "core/_ops_mobile_topbar_styles.html" %}
-.ops-stock-shell { min-height:100vh; padding:0 1rem 6rem; background:#f6f7f9; color:#17202a; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.ops-stock-shell { min-height:100vh; padding:0 0 6rem; background:#fff; color:#1f2933; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 .ops-stock-topbar-actions { display:flex; align-items:center; gap:.55rem; }
 .ops-stock-profile-dot { width:36px; height:36px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#0f766e; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,.16); }
-.ops-stock-dashboard { display:grid; gap:1rem; padding-top:.8rem; }
+.ops-stock-dashboard { display:grid; gap:0; padding-top:0; }
+.ops-stock-products-toolbar { padding:1.25rem 1rem .95rem; border-bottom:1px solid #eef0f3; background:#fff; }
+.ops-stock-products-titlebar { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.ops-stock-products-titlebar h2 { margin:0; color:#111827; font-size:1.5rem; line-height:1.2; font-weight:850; }
+.ops-stock-products-icons { display:flex; align-items:center; gap:1rem; color:#4b5563; font-size:1.35rem; }
+.ops-stock-scan-icon { color:#9333ea; }
+.ops-stock-controls { display:flex; align-items:center; gap:.65rem; margin-top:1.15rem; overflow-x:auto; scrollbar-width:none; }
+.ops-stock-controls::-webkit-scrollbar { display:none; }
+.ops-stock-control-pill { min-height:42px; border:1px solid #e1e4e8; border-radius:999px; background:#fff; color:#636a73; padding:.45rem .9rem; display:inline-flex; align-items:center; gap:.55rem; font-size:.9rem; white-space:nowrap; box-shadow:0 1px 2px rgba(15,23,42,.03); }
+.ops-stock-control-pill, .ops-stock-control-pill:hover { text-decoration:none; }
+.ops-stock-control-pill select { max-width:170px; border:0; background:transparent; color:inherit; font:inherit; outline:0; appearance:none; padding-right:.2rem; }
+.ops-stock-control-pill button { border:0; background:transparent; color:inherit; padding:0; font:inherit; }
+.ops-stock-list { display:grid; gap:0; background:#fff; }
+.ops-stock-product-row { display:grid; grid-template-columns:52px minmax(0,1fr); gap:.8rem; align-items:center; padding:.95rem 1rem .95rem; background:#fff; border-bottom:1px solid #e7e9ed; }
+.ops-stock-product-thumb { width:44px; height:44px; border-radius:.35rem; border:1px solid #e4e7eb; background:#f8fafc; color:#1f2937; display:inline-flex; align-items:center; justify-content:center; font-size:1rem; font-weight:900; overflow:hidden; }
+.ops-stock-product-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.ops-stock-product-main { min-width:0; }
+.ops-stock-product-title { margin:0; color:#2b2f36; font-size:1.08rem; line-height:1.25; font-weight:500; overflow-wrap:anywhere; }
+.ops-stock-product-details, .ops-stock-product-sku { margin:.08rem 0 0; color:#6b7280; font-size:.92rem; line-height:1.3; overflow-wrap:anywhere; }
+.ops-stock-empty { margin:1rem; padding:1.1rem; border:1px dashed #ccd5df; border-radius:.5rem; background:#fff; color:#52606d; text-align:center; }
 .ops-stock-hero { display:grid; gap:.9rem; padding:1rem; background:#fff; border:1px solid #d8dee6; border-radius:.5rem; box-shadow:0 1px 3px rgba(15,23,42,.06); }
 .ops-stock-hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
 .ops-stock-kicker { display:inline-flex; align-items:center; gap:.35rem; color:#0f766e; font-size:.72rem; font-weight:800; text-transform:uppercase; }
@@ -43,18 +62,11 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:.75rem; }
 .ops-stock-section-head h3 { margin:0; color:#111827; font-size:1rem; font-weight:850; }
 .ops-stock-section-head p { margin:.2rem 0 0; color:#697586; font-size:.78rem; }
-.ops-stock-list { display:grid; gap:.75rem; }
 .ops-stock-product-card, .ops-stock-panel, .ops-stock-movement { background:#fff; border:1px solid #d8dee6; border-radius:.5rem; box-shadow:0 1px 3px rgba(15,23,42,.05); }
 .ops-stock-product-card { display:block; color:inherit; text-decoration:none; overflow:hidden; }
 .ops-stock-product-card:hover, .ops-stock-product-card:focus { color:inherit; text-decoration:none; border-color:#0f766e; box-shadow:0 2px 8px rgba(15,118,110,.12); }
 .ops-stock-product-body { display:grid; grid-template-columns:56px minmax(0,1fr); gap:.75rem; padding:.95rem 1rem; align-items:center; }
-.ops-stock-product-thumb { width:56px; height:56px; border-radius:1rem; border:1px solid #e2e8f0; background:#f8fafc; color:#1f2937; display:inline-flex; align-items:center; justify-content:center; font-size:1rem; font-weight:900; overflow:hidden; }
-.ops-stock-product-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-.ops-stock-product-main { min-width:0; }
 .ops-stock-product-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; }
-.ops-stock-product-title { margin:0; color:#111827; font-size:1rem; line-height:1.25; font-weight:800; overflow-wrap:anywhere; }
-.ops-stock-product-sku { margin:.25rem 0 0; color:#475569; font-size:.78rem; font-weight:600; overflow-wrap:anywhere; }
-.ops-stock-product-details { margin:.25rem 0 0; color:#475569; font-size:.82rem; line-height:1.4; }
 .ops-stock-status { flex:0 0 auto; display:inline-flex; align-items:center; gap:.25rem; border-radius:999px; padding:.18rem .55rem; font-size:.65rem; line-height:1rem; text-transform:uppercase; font-weight:900; background:#dcfce7; color:#166534; }
 .ops-stock-status.is-low { background:#fef3c7; color:#92400e; }
 .ops-stock-status.is-out, .ops-stock-status.is-inactive { background:#fee2e2; color:#991b1b; }
@@ -94,8 +106,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-movement-grid strong { display:block; margin-top:.12rem; font-size:.85rem; }
 .ops-stock-secondary-actions { display:grid; gap:.7rem; }
 .ops-stock-visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-@media (min-width: 900px) { .ops-stock-shell { padding:0 1.5rem 2rem; } .ops-stock-dashboard { grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr); align-items:start; } .ops-stock-hero, .ops-stock-summary, .ops-stock-search-form, .ops-stock-filter-chips, .ops-stock-products-section { grid-column:1 / -1; } .ops-stock-summary { grid-template-columns:repeat(4,minmax(0,1fr)); } }
-@media (max-width: 520px) { .ops-stock-hero-top, .ops-stock-section-head, .ops-stock-panel-head { flex-direction:column; align-items:stretch; } .ops-stock-row-2, .ops-stock-product-metrics, .ops-stock-movement-grid { grid-template-columns:1fr; } .ops-stock-product-body { grid-template-columns:42px minmax(0,1fr); } .ops-stock-product-thumb { width:42px; height:42px; } }
+@media (min-width: 900px) { .ops-stock-shell { padding:0 0 2rem; } .ops-stock-dashboard { max-width:760px; margin:0 auto; } }
+@media (max-width: 520px) { .ops-stock-hero-top, .ops-stock-section-head, .ops-stock-panel-head { flex-direction:column; align-items:stretch; } .ops-stock-row-2, .ops-stock-product-metrics, .ops-stock-movement-grid { grid-template-columns:1fr; } }
 {% include "core/_ops_mobile_bottomnav_styles.html" %}
 </style>
 {% endblock %}
@@ -114,44 +126,59 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </div>
 
     <main class="ops-stock-dashboard">
+        <section class="ops-stock-products-toolbar">
+            <div class="ops-stock-products-titlebar">
+                <h2>Products</h2>
+                <div class="ops-stock-products-icons">
+                    <span class="ops-stock-scan-icon" aria-hidden="true"><i class="fas fa-barcode"></i></span>
+                    <span aria-hidden="true"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+            <form method="get" action="{% url 'stock_management' %}" class="ops-stock-controls">
+                {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                <label class="ops-stock-control-pill">
+                    <span>A to Z</span>
+                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                </label>
+                <label class="ops-stock-control-pill">
+                    <span>Category</span>
+                    <select name="category" onchange="this.form.submit()" aria-label="Filter products by category">
+                        <option value="">All</option>
+                        {% for category in product_categories %}
+                            <option value="{{ category.pk }}" {% if selected_category_id == category.pk|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                </label>
+                {% if selected_category_id %}
+                    <a href="{% url 'stock_management' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="ops-stock-control-pill">Clear</a>
+                {% endif %}
+            </form>
+        </section>
+
         {% if products %}
             <section class="ops-stock-section ops-stock-products-section">
                 <div class="ops-stock-list">
                     {% for product in products %}
-                        <div class="ops-stock-product-card">
-                            <div class="ops-stock-product-body">
-                                <div class="ops-stock-product-thumb">
-                                    {% if product.image_url %}
-                                        <img src="{{ product.image_url }}" alt="{{ product.name|default:'Product' }}">
+                        <div class="ops-stock-product-row">
+                            <div class="ops-stock-product-thumb">
+                                {% if product.image_url %}
+                                    <img src="{{ product.image_url }}" alt="{{ product.name|default:'Product' }}">
+                                {% else %}
+                                    {{ product.name|default:"S"|slice:":1" }}
+                                {% endif %}
+                            </div>
+                            <div class="ops-stock-product-main">
+                                <h3 class="ops-stock-product-title">{{ product.name }}</h3>
+                                <p class="ops-stock-product-details">
+                                    {% if product.is_no_stock %}
+                                        Out of stock
                                     {% else %}
-                                        {{ product.name|default:"S"|slice:":1" }}
+                                        {{ product.stock_quantity }} in stock
                                     {% endif %}
-                                </div>
-                                <div class="ops-stock-product-main">
-                                    <div class="ops-stock-product-title-row">
-                                        <div>
-                                            <h3 class="ops-stock-product-title">{{ product.name }}</h3>
-                                            <p class="ops-stock-product-details">
-                                                {% if product.is_no_stock %}
-                                                    Out of stock
-                                                {% else %}
-                                                    {{ product.stock_quantity }} in stock
-                                                {% endif %}
-                                                - {{ product.category_label|default:"Uncategorized" }}
-                                            </p>
-                                            <p class="ops-stock-product-sku">SKU: {{ product.sku|default:"-" }}</p>
-                                        </div>
-                                        {% if not product.is_active %}
-                                            <span class="ops-stock-status is-inactive"><i class="fas fa-pause-circle"></i> Inactive</span>
-                                        {% elif product.is_no_stock %}
-                                            <span class="ops-stock-status is-out"><i class="fas fa-times-circle"></i> Out</span>
-                                        {% elif product.is_low_stock %}
-                                            <span class="ops-stock-status is-low"><i class="fas fa-exclamation-circle"></i> Low</span>
-                                        {% else %}
-                                            <span class="ops-stock-status"><i class="fas fa-check-circle"></i> In Stock</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
+                                    {% if product.category_label %} - {{ product.category_label }}{% endif %}
+                                </p>
+                                <p class="ops-stock-product-sku">SKU: {{ product.sku|default:"-" }}</p>
                             </div>
                         </div>
                     {% endfor %}
