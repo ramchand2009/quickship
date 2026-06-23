@@ -21,14 +21,11 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-stock-controls::-webkit-scrollbar { display:none; }
 .ops-stock-control-pill { min-height:42px; border:1px solid #e1e4e8; border-radius:999px; background:#fff; color:#636a73; padding:.45rem .9rem; display:inline-flex; align-items:center; gap:.55rem; font-size:.9rem; white-space:nowrap; box-shadow:0 1px 2px rgba(15,23,42,.03); }
 .ops-stock-control-pill, .ops-stock-control-pill:hover { text-decoration:none; }
-.ops-stock-filter-menu { position:relative; }
-.ops-stock-filter-menu summary { list-style:none; cursor:pointer; }
-.ops-stock-filter-menu summary::-webkit-details-marker { display:none; }
-.ops-stock-filter-options { position:absolute; left:0; top:calc(100% + .45rem); z-index:20; width:min(78vw, 280px); max-height:calc(100vh - 190px); overflow:auto; padding:.35rem 0; border:1px solid #e1e4e8; border-radius:.6rem; background:#fff; box-shadow:0 12px 28px rgba(15,23,42,.16); }
-.ops-stock-filter-option { min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:.85rem; padding:.65rem .9rem; color:#303236; text-decoration:none; font-size:.94rem; }
-.ops-stock-filter-option:hover { color:#303236; text-decoration:none; background:#f8f7ff; }
-.ops-stock-filter-check { width:20px; height:20px; border:2px solid #777; border-radius:.18rem; display:inline-flex; align-items:center; justify-content:center; color:#fff; flex:0 0 auto; }
-.ops-stock-filter-option.is-active .ops-stock-filter-check { border-color:#9333ea; background:#9333ea; }
+.ops-stock-category-strip { display:flex; align-items:center; gap:.55rem; margin-top:.85rem; overflow-x:auto; scrollbar-width:none; }
+.ops-stock-category-strip::-webkit-scrollbar { display:none; }
+.ops-stock-category-chip { min-height:38px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #e1e4e8; border-radius:999px; background:#fff; color:#636a73; padding:.45rem .85rem; font-size:.86rem; white-space:nowrap; text-decoration:none; }
+.ops-stock-category-chip:hover { color:#636a73; text-decoration:none; }
+.ops-stock-category-chip.is-active { border-color:#9333ea; background:#9333ea; color:#fff; }
 .ops-stock-list { display:grid; gap:0; background:#fff; }
 .ops-stock-product-row { display:grid; grid-template-columns:52px minmax(0,1fr); gap:.8rem; align-items:center; padding:.95rem 1rem .95rem; background:#fff; border-bottom:1px solid #e7e9ed; color:inherit; text-decoration:none; }
 .ops-stock-product-row:hover { color:inherit; text-decoration:none; }
@@ -146,27 +143,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     <span>A to Z</span>
                     <i class="fas fa-chevron-down" aria-hidden="true"></i>
                 </label>
-                <details class="ops-stock-filter-menu">
-                    <summary class="ops-stock-control-pill">
-                        <span>Category</span>
-                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                    </summary>
-                    <div class="ops-stock-filter-options">
-                        <a href="{% url 'stock_management' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="ops-stock-filter-option {% if not selected_category_id %}is-active{% endif %}">
-                            <span>All</span>
-                            <span class="ops-stock-filter-check">{% if not selected_category_id %}<i class="fas fa-check"></i>{% endif %}</span>
-                        </a>
-                        {% for category in product_categories %}
-                            <a href="{% url 'stock_management' %}?category={{ category.pk }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="ops-stock-filter-option {% if selected_category_id == category.pk|stringformat:'s' %}is-active{% endif %}">
-                                <span>{{ category.name }}</span>
-                                <span class="ops-stock-filter-check">{% if selected_category_id == category.pk|stringformat:'s' %}<i class="fas fa-check"></i>{% endif %}</span>
-                            </a>
-                        {% endfor %}
-                    </div>
-                </details>
-                {% if selected_category_id %}
-                    <a href="{% url 'stock_management' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="ops-stock-control-pill">Clear</a>
-                {% endif %}
+                <span class="ops-stock-control-pill">Category</span>
+            </div>
+            <div class="ops-stock-category-strip" aria-label="Category filters">
+                <a href="{% url 'stock_management' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="ops-stock-category-chip {% if not selected_category_id %}is-active{% endif %}">All</a>
+                {% for category in product_categories %}
+                    <a href="{% url 'stock_management' %}?category={{ category.pk }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="ops-stock-category-chip {% if selected_category_id == category.pk|stringformat:'s' %}is-active{% endif %}">{{ category.name }}</a>
+                {% endfor %}
             </div>
         </section>
 
