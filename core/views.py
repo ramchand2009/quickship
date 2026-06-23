@@ -2118,6 +2118,7 @@ def order_management(request):
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
     status_tabs = _ops_viewer_status_tabs() if ops_mobile_mode else _order_status_tabs()
     active_tab = _resolve_active_tab(request, status_tabs)
+    active_tab_label = next((tab["label"] for tab in status_tabs if tab["key"] == active_tab), "")
     filters = _get_order_management_filters(request)
     status_counts = _build_ops_viewer_status_counts() if ops_mobile_mode else _build_status_counts(status_tabs)
     counters = get_operational_counters()
@@ -2204,6 +2205,7 @@ def order_management(request):
         "status_tabs": status_tabs,
         "status_counts": status_counts,
         "active_tab": active_tab,
+        "active_tab_label": active_tab_label,
         "tab_orders": tab_orders,
         "tab_filter_count": quick_stats.get("filtered_count") or 0,
         "tab_filter_total_amount": quick_stats.get("filtered_total_amount") or 0,

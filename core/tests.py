@@ -4802,6 +4802,32 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tracking: AA123456789AA")
 
+    def test_ops_viewer_cancelled_tab_keeps_cancelled_label_active(self):
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-CANCELLED-TAB-1",
+            channel_order_id="CANCELLED-TAB-1",
+            local_status=ShiprocketOrder.STATUS_CANCELLED,
+            customer_name="Cancelled Tab Customer",
+            shipping_address={"name": "Cancelled Tab Customer", "address_1": "Cancelled Street"},
+        )
+        ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-PENDING-TAB-1",
+            channel_order_id="PENDING-TAB-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            customer_name="Pending Tab Customer",
+            shipping_address={"name": "Pending Tab Customer", "address_1": "Pending Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_management"), {"tab": "cancelled"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Selected: Cancelled")
+        self.assertContains(response, "Cancelled Tab Customer")
+        self.assertNotContains(response, "Pending Tab Customer")
+        self.assertContains(response, 'class="ops-mobile-tab is-active"', html=False)
+        self.assertContains(response, "<strong>Cancelled</strong>", html=False)
+
     def test_ops_viewer_order_management_shows_grouped_tab_counts(self):
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-COUNT-ACCEPTED-1",

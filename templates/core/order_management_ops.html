@@ -527,6 +527,13 @@
         display: none;
     }
 
+    .ops-mobile-active-tab-label {
+        padding: 0.75rem 1rem 0;
+        color: #00236f;
+        font-size: 0.86rem;
+        font-weight: 800;
+    }
+
     .ops-mobile-tab {
         flex: 0 0 auto;
         min-width: 5.2rem;
@@ -1134,7 +1141,9 @@
             </div>
         </div>
 
-        <div class="ops-mobile-tabs">
+        <div class="ops-mobile-active-tab-label">Selected: {{ active_tab_label|default:"All" }}</div>
+
+        <div class="ops-mobile-tabs" data-ops-mobile-tabs>
             {% for tab in status_tabs %}
                 <a href="{% url 'order_management' %}?tab={{ tab.key }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}" class="ops-mobile-tab {% if active_tab == tab.key %}is-active{% endif %}">
                     <strong>{{ tab.label }}</strong>
@@ -1226,4 +1235,16 @@
         {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="orders" ops_mobile_nav_sync_return="order_management" ops_mobile_nav_sync_return_query=page_base_query %}
     </section>
 </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var tabStrip = document.querySelector("[data-ops-mobile-tabs]");
+    if (!tabStrip) {
+        return;
+    }
+    var activeTab = tabStrip.querySelector(".ops-mobile-tab.is-active");
+    if (activeTab && activeTab.scrollIntoView) {
+        activeTab.scrollIntoView({ block: "nearest", inline: "center" });
+    }
+});
+</script>
 {% endblock %}
