@@ -202,7 +202,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                                 {% else %}
                                                     {{ product.stock_quantity }} in stock
                                                 {% endif %}
-                                                • {{ product.category_label|default:"Uncategorized" }}
+                                                - {{ product.category_label|default:"Uncategorized" }}
                                             </p>
                                             <p class="ops-stock-product-sku">SKU: {{ product.sku|default:"-" }}</p>
                                         </div>
@@ -215,20 +215,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                         {% else %}
                                             <span class="ops-stock-status"><i class="fas fa-check-circle"></i> In Stock</span>
                                         {% endif %}
-                                    </div>
-                                    <div class="ops-stock-product-metrics">
-                                        <div class="ops-stock-product-metric">
-                                            <span>Current</span>
-                                            <strong class="{% if product.is_no_stock %}is-out{% elif product.is_low_stock %}is-low{% endif %}">{{ product.stock_quantity }}</strong>
-                                        </div>
-                                        <div class="ops-stock-product-metric">
-                                            <span>Threshold</span>
-                                            <strong>{{ product.reorder_level }}</strong>
-                                        </div>
-                                        <div class="ops-stock-product-metric">
-                                            <span>Category</span>
-                                            <strong>{{ product.category_label|default:"-" }}</strong>
-                                        </div>
                                     </div>
                                 </div>
                             </div>

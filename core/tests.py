@@ -5668,11 +5668,12 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Column Order Product")
-        self.assertContains(response, "COLUMN-ORDER-1")
-        self.assertContains(response, "Current")
-        self.assertContains(response, "Threshold")
-        self.assertContains(response, "Category")
+        self.assertContains(response, "SKU: COLUMN-ORDER-1")
+        self.assertContains(response, "9 in stock")
+        self.assertContains(response, "Soap")
         self.assertContains(response, "In Stock")
+        self.assertNotContains(response, "Current")
+        self.assertNotContains(response, "Threshold")
 
     def test_ops_viewer_stock_qty_table_is_grouped_by_category(self):
         drink = ProductCategory.objects.create(name="Drink")
