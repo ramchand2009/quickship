@@ -5561,10 +5561,15 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Stock Management")
-        self.assertContains(response, "WooCommerce synced inventory")
-        self.assertContains(response, "Sync Products from WooCommerce")
         self.assertContains(response, "ops-stock-shell")
-        self.assertContains(response, "Free / Sample Issue")
+        self.assertNotContains(response, "WooCommerce synced inventory")
+        self.assertNotContains(response, "Sync Products from WooCommerce")
+        self.assertNotContains(response, "Reconcile Missing Deductions")
+        self.assertNotContains(response, "Total Products")
+        self.assertNotContains(response, "Search product, SKU, or barcode")
+        self.assertNotContains(response, '<section class="ops-stock-hero"', html=False)
+        self.assertNotContains(response, '<section class="ops-stock-summary"', html=False)
+        self.assertNotContains(response, '<form method="get" action="/stock-management/" class="ops-stock-search-form">', html=False)
         self.assertNotContains(response, "Product Detail")
         self.assertNotContains(response, "Products come from WooCommerce.")
         self.assertNotContains(response, "Last sync:")
@@ -5825,8 +5830,8 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"), {"view": "manage"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Reconcile Missing Deductions")
-        self.assertContains(response, "Sync Products from WooCommerce")
+        self.assertNotContains(response, "Reconcile Missing Deductions")
+        self.assertNotContains(response, "Sync Products from WooCommerce")
         self.assertNotContains(response, "Stock Actions")
         self.assertNotContains(response, "Apply Stock Update")
 
@@ -5841,9 +5846,9 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"), {"view": "more"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Products")
         self.assertContains(response, "More Tab Product")
         self.assertNotContains(response, "Recent Movements")
+        self.assertNotContains(response, "History")
 
     def test_ops_viewer_order_management_uses_billing_address_fallback(self):
         order = ShiprocketOrder.objects.create(

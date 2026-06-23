@@ -114,73 +114,11 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </div>
 
     <main class="ops-stock-dashboard">
-        <section class="ops-stock-hero">
-            <div class="ops-stock-hero-top">
-                <div>
-                    <span class="ops-stock-kicker"><i class="fas fa-sync-alt"></i> WooCommerce synced inventory</span>
-                    <h2>Stock Management</h2>
-                </div>
-            </div>
-            <form method="post" class="ops-stock-sync-form">
-                {% csrf_token %}
-                <input type="hidden" name="form_action" value="sync_woocommerce_products">
-                <input type="hidden" name="return_query" value="{{ current_query_string }}">
-                <button type="submit" class="ops-stock-btn" {% if not can_edit_operations %}disabled{% endif %}>
-                    <i class="fas fa-cloud-download-alt"></i> Sync Products from WooCommerce
-                </button>
-            </form>
-        </section>
-
-        <section class="ops-stock-summary" aria-label="Stock summary">
-            <div class="ops-stock-summary-card">
-                <div class="ops-stock-summary-icon"><i class="fas fa-boxes"></i></div>
-                <div><span>Total Products</span><strong>{{ total_products_count }}</strong></div>
-            </div>
-            <div class="ops-stock-summary-card is-warning">
-                <div class="ops-stock-summary-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                <div><span>Low Stock</span><strong>{{ low_stock_count }}</strong></div>
-            </div>
-            <div class="ops-stock-summary-card is-danger">
-                <div class="ops-stock-summary-icon"><i class="fas fa-ban"></i></div>
-                <div><span>Out of Stock</span><strong>{{ no_stock_count }}</strong></div>
-            </div>
-            <div class="ops-stock-summary-card">
-                <div class="ops-stock-summary-icon"><i class="fas fa-layer-group"></i></div>
-                <div><span>Categories</span><strong>{{ product_categories|length }}</strong></div>
-            </div>
-        </section>
-
-        <form method="get" action="{% url 'stock_management' %}" class="ops-stock-search-form">
-            <input type="hidden" name="view" value="list">
-            {% if selected_category_id %}<input type="hidden" name="category" value="{{ selected_category_id }}">{% endif %}
-            {% if low_only %}<input type="hidden" name="low" value="1">{% endif %}
-            {% if no_stock_only %}<input type="hidden" name="no_stock" value="1">{% endif %}
-            <span class="ops-stock-search-icon"><i class="fas fa-search"></i></span>
-            <input id="opsStockSearch" type="text" name="q" value="{{ search_query }}" class="ops-stock-search-input" placeholder="Search product, SKU, or barcode">
-            <button type="submit" class="ops-stock-search-submit" aria-label="Search stock"><i class="fas fa-arrow-right"></i></button>
-        </form>
-
-        <nav class="ops-stock-filter-chips" aria-label="Stock filters">
-            <a href="{% url 'stock_management' %}?view=list{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="ops-stock-filter-chip {% if not selected_category_id and not low_only and not no_stock_only %}is-active{% endif %}">All</a>
-            <a href="{% url 'stock_management' %}?view=list&low=1{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="ops-stock-filter-chip {% if low_only and not no_stock_only %}is-active{% endif %}"><i class="fas fa-exclamation-triangle"></i> Low Stock</a>
-            <a href="{% url 'stock_management' %}?view=list&no_stock=1{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="ops-stock-filter-chip {% if no_stock_only and not low_only %}is-active{% endif %}"><i class="fas fa-ban"></i> Out of Stock</a>
-            {% for category in product_categories %}
-                <a href="{% url 'stock_management' %}?view=list&category={{ category.pk }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="ops-stock-filter-chip {% if selected_category_id == category.pk|stringformat:'s' %}is-active{% endif %}">{{ category.name }}</a>
-            {% endfor %}
-        </nav>
-
-        <section class="ops-stock-section ops-stock-products-section">
-            <div class="ops-stock-section-head">
-                <div>
-                    <h3>Products</h3>
-                </div>
-                <a href="{% url 'stock_management' %}?view=more" class="ops-stock-link-btn" style="width:auto; min-width:120px;">History</a>
-            </div>
-
-            {% if products %}
+        {% if products %}
+            <section class="ops-stock-section ops-stock-products-section">
                 <div class="ops-stock-list">
                     {% for product in products %}
-                        <a href="{% url 'stock_product_detail' product.pk %}" class="ops-stock-product-card" aria-label="Open {{ product.name }}">
+                        <div class="ops-stock-product-card">
                             <div class="ops-stock-product-body">
                                 <div class="ops-stock-product-thumb">
                                     {% if product.image_url %}
@@ -215,32 +153,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                     </div>
                                 </div>
                             </div>
-                        </a>
+                        </div>
                     {% endfor %}
                 </div>
-            {% else %}
-                <div class="ops-stock-empty">
-                    <h3>No products match this view yet.</h3>
-                    <form method="post">
-                        {% csrf_token %}
-                        <input type="hidden" name="form_action" value="sync_woocommerce_products">
-                        <button type="submit" class="ops-stock-btn" {% if not can_edit_operations %}disabled{% endif %}>Sync Products from WooCommerce</button>
-                    </form>
-                </div>
-            {% endif %}
-        </section>
-
-        <aside class="ops-stock-section">
-            <section class="ops-stock-secondary-actions">
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="form_action" value="reconcile_stock">
-                    <input type="hidden" name="return_query" value="{{ current_query_string }}">
-                    <button type="submit" class="ops-stock-link-btn" {% if not can_edit_operations %}disabled{% endif %}>Reconcile Missing Deductions</button>
-                </form>
-                <a href="{% url 'special_stock_issue_register' %}" class="ops-stock-link-btn">Free / Sample Issue</a>
             </section>
-        </aside>
+        {% else %}
+            <div class="ops-stock-empty">No products found.</div>
+        {% endif %}
     </main>
 
     {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="stock" ops_mobile_nav_sync_return="stock_management" %}
