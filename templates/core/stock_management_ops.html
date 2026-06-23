@@ -183,7 +183,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             {% if products %}
                 <div class="ops-stock-list">
                     {% for product in products %}
-                        <a href="{% url 'stock_management' %}?view=manage&edit={{ product.pk }}" class="ops-stock-product-card" aria-label="Open {{ product.name }}">
+                        <a href="{% url 'stock_product_detail' product.pk %}" class="ops-stock-product-card" aria-label="Open {{ product.name }}">
                             <div class="ops-stock-product-body">
                                 <div class="ops-stock-product-thumb">
                                     {% if product.image_url %}

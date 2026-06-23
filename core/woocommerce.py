@@ -554,6 +554,37 @@ def sync_products():
     return summary
 
 
+def _product_update_path(product):
+    external_id = str(getattr(product, "smartbiz_product_id", "") or "").strip()
+    if not external_id:
+        raise WooCommerceAPIError("This product is missing a WooCommerce product ID.")
+    if not external_id.isdigit():
+        raise WooCommerceAPIError("WooCommerce product updates require a numeric product ID.")
+    return f"products/{external_id}"
+
+
+def update_product(product, extra_fields=None):
+    payload = {
+        "name": product.name,
+        "sku": product.sku,
+        "manage_stock": True,
+        "stock_quantity": int(product.stock_quantity or 0),
+        "status": "publish" if product.is_active else "draft",
+    }
+    if product.image_url:
+        payload["images"] = [{"src": product.image_url}]
+
+    extra_fields = extra_fields or {}
+    for field_name in ["description", "regular_price", "sale_price"]:
+        value = str(extra_fields.get(field_name) or "").strip()
+        if value:
+            payload[field_name] = value
+        elif field_name in extra_fields:
+            payload[field_name] = ""
+
+    return _json_request(_product_update_path(product), method="PUT", payload=payload)
+
+
 def _import_statuses():
     configured = _get_config()["import_statuses"]
     statuses = [status.strip() for status in configured.split(",") if status.strip()]

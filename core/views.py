@@ -53,6 +53,7 @@ from .forms import (
     BulkSmartbizMappingForm,
     ContactForm,
     ExpensePersonForm,
+    ProductDetailUpdateForm,
     ProductForm,
     ProductCategoryForm,
     SenderAddressForm,
@@ -111,6 +112,7 @@ from .woocommerce import (
     sync_orders as sync_woocommerce_orders,
     sync_products as sync_woocommerce_products,
     update_order_status as update_woocommerce_order_status,
+    update_product as update_woocommerce_product,
 )
 from .whatomate import (
     ORDER_TEMPLATE_FIELD_CHOICES,
@@ -3752,6 +3754,51 @@ def stock_management(request):
             "current_query_string": request.GET.urlencode(),
             "active_view": active_view,
             "editing_product": edit_product,
+            "can_edit_operations": can_edit_operations,
+            "ops_mobile_mode": ops_mobile_mode,
+        },
+    )
+
+
+@login_required
+def stock_product_detail(request, pk):
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access stock management.")
+        return redirect("order_management")
+
+    product = get_object_or_404(Product.objects.select_related("category_master"), pk=pk)
+    can_edit_operations = _can_manage_stock(request.user)
+    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+
+    if request.method == "POST" and not can_edit_operations:
+        messages.error(request, "Your role has read-only access for stock management.")
+        return redirect("stock_product_detail", pk=product.pk)
+
+    form = ProductDetailUpdateForm(request.POST or None, instance=product)
+    if request.method == "POST":
+        if form.is_valid():
+            product = form.save()
+            extra_fields = {
+                "description": form.cleaned_data.get("description"),
+                "regular_price": form.cleaned_data.get("regular_price"),
+                "sale_price": form.cleaned_data.get("sale_price"),
+            }
+            try:
+                update_woocommerce_product(product, extra_fields=extra_fields)
+            except WooCommerceAPIError as exc:
+                messages.warning(request, f"Saved locally, but WooCommerce update failed: {exc}")
+            else:
+                messages.success(request, f"Updated {product.name} locally and in WooCommerce.")
+            return redirect("stock_product_detail", pk=product.pk)
+        messages.error(request, "Unable to save product. Check the product fields.")
+
+    template_name = "core/stock_product_detail_ops.html" if ops_mobile_mode else "core/stock_product_detail_ops.html"
+    return render(
+        request,
+        template_name,
+        {
+            "form": form,
+            "product": product,
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": ops_mobile_mode,
         },

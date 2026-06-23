@@ -451,6 +451,31 @@ class ProductForm(forms.ModelForm):
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
 
 
+class ProductDetailUpdateForm(ProductForm):
+    description = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    regular_price = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2)
+    sale_price = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2)
+
+    class Meta(ProductForm.Meta):
+        labels = {
+            **ProductForm.Meta.labels,
+            "stock_quantity": "Stock quantity",
+        }
+
+    def __init__(self, *args, **kwargs):
+        initial = kwargs.setdefault("initial", {})
+        initial.setdefault("description", "")
+        initial.setdefault("regular_price", "")
+        initial.setdefault("sale_price", "")
+        super().__init__(*args, **kwargs)
+        self.fields["description"].widget.attrs["class"] = "form-control"
+        self.fields["description"].widget.attrs["placeholder"] = "Product description for WooCommerce"
+        self.fields["regular_price"].widget.attrs["class"] = "form-control"
+        self.fields["regular_price"].widget.attrs["placeholder"] = "300.00"
+        self.fields["sale_price"].widget.attrs["class"] = "form-control"
+        self.fields["sale_price"].widget.attrs["placeholder"] = "240.00"
+
+
 class ProductCategoryForm(forms.ModelForm):
     class Meta:
         model = ProductCategory

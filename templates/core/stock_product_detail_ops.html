@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+.ops-product-shell { min-height:100vh; padding-bottom:5rem; background:#f4f4f5; color:#202124; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.ops-product-topbar { position:sticky; top:0; z-index:40; min-height:64px; display:grid; grid-template-columns:48px minmax(0,1fr) auto; align-items:center; gap:.75rem; padding:.65rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
+.ops-product-icon-btn { width:44px; height:44px; border:0; background:transparent; color:#111; display:inline-flex; align-items:center; justify-content:center; font-size:1.35rem; text-decoration:none; }
+.ops-product-topbar h1 { margin:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:1.65rem; line-height:2rem; font-weight:750; letter-spacing:0; }
+.ops-product-share { border:0; background:transparent; color:#8a2be2; font-size:.9rem; font-weight:800; letter-spacing:.02em; }
+.ops-product-gallery { display:grid; grid-template-columns:104px 1fr; gap:1.25rem; padding:1.4rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
+.ops-product-cover { position:relative; width:104px; height:128px; border:1px solid #ddd; background:#f8fafc; display:flex; align-items:center; justify-content:center; overflow:hidden; color:#64748b; font-weight:800; }
+.ops-product-cover img { width:100%; height:100%; object-fit:cover; display:block; }
+.ops-product-cover span { position:absolute; left:.45rem; top:.45rem; padding:.22rem .5rem; border-radius:.45rem; background:#8a2be2; color:#fff; font-size:.78rem; font-weight:800; }
+.ops-product-add-image { min-height:128px; border:1px solid #ddd; background:#fff; color:#666; display:flex; align-items:center; justify-content:center; font-size:1.45rem; }
+.ops-product-name-block { padding:1.35rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
+.ops-product-name-block h2 { margin:0; font-size:1.7rem; line-height:2rem; font-weight:650; letter-spacing:0; }
+.ops-product-section { display:grid; grid-template-columns:44px minmax(0,1fr) 28px; gap:1rem; align-items:center; padding:1rem; background:#fff; border-bottom:1px solid #ddd; }
+.ops-product-section + .ops-product-section { border-top:0; }
+.ops-product-section-icon { color:#666; font-size:1.35rem; text-align:center; }
+.ops-product-section h3 { margin:0 0 .25rem; font-size:1.1rem; font-weight:500; color:#202124; }
+.ops-product-section p { margin:.08rem 0; color:#6f6f6f; font-size:.96rem; line-height:1.35rem; overflow-wrap:anywhere; }
+.ops-product-chevron { color:#777; font-size:1.1rem; }
+.ops-product-band { margin-top:.55rem; border-top:1px solid #e1e1e1; border-bottom:1px solid #d8d8d8; background:#fff; }
+.ops-product-promo { display:grid; grid-template-columns:44px minmax(0,1fr); gap:1rem; align-items:center; padding:1.05rem 1rem; color:#8a2be2; font-weight:800; background:#fff; border-bottom:1px solid #ddd; }
+.ops-product-promo i { color:#f97316; font-size:1.45rem; text-align:center; }
+.ops-product-form-panel { margin-top:.55rem; padding:1rem; background:#fff; border-top:1px solid #ddd; border-bottom:1px solid #ddd; }
+.ops-product-form-panel h3 { margin:0 0 .85rem; font-size:1.05rem; font-weight:700; }
+.ops-product-field { margin-bottom:.85rem; }
+.ops-product-field label { display:block; margin-bottom:.35rem; font-size:.82rem; font-weight:800; color:#475569; text-transform:uppercase; }
+.ops-product-field .form-control, .ops-product-field .form-select { min-height:44px; border-radius:.35rem; border-color:#d1d5db; }
+.ops-product-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+.ops-product-check { display:flex; align-items:center; gap:.55rem; margin:.4rem 0 1rem; color:#334155; font-weight:700; }
+.ops-product-save { width:100%; min-height:48px; border:0; border-radius:.45rem; background:#8a2be2; color:#fff; font-weight:850; }
+.ops-product-save:disabled { opacity:.55; }
+@media (min-width: 760px) {
+    .ops-product-shell { max-width:720px; margin:0 auto; border-left:1px solid #ddd; border-right:1px solid #ddd; }
+    .ops-product-gallery { grid-template-columns:160px 1fr; }
+    .ops-product-cover, .ops-product-add-image { width:160px; height:180px; min-height:180px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-product-shell">
+    <div class="ops-product-topbar">
+        <a href="{% url 'stock_management' %}" class="ops-product-icon-btn" aria-label="Back to stock"><i class="fas fa-arrow-left"></i></a>
+        <h1>{{ product.name }}</h1>
+        <div>
+            <button type="button" class="ops-product-share">SHARE</button>
+            <span class="ops-product-icon-btn" aria-hidden="true"><i class="fas fa-ellipsis-v"></i></span>
+        </div>
+    </div>
+
+    <div class="ops-product-gallery">
+        <div class="ops-product-cover">
+            {% if product.image_url %}
+                <img src="{{ product.image_url }}" alt="{{ product.name }}">
+                <span>Cover</span>
+            {% else %}
+                {{ product.name|default:"P"|slice:":1" }}
+            {% endif %}
+        </div>
+        <div class="ops-product-add-image"><i class="fas fa-image"></i></div>
+    </div>
+
+    <div class="ops-product-name-block">
+        <h2>{{ product.name }}</h2>
+    </div>
+
+    <div class="ops-product-section">
+        <div></div>
+        <div>
+            <h3>Description</h3>
+            <p>Update the description below and save to sync with WooCommerce.</p>
+        </div>
+        <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+    </div>
+
+    <div class="ops-product-band">
+        <div class="ops-product-promo">
+            <i class="fas fa-fire"></i>
+            <div>Promote with Blaze</div>
+        </div>
+        <div class="ops-product-section">
+            <div class="ops-product-section-icon"><i class="fas fa-money-bill"></i></div>
+            <div>
+                <h3>Price</h3>
+                <p>Regular price and sale price can be updated below.</p>
+            </div>
+            <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+        </div>
+        <div class="ops-product-section">
+            <div class="ops-product-section-icon"><i class="far fa-star"></i></div>
+            <div>
+                <h3>Reviews</h3>
+                <p>No approved reviews synced locally.</p>
+            </div>
+            <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+        </div>
+        <div class="ops-product-section">
+            <div class="ops-product-section-icon"><i class="fas fa-tasks"></i></div>
+            <div>
+                <h3>Inventory</h3>
+                <p>SKU: {{ product.sku|default:"-" }}</p>
+                <p>Stock quantity: {{ product.stock_quantity }}</p>
+                <p>Low stock threshold: {{ product.reorder_level }}</p>
+            </div>
+            <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+        </div>
+        <div class="ops-product-section">
+            <div class="ops-product-section-icon"><i class="fas fa-folder"></i></div>
+            <div>
+                <h3>Categories</h3>
+                <p>{{ product.category_label|default:"Uncategorized" }}</p>
+            </div>
+            <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+        </div>
+    </div>
+
+    <form method="post" class="ops-product-form-panel">
+        {% csrf_token %}
+        <h3>Add More Details</h3>
+        <div class="ops-product-field"><label for="{{ form.name.id_for_label }}">Product Name</label>{{ form.name }}</div>
+        <div class="ops-product-field"><label for="{{ form.description.id_for_label }}">Description</label>{{ form.description }}</div>
+        <div class="ops-product-row-2">
+            <div class="ops-product-field"><label for="{{ form.regular_price.id_for_label }}">Regular Price</label>{{ form.regular_price }}</div>
+            <div class="ops-product-field"><label for="{{ form.sale_price.id_for_label }}">Sale Price</label>{{ form.sale_price }}</div>
+        </div>
+        <div class="ops-product-row-2">
+            <div class="ops-product-field"><label for="{{ form.sku.id_for_label }}">SKU</label>{{ form.sku }}</div>
+            <div class="ops-product-field"><label for="{{ form.stock_quantity.id_for_label }}">Stock Quantity</label>{{ form.stock_quantity }}</div>
+        </div>
+        <div class="ops-product-row-2">
+            <div class="ops-product-field"><label for="{{ form.reorder_level.id_for_label }}">Low Stock</label>{{ form.reorder_level }}</div>
+            <div class="ops-product-field"><label for="{{ form.category_master.id_for_label }}">Category</label>{{ form.category_master }}</div>
+        </div>
+        <div class="ops-product-row-2">
+            <div class="ops-product-field"><label for="{{ form.smartbiz_product_id.id_for_label }}">Woo ID</label>{{ form.smartbiz_product_id }}</div>
+            <div class="ops-product-field"><label for="{{ form.barcode.id_for_label }}">Barcode</label>{{ form.barcode }}</div>
+        </div>
+        <div class="ops-product-field"><label for="{{ form.image_url.id_for_label }}">Image URL</label>{{ form.image_url }}</div>
+        <label class="ops-product-check">{{ form.is_active }} Active product</label>
+        <button type="submit" class="ops-product-save" {% if not can_edit_operations %}disabled{% endif %}>Save and Update WooCommerce</button>
+    </form>
+</div>
+{% endblock %}

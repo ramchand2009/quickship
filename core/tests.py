@@ -218,6 +218,49 @@ class WooCommerceSyncTests(TestCase):
         WOOCOMMERCE_CONSUMER_SECRET="cs_test",
     )
     @patch("core.woocommerce._json_request")
+    def test_update_product_sends_product_payload_to_woocommerce(self, mock_json_request):
+        from .woocommerce import update_product as update_woocommerce_product
+
+        product = Product.objects.create(
+            name="24K Gold Serum",
+            sku="MO-SER-001",
+            stock_quantity=4,
+            smartbiz_product_id="101",
+            image_url="https://shop.example.com/images/serum.jpg",
+            is_active=True,
+        )
+
+        update_woocommerce_product(
+            product,
+            extra_fields={
+                "description": "Reduces fine lines and wrinkles.",
+                "regular_price": "300.00",
+                "sale_price": "240.00",
+            },
+        )
+
+        mock_json_request.assert_called_once_with(
+            "products/101",
+            method="PUT",
+            payload={
+                "name": "24K Gold Serum",
+                "sku": "MO-SER-001",
+                "manage_stock": True,
+                "stock_quantity": 4,
+                "status": "publish",
+                "images": [{"src": "https://shop.example.com/images/serum.jpg"}],
+                "description": "Reduces fine lines and wrinkles.",
+                "regular_price": "300.00",
+                "sale_price": "240.00",
+            },
+        )
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
     def test_sync_orders_skips_whatsapp_draft_orders_until_billing_address_exists(self, mock_json_request):
         WooCommerceSettings.objects.create(import_statuses="pending,processing,on-hold")
         mock_json_request.return_value = [
@@ -5654,7 +5697,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Issued 3 unit(s) of Issue Product (ISSUE-1) as sample stock to Demo Customer.")
 
     def test_ops_viewer_stock_cards_show_requested_product_fields(self):
-        Product.objects.create(
+        product = Product.objects.create(
             name="Column Order Product",
             sku="COLUMN-ORDER-1",
             category="Soap",
@@ -5672,8 +5715,79 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "9 in stock")
         self.assertContains(response, "Soap")
         self.assertContains(response, "In Stock")
+        self.assertContains(response, reverse("stock_product_detail", args=[product.pk]))
         self.assertNotContains(response, "Current")
         self.assertNotContains(response, "Threshold")
+
+    def test_ops_viewer_can_open_stock_product_detail_screen(self):
+        product = Product.objects.create(
+            name="24K Gold Serum",
+            sku="MO-SER-001",
+            category="Serums",
+            stock_quantity=4,
+            reorder_level=2,
+            smartbiz_product_id="101",
+            image_url="https://shop.example.com/serum.jpg",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("stock_product_detail", args=[product.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "24K Gold Serum")
+        self.assertContains(response, "Description")
+        self.assertContains(response, "Price")
+        self.assertContains(response, "Inventory")
+        self.assertContains(response, "SKU: MO-SER-001")
+        self.assertContains(response, "Stock quantity: 4")
+        self.assertContains(response, "Categories")
+        self.assertContains(response, "Serums")
+        self.assertContains(response, "Save and Update WooCommerce")
+
+    @patch("core.views.update_woocommerce_product")
+    def test_ops_viewer_product_detail_updates_local_product_and_woocommerce(self, mock_update_product):
+        product = Product.objects.create(
+            name="24K Gold Serum",
+            sku="MO-SER-001",
+            category="Serums",
+            stock_quantity=4,
+            reorder_level=2,
+            smartbiz_product_id="101",
+            is_active=True,
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.post(
+            reverse("stock_product_detail", args=[product.pk]),
+            {
+                "name": "24K Gold Serum Plus",
+                "category_master": "",
+                "sku": "MO-SER-001",
+                "smartbiz_product_id": "101",
+                "barcode": "",
+                "image_url": "https://shop.example.com/serum-plus.jpg",
+                "stock_quantity": "6",
+                "reorder_level": "3",
+                "is_active": "on",
+                "description": "Reduces fine lines and wrinkles.",
+                "regular_price": "300.00",
+                "sale_price": "240.00",
+            },
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        self.assertEqual(product.name, "24K Gold Serum Plus")
+        self.assertEqual(product.stock_quantity, 6)
+        self.assertEqual(product.reorder_level, 3)
+        self.assertEqual(product.image_url, "https://shop.example.com/serum-plus.jpg")
+        mock_update_product.assert_called_once()
+        self.assertEqual(mock_update_product.call_args.args[0], product)
+        self.assertEqual(
+            mock_update_product.call_args.kwargs["extra_fields"]["description"],
+            "Reduces fine lines and wrinkles.",
+        )
+        self.assertContains(response, "Updated 24K Gold Serum Plus locally and in WooCommerce.")
 
     def test_ops_viewer_stock_qty_table_is_grouped_by_category(self):
         drink = ProductCategory.objects.create(name="Drink")
