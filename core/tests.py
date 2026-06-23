@@ -5564,10 +5564,11 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "WooCommerce synced inventory")
         self.assertContains(response, "Sync Products from WooCommerce")
         self.assertContains(response, "Product Detail")
-        self.assertContains(response, "Stock Actions")
-        self.assertContains(response, "Recent Movements")
         self.assertContains(response, "ops-stock-shell")
         self.assertContains(response, "Free / Sample Issue")
+        self.assertNotContains(response, "Stock Actions")
+        self.assertNotContains(response, "Recent Movements")
+        self.assertNotContains(response, "Apply Stock Update")
         self.assertNotContains(response, "Add Product")
         self.assertNotContains(response, "Stock Qty Table")
         self.assertNotContains(response, "Review stock, mapping, and edit products quickly.")
@@ -5821,11 +5822,12 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("stock_management"), {"view": "manage"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Stock Actions")
         self.assertContains(response, "Reconcile Missing Deductions")
         self.assertContains(response, "Sync Products from WooCommerce")
+        self.assertNotContains(response, "Stock Actions")
+        self.assertNotContains(response, "Apply Stock Update")
 
-    def test_ops_viewer_stock_dashboard_shows_products_and_recent_movements(self):
+    def test_ops_viewer_stock_dashboard_shows_products_without_recent_movements(self):
         Product.objects.create(
             name="More Tab Product",
             sku="MORE-TAB-1",
@@ -5837,8 +5839,8 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Products")
-        self.assertContains(response, "Recent Movements")
         self.assertContains(response, "More Tab Product")
+        self.assertNotContains(response, "Recent Movements")
 
     def test_ops_viewer_order_management_uses_billing_address_fallback(self):
         order = ShiprocketOrder.objects.create(

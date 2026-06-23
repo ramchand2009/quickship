@@ -289,63 +289,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </section>
             {% endif %}
 
-            <section class="ops-stock-panel">
-                <div class="ops-stock-panel-head">
-                    <div>
-                        <h3>Stock Actions</h3>
-                        <p>Set, add, or remove quantity using SKU or barcode.</p>
-                    </div>
-                </div>
-                <div class="ops-stock-panel-body">
-                    <form method="post">
-                        {% csrf_token %}
-                        <input type="hidden" name="form_action" value="adjust_stock">
-                        <input type="hidden" name="return_query" value="{{ current_query_string }}">
-                        <div class="ops-stock-field"><label for="{{ stock_form.lookup_value.id_for_label }}">Barcode, SKU, or Woo ID</label>{{ stock_form.lookup_value }}</div>
-                        <div class="ops-stock-row-2">
-                            <div class="ops-stock-field"><label for="{{ stock_form.action.id_for_label }}">Action</label>{{ stock_form.action }}</div>
-                            <div class="ops-stock-field"><label for="{{ stock_form.quantity.id_for_label }}">Quantity</label>{{ stock_form.quantity }}</div>
-                        </div>
-                        <div class="ops-stock-field"><label for="{{ stock_form.notes.id_for_label }}">Notes</label>{{ stock_form.notes }}</div>
-                        <button type="submit" class="ops-stock-btn" {% if not can_edit_operations %}disabled{% endif %}>Apply Stock Update</button>
-                    </form>
-                </div>
-            </section>
-
-            <section class="ops-stock-panel">
-                <div class="ops-stock-panel-head">
-                    <div>
-                        <h3>Recent Movements</h3>
-                        <p>Latest automatic and manual stock changes.</p>
-                    </div>
-                </div>
-                <div class="ops-stock-panel-body">
-                    {% if recent_movements %}
-                        <div class="ops-stock-list">
-                            {% for movement in recent_movements|slice:":6" %}
-                                <div class="ops-stock-movement">
-                                    <div class="ops-stock-movement-top">
-                                        <div>
-                                            <strong>{{ movement.get_movement_type_display }}</strong>
-                                            <div class="ops-stock-meta">{{ movement.product.name }} | {{ movement.product.sku }}</div>
-                                            <div class="ops-stock-meta">{{ movement.created_at|date:"Y-m-d H:i" }}</div>
-                                        </div>
-                                        <div class="ops-stock-delta {% if movement.quantity_delta < 0 %}is-negative{% else %}is-positive{% endif %}">{% if movement.quantity_delta > 0 %}+{% endif %}{{ movement.quantity_delta }}</div>
-                                    </div>
-                                    <div class="ops-stock-movement-grid">
-                                        <div><span>Before</span><strong>{{ movement.quantity_before }}</strong></div>
-                                        <div><span>After</span><strong>{{ movement.quantity_after }}</strong></div>
-                                        <div><span>By</span><strong>{{ movement.triggered_by|default:"-" }}</strong></div>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <div class="ops-stock-empty">No stock movements recorded yet.</div>
-                    {% endif %}
-                </div>
-            </section>
-
             <section class="ops-stock-secondary-actions">
                 <form method="post">
                     {% csrf_token %}
