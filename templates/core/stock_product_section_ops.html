@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section_title }} | {{ product.name }}{% endblock %}
+{% block extrastyle %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+.ops-section-shell { min-height:100vh; background:#f3f3f4; color:#202124; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.ops-section-topbar { position:sticky; top:0; z-index:40; min-height:64px; display:grid; grid-template-columns:48px minmax(0,1fr) 48px; align-items:center; gap:.75rem; padding:.65rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
+.ops-section-icon-btn { width:44px; height:44px; border:0; background:transparent; color:#111; display:inline-flex; align-items:center; justify-content:center; font-size:1.35rem; text-decoration:none; }
+.ops-section-topbar h1 { margin:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:1.55rem; line-height:2rem; font-weight:760; letter-spacing:0; }
+.ops-section-body { background:#fff; padding:1.25rem 1rem; }
+.ops-section-block { padding:1.25rem 0; border-bottom:1px solid #ddd; }
+.ops-section-block:first-child { padding-top:0; }
+.ops-section-block h2 { margin:0 0 1rem; font-size:1.45rem; line-height:1.8rem; font-weight:760; }
+.ops-section-field { margin-bottom:1.1rem; }
+.ops-section-field label { display:block; margin:0 0 -.55rem 1.1rem; padding:0 .3rem; position:relative; z-index:1; width:max-content; max-width:calc(100% - 2rem); background:#fff; color:#666; font-size:.84rem; }
+.ops-section-field .form-control, .ops-section-field .form-select { min-height:56px; border:1px solid #999; border-radius:.25rem; padding:.75rem 1rem; color:#303236; font-size:1.05rem; background:#fff; }
+.ops-section-field textarea.form-control { min-height:60vh; border:0; padding:0; font-size:1.2rem; line-height:1.55; resize:none; }
+.ops-section-help { margin:.35rem 0 0 1.1rem; color:#747474; font-size:.9rem; line-height:1.25rem; }
+.ops-section-inline { display:grid; grid-template-columns:minmax(0,1fr) 44px; gap:.75rem; align-items:center; }
+.ops-section-scan { color:#9333ea; font-size:1.45rem; text-align:center; }
+.ops-section-toggle-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1.5rem 0; font-size:1.1rem; }
+.ops-section-toggle { width:56px; height:28px; border-radius:999px; background:#a855f7; position:relative; flex:0 0 auto; }
+.ops-section-toggle::after { content:""; position:absolute; top:2px; right:2px; width:24px; height:24px; border-radius:999px; background:#9333ea; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+.ops-section-toggle.is-off { background:#aaa; }
+.ops-section-toggle.is-off::after { left:2px; right:auto; background:#f8f8f8; }
+.ops-section-select { min-height:56px; border:1px solid #999; border-radius:.25rem; padding:.75rem 1rem; display:flex; align-items:center; justify-content:space-between; color:#303236; font-size:1.05rem; }
+.ops-category-add { width:100%; min-height:44px; border:1px solid #ddd; border-radius:.25rem; background:#fff; color:#9333ea; font-weight:850; margin-bottom:1.25rem; }
+.ops-category-list { background:#fff; }
+.ops-category-row { min-height:60px; border-bottom:1px solid #e1e1e1; display:flex; align-items:center; justify-content:space-between; gap:1rem; font-size:1.12rem; }
+.ops-category-box { width:24px; height:24px; border:2px solid #777; border-radius:.15rem; display:inline-flex; align-items:center; justify-content:center; color:#fff; }
+.ops-category-box.is-checked { border-color:#9333ea; background:#9333ea; }
+.ops-editor-toolbar { position:fixed; left:0; right:0; bottom:0; min-height:56px; display:grid; grid-template-columns:repeat(8,1fr); align-items:center; background:#fff; border-top:1px solid #ddd; color:#666; font-size:1.25rem; text-align:center; }
+@media (min-width: 760px) { .ops-section-shell { max-width:720px; margin:0 auto; border-left:1px solid #ddd; border-right:1px solid #ddd; } .ops-editor-toolbar { max-width:720px; margin:0 auto; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-section-shell">
+    <div class="ops-section-topbar">
+        <a href="{% url 'stock_product_detail' product.pk %}" class="ops-section-icon-btn" aria-label="Back to product"><i class="fas fa-arrow-left"></i></a>
+        <h1>{{ section_title }}</h1>
+        {% if section == "categories" %}
+            <span class="ops-section-icon-btn" aria-hidden="true"><i class="fas fa-search"></i></span>
+        {% else %}
+            <span></span>
+        {% endif %}
+    </div>
+
+    <div class="ops-section-body">
+        {% if section == "description" %}
+            <div class="ops-section-field">
+                {{ form.description }}
+            </div>
+        {% elif section == "price" %}
+            <div class="ops-section-block">
+                <h2>Price</h2>
+                <div class="ops-section-field"><label for="{{ form.regular_price.id_for_label }}">Regular price</label>{{ form.regular_price }}</div>
+            </div>
+            <div class="ops-section-block">
+                <h2>Sale</h2>
+                <div class="ops-section-field"><label for="{{ form.sale_price.id_for_label }}">Sale price</label>{{ form.sale_price }}</div>
+                <div class="ops-section-toggle-row">
+                    <div>
+                        <div>Schedule sale</div>
+                        <div class="ops-section-help" style="margin-left:0;">Automatically start and end a sale</div>
+                    </div>
+                    <span class="ops-section-toggle is-off" aria-hidden="true"></span>
+                </div>
+            </div>
+            <div class="ops-section-block">
+                <h2>Tax settings</h2>
+                <div class="ops-section-field">
+                    <label>Tax status</label>
+                    <div class="ops-section-select"><span>Taxable</span><i class="fas fa-caret-down"></i></div>
+                </div>
+                <div class="ops-section-field">
+                    <label>Tax class</label>
+                    <div class="ops-section-select"><span>Standard rate</span><i class="fas fa-caret-down"></i></div>
+                </div>
+            </div>
+        {% elif section == "inventory" %}
+            <div class="ops-section-inline">
+                <div class="ops-section-field"><label for="{{ form.sku.id_for_label }}">SKU</label>{{ form.sku }}</div>
+                <div class="ops-section-scan"><i class="fas fa-barcode"></i></div>
+            </div>
+            <div class="ops-section-help">Helps to easily identify this product</div>
+            <div class="ops-section-inline" style="margin-top:2rem;">
+                <div class="ops-section-field"><label for="{{ form.barcode.id_for_label }}">GTIN, UPC, EAN, ISBN</label>{{ form.barcode }}</div>
+                <div class="ops-section-scan"><i class="fas fa-barcode"></i></div>
+            </div>
+            <div class="ops-section-help">Enter a barcode or any other identifier unique to this product.</div>
+            <div class="ops-section-toggle-row">
+                <span>Manage stock</span>
+                <span class="ops-section-toggle" aria-hidden="true"></span>
+            </div>
+            <div class="ops-section-field"><label for="{{ form.stock_quantity.id_for_label }}">Quantity</label>{{ form.stock_quantity }}</div>
+            <div class="ops-section-help">How many items are in stock</div>
+            <div class="ops-section-field">
+                <label>Backorders</label>
+                <div class="ops-section-select"><span>Do not allow</span><i class="fas fa-caret-down"></i></div>
+            </div>
+            <div class="ops-section-toggle-row">
+                <span>Limit one per order</span>
+                <span class="ops-section-toggle is-off" aria-hidden="true"></span>
+            </div>
+        {% elif section == "categories" %}
+            <button type="button" class="ops-category-add">Add category</button>
+            <div class="ops-category-list">
+                {% for category in product_categories %}
+                    <div class="ops-category-row">
+                        <span>{{ category.name }}</span>
+                        <span class="ops-category-box {% if product.category_master_id == category.pk or product.category == category.name %}is-checked{% endif %}">
+                            {% if product.category_master_id == category.pk or product.category == category.name %}<i class="fas fa-check"></i>{% endif %}
+                        </span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    {% if section == "description" %}
+        <div class="ops-editor-toolbar" aria-hidden="true">
+            <span>H</span><span><i class="fas fa-list-ul"></i></span><span><i class="fas fa-quote-left"></i></span><span><strong>B</strong></span><span><em>I</em></span><span><i class="fas fa-link"></i></span><span><u>U</u></span><span><i class="fas fa-align-left"></i></span>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

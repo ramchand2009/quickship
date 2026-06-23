@@ -3806,6 +3806,40 @@ def stock_product_detail(request, pk):
 
 
 @login_required
+def stock_product_section(request, pk, section):
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access stock management.")
+        return redirect("order_management")
+
+    section = str(section or "").strip().lower()
+    if section not in {"description", "price", "inventory", "categories"}:
+        return redirect("stock_product_detail", pk=pk)
+
+    product = get_object_or_404(Product.objects.select_related("category_master"), pk=pk)
+    form = ProductDetailUpdateForm(instance=product)
+    product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
+    section_titles = {
+        "description": "Description",
+        "price": "Price",
+        "inventory": "Inventory",
+        "categories": "Categories",
+    }
+    return render(
+        request,
+        "core/stock_product_section_ops.html",
+        {
+            "form": form,
+            "product": product,
+            "product_categories": product_categories,
+            "section": section,
+            "section_title": section_titles[section],
+            "can_edit_operations": _can_manage_stock(request.user),
+            "ops_mobile_mode": _is_ops_viewer(getattr(request, "user", None)),
+        },
+    )
+
+
+@login_required
 def special_stock_issue_register(request):
     if not _can_manage_stock(request.user):
         messages.error(request, "Your role cannot access free / sample issue register.")

@@ -5726,8 +5726,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "SKU: COLUMN-ORDER-1")
         self.assertContains(response, "9 in stock")
         self.assertContains(response, "Soap")
-        self.assertContains(response, "In Stock")
         self.assertContains(response, reverse("stock_product_detail", args=[product.pk]))
+        self.assertNotContains(response, "In Stock")
         self.assertNotContains(response, "Current")
         self.assertNotContains(response, "Threshold")
 
@@ -5752,9 +5752,46 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Inventory")
         self.assertContains(response, "SKU: MO-SER-001")
         self.assertContains(response, "Stock quantity: 4")
+        self.assertContains(response, "Backorders: Do not allow")
         self.assertContains(response, "Categories")
         self.assertContains(response, "Serums")
-        self.assertContains(response, "Save and Update WooCommerce")
+        self.assertContains(response, reverse("stock_product_section", args=[product.pk, "description"]))
+        self.assertContains(response, reverse("stock_product_section", args=[product.pk, "price"]))
+        self.assertContains(response, reverse("stock_product_section", args=[product.pk, "inventory"]))
+        self.assertContains(response, reverse("stock_product_section", args=[product.pk, "categories"]))
+        self.assertNotContains(response, "Reviews")
+        self.assertNotContains(response, "Product Type")
+        self.assertNotContains(response, "Save and Update WooCommerce")
+
+    def test_ops_viewer_can_open_stock_product_section_screens(self):
+        category = ProductCategory.objects.create(name="Serums")
+        product = Product.objects.create(
+            name="24K Gold Serum",
+            sku="MO-SER-001",
+            category_master=category,
+            stock_quantity=4,
+            reorder_level=2,
+            smartbiz_product_id="101",
+            image_url="https://shop.example.com/serum.jpg",
+        )
+        self.client.force_login(self.viewer)
+
+        description_response = self.client.get(reverse("stock_product_section", args=[product.pk, "description"]))
+        price_response = self.client.get(reverse("stock_product_section", args=[product.pk, "price"]))
+        inventory_response = self.client.get(reverse("stock_product_section", args=[product.pk, "inventory"]))
+        categories_response = self.client.get(reverse("stock_product_section", args=[product.pk, "categories"]))
+
+        self.assertEqual(description_response.status_code, 200)
+        self.assertContains(description_response, "Description")
+        self.assertEqual(price_response.status_code, 200)
+        self.assertContains(price_response, "Regular price")
+        self.assertContains(price_response, "Sale price")
+        self.assertEqual(inventory_response.status_code, 200)
+        self.assertContains(inventory_response, "MO-SER-001")
+        self.assertContains(inventory_response, "Manage stock")
+        self.assertEqual(categories_response.status_code, 200)
+        self.assertContains(categories_response, "Add category")
+        self.assertContains(categories_response, "Serums")
 
     @patch("core.views.update_woocommerce_product")
     def test_ops_viewer_product_detail_updates_local_product_and_woocommerce(self, mock_update_product):
