@@ -5565,6 +5565,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Products")
         self.assertContains(response, "A to Z")
         self.assertContains(response, "Category")
+        self.assertContains(response, "ops-stock-filter-menu")
+        self.assertNotContains(response, 'select name="category"', html=False)
         self.assertNotContains(response, "WooCommerce synced inventory")
         self.assertNotContains(response, "Sync Products from WooCommerce")
         self.assertNotContains(response, "Reconcile Missing Deductions")
