@@ -21,6 +21,7 @@ from .models import (
     WhatsAppStatusTemplateConfig,
     WooCommerceSettings,
 )
+from .product_text import clean_product_description
 from .whatomate import ORDER_TEMPLATE_FIELD_CHOICES
 
 
@@ -469,6 +470,8 @@ class ProductDetailUpdateForm(ProductForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and not self.is_bound:
+            self.initial["description"] = clean_product_description(self.instance.description)
         self.fields["description"].widget.attrs["class"] = "form-control"
         self.fields["description"].widget.attrs["placeholder"] = "Product description for WooCommerce"
         self.fields["regular_price"].widget.attrs["class"] = "form-control"
@@ -477,6 +480,9 @@ class ProductDetailUpdateForm(ProductForm):
         self.fields["sale_price"].widget.attrs["class"] = "form-control"
         self.fields["sale_price"].widget.attrs["placeholder"] = "240.00"
         self.fields["sale_price"].min_value = 0
+
+    def clean_description(self):
+        return clean_product_description(self.cleaned_data.get("description"))
 
 
 class ProductCategoryForm(forms.ModelForm):

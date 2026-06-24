@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .models import Product, ProductCategory, ShiprocketOrder, WooCommerceSettings, normalize_sku
+from .product_text import clean_product_description
 
 
 class WooCommerceAPIError(Exception):
@@ -446,7 +447,7 @@ def _normalized_product_row(product, *, parent_product=None):
         "stock_quantity": stock_quantity,
         "category": category_name,
         "image_url": _product_image_url(product, parent_product=parent),
-        "description": str((parent or product).get("description") or product.get("description") or "").strip(),
+        "description": clean_product_description((parent or product).get("description") or product.get("description")),
         "regular_price": _to_optional_decimal(product.get("regular_price") or parent.get("regular_price")),
         "sale_price": _to_optional_decimal(product.get("sale_price") or parent.get("sale_price")),
         "smartbiz_product_id": external_id,

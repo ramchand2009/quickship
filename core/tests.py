@@ -169,7 +169,7 @@ class WooCommerceSyncTests(TestCase):
                     "status": "publish",
                     "sku": "soap-100",
                     "stock_quantity": 12,
-                    "description": "Gentle goat milk soap.",
+                    "description": "<p>Gentle goat milk soap &amp; scrub.<br />Use daily.</p>",
                     "regular_price": "150.00",
                     "sale_price": "120.00",
                     "categories": [{"name": "Soap"}],
@@ -207,7 +207,7 @@ class WooCommerceSyncTests(TestCase):
         soap = Product.objects.get(sku="SOAP-100")
         self.assertEqual(soap.name, "Goat Milk Soap")
         self.assertEqual(soap.stock_quantity, 12)
-        self.assertEqual(soap.description, "Gentle goat milk soap.")
+        self.assertEqual(soap.description, "Gentle goat milk soap & scrub.\nUse daily.")
         self.assertEqual(str(soap.regular_price), "150.00")
         self.assertEqual(str(soap.sale_price), "120.00")
         self.assertEqual(soap.smartbiz_product_id, "11")
@@ -287,7 +287,7 @@ class WooCommerceSyncTests(TestCase):
             "status": "publish",
             "sku": "MO-HC-007",
             "stock_quantity": 8,
-            "description": "Nourishing herbal hair oil.",
+            "description": "<p>1.Reduces Dark spots &amp; pigmentation<br />2.Promotes even skin tone &amp; a youthful appearance</p>",
             "regular_price": "300.00",
             "sale_price": "240.00",
             "categories": [{"name": "Hair Care"}],
@@ -298,7 +298,10 @@ class WooCommerceSyncTests(TestCase):
 
         product.refresh_from_db()
         self.assertTrue(refreshed)
-        self.assertEqual(product.description, "Nourishing herbal hair oil.")
+        self.assertEqual(
+            product.description,
+            "1.Reduces Dark spots & pigmentation\n2.Promotes even skin tone & a youthful appearance",
+        )
         self.assertEqual(str(product.regular_price), "300.00")
         self.assertEqual(str(product.sale_price), "240.00")
         self.assertEqual(product.image_url, "https://shop.example.com/images/hair-oil.jpg")
@@ -5858,6 +5861,7 @@ class RoleAccessTests(TestCase):
             reorder_level=2,
             smartbiz_product_id="101",
             image_url="https://shop.example.com/serum.jpg",
+            description="<p>1.Reduces Dark spots &amp; pigmentation<br />2.Promotes even skin tone &amp; glow</p>",
             regular_price="300.00",
             sale_price="240.00",
         )
@@ -5871,6 +5875,10 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(description_response.status_code, 200)
         self.assertContains(description_response, "Description")
+        self.assertContains(description_response, "1.Reduces Dark spots &amp; pigmentation")
+        self.assertContains(description_response, "2.Promotes even skin tone &amp; glow")
+        self.assertNotContains(description_response, "&lt;p&gt;")
+        self.assertNotContains(description_response, "&lt;br /&gt;")
         self.assertEqual(image_response.status_code, 200)
         self.assertContains(image_response, "Product image")
         self.assertContains(image_response, "https://shop.example.com/serum.jpg")

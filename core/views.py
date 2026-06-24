@@ -102,6 +102,7 @@ from .stock import (
 )
 from .queue_alerts import send_queue_alert_test
 from .push_notifications import send_new_order_push_notification, web_push_is_configured
+from .product_text import clean_product_description
 from .system_status import get_dashboard_system_status, write_system_heartbeat
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .woocommerce import (
@@ -3825,7 +3826,7 @@ def _product_detail_update_data(product, post_data):
         "image_url": product.image_url or "",
         "stock_quantity": product.stock_quantity,
         "reorder_level": product.reorder_level,
-        "description": product.description or "",
+        "description": clean_product_description(product.description),
         "regular_price": product.regular_price or "",
         "sale_price": product.sale_price or "",
     }
