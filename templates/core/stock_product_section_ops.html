@@ -11,8 +11,10 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-section-shell { width:100%; max-width:100vw; min-height:100vh; overflow-x:hidden; background:#f3f3f4; color:#202124; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 .ops-section-topbar { position:sticky; top:0; z-index:40; min-height:58px; display:grid; grid-template-columns:44px minmax(0,1fr) 44px; align-items:center; gap:.45rem; padding:.5rem .75rem; background:#fff; border-bottom:1px solid #ddd; }
 .ops-section-icon-btn { width:40px; height:40px; border:0; background:transparent; color:#111; display:inline-flex; align-items:center; justify-content:center; font-size:1.2rem; text-decoration:none; }
+.ops-section-save { width:44px; min-height:40px; border:0; background:transparent; color:#9333ea; font-size:.82rem; font-weight:850; letter-spacing:.02em; }
 .ops-section-topbar h1 { margin:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:1.35rem; line-height:1.75rem; font-weight:760; letter-spacing:0; }
 .ops-section-body { background:#fff; padding:1rem .85rem; }
+.ops-section-alert { margin:0 0 1rem; padding:.75rem .9rem; border-radius:.25rem; background:#fff7ed; color:#9a3412; font-size:.92rem; line-height:1.3rem; }
 .ops-section-block { padding:1.25rem 0; border-bottom:1px solid #ddd; }
 .ops-section-block:first-child { padding-top:0; }
 .ops-section-block h2 { margin:0 0 1rem; font-size:1.45rem; line-height:1.8rem; font-weight:760; }
@@ -32,7 +34,8 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-section-select { min-height:56px; border:1px solid #999; border-radius:.25rem; padding:.75rem 1rem; display:flex; align-items:center; justify-content:space-between; color:#303236; font-size:1.05rem; }
 .ops-category-add { width:100%; min-height:44px; border:1px solid #ddd; border-radius:.25rem; background:#fff; color:#9333ea; font-weight:850; margin-bottom:1.25rem; }
 .ops-category-list { background:#fff; }
-.ops-category-row { min-height:60px; border-bottom:1px solid #e1e1e1; display:flex; align-items:center; justify-content:space-between; gap:1rem; font-size:1.12rem; }
+.ops-category-row { min-height:60px; border-bottom:1px solid #e1e1e1; display:flex; align-items:center; justify-content:space-between; gap:1rem; font-size:1.12rem; cursor:pointer; }
+.ops-category-row input { position:absolute; opacity:0; pointer-events:none; }
 .ops-category-box { width:24px; height:24px; border:2px solid #777; border-radius:.15rem; display:inline-flex; align-items:center; justify-content:center; color:#fff; }
 .ops-category-box.is-checked { border-color:#9333ea; background:#9333ea; }
 .ops-editor-toolbar { position:fixed; left:0; right:0; bottom:0; min-height:56px; display:grid; grid-template-columns:repeat(8,1fr); align-items:center; background:#fff; border-top:1px solid #ddd; color:#666; font-size:1.25rem; text-align:center; }
@@ -41,17 +44,18 @@ body { overflow-x:hidden; background:#f3f3f4; }
 
 {% block content %}
 <div class="ops-section-shell">
+    <form method="post" class="ops-section-form">
+        {% csrf_token %}
     <div class="ops-section-topbar">
         <a href="{% url 'stock_product_detail' product.pk %}" class="ops-section-icon-btn" aria-label="Back to product"><i class="fas fa-arrow-left"></i></a>
         <h1>{{ section_title }}</h1>
-        {% if section == "categories" %}
-            <span class="ops-section-icon-btn" aria-hidden="true"><i class="fas fa-search"></i></span>
-        {% else %}
-            <span></span>
-        {% endif %}
+        <button type="submit" class="ops-section-save">SAVE</button>
     </div>
 
     <div class="ops-section-body">
+        {% if form.errors %}
+            <div class="ops-section-alert">Unable to save. Check the highlighted fields and try again.</div>
+        {% endif %}
         {% if section == "description" %}
             <div class="ops-section-field">
                 {{ form.description }}
@@ -112,12 +116,13 @@ body { overflow-x:hidden; background:#f3f3f4; }
             <button type="button" class="ops-category-add">Add category</button>
             <div class="ops-category-list">
                 {% for category in product_categories %}
-                    <div class="ops-category-row">
+                    <label class="ops-category-row">
+                        <input type="radio" name="category_master" value="{{ category.pk }}" {% if product.category_master_id == category.pk or product.category == category.name %}checked{% endif %}>
                         <span>{{ category.name }}</span>
                         <span class="ops-category-box {% if product.category_master_id == category.pk or product.category == category.name %}is-checked{% endif %}">
                             {% if product.category_master_id == category.pk or product.category == category.name %}<i class="fas fa-check"></i>{% endif %}
                         </span>
-                    </div>
+                    </label>
                 {% endfor %}
             </div>
         {% endif %}
@@ -128,5 +133,19 @@ body { overflow-x:hidden; background:#f3f3f4; }
             <span>H</span><span><i class="fas fa-list-ul"></i></span><span><i class="fas fa-quote-left"></i></span><span><strong>B</strong></span><span><em>I</em></span><span><i class="fas fa-link"></i></span><span><u>U</u></span><span><i class="fas fa-align-left"></i></span>
         </div>
     {% endif %}
+    </form>
 </div>
+<script>
+document.querySelectorAll('.ops-category-row input').forEach((input) => {
+    input.addEventListener('change', () => {
+        document.querySelectorAll('.ops-category-box').forEach((box) => {
+            box.classList.remove('is-checked');
+            box.innerHTML = '';
+        });
+        const box = input.closest('.ops-category-row').querySelector('.ops-category-box');
+        box.classList.add('is-checked');
+        box.innerHTML = '<i class="fas fa-check"></i>';
+    });
+});
+</script>
 {% endblock %}

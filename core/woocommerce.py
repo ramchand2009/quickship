@@ -150,6 +150,12 @@ def _to_int(value, default=0):
         return default
 
 
+def _to_optional_decimal(value):
+    if value is None or str(value).strip() == "":
+        return None
+    return _to_decimal(value)
+
+
 def _normalize_phone_digits(value):
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
@@ -440,6 +446,9 @@ def _normalized_product_row(product, *, parent_product=None):
         "stock_quantity": stock_quantity,
         "category": category_name,
         "image_url": _product_image_url(product, parent_product=parent),
+        "description": str((parent or product).get("description") or product.get("description") or "").strip(),
+        "regular_price": _to_optional_decimal(product.get("regular_price") or parent.get("regular_price")),
+        "sale_price": _to_optional_decimal(product.get("sale_price") or parent.get("sale_price")),
         "smartbiz_product_id": external_id,
         "is_active": status not in {"trash", "deleted"},
         "woocommerce_product_id": str(parent_id or product_id or "").strip(),
@@ -480,6 +489,9 @@ def _sync_product_row(row):
         "sku": sku,
         "smartbiz_product_id": external_id,
         "image_url": row.get("image_url") or "",
+        "description": row.get("description") or "",
+        "regular_price": row.get("regular_price"),
+        "sale_price": row.get("sale_price"),
         "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
         "is_active": bool(row.get("is_active", True)),
     }
@@ -563,6 +575,25 @@ def _product_update_path(product):
     return f"products/{external_id}"
 
 
+def _woocommerce_category_id(category_name):
+    category_name = str(category_name or "").strip()
+    if not category_name:
+        return None
+
+    categories = _json_request("products/categories", params={"search": category_name, "per_page": 100})
+    if isinstance(categories, list):
+        for category in categories:
+            if not isinstance(category, dict):
+                continue
+            if str(category.get("name") or "").strip().lower() == category_name.lower():
+                return _to_int(category.get("id"), default=None)
+
+    category = _json_request("products/categories", method="POST", payload={"name": category_name})
+    if isinstance(category, dict):
+        return _to_int(category.get("id"), default=None)
+    return None
+
+
 def update_product(product, extra_fields=None):
     payload = {
         "name": product.name,
@@ -573,8 +604,16 @@ def update_product(product, extra_fields=None):
     }
     if product.image_url:
         payload["images"] = [{"src": product.image_url}]
+    category_id = _woocommerce_category_id(product.category_label)
+    if category_id:
+        payload["categories"] = [{"id": category_id}]
 
-    extra_fields = extra_fields or {}
+    extra_fields = {
+        "description": product.description,
+        "regular_price": product.regular_price,
+        "sale_price": product.sale_price,
+        **(extra_fields or {}),
+    }
     for field_name in ["description", "regular_price", "sale_price"]:
         value = str(extra_fields.get(field_name) or "").strip()
         if value:

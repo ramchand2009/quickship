@@ -79,7 +79,12 @@ body { overflow-x:hidden; background:#f3f3f4; }
             <div class="ops-product-row-icon"><i class="fas fa-money-bill"></i></div>
             <div>
                 <h3>Price</h3>
-                <p>Regular price and sale price</p>
+                {% if product.regular_price or product.sale_price %}
+                    {% if product.regular_price %}<p>Regular price: Rs {{ product.regular_price|floatformat:2 }}</p>{% endif %}
+                    {% if product.sale_price %}<p>Sale price: Rs {{ product.sale_price|floatformat:2 }}</p>{% endif %}
+                {% else %}
+                    <p>Regular price and sale price</p>
+                {% endif %}
             </div>
             <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
         </a>

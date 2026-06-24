@@ -3807,6 +3807,28 @@ def stock_product_detail(request, pk):
     )
 
 
+def _product_detail_update_data(product, post_data):
+    data = {
+        "name": product.name,
+        "category_master": product.category_master_id or "",
+        "sku": product.sku or "",
+        "smartbiz_product_id": product.smartbiz_product_id or "",
+        "barcode": product.barcode or "",
+        "image_url": product.image_url or "",
+        "stock_quantity": product.stock_quantity,
+        "reorder_level": product.reorder_level,
+        "description": product.description or "",
+        "regular_price": product.regular_price or "",
+        "sale_price": product.sale_price or "",
+    }
+    if product.is_active:
+        data["is_active"] = "on"
+    for field_name in ProductDetailUpdateForm.Meta.fields:
+        if field_name in post_data:
+            data[field_name] = post_data.get(field_name)
+    return data
+
+
 @login_required
 def stock_product_section(request, pk, section):
     if not _can_manage_stock(request.user):
@@ -3818,7 +3840,30 @@ def stock_product_section(request, pk, section):
         return redirect("stock_product_detail", pk=pk)
 
     product = get_object_or_404(Product.objects.select_related("category_master"), pk=pk)
-    form = ProductDetailUpdateForm(instance=product)
+    can_edit_operations = _can_manage_stock(request.user)
+    if request.method == "POST" and not can_edit_operations:
+        messages.error(request, "Your role has read-only access for stock management.")
+        return redirect("stock_product_section", pk=product.pk, section=section)
+
+    form_data = _product_detail_update_data(product, request.POST) if request.method == "POST" else None
+    form = ProductDetailUpdateForm(form_data, instance=product)
+    if request.method == "POST":
+        if form.is_valid():
+            product = form.save()
+            extra_fields = {
+                "description": form.cleaned_data.get("description"),
+                "regular_price": form.cleaned_data.get("regular_price"),
+                "sale_price": form.cleaned_data.get("sale_price"),
+            }
+            try:
+                update_woocommerce_product(product, extra_fields=extra_fields)
+            except WooCommerceAPIError as exc:
+                messages.warning(request, f"Saved locally, but WooCommerce update failed: {exc}")
+            else:
+                messages.success(request, f"Updated {product.name} locally and in WooCommerce.")
+            return redirect("stock_product_section", pk=product.pk, section=section)
+        messages.error(request, "Unable to save product. Check the product fields.")
+
     product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
     section_titles = {
         "description": "Description",
@@ -3835,7 +3880,7 @@ def stock_product_section(request, pk, section):
             "product_categories": product_categories,
             "section": section,
             "section_title": section_titles[section],
-            "can_edit_operations": _can_manage_stock(request.user),
+            "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": _is_ops_viewer(getattr(request, "user", None)),
         },
     )

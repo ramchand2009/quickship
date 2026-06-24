@@ -100,13 +100,24 @@ class ProductAdmin(admin.ModelAdmin):
         "smartbiz_product_id",
         "barcode",
         "image_url",
+        "regular_price",
+        "sale_price",
         "stock_quantity",
         "reorder_level",
         "is_active",
         "updated_at",
     )
     list_filter = ("is_active", "category_master")
-    search_fields = ("name", "category", "category_master__name", "sku", "smartbiz_product_id", "barcode", "image_url")
+    search_fields = (
+        "name",
+        "category",
+        "category_master__name",
+        "sku",
+        "smartbiz_product_id",
+        "barcode",
+        "image_url",
+        "description",
+    )
 
     @admin.display(description="Category")
     def category_name(self, obj):
