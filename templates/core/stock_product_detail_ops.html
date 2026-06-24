@@ -15,9 +15,11 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-product-share { color:#9333ea; font-size:.95rem; font-weight:850; letter-spacing:.02em; }
 .ops-product-gallery { display:grid; grid-template-columns:104px minmax(0,1fr); gap:1.6rem; padding:1.4rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
 .ops-product-cover { position:relative; width:104px; height:128px; border:1px solid #ddd; background:#f8fafc; display:flex; align-items:center; justify-content:center; overflow:hidden; color:#64748b; font-weight:800; }
+.ops-product-cover:hover { color:#64748b; text-decoration:none; }
 .ops-product-cover img { width:100%; height:100%; object-fit:cover; display:block; }
 .ops-product-cover span { position:absolute; left:.45rem; top:.45rem; padding:.22rem .5rem; border-radius:.42rem; background:#9333ea; color:#fff; font-size:.78rem; font-weight:800; }
-.ops-product-add-image { min-height:128px; border:1px solid #ddd; background:#fff; color:#666; display:flex; align-items:center; justify-content:center; font-size:1.45rem; }
+.ops-product-add-image { min-height:128px; border:1px solid #ddd; background:#fff; color:#666; display:flex; align-items:center; justify-content:center; font-size:1.45rem; text-decoration:none; }
+.ops-product-add-image:hover { color:#666; text-decoration:none; }
 .ops-product-name-block { padding:1.35rem 1rem; background:#fff; border-bottom:1px solid #ddd; }
 .ops-product-name-block h2 { margin:0; font-size:1.65rem; line-height:2rem; font-weight:650; letter-spacing:0; overflow-wrap:anywhere; }
 .ops-product-band { margin-top:.55rem; border-top:1px solid #e1e1e1; border-bottom:1px solid #d8d8d8; background:#fff; }
@@ -27,8 +29,6 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-product-row h3 { margin:0 0 .25rem; font-size:1.1rem; font-weight:500; color:#202124; }
 .ops-product-row p { margin:.08rem 0; color:#727272; font-size:.96rem; line-height:1.35rem; overflow-wrap:anywhere; }
 .ops-product-chevron { color:#777; font-size:1.1rem; }
-.ops-product-promo { display:grid; grid-template-columns:44px minmax(0,1fr); gap:1rem; align-items:center; padding:1.05rem 1rem; color:#9333ea; font-weight:850; background:#fff; border-bottom:1px solid #ddd; font-size:1.08rem; }
-.ops-product-promo i { color:#f97316; font-size:1.45rem; text-align:center; }
 .ops-product-add-more { display:flex; align-items:center; gap:1rem; min-height:64px; padding:0 1rem; color:#9333ea; background:#fff; border-top:1px solid #ddd; border-bottom:1px solid #ddd; font-weight:850; text-decoration:none; text-transform:uppercase; }
 .ops-product-add-more i { font-size:1.25rem; }
 </style>
@@ -46,15 +46,15 @@ body { overflow-x:hidden; background:#f3f3f4; }
     </div>
 
     <div class="ops-product-gallery">
-        <div class="ops-product-cover">
+        <a href="{% url 'stock_product_section' product.pk 'images' %}" class="ops-product-cover" aria-label="Edit product image">
             {% if product.image_url %}
                 <img src="{{ product.image_url }}" alt="{{ product.name }}">
                 <span>Cover</span>
             {% else %}
                 {{ product.name|default:"P"|slice:":1" }}
             {% endif %}
-        </div>
-        <div class="ops-product-add-image"><i class="fas fa-image"></i></div>
+        </a>
+        <a href="{% url 'stock_product_section' product.pk 'images' %}" class="ops-product-add-image" aria-label="Add product image"><i class="fas fa-image"></i></a>
     </div>
 
     <div class="ops-product-name-block">
@@ -71,10 +71,14 @@ body { overflow-x:hidden; background:#f3f3f4; }
     </a>
 
     <div class="ops-product-band">
-        <div class="ops-product-promo">
-            <i class="fas fa-fire"></i>
-            <div>Promote with Blaze</div>
-        </div>
+        <a href="{% url 'stock_product_section' product.pk 'images' %}" class="ops-product-row">
+            <div class="ops-product-row-icon"><i class="fas fa-image"></i></div>
+            <div>
+                <h3>Product image</h3>
+                <p>{% if product.image_url %}Update cover image{% else %}Add cover image{% endif %}</p>
+            </div>
+            <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+        </a>
         <a href="{% url 'stock_product_section' product.pk 'price' %}" class="ops-product-row">
             <div class="ops-product-row-icon"><i class="fas fa-money-bill"></i></div>
             <div>

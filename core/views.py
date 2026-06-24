@@ -109,6 +109,7 @@ from .woocommerce import (
     check_connection as check_woocommerce_connection,
     get_webhook_secret as get_woocommerce_webhook_secret,
     import_order_payload as import_woocommerce_order_payload,
+    refresh_product_from_woocommerce,
     sync_orders as sync_woocommerce_orders,
     sync_products as sync_woocommerce_products,
     update_order_status as update_woocommerce_order_status,
@@ -3776,6 +3777,13 @@ def stock_product_detail(request, pk):
         messages.error(request, "Your role has read-only access for stock management.")
         return redirect("stock_product_detail", pk=product.pk)
 
+    if request.method == "GET":
+        try:
+            if refresh_product_from_woocommerce(product):
+                product.refresh_from_db()
+        except WooCommerceAPIError:
+            pass
+
     form = ProductDetailUpdateForm(request.POST or None, instance=product)
     if request.method == "POST":
         if form.is_valid():
@@ -3836,7 +3844,7 @@ def stock_product_section(request, pk, section):
         return redirect("order_management")
 
     section = str(section or "").strip().lower()
-    if section not in {"description", "price", "inventory", "categories"}:
+    if section not in {"description", "images", "price", "inventory", "categories"}:
         return redirect("stock_product_detail", pk=pk)
 
     product = get_object_or_404(Product.objects.select_related("category_master"), pk=pk)
@@ -3844,6 +3852,13 @@ def stock_product_section(request, pk, section):
     if request.method == "POST" and not can_edit_operations:
         messages.error(request, "Your role has read-only access for stock management.")
         return redirect("stock_product_section", pk=product.pk, section=section)
+
+    if request.method == "GET":
+        try:
+            if refresh_product_from_woocommerce(product):
+                product.refresh_from_db()
+        except WooCommerceAPIError:
+            pass
 
     form_data = _product_detail_update_data(product, request.POST) if request.method == "POST" else None
     form = ProductDetailUpdateForm(form_data, instance=product)
@@ -3867,6 +3882,7 @@ def stock_product_section(request, pk, section):
     product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
     section_titles = {
         "description": "Description",
+        "images": "Product image",
         "price": "Price",
         "inventory": "Inventory",
         "categories": "Categories",

@@ -456,6 +456,31 @@ def _normalized_product_row(product, *, parent_product=None):
     }
 
 
+def _apply_product_row(product, row):
+    category = _get_or_create_product_category(row.get("category"))
+    defaults = {
+        "name": row.get("name") or product.sku,
+        "category": row.get("category") or "",
+        "category_master": category,
+        "sku": normalize_sku(row.get("sku")) or product.sku,
+        "smartbiz_product_id": str(row.get("smartbiz_product_id") or product.smartbiz_product_id or "").strip(),
+        "image_url": row.get("image_url") or "",
+        "description": row.get("description") or "",
+        "regular_price": row.get("regular_price"),
+        "sale_price": row.get("sale_price"),
+        "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
+        "is_active": bool(row.get("is_active", True)),
+    }
+    changed_fields = []
+    for field_name, value in defaults.items():
+        if getattr(product, field_name) != value:
+            setattr(product, field_name, value)
+            changed_fields.append(field_name)
+    if changed_fields:
+        product.save(update_fields=[*changed_fields, "updated_at"])
+    return bool(changed_fields)
+
+
 def _get_or_create_product_category(name):
     category_name = str(name or "").strip()
     if not category_name:
@@ -481,31 +506,24 @@ def _sync_product_row(row):
     if product and Product.objects.filter(smartbiz_product_id__iexact=external_id).exclude(pk=product.pk).exists():
         return "skipped"
 
-    category = _get_or_create_product_category(row.get("category"))
-    defaults = {
-        "name": row.get("name") or sku,
-        "category": row.get("category") or "",
-        "category_master": category,
-        "sku": sku,
-        "smartbiz_product_id": external_id,
-        "image_url": row.get("image_url") or "",
-        "description": row.get("description") or "",
-        "regular_price": row.get("regular_price"),
-        "sale_price": row.get("sale_price"),
-        "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
-        "is_active": bool(row.get("is_active", True)),
-    }
     if not product:
-        Product.objects.create(**defaults)
+        category = _get_or_create_product_category(row.get("category"))
+        Product.objects.create(
+            name=row.get("name") or sku,
+            category=row.get("category") or "",
+            category_master=category,
+            sku=sku,
+            smartbiz_product_id=external_id,
+            image_url=row.get("image_url") or "",
+            description=row.get("description") or "",
+            regular_price=row.get("regular_price"),
+            sale_price=row.get("sale_price"),
+            stock_quantity=_to_int(row.get("stock_quantity"), default=0),
+            is_active=bool(row.get("is_active", True)),
+        )
         return "created"
 
-    changed_fields = []
-    for field_name, value in defaults.items():
-        if getattr(product, field_name) != value:
-            setattr(product, field_name, value)
-            changed_fields.append(field_name)
-    if changed_fields:
-        product.save(update_fields=[*changed_fields, "updated_at"])
+    if _apply_product_row(product, row):
         return "updated"
     return "unchanged"
 
@@ -564,6 +582,17 @@ def sync_products():
             summary[_sync_product_row(row)] += 1
 
     return summary
+
+
+def refresh_product_from_woocommerce(product):
+    if not is_configured():
+        return False
+    path = _product_update_path(product)
+    response = _json_request(path)
+    row = _normalized_product_row(response)
+    if not row:
+        return False
+    return _apply_product_row(product, row)
 
 
 def _product_update_path(product):

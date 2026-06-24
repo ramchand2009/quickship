@@ -446,7 +446,7 @@ class ProductForm(forms.ModelForm):
         self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
         self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
         self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "06d3d905-2768-4f8c-8ce5-22c7fed3c54d"
-        self.fields["image_url"].widget.attrs["placeholder"] = "Synced from WooCommerce"
+        self.fields["image_url"].widget.attrs["placeholder"] = "https://your-store.com/path/product-image.jpg"
         self.fields["name"].widget.attrs["placeholder"] = "Product name"
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
 

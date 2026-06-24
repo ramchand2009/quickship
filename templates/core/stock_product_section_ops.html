@@ -22,6 +22,8 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-section-field label { display:block; margin:0 0 -.55rem 1.1rem; padding:0 .3rem; position:relative; z-index:1; width:max-content; max-width:calc(100% - 2rem); background:#fff; color:#666; font-size:.84rem; }
 .ops-section-field .form-control, .ops-section-field .form-select { width:100%; min-height:56px; border:1px solid #999; border-radius:.25rem; padding:.75rem 1rem; color:#303236; font-size:1.05rem; background:#fff; box-sizing:border-box; }
 .ops-section-field textarea.form-control { min-height:60vh; border:0; padding:0; font-size:1.2rem; line-height:1.55; resize:none; }
+.ops-section-image-preview { width:128px; height:152px; border:1px solid #ddd; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:1.5rem; overflow:hidden; margin:0 0 1.25rem; }
+.ops-section-image-preview img { width:100%; height:100%; object-fit:cover; display:block; }
 .ops-section-help { margin:.35rem 0 0 1.1rem; color:#747474; font-size:.9rem; line-height:1.25rem; }
 .ops-section-inline { display:grid; grid-template-columns:minmax(0,1fr) 40px; gap:.55rem; align-items:center; }
 .ops-section-inline > * { min-width:0; }
@@ -59,6 +61,19 @@ body { overflow-x:hidden; background:#f3f3f4; }
         {% if section == "description" %}
             <div class="ops-section-field">
                 {{ form.description }}
+            </div>
+        {% elif section == "images" %}
+            <div class="ops-section-block">
+                <h2>Product image</h2>
+                <div class="ops-section-image-preview">
+                    {% if product.image_url %}
+                        <img src="{{ product.image_url }}" alt="{{ product.name }}">
+                    {% else %}
+                        <i class="fas fa-image"></i>
+                    {% endif %}
+                </div>
+                <div class="ops-section-field"><label for="{{ form.image_url.id_for_label }}">Image URL</label>{{ form.image_url }}</div>
+                <div class="ops-section-help">Paste the WooCommerce product image URL and save.</div>
             </div>
         {% elif section == "price" %}
             <div class="ops-section-block">

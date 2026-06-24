@@ -271,6 +271,45 @@ class WooCommerceSyncTests(TestCase):
         WOOCOMMERCE_CONSUMER_SECRET="cs_test",
     )
     @patch("core.woocommerce._json_request")
+    def test_refresh_product_from_woocommerce_updates_local_prices_and_image(self, mock_json_request):
+        from .woocommerce import refresh_product_from_woocommerce
+
+        product = Product.objects.create(
+            name="Anti-Dandruff Hair Oil",
+            sku="MO-HC-007",
+            stock_quantity=8,
+            smartbiz_product_id="101",
+            is_active=True,
+        )
+        mock_json_request.return_value = {
+            "id": 101,
+            "name": "Anti-Dandruff Hair Oil",
+            "status": "publish",
+            "sku": "MO-HC-007",
+            "stock_quantity": 8,
+            "description": "Nourishing herbal hair oil.",
+            "regular_price": "300.00",
+            "sale_price": "240.00",
+            "categories": [{"name": "Hair Care"}],
+            "images": [{"src": "https://shop.example.com/images/hair-oil.jpg"}],
+        }
+
+        refreshed = refresh_product_from_woocommerce(product)
+
+        product.refresh_from_db()
+        self.assertTrue(refreshed)
+        self.assertEqual(product.description, "Nourishing herbal hair oil.")
+        self.assertEqual(str(product.regular_price), "300.00")
+        self.assertEqual(str(product.sale_price), "240.00")
+        self.assertEqual(product.image_url, "https://shop.example.com/images/hair-oil.jpg")
+        self.assertEqual(product.category_master.name, "Hair Care")
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
     def test_sync_orders_skips_whatsapp_draft_orders_until_billing_address_exists(self, mock_json_request):
         WooCommerceSettings.objects.create(import_statuses="pending,processing,on-hold")
         mock_json_request.return_value = [
@@ -5789,6 +5828,7 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "24K Gold Serum")
         self.assertContains(response, "Description")
+        self.assertContains(response, "Product image")
         self.assertContains(response, "Price")
         self.assertContains(response, "Regular price: Rs 300.00")
         self.assertContains(response, "Sale price: Rs 240.00")
@@ -5799,9 +5839,11 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Categories")
         self.assertContains(response, "Serums")
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "description"]))
+        self.assertContains(response, reverse("stock_product_section", args=[product.pk, "images"]))
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "price"]))
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "inventory"]))
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "categories"]))
+        self.assertNotContains(response, "Promote with Blaze")
         self.assertNotContains(response, "Reviews")
         self.assertNotContains(response, "Product Type")
         self.assertNotContains(response, "Save and Update WooCommerce")
@@ -5822,12 +5864,16 @@ class RoleAccessTests(TestCase):
         self.client.force_login(self.viewer)
 
         description_response = self.client.get(reverse("stock_product_section", args=[product.pk, "description"]))
+        image_response = self.client.get(reverse("stock_product_section", args=[product.pk, "images"]))
         price_response = self.client.get(reverse("stock_product_section", args=[product.pk, "price"]))
         inventory_response = self.client.get(reverse("stock_product_section", args=[product.pk, "inventory"]))
         categories_response = self.client.get(reverse("stock_product_section", args=[product.pk, "categories"]))
 
         self.assertEqual(description_response.status_code, 200)
         self.assertContains(description_response, "Description")
+        self.assertEqual(image_response.status_code, 200)
+        self.assertContains(image_response, "Product image")
+        self.assertContains(image_response, "https://shop.example.com/serum.jpg")
         self.assertEqual(price_response.status_code, 200)
         self.assertContains(price_response, "Regular price")
         self.assertContains(price_response, "Sale price")
@@ -5912,6 +5958,11 @@ class RoleAccessTests(TestCase):
             {"regular_price": "350.00", "sale_price": "280.00"},
             follow=True,
         )
+        image_response = self.client.post(
+            reverse("stock_product_section", args=[product.pk, "images"]),
+            {"image_url": "https://shop.example.com/images/serum-updated.jpg"},
+            follow=True,
+        )
         inventory_response = self.client.post(
             reverse("stock_product_section", args=[product.pk, "inventory"]),
             {"sku": "MO-SER-001", "barcode": "890001", "stock_quantity": "8"},
@@ -5927,18 +5978,21 @@ class RoleAccessTests(TestCase):
         self.assertEqual(product.description, "Reduces fine lines and wrinkles.")
         self.assertEqual(str(product.regular_price), "350.00")
         self.assertEqual(str(product.sale_price), "280.00")
+        self.assertEqual(product.image_url, "https://shop.example.com/images/serum-updated.jpg")
         self.assertEqual(product.stock_quantity, 8)
         self.assertEqual(product.barcode, "890001")
         self.assertEqual(product.category_master, hair_care)
-        self.assertEqual(mock_update_product.call_count, 4)
+        self.assertEqual(mock_update_product.call_count, 5)
         self.assertContains(description_response, "Updated 24K Gold Serum locally and in WooCommerce.")
         self.assertContains(price_response, "Updated 24K Gold Serum locally and in WooCommerce.")
+        self.assertContains(image_response, "Updated 24K Gold Serum locally and in WooCommerce.")
         self.assertContains(inventory_response, "Updated 24K Gold Serum locally and in WooCommerce.")
         self.assertContains(category_response, "Updated 24K Gold Serum locally and in WooCommerce.")
 
         detail_response = self.client.get(reverse("stock_product_detail", args=[product.pk]))
         self.assertContains(detail_response, "Regular price: Rs 350.00")
         self.assertContains(detail_response, "Sale price: Rs 280.00")
+        self.assertContains(detail_response, "https://shop.example.com/images/serum-updated.jpg")
         self.assertContains(detail_response, "Stock quantity: 8")
         self.assertContains(detail_response, "Hair Care")
 
