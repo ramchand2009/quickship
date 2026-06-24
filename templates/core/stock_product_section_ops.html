@@ -24,6 +24,10 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-section-field textarea.form-control { min-height:60vh; border:0; padding:0; font-size:1.2rem; line-height:1.55; resize:none; }
 .ops-section-image-preview { width:128px; height:152px; border:1px solid #ddd; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:1.5rem; overflow:hidden; margin:0 0 1.25rem; }
 .ops-section-image-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+.ops-photo-add { width:100%; min-height:44px; border:1px solid #ddd; border-radius:.25rem; background:#fff; color:#9333ea; font-weight:850; display:flex; align-items:center; justify-content:center; margin:0 0 1.25rem; cursor:pointer; }
+.ops-photo-input { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
+.ops-photo-help { margin:0 0 1.2rem; color:#747474; text-align:center; font-size:.95rem; }
+.ops-photo-help span { color:#9333ea; text-decoration:underline; }
 .ops-section-help { margin:.35rem 0 0 1.1rem; color:#747474; font-size:.9rem; line-height:1.25rem; }
 .ops-section-inline { display:grid; grid-template-columns:minmax(0,1fr) 40px; gap:.55rem; align-items:center; }
 .ops-section-inline > * { min-width:0; }
@@ -46,7 +50,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
 
 {% block content %}
 <div class="ops-section-shell">
-    <form method="post" class="ops-section-form">
+    <form method="post" enctype="multipart/form-data" class="ops-section-form">
         {% csrf_token %}
     <div class="ops-section-topbar">
         <a href="{% url 'stock_product_detail' product.pk %}" class="ops-section-icon-btn" aria-label="Back to product"><i class="fas fa-arrow-left"></i></a>
@@ -64,7 +68,10 @@ body { overflow-x:hidden; background:#f3f3f4; }
             </div>
         {% elif section == "images" %}
             <div class="ops-section-block">
-                <h2>Product image</h2>
+                <h2>Photos</h2>
+                <label class="ops-photo-add" for="id_product_image">Add photos</label>
+                <input id="id_product_image" class="ops-photo-input" type="file" name="product_image" accept="image/*">
+                <div class="ops-photo-help"><span>Learn more</span> about uploading images</div>
                 <div class="ops-section-image-preview">
                     {% if product.image_url %}
                         <img src="{{ product.image_url }}" alt="{{ product.name }}">
@@ -73,7 +80,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
                     {% endif %}
                 </div>
                 <div class="ops-section-field"><label for="{{ form.image_url.id_for_label }}">Image URL</label>{{ form.image_url }}</div>
-                <div class="ops-section-help">Paste the WooCommerce product image URL and save.</div>
+                <div class="ops-section-help">Choose from device, take a photo, or paste a WordPress media-library URL and save.</div>
             </div>
         {% elif section == "price" %}
             <div class="ops-section-block">

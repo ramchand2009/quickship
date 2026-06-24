@@ -33,6 +33,7 @@ from .views import (
     project_detail,
     project_list,
     product_categories,
+    product_image_media,
     manifest_webmanifest,
     offline_page,
     run_integration_smoke,
@@ -118,6 +119,7 @@ urlpatterns = [
     path("expenses/", expense_tracker, name="expense_tracker"),
     path("stock-management/", stock_management, name="stock_management"),
     path("stock-management/products/<int:pk>/", stock_product_detail, name="stock_product_detail"),
+    path("media/product-images/<path:filename>", product_image_media, name="product_image_media"),
     path(
         "stock-management/products/<int:pk>/<slug:section>/",
         stock_product_section,

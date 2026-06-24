@@ -1,4 +1,5 @@
 import json
+import tempfile
 from io import StringIO
 from datetime import timedelta
 from pathlib import Path
@@ -8,6 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import CommandError
 from django.core.management import call_command
 from django.test import TestCase, override_settings
@@ -5880,7 +5882,10 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(description_response, "&lt;p&gt;")
         self.assertNotContains(description_response, "&lt;br /&gt;")
         self.assertEqual(image_response.status_code, 200)
-        self.assertContains(image_response, "Product image")
+        self.assertContains(image_response, "Photos")
+        self.assertContains(image_response, "Add photos")
+        self.assertContains(image_response, 'type="file"', html=False)
+        self.assertContains(image_response, 'accept="image/*"', html=False)
         self.assertContains(image_response, "https://shop.example.com/serum.jpg")
         self.assertEqual(price_response.status_code, 200)
         self.assertContains(price_response, "Regular price")
@@ -6003,6 +6008,42 @@ class RoleAccessTests(TestCase):
         self.assertContains(detail_response, "https://shop.example.com/images/serum-updated.jpg")
         self.assertContains(detail_response, "Stock quantity: 8")
         self.assertContains(detail_response, "Hair Care")
+
+    @patch("core.views.update_woocommerce_product")
+    def test_ops_viewer_can_upload_product_image_from_device(self, mock_update_product):
+        product = Product.objects.create(
+            name="Photo Upload Serum",
+            sku="PHOTO-UPLOAD-1",
+            stock_quantity=4,
+            smartbiz_product_id="101",
+            is_active=True,
+        )
+        self.client.force_login(self.viewer)
+        upload = SimpleUploadedFile(
+            "serum.png",
+            b"\x89PNG\r\n\x1a\n",
+            content_type="image/png",
+        )
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(
+                ALLOWED_HOSTS=["mathukai.example.com"],
+                MEDIA_ROOT=Path(media_root),
+                MEDIA_URL="/media/",
+            ):
+                response = self.client.post(
+                    reverse("stock_product_section", args=[product.pk, "images"]),
+                    {"product_image": upload, "image_url": ""},
+                    follow=True,
+                    **{"HTTP_HOST": "mathukai.example.com"},
+                )
+
+        product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("/media/product-images/", product.image_url)
+        self.assertTrue(product.image_url.startswith("http://mathukai.example.com/"))
+        mock_update_product.assert_called_once()
+        self.assertContains(response, "Updated Photo Upload Serum locally and in WooCommerce.")
 
     def test_ops_viewer_stock_qty_table_is_grouped_by_category(self):
         drink = ProductCategory.objects.create(name="Drink")

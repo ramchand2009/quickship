@@ -16,7 +16,7 @@ RUN chmod +x /entrypoint.sh
 
 COPY . /app
 
-RUN mkdir -p /app/staticfiles /app/logs /app/backups
+RUN mkdir -p /app/staticfiles /app/logs /app/backups /app/media
 
 EXPOSE 8000
 

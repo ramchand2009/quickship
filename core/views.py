@@ -10,18 +10,20 @@ from urllib.parse import parse_qsl, urlencode
 from io import StringIO
 from datetime import datetime, timedelta
 from uuid import uuid4
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.files.storage import FileSystemStorage
 from django.core.management import CommandError, call_command
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.db.models.functions import Coalesce
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.template.defaultfilters import timesince
@@ -141,6 +143,8 @@ OPS_VIEWER_TAB_ACCEPTED = "accepted"
 OPS_VIEWER_TAB_SHIPPED = "shipped"
 OPS_VIEWER_TAB_COMPLETED = "completed"
 OPS_VIEWER_TAB_CANCELLED = "cancelled"
+PRODUCT_IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+PRODUCT_IMAGE_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 PWA_APP_NAME = "Mathukai Dashboard"
 PWA_SHORT_NAME = "Mathukai"
 PWA_THEME_COLOR = "#253142"
@@ -3838,6 +3842,34 @@ def _product_detail_update_data(product, post_data):
     return data
 
 
+def _product_image_upload_url(request, uploaded_file):
+    if not uploaded_file:
+        return ""
+    content_type = str(getattr(uploaded_file, "content_type", "") or "").lower()
+    suffix = Path(str(uploaded_file.name or "")).suffix.lower()
+    if content_type and not content_type.startswith("image/"):
+        raise ValueError("Choose an image file.")
+    if suffix not in PRODUCT_IMAGE_ALLOWED_EXTENSIONS:
+        raise ValueError("Upload a JPG, PNG, or WebP image.")
+    if uploaded_file.size > PRODUCT_IMAGE_UPLOAD_MAX_BYTES:
+        raise ValueError("Image must be 5 MB or smaller.")
+
+    storage = FileSystemStorage(
+        location=settings.MEDIA_ROOT / "product-images",
+        base_url=f"{settings.MEDIA_URL.rstrip('/')}/product-images/",
+    )
+    filename = storage.save(f"{uuid4().hex}{suffix}", uploaded_file)
+    return request.build_absolute_uri(storage.url(filename))
+
+
+def product_image_media(request, filename):
+    media_dir = (settings.MEDIA_ROOT / "product-images").resolve()
+    image_path = (media_dir / filename).resolve()
+    if media_dir not in image_path.parents or not image_path.exists() or not image_path.is_file():
+        raise Http404("Product image not found.")
+    return FileResponse(image_path.open("rb"))
+
+
 @login_required
 def stock_product_section(request, pk, section):
     if not _can_manage_stock(request.user):
@@ -3862,7 +3894,16 @@ def stock_product_section(request, pk, section):
             pass
 
     form_data = _product_detail_update_data(product, request.POST) if request.method == "POST" else None
+    upload_error = ""
+    if request.method == "POST" and section == "images" and request.FILES.get("product_image"):
+        try:
+            form_data["image_url"] = _product_image_upload_url(request, request.FILES["product_image"])
+        except ValueError as exc:
+            upload_error = str(exc)
+            messages.error(request, upload_error)
     form = ProductDetailUpdateForm(form_data, instance=product)
+    if upload_error:
+        form.add_error("image_url", upload_error)
     if request.method == "POST":
         if form.is_valid():
             product = form.save()

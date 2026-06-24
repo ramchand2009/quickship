@@ -12,6 +12,7 @@ venv/
 .env.local
 logs/
 backups/
+media/
 
 # SQLite and temporary DB files
 db.sqlite3

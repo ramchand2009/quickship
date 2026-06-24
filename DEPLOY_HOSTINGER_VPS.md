@@ -5,6 +5,7 @@ This project can now run on a Hostinger VPS with:
 - `web`: Django + Gunicorn
 - `worker`: WhatsApp queue worker
 - `db`: PostgreSQL 16
+- `app_media`: persistent uploaded product images
 
 ## 1. Prepare the VPS
 
@@ -62,6 +63,8 @@ This does the following automatically for the `web` container:
 - runs `python manage.py migrate`
 - runs `python manage.py collectstatic`
 - starts Gunicorn on port `8000`
+
+Uploaded product images are stored in the Docker volume `app_media` and served from `/media/product-images/...`.
 
 The worker container starts:
 

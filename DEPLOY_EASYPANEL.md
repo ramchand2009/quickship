@@ -43,6 +43,10 @@ Expose port:
 
 Add your domain to this service in Easypanel.
 
+Add persistent storage for uploaded product images:
+
+- Mount path: `/app/media`
+
 Official docs:
 
 - https://easypanel.io/docs/services/app
