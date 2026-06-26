@@ -85,6 +85,17 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     font-weight: 600;
 }
 
+.ops-home-sales-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin-top: 0.75rem;
+}
+
+.ops-home-sales-metric {
+    min-width: 0;
+}
+
 .ops-home-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-bottom: 1.75rem;
@@ -315,8 +326,17 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     </div>
 
     <div class="ops-home-sales-card">
-        <span class="ops-home-sales-label">This Month Profit</span>
-        <span class="ops-home-sales-value">Rs {{ monthly_profit_total|floatformat:2 }}</span>
+        <span class="ops-home-sales-label">This Month</span>
+        <div class="ops-home-sales-metrics">
+            <div class="ops-home-sales-metric">
+                <span class="ops-home-sales-label">Sale Value</span>
+                <span class="ops-home-sales-value">Rs {{ monthly_sales_total|floatformat:2 }}</span>
+            </div>
+            <div class="ops-home-sales-metric">
+                <span class="ops-home-sales-label">Profit</span>
+                <span class="ops-home-sales-value">Rs {{ monthly_profit_total|floatformat:2 }}</span>
+            </div>
+        </div>
         <span class="ops-home-sales-meta">{{ current_month_label }}</span>
     </div>
 

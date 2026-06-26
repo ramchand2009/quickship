@@ -2454,6 +2454,8 @@ class BulkShippingLabelsViewTests(TestCase):
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Monthly sales")
+        self.assertContains(response, "Rs 425.00")
         self.assertContains(response, "Monthly profit")
         self.assertContains(response, "Rs 150.00")
 
@@ -4866,7 +4868,9 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Live order status and stock overview.")
-        self.assertContains(response, "This Month Profit")
+        self.assertContains(response, "Sale Value")
+        self.assertContains(response, "Profit")
+        self.assertContains(response, "Rs 1500.50")
         self.assertContains(response, "Rs 500.00")
         self.assertContains(response, '<span class="ops-home-card-label">Accepted</span>', html=False)
         self.assertContains(response, '<span class="ops-home-card-value">2</span>', html=False)
