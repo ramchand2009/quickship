@@ -16,6 +16,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
 from django.core.management import CommandError, call_command
@@ -47,8 +48,12 @@ from .access import (
     can_edit_operations,
     can_sync_orders,
     can_update_order_status,
+    can_access_tenant,
+    get_active_tenant,
     is_ops_admin,
     is_ops_viewer,
+    is_super_admin,
+    is_vendor_user,
 )
 from .forms import (
     BusinessExpenseForm,
@@ -75,6 +80,7 @@ from .monitoring import build_health_payload, get_operational_counters
 from .models import (
     BusinessExpense,
     ContactMessage,
+    DEFAULT_TENANT_SLUG,
     ExpensePerson,
     OrderActivityLog,
     Product,
@@ -111,7 +117,7 @@ from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_noti
 from .woocommerce import (
     WooCommerceAPIError,
     check_connection as check_woocommerce_connection,
-    get_webhook_secret as get_woocommerce_webhook_secret,
+    get_settings_for_webhook_secret as get_woocommerce_settings_for_webhook_secret,
     import_order_payload as import_woocommerce_order_payload,
     refresh_product_from_woocommerce,
     sync_orders as sync_woocommerce_orders,
@@ -555,6 +561,9 @@ def _create_whatsapp_log(
     error_message="",
 ):
     result = result if isinstance(result, dict) else {}
+    tenant = getattr(order, "tenant", None) or _active_whatsapp_tenant(request)
+    if tenant is None:
+        tenant = WhatsAppSettings.get_default().tenant
     delivery_status = _resolve_delivery_status(result, is_success=is_success)
     order_id = ""
     if order and order.shiprocket_order_id:
@@ -567,6 +576,7 @@ def _create_whatsapp_log(
         user_name = str(request.user.username or "").strip()
 
     WhatsAppNotificationLog.objects.create(
+        tenant=tenant,
         order=order,
         shiprocket_order_id=order_id,
         trigger=trigger,
@@ -600,6 +610,63 @@ def _is_ops_admin(user):
 
 def _is_ops_viewer(user):
     return is_ops_viewer(user)
+
+
+def _should_scope_to_active_tenant(request):
+    return is_vendor_user(getattr(request, "user", None))
+
+
+def _scope_queryset_to_active_tenant(request, queryset, tenant_field="tenant"):
+    if not _should_scope_to_active_tenant(request):
+        return queryset
+    tenant = get_active_tenant(request)
+    if tenant is None:
+        return queryset.none()
+    return queryset.filter(**{tenant_field: tenant})
+
+
+def _can_access_tenant_owned_object(request, obj):
+    if not _should_scope_to_active_tenant(request):
+        return True
+    return can_access_tenant(getattr(request, "user", None), getattr(obj, "tenant", None))
+
+
+def _woocommerce_call_tenant(tenant):
+    if tenant is None:
+        return None
+    if str(getattr(tenant, "slug", "") or "").strip().lower() == DEFAULT_TENANT_SLUG:
+        return None
+    return tenant
+
+
+def _whatsapp_call_tenant(tenant):
+    if tenant is None:
+        return None
+    if str(getattr(tenant, "slug", "") or "").strip().lower() == DEFAULT_TENANT_SLUG:
+        return None
+    return tenant
+
+
+def _active_whatsapp_tenant(request):
+    if not _should_scope_to_active_tenant(request):
+        return None
+    return get_active_tenant(request)
+
+
+def resolve_post_login_url(user):
+    if is_super_admin(user):
+        return reverse("home")
+    if is_ops_viewer(user):
+        return reverse("order_management")
+    return reverse("home")
+
+
+class TenantAwareLoginView(LoginView):
+    def get_success_url(self):
+        redirect_url = self.get_redirect_url()
+        if redirect_url:
+            return redirect_url
+        return resolve_post_login_url(self.request.user)
 
 
 def _can_edit_operations(user):
@@ -653,6 +720,7 @@ def _attempt_inline_queue_send(queue_job, *, actor="", source="ui"):
             worker_name=worker_name,
             specific_job_id=job_id,
             include_not_due=True,
+            tenant=getattr(queue_job, "tenant", None),
         )
     except Exception:
         return None
@@ -660,11 +728,12 @@ def _attempt_inline_queue_send(queue_job, *, actor="", source="ui"):
     return WhatsAppNotificationQueue.objects.filter(pk=job_id).first()
 
 
-def _process_queue_once(*, limit, worker_name, include_not_due=False):
+def _process_queue_once(*, limit, worker_name, include_not_due=False, tenant=None):
     summary = process_whatsapp_notification_queue(
         limit=max(1, int(limit or 20)),
         worker_name=str(worker_name or "manual").strip() or "manual",
         include_not_due=bool(include_not_due),
+        tenant=tenant,
     )
     write_system_heartbeat(
         "queue_worker",
@@ -746,17 +815,18 @@ def _order_received_note(order):
     return "Received time unavailable."
 
 
-def _build_dashboard_work_queues():
+def _build_dashboard_work_queues(order_queryset=None):
+    order_queryset = order_queryset if order_queryset is not None else ShiprocketOrder.objects.all()
     new_orders = list(
-        ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_NEW)
+        order_queryset.filter(local_status=ShiprocketOrder.STATUS_NEW)
         .order_by("-order_date", "-updated_at")[:5]
     )
     accepted_orders = list(
-        ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED)
+        order_queryset.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED)
         .order_by("-order_date", "-updated_at")[:12]
     )
     packed_orders = list(
-        ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_PACKED, label_print_count=0)
+        order_queryset.filter(local_status=ShiprocketOrder.STATUS_PACKED, label_print_count=0)
         .order_by("-order_date", "-updated_at")[:5]
     )
 
@@ -772,7 +842,7 @@ def _build_dashboard_work_queues():
     return {
         "new_orders": {
             "title": "Needs Acceptance",
-            "count": ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_NEW).count(),
+            "count": order_queryset.filter(local_status=ShiprocketOrder.STATUS_NEW).count(),
             "empty_text": "No new orders waiting for intake.",
             "action_label": "Open New Orders",
             "action_url": _dashboard_status_url(ShiprocketOrder.STATUS_NEW),
@@ -783,7 +853,7 @@ def _build_dashboard_work_queues():
         },
         "ready_to_pack": {
             "title": "Ready to Pack",
-            "count": ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED).count(),
+            "count": order_queryset.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED).count(),
             "empty_text": "No accepted orders waiting for packing.",
             "action_label": "Open Accepted Orders",
             "action_url": _dashboard_status_url(ShiprocketOrder.STATUS_ACCEPTED),
@@ -808,7 +878,7 @@ def _build_dashboard_work_queues():
         },
         "ready_to_print": {
             "title": "Ready to Print",
-            "count": ShiprocketOrder.objects.filter(
+            "count": order_queryset.filter(
                 local_status=ShiprocketOrder.STATUS_PACKED,
                 label_print_count=0,
             ).count(),
@@ -823,9 +893,10 @@ def _build_dashboard_work_queues():
     }
 
 
-def _build_dashboard_stock_lists(limit=6):
+def _build_dashboard_stock_lists(product_queryset=None, limit=6):
+    product_queryset = product_queryset if product_queryset is not None else Product.objects.all()
     low_stock_products = list(
-        Product.objects.filter(
+        product_queryset.filter(
             is_active=True,
             stock_quantity__gt=0,
             stock_quantity__lte=F("reorder_level"),
@@ -833,7 +904,7 @@ def _build_dashboard_stock_lists(limit=6):
         .order_by("stock_quantity", "name")[:limit]
     )
     no_stock_products = list(
-        Product.objects.filter(is_active=True, stock_quantity__lte=0)
+        product_queryset.filter(is_active=True, stock_quantity__lte=0)
         .order_by("name")[:limit]
     )
     return {
@@ -842,36 +913,41 @@ def _build_dashboard_stock_lists(limit=6):
     }
 
 
-def _latest_queue_job():
-    return WhatsAppNotificationQueue.objects.order_by("-updated_at", "-created_at").first()
+def _latest_queue_job(queue_queryset=None):
+    queue_queryset = queue_queryset if queue_queryset is not None else WhatsAppNotificationQueue.objects.all()
+    return queue_queryset.order_by("-updated_at", "-created_at").first()
 
 
-def _latest_queue_failure():
+def _latest_queue_failure(queue_queryset=None):
+    queue_queryset = queue_queryset if queue_queryset is not None else WhatsAppNotificationQueue.objects.all()
     return (
-        WhatsAppNotificationQueue.objects.exclude(last_error__exact="")
+        queue_queryset.exclude(last_error__exact="")
         .order_by("-updated_at", "-created_at")
         .first()
     )
 
 
-def _latest_whatsapp_failure_log():
+def _latest_whatsapp_failure_log(log_queryset=None):
+    log_queryset = log_queryset if log_queryset is not None else WhatsAppNotificationLog.objects.all()
     return (
-        WhatsAppNotificationLog.objects.filter(is_success=False)
+        log_queryset.filter(is_success=False)
         .order_by("-created_at")
         .first()
     )
 
 
-def _build_whatsapp_diagnostics():
+def _build_whatsapp_diagnostics(request=None):
+    queue_queryset = _scope_queryset_to_active_tenant(request, WhatsAppNotificationQueue.objects.all()) if request else WhatsAppNotificationQueue.objects.all()
+    log_queryset = _scope_queryset_to_active_tenant(request, WhatsAppNotificationLog.objects.all()) if request else WhatsAppNotificationLog.objects.all()
     queue_counts = {
-        "failed": WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_FAILED).count(),
-        "pending": WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_PENDING).count(),
-        "retrying": WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_RETRYING).count(),
-        "processing": WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_PROCESSING).count(),
-        "success": WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_SUCCESS).count(),
+        "failed": queue_queryset.filter(status=WhatsAppNotificationQueue.STATUS_FAILED).count(),
+        "pending": queue_queryset.filter(status=WhatsAppNotificationQueue.STATUS_PENDING).count(),
+        "retrying": queue_queryset.filter(status=WhatsAppNotificationQueue.STATUS_RETRYING).count(),
+        "processing": queue_queryset.filter(status=WhatsAppNotificationQueue.STATUS_PROCESSING).count(),
+        "success": queue_queryset.filter(status=WhatsAppNotificationQueue.STATUS_SUCCESS).count(),
     }
     oldest_open_job = (
-        WhatsAppNotificationQueue.objects.filter(
+        queue_queryset.filter(
             status__in=[
                 WhatsAppNotificationQueue.STATUS_PENDING,
                 WhatsAppNotificationQueue.STATUS_RETRYING,
@@ -882,16 +958,16 @@ def _build_whatsapp_diagnostics():
         .first()
     )
     recent_jobs = list(
-        WhatsAppNotificationQueue.objects.select_related("order")
+        queue_queryset.select_related("order")
         .order_by("-updated_at", "-created_at")[:8]
     )
     recent_failures = list(
-        WhatsAppNotificationLog.objects.select_related("order")
+        log_queryset.select_related("order")
         .filter(is_success=False)
         .order_by("-created_at")[:8]
     )
-    latest_failure_job = _latest_queue_failure()
-    latest_failure_log = _latest_whatsapp_failure_log()
+    latest_failure_job = _latest_queue_failure(queue_queryset)
+    latest_failure_log = _latest_whatsapp_failure_log(log_queryset)
     latest_error = ""
     latest_error_source = ""
     if latest_failure_job and str(latest_failure_job.last_error or "").strip():
@@ -912,11 +988,11 @@ def _build_whatsapp_diagnostics():
 
     error_counter = Counter()
     window_start = timezone.localtime(timezone.now()) - timedelta(hours=24)
-    for item in WhatsAppNotificationQueue.objects.filter(updated_at__gte=window_start):
+    for item in queue_queryset.filter(updated_at__gte=window_start):
         text = str(item.last_error or "").strip()
         if text:
             error_counter[text] += 1
-    for item in WhatsAppNotificationLog.objects.filter(created_at__gte=window_start, is_success=False):
+    for item in log_queryset.filter(created_at__gte=window_start, is_success=False):
         text = str(item.error_message or "").strip()
         if text:
             error_counter[text] += 1
@@ -936,7 +1012,7 @@ def _build_whatsapp_diagnostics():
         "diagnosis": diagnosis,
         "top_failure_reasons": error_counter.most_common(3),
         "last_success_log": (
-            WhatsAppNotificationLog.objects.filter(is_success=True)
+            log_queryset.filter(is_success=True)
             .exclude(trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_STATUS)
             .order_by("-created_at")
             .first()
@@ -1313,8 +1389,8 @@ def _ops_viewer_filter_queryset(queryset, active_tab):
     return queryset.exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
 
 
-def _build_ops_viewer_status_counts():
-    base_queryset = ShiprocketOrder.objects.all()
+def _build_ops_viewer_status_counts(base_queryset=None):
+    base_queryset = base_queryset if base_queryset is not None else ShiprocketOrder.objects.all()
     return {
         OPS_VIEWER_TAB_ALL: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_ALL).count(),
         OPS_VIEWER_TAB_PENDING: _ops_viewer_filter_queryset(base_queryset, OPS_VIEWER_TAB_PENDING).count(),
@@ -1426,7 +1502,7 @@ def _safe_int_choice(raw_value, choices, default_value):
     return parsed if parsed in choices else default_value
 
 
-def _resolve_active_tab(request, status_tabs):
+def _resolve_active_tab(request, status_tabs, base_queryset=None):
     tab_keys = [tab["key"] for tab in status_tabs]
     requested_tab = (request.GET.get("tab") or "").strip()
     active_tab = requested_tab if requested_tab in tab_keys else ""
@@ -1435,8 +1511,9 @@ def _resolve_active_tab(request, status_tabs):
     if OPS_VIEWER_TAB_ALL in tab_keys:
         return OPS_VIEWER_TAB_ALL
 
+    base_queryset = base_queryset if base_queryset is not None else ShiprocketOrder.objects.all()
     counts = (
-        ShiprocketOrder.objects.values("local_status")
+        base_queryset.values("local_status")
         .annotate(total=Count("id"))
     )
     count_map = {row["local_status"]: row["total"] for row in counts}
@@ -1446,10 +1523,11 @@ def _resolve_active_tab(request, status_tabs):
     )
 
 
-def _build_status_counts(status_tabs):
-    rows = ShiprocketOrder.objects.values("local_status").annotate(total=Count("id"))
+def _build_status_counts(status_tabs, base_queryset=None):
+    base_queryset = base_queryset if base_queryset is not None else ShiprocketOrder.objects.all()
+    rows = base_queryset.values("local_status").annotate(total=Count("id"))
     count_map = {row["local_status"]: row["total"] for row in rows}
-    counts = {"total": ShiprocketOrder.objects.count()}
+    counts = {"total": base_queryset.count()}
     for tab in status_tabs:
         counts[tab["key"]] = int(count_map.get(tab["key"], 0))
     return counts
@@ -1679,9 +1757,13 @@ def _get_order_management_undo_context(request):
 def _build_orders_dashboard_context(request):
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
-    projects = Project.objects.all()[:3]
-    orders = ShiprocketOrder.objects.all()[:10]
-    total_orders = ShiprocketOrder.objects.count()
+    project_queryset = _scope_queryset_to_active_tenant(request, Project.objects.all())
+    contact_queryset = _scope_queryset_to_active_tenant(request, ContactMessage.objects.all())
+    order_queryset = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all())
+    product_queryset = _scope_queryset_to_active_tenant(request, Product.objects.all())
+    projects = project_queryset[:3]
+    orders = order_queryset[:10]
+    total_orders = order_queryset.count()
     now = timezone.localtime(timezone.now())
     today = now.date()
     yesterday = today - timedelta(days=1)
@@ -1697,7 +1779,7 @@ def _build_orders_dashboard_context(request):
     webhook_is_stale = counters["webhook_is_stale"]
     webhook_stale_threshold_minutes = counters["webhook_stale_threshold_minutes"]
     show_webhook_stale_banner = bool(_is_ops_admin(getattr(request, "user", None)) and webhook_is_stale)
-    today_order_count = ShiprocketOrder.objects.filter(order_date__date=today).count()
+    today_order_count = order_queryset.filter(order_date__date=today).count()
     current_month_label = now.strftime("%B %Y")
     system_status = get_dashboard_system_status()
     status_tabs = _order_status_tabs()
@@ -1706,7 +1788,7 @@ def _build_orders_dashboard_context(request):
     active_tab = requested_tab if requested_tab in tab_keys else ""
     status_counts = {"total": total_orders}
     for tab in status_tabs:
-        tab_orders = ShiprocketOrder.objects.filter(local_status=tab["key"])
+        tab_orders = order_queryset.filter(local_status=tab["key"])
         status_counts[tab["key"]] = tab_orders.count()
     ops_status_counts = _ops_viewer_status_counts_from_map(status_counts)
     if not active_tab:
@@ -1716,7 +1798,7 @@ def _build_orders_dashboard_context(request):
         )
 
     whatsapp_diagnostics = _build_whatsapp_diagnostics()
-    work_queues = _build_dashboard_work_queues()
+    work_queues = _build_dashboard_work_queues(order_queryset)
     last_successful_send = whatsapp_diagnostics["last_success_log"]
     yesterday_sent_count = OrderActivityLog.objects.filter(
         event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_SUCCESS,
@@ -1753,7 +1835,7 @@ def _build_orders_dashboard_context(request):
             }
         )
 
-    monthly_orders = ShiprocketOrder.objects.annotate(
+    monthly_orders = order_queryset.annotate(
         dashboard_order_date=Coalesce("order_date", "created_at")
     ).filter(dashboard_order_date__year=today.year, dashboard_order_date__month=today.month)
     monthly_rows = monthly_orders.values("local_status").annotate(total=Count("id"))
@@ -1839,13 +1921,13 @@ def _build_orders_dashboard_context(request):
         },
     ]
 
-    low_stock_count = Product.objects.filter(
+    low_stock_count = product_queryset.filter(
         is_active=True,
         stock_quantity__gt=0,
         stock_quantity__lte=F("reorder_level"),
     ).count()
-    no_stock_count = Product.objects.filter(is_active=True, stock_quantity__lte=0).count()
-    stock_lists = _build_dashboard_stock_lists()
+    no_stock_count = product_queryset.filter(is_active=True, stock_quantity__lte=0).count()
+    stock_lists = _build_dashboard_stock_lists(product_queryset)
     stock_action_cards = [
         {
             "title": "Low Stock Items",
@@ -2051,8 +2133,8 @@ def _build_orders_dashboard_context(request):
 
     context = {
         "projects": projects,
-        "project_count": Project.objects.count(),
-        "message_count": ContactMessage.objects.count(),
+        "project_count": project_queryset.count(),
+        "message_count": contact_queryset.count(),
         "orders": orders,
         "order_count": total_orders,
         "today_order_count": today_order_count,
@@ -2136,15 +2218,23 @@ def order_management(request):
     can_sync_orders = _can_sync_orders(getattr(request, "user", None))
     can_update_order_status = _can_update_order_status(getattr(request, "user", None))
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    order_base_queryset = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all())
     status_tabs = _ops_viewer_status_tabs() if ops_mobile_mode else _order_status_tabs()
-    active_tab = _resolve_active_tab(request, status_tabs)
+    active_tab = _resolve_active_tab(request, status_tabs, order_base_queryset)
     active_tab_label = next((tab["label"] for tab in status_tabs if tab["key"] == active_tab), "")
     filters = _get_order_management_filters(request)
-    status_counts = _build_ops_viewer_status_counts() if ops_mobile_mode else _build_status_counts(status_tabs)
+    status_counts = (
+        _build_ops_viewer_status_counts(order_base_queryset)
+        if ops_mobile_mode
+        else _build_status_counts(status_tabs, order_base_queryset)
+    )
     counters = get_operational_counters()
     system_status = get_dashboard_system_status()
 
-    base_queryset = ShiprocketOrder.objects.defer("raw_payload", "order_items", "billing_address").order_by(
+    base_queryset = _scope_queryset_to_active_tenant(
+        request,
+        ShiprocketOrder.objects.defer("raw_payload", "order_items", "billing_address"),
+    ).order_by(
         "-order_date",
         "-updated_at",
     )
@@ -2207,7 +2297,7 @@ def order_management(request):
     pagination_numbers = list(range(page_start, page_end + 1))
 
     shiprocket_status_values = (
-        ShiprocketOrder.objects.exclude(status__isnull=True)
+        order_base_queryset.exclude(status__isnull=True)
         .exclude(status__exact="")
         .values_list("status", flat=True)
         .distinct()
@@ -2359,7 +2449,10 @@ def order_management_undo_last_action(request):
     actor = _request_actor(request)
     status_label_map = dict(ShiprocketOrder.STATUS_CHOICES)
     order_ids = [entry.get("order_id") for entry in entries if str(entry.get("order_id") or "").isdigit()]
-    orders_by_id = {order.pk: order for order in ShiprocketOrder.objects.filter(pk__in=order_ids)}
+    orders_by_id = {
+        order.pk: order
+        for order in _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(pk__in=order_ids)
+    }
 
     reverted = 0
     for entry in entries:
@@ -2406,10 +2499,11 @@ def order_management_undo_last_action(request):
 @login_required
 def order_management_export_csv(request):
     status_tabs = _order_status_tabs()
-    active_tab = _resolve_active_tab(request, status_tabs)
+    order_base_queryset = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all())
+    active_tab = _resolve_active_tab(request, status_tabs, order_base_queryset)
     filters = _get_order_management_filters(request)
     queryset = (
-        ShiprocketOrder.objects.filter(local_status=active_tab)
+        _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(local_status=active_tab)
         .defer("raw_payload", "order_items", "billing_address")
         .order_by("-order_date", "-updated_at")
     )
@@ -2672,7 +2766,7 @@ def project_detail(request, pk):
 
 
 def order_detail(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     form = ShiprocketOrderManualUpdateForm(instance=order)
     tracking_form = ShiprocketOrderTrackingUpdateForm(instance=order)
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
@@ -2762,8 +2856,11 @@ def packing_list(request, pk):
     if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
         messages.error(request, "Your role cannot access packing list.")
         return redirect("order_management")
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
-    sender = SenderAddress.get_default()
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
+    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
+        "-updated_at",
+        "-created_at",
+    ).first() or SenderAddress.get_default()
     context = {
         "order": order,
         "sender": sender,
@@ -2776,7 +2873,9 @@ def packing_queue(request):
     if restricted_response:
         return restricted_response
     search_query = (request.GET.get("q") or "").strip()
-    orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED).order_by(
+    orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
+        local_status=ShiprocketOrder.STATUS_ACCEPTED
+    ).order_by(
         "-order_date",
         "-updated_at",
     )
@@ -2812,8 +2911,13 @@ def bulk_packing_lists(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
     if restricted_response:
         return restricted_response
-    sender = SenderAddress.get_default()
-    orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_ACCEPTED).order_by(
+    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
+        "-updated_at",
+        "-created_at",
+    ).first() or SenderAddress.get_default()
+    orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
+        local_status=ShiprocketOrder.STATUS_ACCEPTED
+    ).order_by(
         "-order_date",
         "-updated_at",
     )
@@ -2836,12 +2940,15 @@ def shipping_label_4x6(request, pk):
     if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
         messages.error(request, "Your role cannot access shipping label.")
         return redirect("order_management")
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
         messages.error(request, "Shipping label is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    sender = SenderAddress.get_default()
+    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
+        "-updated_at",
+        "-created_at",
+    ).first() or SenderAddress.get_default()
     return render(
         request,
         "core/shipping_label_4x6.html",
@@ -3342,12 +3449,15 @@ def shipping_label_pdf(request, pk):
     if not (_can_update_order_status(request.user) or _is_ops_admin(request.user)):
         messages.error(request, "Your role cannot access shipping label PDF.")
         return redirect("order_management")
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
         messages.error(request, "Shipping label PDF is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    sender = SenderAddress.get_default()
+    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
+        "-updated_at",
+        "-created_at",
+    ).first() or SenderAddress.get_default()
     order_reference = (
         str(order.channel_order_id or order.shiprocket_order_id or order.pk)
         .strip()
@@ -3362,8 +3472,11 @@ def shipping_label_pdf(request, pk):
 
 
 def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
-    sender = SenderAddress.get_default()
-    orders_query = ShiprocketOrder.objects.filter(
+    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
+        "-updated_at",
+        "-created_at",
+    ).first() or SenderAddress.get_default()
+    orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
         local_status=ShiprocketOrder.STATUS_PACKED,
     ).order_by(
         "-order_date",
@@ -3445,7 +3558,9 @@ def _build_print_queue_context(request, *, back_url=None, force_skip_printed=Fal
     ready_only = _is_truthy(request.GET.get("ready_only"))
     search_query = (request.GET.get("q") or "").strip()
 
-    orders_query = ShiprocketOrder.objects.filter(local_status=ShiprocketOrder.STATUS_PACKED).order_by(
+    orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
+        local_status=ShiprocketOrder.STATUS_PACKED
+    ).order_by(
         "-order_date",
         "-updated_at",
     )
@@ -3544,6 +3659,7 @@ def stock_management(request):
         return redirect("order_management")
     can_edit_operations = _can_manage_stock(request.user)
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    active_tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
     actor = _request_actor(request)
     search_query = str(request.GET.get("q") or "").strip()
     low_only = _is_truthy(request.GET.get("low"))
@@ -3555,7 +3671,7 @@ def stock_management(request):
     edit_product = None
     edit_pk = str(request.GET.get("edit") or "").strip()
     if edit_pk.isdigit():
-        edit_product = Product.objects.filter(pk=int(edit_pk)).first()
+        edit_product = _scope_queryset_to_active_tenant(request, Product.objects.all()).filter(pk=int(edit_pk)).first()
         active_view = "manage"
 
     if request.method == "POST" and not can_edit_operations:
@@ -3563,6 +3679,10 @@ def stock_management(request):
         return redirect("stock_management")
 
     product_form = ProductForm(instance=edit_product)
+    product_form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
+        request,
+        ProductCategory.objects.filter(is_active=True),
+    ).order_by("name")
     stock_form = StockAdjustmentForm()
     mapping_form = BulkSmartbizMappingForm()
 
@@ -3579,10 +3699,22 @@ def stock_management(request):
             redirect_url = f"{redirect_url}?{return_query}"
         if action == "save_product":
             product_id = str(request.POST.get("product_id") or "").strip()
-            instance = Product.objects.filter(pk=int(product_id)).first() if product_id.isdigit() else None
+            instance = (
+                _scope_queryset_to_active_tenant(request, Product.objects.all()).filter(pk=int(product_id)).first()
+                if product_id.isdigit()
+                else None
+            )
             product_form = ProductForm(request.POST, instance=instance)
+            product_form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
+                request,
+                ProductCategory.objects.filter(is_active=True),
+            ).order_by("name")
             if product_form.is_valid():
-                product = product_form.save()
+                product = product_form.save(commit=False)
+                if active_tenant is not None and not product.pk:
+                    product.tenant = active_tenant
+                product.save()
+                product_form.save_m2m()
                 messages.success(request, f"Saved product {product.name} ({product.sku}).")
                 return redirect(redirect_url)
             messages.error(request, "Unable to save product. Check the product fields.")
@@ -3590,7 +3722,7 @@ def stock_management(request):
             stock_form = StockAdjustmentForm(request.POST)
             if stock_form.is_valid():
                 lookup_value = stock_form.cleaned_data["lookup_value"]
-                product = find_product_by_lookup(lookup_value)
+                product = find_product_by_lookup(lookup_value, tenant=active_tenant)
                 if not product:
                     messages.error(request, f"No product found for '{lookup_value}'.")
                 else:
@@ -3649,12 +3781,13 @@ def stock_management(request):
                 for row in mapping_form.parse_rows():
                     sku = str(row["sku"] or "").strip().upper()
                     smartbiz_product_id = str(row["smartbiz_product_id"] or "").strip()
-                    product = Product.objects.filter(sku=sku).first()
+                    product = _scope_queryset_to_active_tenant(request, Product.objects.all()).filter(sku=sku).first()
                     if not product:
                         missing_skus.append(sku)
                         continue
                     conflict = (
                         Product.objects.exclude(pk=product.pk)
+                        .filter(tenant=product.tenant)
                         .filter(smartbiz_product_id__iexact=smartbiz_product_id)
                         .first()
                     )
@@ -3680,7 +3813,8 @@ def stock_management(request):
             messages.error(request, "Unable to apply bulk SmartBiz mappings. Check the pasted rows.")
         elif action == "sync_woocommerce_products":
             try:
-                summary = sync_woocommerce_products()
+                woo_tenant = _woocommerce_call_tenant(active_tenant)
+                summary = sync_woocommerce_products(tenant=woo_tenant) if woo_tenant is not None else sync_woocommerce_products()
             except WooCommerceAPIError as exc:
                 messages.error(request, f"WooCommerce product sync failed: {exc}")
             else:
@@ -3696,7 +3830,7 @@ def stock_management(request):
                     messages.info(request, f"Included {summary['variations_seen']} WooCommerce variation(s).")
             return redirect(redirect_url)
         elif action == "reconcile_stock":
-            summary = reconcile_missed_stock_deductions(actor=actor)
+            summary = reconcile_missed_stock_deductions(actor=actor, tenant=active_tenant)
             if summary["movement_count"]:
                 messages.success(
                     request,
@@ -3722,7 +3856,7 @@ def stock_management(request):
             messages.error(request, "Invalid stock action.")
             return redirect(redirect_url)
 
-    products = Product.objects.annotate(
+    products = _scope_queryset_to_active_tenant(request, Product.objects.all()).annotate(
         sort_category=Coalesce("category_master__name", "category"),
     ).order_by("sort_category", "name", "sku")
     if search_query:
@@ -3758,8 +3892,14 @@ def stock_management(request):
     elif no_stock_only:
         products = products.filter(stock_quantity__lte=0)
     total_products_count = products.count()
-    recent_movements = StockMovement.objects.select_related("product", "order").order_by("-created_at")[:25]
-    product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
+    recent_movements = _scope_queryset_to_active_tenant(
+        request,
+        StockMovement.objects.select_related("product", "order"),
+    ).order_by("-created_at")[:25]
+    product_categories = _scope_queryset_to_active_tenant(
+        request,
+        ProductCategory.objects.filter(is_active=True),
+    ).order_by("name")
 
     template_name = "core/stock_management_ops.html" if ops_mobile_mode else "core/stock_management.html"
     return render(
@@ -3795,7 +3935,10 @@ def stock_product_detail(request, pk):
         messages.error(request, "Your role cannot access stock management.")
         return redirect("order_management")
 
-    product = get_object_or_404(Product.objects.select_related("category_master"), pk=pk)
+    product = get_object_or_404(
+        _scope_queryset_to_active_tenant(request, Product.objects.select_related("category_master")),
+        pk=pk,
+    )
     can_edit_operations = _can_manage_stock(request.user)
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
 
@@ -3811,6 +3954,10 @@ def stock_product_detail(request, pk):
             pass
 
     form = ProductDetailUpdateForm(request.POST or None, instance=product)
+    form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
+        request,
+        ProductCategory.objects.filter(is_active=True),
+    ).order_by("name")
     if request.method == "POST":
         if form.is_valid():
             product = form.save()
@@ -3902,7 +4049,10 @@ def stock_product_section(request, pk, section):
     if section not in {"description", "images", "price", "inventory", "categories"}:
         return redirect("stock_product_detail", pk=pk)
 
-    product = get_object_or_404(Product.objects.select_related("category_master"), pk=pk)
+    product = get_object_or_404(
+        _scope_queryset_to_active_tenant(request, Product.objects.select_related("category_master")),
+        pk=pk,
+    )
     can_edit_operations = _can_manage_stock(request.user)
     if request.method == "POST" and not can_edit_operations:
         messages.error(request, "Your role has read-only access for stock management.")
@@ -3924,6 +4074,10 @@ def stock_product_section(request, pk, section):
             upload_error = str(exc)
             messages.error(request, upload_error)
     form = ProductDetailUpdateForm(form_data, instance=product)
+    form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
+        request,
+        ProductCategory.objects.filter(is_active=True),
+    ).order_by("name")
     if upload_error:
         form.add_error("image_url", upload_error)
     if request.method == "POST":
@@ -3943,7 +4097,10 @@ def stock_product_section(request, pk, section):
             return redirect("stock_product_section", pk=product.pk, section=section)
         messages.error(request, "Unable to save product. Check the product fields.")
 
-    product_categories = ProductCategory.objects.filter(is_active=True).order_by("name")
+    product_categories = _scope_queryset_to_active_tenant(
+        request,
+        ProductCategory.objects.filter(is_active=True),
+    ).order_by("name")
     section_titles = {
         "description": "Description",
         "images": "Product image",
@@ -3974,7 +4131,12 @@ def special_stock_issue_register(request):
 
     actor = _request_actor(request)
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    active_tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
     form = SpecialStockIssueForm(request.POST or None)
+    form.fields["product"].queryset = _scope_queryset_to_active_tenant(
+        request,
+        Product.objects.order_by("category", "name", "sku"),
+    )
     product_options = list(form.fields["product"].queryset)
     selected_product_id = str(form["product"].value() or "").strip()
     selected_product_stock = None
@@ -3986,7 +4148,10 @@ def special_stock_issue_register(request):
         if selected_product:
             selected_product_stock = selected_product.stock_quantity
     recent_issues = (
-        StockMovement.objects.filter(movement_type=StockMovement.TYPE_SPECIAL_ISSUE)
+        _scope_queryset_to_active_tenant(
+            request,
+            StockMovement.objects.filter(movement_type=StockMovement.TYPE_SPECIAL_ISSUE),
+        )
         .select_related("product")
         .order_by("-created_at")[:25]
     )
@@ -3994,6 +4159,9 @@ def special_stock_issue_register(request):
     if request.method == "POST":
         if form.is_valid():
             product = form.cleaned_data["product"]
+            if active_tenant is not None and product.tenant_id != active_tenant.pk:
+                messages.error(request, "Your role cannot issue stock for that product.")
+                return redirect("special_stock_issue_register")
             quantity = int(form.cleaned_data["quantity"] or 0)
             issue_category = str(form.cleaned_data["issue_category"] or "").strip()
             issue_recipient = str(form.cleaned_data["issue_recipient"] or "").strip()
@@ -4039,16 +4207,28 @@ def expense_tracker(request):
         return redirect("order_management")
 
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    active_tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
     actor = _request_actor(request)
     edit_pk = str(request.GET.get("edit") or request.POST.get("expense_id") or "").strip()
-    edit_expense = BusinessExpense.objects.filter(pk=int(edit_pk)).first() if edit_pk.isdigit() else None
+    edit_expense = (
+        _scope_queryset_to_active_tenant(request, BusinessExpense.objects.all()).filter(pk=int(edit_pk)).first()
+        if edit_pk.isdigit()
+        else None
+    )
     form = BusinessExpenseForm(request.POST or None, instance=edit_expense)
+    form.fields["expense_person"].queryset = _scope_queryset_to_active_tenant(
+        request,
+        ExpensePerson.objects.filter(is_active=True),
+    ).order_by("name")
     now = timezone.localtime(timezone.now())
     line_total_expression = ExpressionWrapper(
         F("quantity") * F("unit_price"),
         output_field=DecimalField(max_digits=12, decimal_places=2),
     )
-    expense_totals = BusinessExpense.objects.annotate(line_total=line_total_expression)
+    expense_totals = _scope_queryset_to_active_tenant(
+        request,
+        BusinessExpense.objects.all(),
+    ).annotate(line_total=line_total_expression)
     total_spent = expense_totals.aggregate(total=Sum("line_total")).get("total") or 0
     current_month_spent = (
         expense_totals.filter(created_at__year=now.year, created_at__month=now.month)
@@ -4062,6 +4242,8 @@ def expense_tracker(request):
             expense = form.save(commit=False)
             if not edit_expense:
                 expense.created_by = actor
+                if active_tenant is not None:
+                    expense.tenant = active_tenant
             expense.save()
             if edit_expense:
                 messages.success(
@@ -4087,7 +4269,10 @@ def expense_tracker(request):
             else "Unable to update expense entry. Check the form fields.",
         )
 
-    recent_expenses = BusinessExpense.objects.select_related("expense_person").all()[:30]
+    recent_expenses = _scope_queryset_to_active_tenant(
+        request,
+        BusinessExpense.objects.select_related("expense_person"),
+    ).all()[:30]
     return render(
         request,
         "core/expense_tracker.html",
@@ -4096,11 +4281,14 @@ def expense_tracker(request):
             "edit_expense": edit_expense,
             "ops_mobile_mode": ops_mobile_mode,
             "recent_expenses": recent_expenses,
-            "expense_count": BusinessExpense.objects.count(),
+            "expense_count": _scope_queryset_to_active_tenant(request, BusinessExpense.objects.all()).count(),
             "total_spent": total_spent,
             "current_month_spent": current_month_spent,
             "current_month_label": now.strftime("%B %Y"),
-            "expense_people_count": ExpensePerson.objects.filter(is_active=True).count(),
+            "expense_people_count": _scope_queryset_to_active_tenant(
+                request,
+                ExpensePerson.objects.filter(is_active=True),
+            ).count(),
         },
     )
 
@@ -4156,10 +4344,15 @@ def whatsapp_settings(request):
         return restricted_response
     can_edit_operations = _can_edit_operations(request.user)
     webhook_token_configured = bool(str(getattr(settings, "WHATOMATE_WEBHOOK_TOKEN", "") or "").strip())
-    settings_row = WhatsAppSettings.get_default()
-    woocommerce_settings_row = WooCommerceSettings.get_default()
+    active_tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
+    whats_app_tenant = _whatsapp_call_tenant(active_tenant)
+    settings_row = WhatsAppSettings.get_for_tenant(active_tenant) if active_tenant else WhatsAppSettings.get_default()
+    woocommerce_settings_row = (
+        _scope_queryset_to_active_tenant(request, WooCommerceSettings.objects.all()).order_by("-updated_at", "-created_at").first()
+        or WooCommerceSettings.get_default()
+    )
     woocommerce_webhook_url = request.build_absolute_uri(reverse("woocommerce_webhook"))
-    templates = WhatsAppTemplate.objects.all()[:100]
+    templates = _scope_queryset_to_active_tenant(request, WhatsAppTemplate.objects.all())[:100]
     template_placeholder_map = {}
     for item in templates:
         if item.name not in template_placeholder_map:
@@ -4197,7 +4390,7 @@ def whatsapp_settings(request):
         prefix="message",
         template_choices=template_choices,
     )
-    diagnostics = _build_whatsapp_diagnostics()
+    diagnostics = _build_whatsapp_diagnostics(request)
 
     if request.method == "POST":
         if not can_edit_operations:
@@ -4237,6 +4430,7 @@ def whatsapp_settings(request):
                 limit=max(1, int(request.POST.get("limit") or 20)),
                 worker_name=f"ui_settings:{_request_actor(request) or 'manual'}",
                 include_not_due=bool(_is_truthy(request.POST.get("include_not_due"))),
+                tenant=active_tenant,
             )
             write_system_heartbeat(
                 "queue_worker",
@@ -4274,7 +4468,10 @@ def whatsapp_settings(request):
                 template_choices=template_choices,
             )
             if settings_form.is_valid():
-                settings_form.save()
+                settings_instance = settings_form.save(commit=False)
+                if active_tenant is not None:
+                    settings_instance.tenant = active_tenant
+                settings_instance.save()
                 overrides = _config_overrides_from_form(settings_form.cleaned_data)
 
                 if action == "save_settings":
@@ -4283,7 +4480,7 @@ def whatsapp_settings(request):
 
                 if action == "check_connection":
                     try:
-                        check_api_connection(config_overrides=overrides)
+                        check_api_connection(config_overrides=overrides, tenant=whats_app_tenant)
                     except WhatomateNotificationError as exc:
                         messages.error(request, f"Connection failed: {exc}")
                     else:
@@ -4292,7 +4489,7 @@ def whatsapp_settings(request):
 
                 if action == "sync_templates":
                     try:
-                        sync_result = sync_templates_from_api(config_overrides=overrides)
+                        sync_result = sync_templates_from_api(config_overrides=overrides, tenant=active_tenant)
                     except WhatomateNotificationError as exc:
                         messages.error(request, f"Template sync failed: {exc}")
                     else:
@@ -4338,12 +4535,16 @@ def whatsapp_settings(request):
                 prefix="woocommerce",
             )
             if woocommerce_form.is_valid():
-                woocommerce_form.save()
+                woocommerce_settings = woocommerce_form.save(commit=False)
+                if active_tenant is not None:
+                    woocommerce_settings.tenant = active_tenant
+                woocommerce_settings.save()
                 if action == "save_woocommerce_settings":
                     messages.success(request, "WooCommerce settings saved.")
                     return redirect("whatsapp_settings")
                 try:
-                    result = check_woocommerce_connection()
+                    woo_tenant = _woocommerce_call_tenant(active_tenant)
+                    result = check_woocommerce_connection(tenant=woo_tenant) if woo_tenant is not None else check_woocommerce_connection()
                 except WooCommerceAPIError as exc:
                     messages.error(request, f"WooCommerce connection failed: {exc}")
                 else:
@@ -4363,7 +4564,10 @@ def whatsapp_settings(request):
                 template_choices=template_choices,
             )
             if message_form.is_valid():
-                saved_settings = message_form.save()
+                saved_settings = message_form.save(commit=False)
+                if active_tenant is not None:
+                    saved_settings.tenant = active_tenant
+                saved_settings.save()
                 overrides = _config_overrides_from_saved()
 
                 if action == "send_test_message":
@@ -4374,6 +4578,7 @@ def whatsapp_settings(request):
                             phone_number=test_phone,
                             message_text=test_message,
                             config_overrides=overrides,
+                            tenant=whats_app_tenant,
                         )
                     except WhatomateNotificationError as exc:
                         _create_whatsapp_log(
@@ -4407,6 +4612,7 @@ def whatsapp_settings(request):
                             template_name=template_name,
                             template_params=template_params,
                             config_overrides=overrides,
+                            tenant=whats_app_tenant,
                         )
                     except WhatomateNotificationError as exc:
                         _create_whatsapp_log(
@@ -4460,8 +4666,10 @@ def whatsapp_settings(request):
     )
 
 
-def _filtered_whatsapp_notification_logs(result_filter, trigger_filter):
+def _filtered_whatsapp_notification_logs(result_filter, trigger_filter, request=None):
     logs = WhatsAppNotificationLog.objects.select_related("order").all()
+    if request is not None:
+        logs = _scope_queryset_to_active_tenant(request, logs)
     if result_filter == "success":
         logs = logs.filter(is_success=True)
     elif result_filter == "failed":
@@ -4482,7 +4690,11 @@ def whatsapp_delivery_logs(request):
     result_filter = (request.GET.get("result") or "").strip().lower()
     trigger_filter = (request.GET.get("trigger") or "").strip()
 
-    logs = _filtered_whatsapp_notification_logs(result_filter=result_filter, trigger_filter=trigger_filter)
+    logs = _filtered_whatsapp_notification_logs(
+        result_filter=result_filter,
+        trigger_filter=trigger_filter,
+        request=request,
+    )
 
     context = {
         "logs": logs[:300],
@@ -4653,7 +4865,11 @@ def whatsapp_delivery_logs_csv(request):
     can_view_raw_payload = _is_ops_admin(request.user)
     result_filter = (request.GET.get("result") or "").strip().lower()
     trigger_filter = (request.GET.get("trigger") or "").strip()
-    logs = _filtered_whatsapp_notification_logs(result_filter=result_filter, trigger_filter=trigger_filter)[:1000]
+    logs = _filtered_whatsapp_notification_logs(
+        result_filter=result_filter,
+        trigger_filter=trigger_filter,
+        request=request,
+    )[:1000]
 
     response = HttpResponse(content_type="text/csv")
     stamp = timezone.localtime(timezone.now()).strftime("%Y%m%d_%H%M%S")
@@ -5216,16 +5432,21 @@ def woocommerce_webhook(request):
         return JsonResponse({"ok": True, "detail": "WooCommerce webhook endpoint"})
 
     raw_body = request.body or b""
-    secret = get_woocommerce_webhook_secret()
-    if not secret:
-        return JsonResponse({"ok": False, "error": "WooCommerce webhook secret is not configured."}, status=401)
-
     query_secret = str(request.GET.get("secret") or "").strip()
     received_signature = str(request.headers.get("X-WC-Webhook-Signature") or "").strip()
-    expected_signature = _build_woocommerce_webhook_signature(raw_body, secret)
-    signature_ok = bool(received_signature and hmac.compare_digest(received_signature, expected_signature))
-    query_secret_ok = bool(query_secret and hmac.compare_digest(query_secret, secret))
-    if not signature_ok and not query_secret_ok:
+    settings_row = get_woocommerce_settings_for_webhook_secret(query_secret) if query_secret else None
+    auth_mode = "query_secret" if settings_row else ""
+    if not settings_row and received_signature:
+        for candidate in WooCommerceSettings.objects.select_related("tenant").filter(
+            tenant__is_active=True,
+        ).exclude(webhook_secret__exact=""):
+            expected_signature = _build_woocommerce_webhook_signature(raw_body, candidate.webhook_secret)
+            if hmac.compare_digest(received_signature, expected_signature):
+                settings_row = candidate
+                auth_mode = "signature"
+                break
+
+    if not settings_row:
         return JsonResponse(
             {
                 "ok": False,
@@ -5235,10 +5456,12 @@ def woocommerce_webhook(request):
             },
             status=401,
         )
+    tenant = settings_row.tenant
 
     def fallback_sync_response(detail):
         try:
-            synced = sync_woocommerce_orders()
+            woo_tenant = _woocommerce_call_tenant(tenant)
+            synced = sync_woocommerce_orders(tenant=woo_tenant) if woo_tenant is not None else sync_woocommerce_orders()
         except WooCommerceAPIError as exc:
             return JsonResponse(
                 {
@@ -5269,7 +5492,12 @@ def woocommerce_webhook(request):
     if not isinstance(payload, dict):
         return JsonResponse({"ok": False, "error": "Payload must be a JSON object."}, status=400)
 
-    order, created = import_woocommerce_order_payload(payload)
+    woo_tenant = _woocommerce_call_tenant(tenant)
+    order, created = (
+        import_woocommerce_order_payload(payload, tenant=woo_tenant)
+        if woo_tenant is not None
+        else import_woocommerce_order_payload(payload)
+    )
     if not order:
         return fallback_sync_response(
             "WooCommerce webhook did not include an order id; fallback sync attempted."
@@ -5288,7 +5516,8 @@ def woocommerce_webhook(request):
             "webhook_topic": str(request.headers.get("X-WC-Webhook-Topic") or ""),
             "webhook_resource": str(request.headers.get("X-WC-Webhook-Resource") or ""),
             "webhook_event": str(request.headers.get("X-WC-Webhook-Event") or ""),
-            "auth_mode": "signature" if signature_ok else "query_secret",
+            "auth_mode": auth_mode,
+            "tenant_id": tenant.pk,
             "woocommerce_order_id": order.woocommerce_order_id,
             "woocommerce_status": order.woocommerce_status,
         },
@@ -5316,7 +5545,8 @@ def order_notification_config(request):
     if restricted_response:
         return restricted_response
     can_edit_operations = _can_edit_operations(request.user)
-    template_rows = list(WhatsAppTemplate.objects.all()[:200])
+    active_tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
+    template_rows = list(_scope_queryset_to_active_tenant(request, WhatsAppTemplate.objects.all())[:200])
     template_choices = [
         (row.name, f"{row.name} ({row.language})" if row.language else row.name)
         for row in template_rows
@@ -5345,7 +5575,7 @@ def order_notification_config(request):
 
     for status_key, status_label in ShiprocketOrder.STATUS_CHOICES:
         sample_order = (
-            ShiprocketOrder.objects.filter(local_status=status_key)
+            _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.filter(local_status=status_key))
             .order_by("-order_date", "-updated_at")
             .first()
         )
@@ -5366,7 +5596,7 @@ def order_notification_config(request):
             return redirect("order_notification_config")
         has_error = False
         for status_key, status_label in ShiprocketOrder.STATUS_CHOICES:
-            config, _ = WhatsAppStatusTemplateConfig.get_or_create_for_status(status_key)
+            config, _ = WhatsAppStatusTemplateConfig.get_or_create_for_status(status_key, tenant=active_tenant)
             form = WhatsAppStatusTemplateConfigForm(
                 request.POST,
                 instance=config,
@@ -5374,6 +5604,8 @@ def order_notification_config(request):
                 template_choices=template_choices,
             )
             if form.is_valid():
+                if active_tenant is not None:
+                    form.instance.tenant = active_tenant
                 form.instance.local_status = status_key
                 form.save()
             else:
@@ -5387,7 +5619,7 @@ def order_notification_config(request):
             return redirect("order_notification_config")
     else:
         for status_key, status_label in ShiprocketOrder.STATUS_CHOICES:
-            config, _ = WhatsAppStatusTemplateConfig.get_or_create_for_status(status_key)
+            config, _ = WhatsAppStatusTemplateConfig.get_or_create_for_status(status_key, tenant=active_tenant)
             form = WhatsAppStatusTemplateConfigForm(
                 instance=config,
                 prefix=f"status-{status_key}",
@@ -5437,8 +5669,8 @@ def signup(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
-            messages.success(request, "Your account has been created.")
-            return redirect("home")
+            messages.success(request, "Your vendor workspace has been created.")
+            return redirect(resolve_post_login_url(user))
     else:
         form = SignUpForm()
 
@@ -5455,8 +5687,10 @@ def sync_shiprocket_orders(request):
         return redirect(redirect_url)
 
     sync_messages = []
+    active_tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
     try:
-        synced = sync_woocommerce_orders()
+        woo_tenant = _woocommerce_call_tenant(active_tenant)
+        synced = sync_woocommerce_orders(tenant=woo_tenant) if woo_tenant is not None else sync_woocommerce_orders()
     except WooCommerceAPIError as exc:
         messages.error(request, str(exc))
     else:
@@ -5470,7 +5704,7 @@ def sync_shiprocket_orders(request):
 
 @login_required
 def update_shiprocket_order(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     if request.method != "POST":
         return redirect("order_detail", pk=pk)
     if not _can_edit_manual_order_details(request.user):
@@ -5521,7 +5755,7 @@ def update_shiprocket_order(request, pk):
 
 @login_required
 def update_shiprocket_order_tracking(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     if request.method != "POST":
         return redirect("order_detail", pk=pk)
     if not _can_edit_manual_order_details(request.user):
@@ -5581,7 +5815,7 @@ def update_shiprocket_order_tracking(request, pk):
 
 @login_required
 def update_shiprocket_order_status(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     previous_status = order.local_status
     actor = _request_actor(request)
     redirect_tab = (request.POST.get("active_tab") or "").strip()
@@ -5867,7 +6101,7 @@ def update_shiprocket_order_status(request, pk):
 @login_required
 @require_POST
 def resend_shiprocket_order_whatsapp(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     actor = _request_actor(request)
     if not _can_edit_operations(request.user):
         messages.error(request, "Your role has read-only access and cannot resend WhatsApp updates.")
@@ -5956,7 +6190,7 @@ def resend_shiprocket_order_whatsapp(request, pk):
 @login_required
 @require_POST
 def send_order_payment_reminder(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     actor = _request_actor(request)
     redirect_tab = (request.POST.get("active_tab") or "").strip()
     if (request.POST.get("return_to") or "").strip():
@@ -6027,7 +6261,7 @@ def send_order_payment_reminder(request, pk):
 @login_required
 @require_POST
 def mark_order_payment_received(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     actor = _request_actor(request)
     redirect_tab = (request.POST.get("active_tab") or "").strip()
     if (request.POST.get("return_to") or "").strip():
@@ -6078,7 +6312,10 @@ def bulk_resend_shiprocket_order_whatsapp(request):
         return redirect(redirect_url)
 
     actor = _request_actor(request)
-    orders = list(ShiprocketOrder.objects.filter(pk__in=selected_ids).order_by("-order_date", "-updated_at"))
+    orders = list(
+        _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.filter(pk__in=selected_ids))
+        .order_by("-order_date", "-updated_at")
+    )
     if not orders:
         messages.warning(request, "No matching orders found for bulk resend.")
         return redirect(redirect_url)
@@ -6188,6 +6425,7 @@ def process_whatsapp_queue_now(request):
         limit=request.POST.get("limit") or 20,
         worker_name=f"ui_queue_now:{actor}",
         include_not_due=_is_truthy(request.POST.get("include_not_due")),
+        tenant=_active_whatsapp_tenant(request),
     )
     messages.success(
         request,
@@ -6208,7 +6446,10 @@ def retry_failed_whatsapp_queue(request):
         return redirect(redirect_url)
 
     actor = _request_actor(request)
-    failed_jobs = WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_FAILED)
+    failed_jobs = _scope_queryset_to_active_tenant(
+        request,
+        WhatsAppNotificationQueue.objects.filter(status=WhatsAppNotificationQueue.STATUS_FAILED),
+    )
     failed_count = failed_jobs.count()
     if not failed_count:
         messages.info(request, "No failed WhatsApp queue jobs to retry.")
@@ -6227,6 +6468,7 @@ def retry_failed_whatsapp_queue(request):
     summary = process_whatsapp_notification_queue(
         limit=process_limit,
         worker_name=f"retry_failed:{actor or 'manual'}",
+        tenant=_active_whatsapp_tenant(request),
     )
     messages.success(
         request,
@@ -6291,7 +6533,7 @@ def run_restore_dry_run(request):
 
 @require_POST
 def track_shipping_label_print(request, pk):
-    order = get_object_or_404(ShiprocketOrder, pk=pk)
+    order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
     if order.local_status not in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}:
         return JsonResponse({"ok": False, "error": "Only accepted or packed orders can be tracked."}, status=400)
 
@@ -6334,14 +6576,15 @@ def track_bulk_shipping_labels_print(request):
         return JsonResponse({"ok": False, "error": "No orders selected."}, status=400)
 
     printed_at = timezone.now()
-    updated_count = ShiprocketOrder.objects.filter(
+    orders_queryset = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all())
+    updated_count = orders_queryset.filter(
         pk__in=order_ids,
         local_status=ShiprocketOrder.STATUS_PACKED,
     ).update(
         label_print_count=F("label_print_count") + 1,
         last_label_printed_at=printed_at,
     )
-    updated_orders = ShiprocketOrder.objects.filter(
+    updated_orders = orders_queryset.filter(
         pk__in=order_ids,
         local_status=ShiprocketOrder.STATUS_PACKED,
     ).only("shiprocket_order_id", "local_status", "label_print_count", "last_label_printed_at")

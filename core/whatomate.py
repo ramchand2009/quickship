@@ -20,19 +20,62 @@ def _is_truthy(raw_value):
     return str(raw_value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _load_runtime_config():
+def _is_default_tenant(tenant):
+    try:
+        from .models import DEFAULT_TENANT_SLUG
+
+        return str(getattr(tenant, "slug", "") or "").strip().lower() == DEFAULT_TENANT_SLUG
+    except Exception:
+        return False
+
+
+def _settings_row_for_tenant(tenant):
+    try:
+        from .models import WhatsAppSettings
+
+        if tenant is not None:
+            return WhatsAppSettings.get_for_tenant(tenant)
+        return WhatsAppSettings.get_default()
+    except Exception:
+        return None
+
+
+def _apply_settings_row(config, settings_row):
+    if not settings_row:
+        return config
+    config["enabled"] = settings_row.enabled
+    if settings_row.api_base_url.strip():
+        config["base_url"] = settings_row.api_base_url.strip()
+    if settings_row.api_key.strip():
+        config["api_key"] = settings_row.api_key.strip()
+    if settings_row.account_id.strip():
+        config["account_id"] = settings_row.account_id.strip()
+    if settings_row.account_name.strip():
+        config["account_name"] = settings_row.account_name.strip()
+    if settings_row.test_phone_number.strip():
+        config["test_phone_number"] = settings_row.test_phone_number.strip()
+    if settings_row.test_message_text.strip():
+        config["test_message_text"] = settings_row.test_message_text.strip()
+    config["tenant_id"] = getattr(settings_row, "tenant_id", None)
+    return config
+
+
+def _load_runtime_config(tenant=None):
+    use_environment = tenant is None or _is_default_tenant(tenant)
     config = {
-        "enabled": _is_truthy(getattr(settings, "WHATOMATE_ENABLED", False)),
-        "base_url": str(getattr(settings, "WHATOMATE_BASE_URL", "") or "").strip(),
-        "api_key": str(getattr(settings, "WHATOMATE_API_KEY", "") or "").strip(),
-        "access_token": str(getattr(settings, "WHATOMATE_ACCESS_TOKEN", "") or "").strip(),
+        "enabled": _is_truthy(getattr(settings, "WHATOMATE_ENABLED", False)) if use_environment else False,
+        "base_url": str(getattr(settings, "WHATOMATE_BASE_URL", "") or "").strip() if use_environment else "",
+        "api_key": str(getattr(settings, "WHATOMATE_API_KEY", "") or "").strip() if use_environment else "",
+        "access_token": str(getattr(settings, "WHATOMATE_ACCESS_TOKEN", "") or "").strip() if use_environment else "",
         "default_country_code": "".join(
             ch for ch in str(getattr(settings, "WHATOMATE_DEFAULT_COUNTRY_CODE", "91") or "91") if ch.isdigit()
         ),
-        "account_id": str(getattr(settings, "WHATOMATE_ACCOUNT_ID", "") or "").strip(),
-        "account_name": str(getattr(settings, "WHATOMATE_ACCOUNT_NAME", "") or "").strip(),
-        "use_template": _is_truthy(getattr(settings, "WHATOMATE_ORDER_ACCEPTED_USE_TEMPLATE", False)),
-        "template_name": str(getattr(settings, "WHATOMATE_ORDER_ACCEPTED_TEMPLATE_NAME", "") or "").strip(),
+        "account_id": str(getattr(settings, "WHATOMATE_ACCOUNT_ID", "") or "").strip() if use_environment else "",
+        "account_name": str(getattr(settings, "WHATOMATE_ACCOUNT_NAME", "") or "").strip() if use_environment else "",
+        "use_template": _is_truthy(getattr(settings, "WHATOMATE_ORDER_ACCEPTED_USE_TEMPLATE", False)) if use_environment else False,
+        "template_name": str(getattr(settings, "WHATOMATE_ORDER_ACCEPTED_TEMPLATE_NAME", "") or "").strip()
+        if use_environment
+        else "",
         "accepted_text": str(
             getattr(
                 settings,
@@ -40,36 +83,24 @@ def _load_runtime_config():
                 "Hi {customer_name}, your order {order_id} has been accepted. We will share the next update soon.",
             )
             or ""
-        ),
+        )
+        if use_environment
+        else "Hi {customer_name}, your order {order_id} has been accepted. We will share the next update soon.",
         "test_phone_number": "",
         "test_message_text": "Hi from Mathukai test message.",
+        "tenant_id": getattr(tenant, "pk", None),
     }
 
     try:
-        from .models import WhatsAppSettings
-
-        settings_row = WhatsAppSettings.get_default()
-        config["enabled"] = settings_row.enabled
-        if settings_row.api_base_url.strip():
-            config["base_url"] = settings_row.api_base_url.strip()
-        if settings_row.api_key.strip():
-            config["api_key"] = settings_row.api_key.strip()
-        if settings_row.account_id.strip():
-            config["account_id"] = settings_row.account_id.strip()
-        if settings_row.account_name.strip():
-            config["account_name"] = settings_row.account_name.strip()
-        if settings_row.test_phone_number.strip():
-            config["test_phone_number"] = settings_row.test_phone_number.strip()
-        if settings_row.test_message_text.strip():
-            config["test_message_text"] = settings_row.test_message_text.strip()
+        _apply_settings_row(config, _settings_row_for_tenant(tenant))
     except Exception:
         # Keep environment fallback if DB/table is unavailable.
         pass
     return config
 
 
-def _resolve_runtime_config(overrides=None):
-    config = _load_runtime_config()
+def _resolve_runtime_config(overrides=None, tenant=None):
+    config = _load_runtime_config(tenant=tenant)
     if not overrides:
         return config
 
@@ -403,7 +434,19 @@ def _build_template_attempts(phone_number, template_name, template_params, confi
     return [("/api/messages/template", payload) for payload in base_variants]
 
 
-def _resolve_template_identifiers(template_name):
+def _resolve_config_tenant(config):
+    tenant_id = config.get("tenant_id") if isinstance(config, dict) else None
+    if not tenant_id:
+        return None
+    try:
+        from .models import Tenant
+
+        return Tenant.objects.filter(pk=tenant_id).first()
+    except Exception:
+        return None
+
+
+def _resolve_template_identifiers(template_name, tenant=None):
     template_name = str(template_name or "").strip()
     template_id = ""
     if not template_name:
@@ -412,9 +455,10 @@ def _resolve_template_identifiers(template_name):
     try:
         from .models import WhatsAppTemplate
 
-        template_row = (
-            WhatsAppTemplate.objects.filter(name=template_name).exclude(template_id="").order_by("-synced_at").first()
-        )
+        template_qs = WhatsAppTemplate.objects.filter(name=template_name).exclude(template_id="")
+        if tenant is not None:
+            template_qs = template_qs.filter(tenant=tenant)
+        template_row = template_qs.order_by("-synced_at").first()
         if template_row:
             template_id = str(template_row.template_id or "").strip()
     except Exception:
@@ -424,7 +468,8 @@ def _resolve_template_identifiers(template_name):
 
 def _send_template_by_fallback(phone_number, template_name, template_params, config, template_id=""):
     last_error = None
-    template_name, resolved_template_id = _resolve_template_identifiers(template_name)
+    config_tenant = _resolve_config_tenant(config)
+    template_name, resolved_template_id = _resolve_template_identifiers(template_name, tenant=config_tenant)
     explicit_template_id = str(template_id or "").strip()
     template_id = explicit_template_id or resolved_template_id
     if not template_name and not template_id:
@@ -664,8 +709,8 @@ def _get_contact_by_id(contact_id, config):
     return {}
 
 
-def resolve_phone_number_from_contact_id(contact_id, config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+def resolve_phone_number_from_contact_id(contact_id, config_overrides=None, tenant=None):
+    config = _resolve_runtime_config(config_overrides, tenant=tenant)
     contact = _get_contact_by_id(contact_id, config)
     for key in ("phone_number", "phone", "mobile", "wa_id", "whatsapp_number"):
         value = contact.get(key)
@@ -821,7 +866,7 @@ def _build_no_order_found_message():
 
 
 def send_order_enquiry_reply(order, incoming_phone_number="", inbound_message_text="", config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+    config = _resolve_runtime_config(config_overrides, tenant=getattr(order, "tenant", None))
     if not _is_enabled(config):
         return {"sent": False, "reason": "disabled"}
 
@@ -883,8 +928,8 @@ def send_no_order_found_reply(phone_number, inbound_message_text="", config_over
     }
 
 
-def check_api_connection(config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+def check_api_connection(config_overrides=None, tenant=None):
+    config = _resolve_runtime_config(config_overrides, tenant=tenant)
     if _is_cloud_api(config):
         _get_base_url(config)
         _get_headers(config)
@@ -917,8 +962,8 @@ def check_api_connection(config_overrides=None):
     return {"ok": False}
 
 
-def sync_templates_from_api(config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+def sync_templates_from_api(config_overrides=None, tenant=None):
+    config = _resolve_runtime_config(config_overrides, tenant=tenant)
     if _is_cloud_api(config):
         return {
             "synced_count": 0,
@@ -931,8 +976,9 @@ def sync_templates_from_api(config_overrides=None):
     if not items:
         return {"synced_count": 0}
 
-    from .models import WhatsAppTemplate
+    from .models import Tenant, WhatsAppTemplate
 
+    tenant = tenant or _resolve_config_tenant(config) or Tenant.get_default()
     synced_count = 0
     for item in items:
         if not isinstance(item, dict):
@@ -948,6 +994,7 @@ def sync_templates_from_api(config_overrides=None):
             "raw_payload": item,
         }
         WhatsAppTemplate.objects.update_or_create(
+            tenant=tenant,
             name=name,
             language=language,
             defaults=defaults,
@@ -956,8 +1003,8 @@ def sync_templates_from_api(config_overrides=None):
     return {"synced_count": synced_count}
 
 
-def send_test_whatsapp_message(phone_number, message_text, config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+def send_test_whatsapp_message(phone_number, message_text, config_overrides=None, tenant=None):
+    config = _resolve_runtime_config(config_overrides, tenant=tenant)
     normalized_phone = _normalize_phone_number(phone_number, config)
     if len(normalized_phone) < 10:
         raise WhatomateNotificationError("Enter a valid test phone number.")
@@ -983,8 +1030,8 @@ def send_test_whatsapp_message(phone_number, message_text, config_overrides=None
     }
 
 
-def send_test_template_message(phone_number, template_name, template_params, config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+def send_test_template_message(phone_number, template_name, template_params, config_overrides=None, tenant=None):
+    config = _resolve_runtime_config(config_overrides, tenant=tenant)
     normalized_phone = _normalize_phone_number(phone_number, config)
     if len(normalized_phone) < 10:
         raise WhatomateNotificationError("Enter a valid test phone number.")
@@ -1159,11 +1206,14 @@ def _build_template_params_for_status(placeholders, order, field_mapping=None):
     return params
 
 
-def _get_status_template_config(local_status):
+def _get_status_template_config(local_status, tenant=None):
     try:
         from .models import WhatsAppStatusTemplateConfig
 
-        return WhatsAppStatusTemplateConfig.objects.filter(local_status=local_status, enabled=True).first()
+        template_qs = WhatsAppStatusTemplateConfig.objects.filter(local_status=local_status, enabled=True)
+        if tenant is not None:
+            template_qs = template_qs.filter(tenant=tenant)
+        return template_qs.first()
     except Exception:
         return None
 
@@ -1176,6 +1226,9 @@ def _resolve_template_details_for_status(config_row):
         from .models import WhatsAppTemplate
 
         template_qs = WhatsAppTemplate.objects.all()
+        tenant = getattr(config_row, "tenant", None)
+        if tenant is not None:
+            template_qs = template_qs.filter(tenant=tenant)
         if template_id:
             template_qs = template_qs.filter(template_id=template_id)
         if template_name:
@@ -1194,7 +1247,8 @@ def _resolve_template_details_for_status(config_row):
 
 
 def _build_status_notification_plan(order):
-    config = _resolve_runtime_config()
+    tenant = getattr(order, "tenant", None)
+    config = _resolve_runtime_config(tenant=tenant)
     if not _is_enabled(config):
         return {"sendable": False, "reason": "disabled", "status": order.local_status, "config": config}
 
@@ -1207,7 +1261,7 @@ def _build_status_notification_plan(order):
     if len(phone_number) < 10:
         raise WhatomateNotificationError("Customer mobile is missing or invalid for WhatsApp update.")
 
-    status_config = _get_status_template_config(order.local_status)
+    status_config = _get_status_template_config(order.local_status, tenant=tenant)
     if status_config:
         template_name, template_id, placeholders = _resolve_template_details_for_status(status_config)
         if template_name or template_id:
@@ -1280,7 +1334,7 @@ def build_order_status_idempotency_payload(order):
 
 
 def build_order_payment_reminder_idempotency_payload(order):
-    config = _resolve_runtime_config()
+    config = _resolve_runtime_config(tenant=getattr(order, "tenant", None))
     if not _is_enabled(config):
         return {"sendable": False, "reason": "disabled", "status": order.local_status, "config": config}
 
@@ -1321,7 +1375,7 @@ def send_order_status_update(order, previous_status=None):
     if not plan.get("sendable"):
         return {"sent": False, "reason": plan.get("reason", "not_configured"), "status": order.local_status}
 
-    config = plan.get("config") or _resolve_runtime_config()
+    config = plan.get("config") or _resolve_runtime_config(tenant=getattr(order, "tenant", None))
     mode = str(plan.get("mode") or "").strip()
     phone_number = str(plan.get("phone_number") or "").strip()
     template_name = str(plan.get("template_name") or "").strip()
@@ -1366,7 +1420,7 @@ def send_order_payment_reminder(order):
     if not plan.get("sendable"):
         return {"sent": False, "reason": plan.get("reason", "not_configured"), "status": order.local_status}
 
-    config = plan.get("config") or _resolve_runtime_config()
+    config = plan.get("config") or _resolve_runtime_config(tenant=getattr(order, "tenant", None))
     phone_number = str(plan.get("phone_number") or "").strip()
     template_name = str(plan.get("template_name") or "").strip()
     template_result = _send_template_by_fallback(
@@ -1390,7 +1444,7 @@ def send_order_payment_reminder(order):
 
 
 def send_order_accepted_status_update(order):
-    config = _resolve_runtime_config()
+    config = _resolve_runtime_config(tenant=getattr(order, "tenant", None))
     if not _is_enabled(config):
         return {"sent": False, "reason": "disabled"}
 

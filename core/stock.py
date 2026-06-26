@@ -40,7 +40,7 @@ def summarize_order_items_by_product(order):
             quantity = 0
         if quantity <= 0:
             continue
-        product, matched_identifier = find_product_for_order_item(item)
+        product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
         if not product:
             missing_identifier = (
                 normalize_channel_product_id(
@@ -159,7 +159,7 @@ def summarize_order_profit(order):
         )
         revenue_total += unit_price * quantity
 
-        product, matched_identifier = find_product_for_order_item(item)
+        product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
         if not product:
             missing_identifier = (
                 normalize_channel_product_id(
@@ -221,7 +221,7 @@ def build_packing_scan_requirements(order):
         if quantity <= 0:
             continue
 
-        product, matched_identifier = find_product_for_order_item(item)
+        product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
         if not product:
             unmatched_identifier = (
                 normalize_channel_product_id(
@@ -363,42 +363,51 @@ def validate_packing_scans(order, scanned_barcodes):
     }
 
 
-def find_product_by_lookup(raw_value):
+def _product_queryset_for_tenant(tenant=None):
+    queryset = Product.objects.all()
+    if tenant is not None:
+        queryset = queryset.filter(tenant=tenant)
+    return queryset
+
+
+def find_product_by_lookup(raw_value, tenant=None):
     lookup = str(raw_value or "").strip()
     if not lookup:
         return None
+    queryset = _product_queryset_for_tenant(tenant)
 
     barcode = normalize_barcode(lookup)
     if barcode:
-        product = Product.objects.filter(barcode=barcode).first()
+        product = queryset.filter(barcode=barcode).first()
         if product:
             return product
 
     sku = normalize_sku(lookup)
     if sku:
-        product = Product.objects.filter(sku=sku).first()
+        product = queryset.filter(sku=sku).first()
         if product:
             return product
 
     smartbiz_product_id = normalize_channel_product_id(lookup)
     if smartbiz_product_id:
-        return Product.objects.filter(smartbiz_product_id__iexact=smartbiz_product_id).first()
+        return queryset.filter(smartbiz_product_id__iexact=smartbiz_product_id).first()
     return None
 
 
-def find_product_for_order_item(item):
+def find_product_for_order_item(item, tenant=None):
     if not isinstance(item, dict):
         return None, ""
+    queryset = _product_queryset_for_tenant(tenant)
 
     sku = normalize_sku(item.get("sku"))
     if sku:
-        product = Product.objects.filter(sku=sku).first()
+        product = queryset.filter(sku=sku).first()
         if product:
             return product, sku
 
     channel_sku = normalize_sku(item.get("channel_sku"))
     if channel_sku:
-        product = Product.objects.filter(sku=channel_sku).first()
+        product = queryset.filter(sku=channel_sku).first()
         if product:
             return product, channel_sku
 
@@ -410,18 +419,18 @@ def find_product_for_order_item(item):
         or item.get("id")
     )
     if smartbiz_product_id:
-        product = Product.objects.filter(smartbiz_product_id__iexact=smartbiz_product_id).first()
+        product = queryset.filter(smartbiz_product_id__iexact=smartbiz_product_id).first()
         if product:
             return product, smartbiz_product_id
 
     if sku:
-        product = Product.objects.filter(smartbiz_product_id__iexact=sku).first()
+        product = queryset.filter(smartbiz_product_id__iexact=sku).first()
         if product:
             return product, sku
 
     name = str(item.get("name") or "").strip()
     if name:
-        products = list(Product.objects.filter(name__iexact=name)[:2])
+        products = list(queryset.filter(name__iexact=name)[:2])
         if len(products) == 1:
             return products[0], name
 
@@ -507,7 +516,7 @@ def sync_stock_for_status_transition(*, order, previous_status, current_status, 
     return result
 
 
-def reconcile_missed_stock_deductions(*, actor=""):
+def reconcile_missed_stock_deductions(*, actor="", tenant=None):
     eligible_statuses = [
         ShiprocketOrder.STATUS_ACCEPTED,
         ShiprocketOrder.STATUS_PACKED,
@@ -524,7 +533,10 @@ def reconcile_missed_stock_deductions(*, actor=""):
         "missing_skus": [],
     }
     missing_identifiers = set()
-    orders = ShiprocketOrder.objects.filter(local_status__in=eligible_statuses).order_by("-updated_at")
+    orders = ShiprocketOrder.objects.filter(local_status__in=eligible_statuses)
+    if tenant is not None:
+        orders = orders.filter(tenant=tenant)
+    orders = orders.order_by("-updated_at")
     for order in orders:
         summary["orders_scanned"] += 1
         result = {
@@ -715,6 +727,7 @@ def _create_stock_movement(
         locked_product.save(update_fields=["stock_quantity", "updated_at"])
 
         movement = StockMovement.objects.create(
+            tenant=locked_product.tenant,
             product=locked_product,
             order=order,
             shiprocket_order_id=str(getattr(order, "shiprocket_order_id", "") or "").strip(),

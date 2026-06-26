@@ -214,14 +214,24 @@ class WhatsAppSettings(models.Model):
         ordering = ["-updated_at", "-created_at"]
 
     def __str__(self):
-        return "WhatsApp Settings"
+        return f"WhatsApp Settings ({self.tenant})"
 
     @classmethod
     def get_default(cls):
-        settings_row = cls.objects.order_by("-updated_at", "-created_at").first()
+        tenant = Tenant.get_default()
+        settings_row = cls.objects.filter(tenant=tenant).order_by("-updated_at", "-created_at").first()
         if settings_row:
             return settings_row
-        return cls.objects.create(test_message_text="Hi from Mathukai test message.")
+        return cls.objects.create(tenant=tenant, test_message_text="Hi from Mathukai test message.")
+
+    @classmethod
+    def get_for_tenant(cls, tenant):
+        if tenant is None:
+            return cls.get_default()
+        settings_row = cls.objects.filter(tenant=tenant).order_by("-updated_at", "-created_at").first()
+        if settings_row:
+            return settings_row
+        return cls.objects.create(tenant=tenant, test_message_text="Hi from Mathukai test message.")
 
 
 class WooCommerceSettings(models.Model):
@@ -318,8 +328,8 @@ class WhatsAppTemplate(models.Model):
         ordering = ["name", "language", "-synced_at"]
         constraints = [
             models.UniqueConstraint(
-                fields=["name", "language"],
-                name="uniq_whatsapp_template_name_language",
+                fields=["tenant", "name", "language"],
+                name="uniq_whatsapp_template_tenant_name_language",
             )
         ]
 
@@ -336,7 +346,7 @@ class WhatsAppStatusTemplateConfig(models.Model):
         related_name="whatsapp_status_template_configs",
         default=get_default_tenant_pk,
     )
-    local_status = models.CharField(max_length=32, unique=True)
+    local_status = models.CharField(max_length=32)
     enabled = models.BooleanField(default=False)
     template_name = models.CharField(max_length=160, blank=True)
     template_id = models.CharField(max_length=128, blank=True)
@@ -348,6 +358,12 @@ class WhatsAppStatusTemplateConfig(models.Model):
         ordering = ["local_status"]
         verbose_name = "WhatsApp Status Template Config"
         verbose_name_plural = "WhatsApp Status Template Config"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "local_status"],
+                name="uniq_whatsapp_status_config_tenant_status",
+            )
+        ]
 
     def __str__(self):
         label = dict(ShiprocketOrder.STATUS_CHOICES).get(self.local_status, self.local_status)
@@ -355,8 +371,9 @@ class WhatsAppStatusTemplateConfig(models.Model):
         return f"{label}: {template}"
 
     @classmethod
-    def get_or_create_for_status(cls, local_status):
-        return cls.objects.get_or_create(local_status=local_status)
+    def get_or_create_for_status(cls, local_status, tenant=None):
+        tenant = tenant or Tenant.get_default()
+        return cls.objects.get_or_create(tenant=tenant, local_status=local_status)
 
 
 class ShiprocketOrder(models.Model):

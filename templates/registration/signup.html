@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Sign Up | Mathukai{% endblock %}
+{% block title %}Vendor Sign Up | Mathukai{% endblock %}
 
 {% block content %}
 <div class="card responsive-form-card">
     <div class="card-header">
-        <h5 class="mb-0">Create Account</h5>
+        <h5 class="mb-0">Create Vendor Account</h5>
     </div>
     <div class="card-block">
         <form method="post" novalidate>
@@ -22,7 +22,7 @@
                     {% endif %}
                 </div>
             {% endfor %}
-            <button type="submit" class="btn btn-primary w-100">Create Account</button>
+            <button type="submit" class="btn btn-primary w-100">Create Vendor Account</button>
         </form>
         <p class="text-muted small mt-3 mb-0">Already have an account? <a href="{% url 'login' %}">Login here</a>.</p>
     </div>

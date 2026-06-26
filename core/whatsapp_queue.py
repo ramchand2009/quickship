@@ -92,6 +92,7 @@ def enqueue_whatsapp_notification(
     if idempotency_key:
         existing_job = (
             WhatsAppNotificationQueue.objects.filter(
+                tenant=order.tenant,
                 idempotency_key=idempotency_key,
                 status__in=[
                     WhatsAppNotificationQueue.STATUS_PENDING,
@@ -117,6 +118,7 @@ def enqueue_whatsapp_notification(
             return {"queued": False, "reason": "duplicate_pending", "job": existing_job, "plan": plan}
 
         already_sent = WhatsAppNotificationLog.objects.filter(
+            tenant=order.tenant,
             idempotency_key=idempotency_key,
             is_success=True,
         ).exists()
@@ -135,6 +137,7 @@ def enqueue_whatsapp_notification(
             return {"queued": False, "reason": "already_sent", "job": None, "plan": plan}
 
     job = WhatsAppNotificationQueue.objects.create(
+        tenant=order.tenant,
         order=order,
         shiprocket_order_id=str(order.shiprocket_order_id or "").strip(),
         trigger=trigger,
@@ -180,11 +183,13 @@ def _calculate_backoff_minutes(attempt_count):
     return min(60, 2 ** max(0, int(attempt_count or 0) - 1))
 
 
-def _next_due_job(*, job_id=None, include_not_due=False):
+def _next_due_job(*, job_id=None, include_not_due=False, tenant=None):
     now = timezone.now()
     queryset = WhatsAppNotificationQueue.objects.select_for_update().filter(
         status__in=[WhatsAppNotificationQueue.STATUS_PENDING, WhatsAppNotificationQueue.STATUS_RETRYING]
     )
+    if tenant is not None:
+        queryset = queryset.filter(tenant=tenant)
     if job_id is not None:
         queryset = queryset.filter(pk=job_id)
     if not include_not_due:
@@ -197,6 +202,7 @@ def _create_log_for_job(job, *, is_success, result=None, error_message=""):
     order = job.order
     delivery_status = _resolve_delivery_status(result, is_success=is_success)
     WhatsAppNotificationLog.objects.create(
+        tenant=job.tenant,
         order=order,
         shiprocket_order_id=job.shiprocket_order_id,
         trigger=job.trigger,
@@ -221,12 +227,16 @@ def _create_log_for_job(job, *, is_success, result=None, error_message=""):
 def _execute_job(job):
     order = job.order
     if not order and job.shiprocket_order_id:
-        order = ShiprocketOrder.objects.filter(shiprocket_order_id=job.shiprocket_order_id).first()
+        order = ShiprocketOrder.objects.filter(
+            tenant=job.tenant,
+            shiprocket_order_id=job.shiprocket_order_id,
+        ).first()
 
     if not order:
         raise WhatomateNotificationError("Order not found while processing WhatsApp queue job.")
 
     if job.idempotency_key and WhatsAppNotificationLog.objects.filter(
+        tenant=job.tenant,
         idempotency_key=job.idempotency_key,
         is_success=True,
     ).exists():
@@ -258,7 +268,14 @@ def _execute_job(job):
     return order, result
 
 
-def process_whatsapp_notification_queue(*, limit=20, worker_name="manual", specific_job_id=None, include_not_due=False):
+def process_whatsapp_notification_queue(
+    *,
+    limit=20,
+    worker_name="manual",
+    specific_job_id=None,
+    include_not_due=False,
+    tenant=None,
+):
     summary = {
         "picked": 0,
         "processed": 0,
@@ -272,7 +289,7 @@ def process_whatsapp_notification_queue(*, limit=20, worker_name="manual", speci
     iterations = 1 if specific_job_id is not None else max(1, int(limit or 20))
     for _ in range(iterations):
         with transaction.atomic():
-            job = _next_due_job(job_id=specific_job_id, include_not_due=include_not_due)
+            job = _next_due_job(job_id=specific_job_id, include_not_due=include_not_due, tenant=tenant)
             if not job:
                 break
             job.status = WhatsAppNotificationQueue.STATUS_PROCESSING

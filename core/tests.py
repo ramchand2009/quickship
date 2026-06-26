@@ -44,14 +44,21 @@ from .access import (
     can_access_tenant,
     can_manage_vendor_settings,
     can_operate_vendor_orders,
+    can_update_order_status,
+    get_active_tenant,
     get_user_default_tenant,
+    is_ops_admin,
+    is_ops_viewer,
     is_super_admin,
+    is_vendor_user,
 )
+from .middleware import ActiveTenantMiddleware
 from .stock import summarize_order_profit
 from .system_status import write_system_heartbeat
 from .whatomate import (
     WhatomateNotificationError,
     build_order_payment_reminder_idempotency_payload,
+    build_order_status_idempotency_payload,
     _build_template_params_for_status,
     _create_contact,
     _get_headers,
@@ -111,6 +118,9 @@ class TenantFoundationTests(TestCase):
         self.assertTrue(can_operate_vendor_orders(self.vendor_user, self.mathukai))
         self.assertFalse(can_manage_vendor_settings(self.vendor_user, self.mathukai))
         self.assertFalse(can_access_tenant(self.vendor_user, self.other_tenant))
+        self.assertTrue(is_vendor_user(self.vendor_user))
+        self.assertTrue(is_ops_viewer(self.vendor_user))
+        self.assertFalse(is_ops_admin(self.vendor_user))
 
     def test_vendor_owner_can_manage_vendor_settings(self):
         TenantMembership.objects.create(
@@ -132,9 +142,29 @@ class TenantFoundationTests(TestCase):
 
         self.assertIsNone(get_user_default_tenant(self.vendor_user))
         self.assertFalse(can_access_tenant(self.vendor_user, self.mathukai))
+        self.assertFalse(is_vendor_user(self.vendor_user))
+        self.assertFalse(is_ops_admin(self.vendor_user))
+        self.assertFalse(is_ops_viewer(self.vendor_user))
+        self.assertFalse(can_update_order_status(self.vendor_user))
+
+    def test_inactive_tenant_does_not_grant_vendor_access(self):
+        inactive_tenant = Tenant.objects.create(name="Inactive Vendor", slug="inactive-vendor", is_active=False)
+        TenantMembership.objects.create(
+            tenant=inactive_tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+
+        self.assertIsNone(get_user_default_tenant(self.vendor_user))
+        self.assertFalse(can_access_tenant(self.vendor_user, inactive_tenant))
+        self.assertFalse(is_vendor_user(self.vendor_user))
+        self.assertFalse(is_ops_admin(self.vendor_user))
+        self.assertFalse(can_update_order_status(self.vendor_user))
 
     def test_super_admin_can_access_all_tenants_without_membership(self):
         self.assertTrue(is_super_admin(self.super_user))
+        self.assertTrue(is_ops_admin(self.super_user))
+        self.assertFalse(is_vendor_user(self.super_user))
         self.assertTrue(can_access_tenant(self.super_user, self.mathukai))
         self.assertTrue(can_manage_vendor_settings(self.super_user, self.other_tenant))
         self.assertTrue(can_operate_vendor_orders(self.super_user, self.other_tenant))
@@ -168,6 +198,247 @@ class TenantFoundationTests(TestCase):
         queryset = mixin.scope_queryset_to_tenant(Product.objects.all())
 
         self.assertEqual(list(queryset), [mathukai_product])
+
+    def test_active_tenant_middleware_sets_vendor_request_tenant(self):
+        membership = TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        request = SimpleNamespace(user=self.vendor_user)
+        middleware = ActiveTenantMiddleware(lambda request: "ok")
+
+        response = middleware(request)
+
+        self.assertEqual(response, "ok")
+        self.assertEqual(request.tenant, self.mathukai)
+        self.assertEqual(request.tenant_membership, membership)
+        self.assertEqual(get_active_tenant(request), self.mathukai)
+
+    def test_active_tenant_middleware_leaves_super_admin_platform_scoped(self):
+        request = SimpleNamespace(user=self.super_user)
+        middleware = ActiveTenantMiddleware(lambda request: "ok")
+
+        response = middleware(request)
+
+        self.assertEqual(response, "ok")
+        self.assertIsNone(request.tenant)
+        self.assertIsNone(request.tenant_membership)
+
+    def test_vendor_login_routes_to_mobile_operations_dashboard(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": "vendor", "password": "pass"},
+        )
+
+        self.assertRedirects(response, reverse("order_management"), fetch_redirect_response=False)
+
+    def test_super_admin_login_routes_to_desktop_dashboard(self):
+        response = self.client.post(
+            reverse("login"),
+            {"username": "root", "password": "pass"},
+        )
+
+        self.assertRedirects(response, reverse("home"), fetch_redirect_response=False)
+
+    def test_signup_creates_vendor_tenant_owner_and_default_settings(self):
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "tenant_name": "New Vendor Store",
+                "username": "newvendor",
+                "email": "newvendor@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+
+        self.assertRedirects(response, reverse("order_management"), fetch_redirect_response=False)
+        tenant = Tenant.objects.get(slug="new-vendor-store")
+        user = self.user_model.objects.get(username="newvendor")
+        membership = TenantMembership.objects.get(tenant=tenant, user=user)
+
+        self.assertEqual(tenant.owner, user)
+        self.assertEqual(tenant.contact_email, "newvendor@example.com")
+        self.assertEqual(membership.role, TenantMembership.ROLE_VENDOR_OWNER)
+        self.assertTrue(membership.is_active)
+        self.assertTrue(SenderAddress.objects.filter(tenant=tenant, name="New Vendor Store").exists())
+        self.assertTrue(WooCommerceSettings.objects.filter(tenant=tenant).exists())
+        self.assertTrue(WhatsAppSettings.objects.filter(tenant=tenant).exists())
+        self.assertTrue(is_vendor_user(user))
+        self.assertTrue(is_ops_viewer(user))
+        self.assertFalse(is_ops_admin(user))
+
+    def test_signup_rejects_duplicate_vendor_workspace_slug(self):
+        Tenant.objects.create(name="Existing Vendor", slug="existing-vendor")
+
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "tenant_name": "Existing Vendor",
+                "username": "existingvendoruser",
+                "email": "existingvendor@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already exists")
+        self.assertFalse(self.user_model.objects.filter(username="existingvendoruser").exists())
+
+    def test_vendor_order_management_lists_only_active_tenant_orders(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        own_order = ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="TENANT-A-ORDER-LIST",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        other_order = ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="TENANT-B-ORDER-LIST",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("order_management"), {"tab": "pending"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, own_order.shiprocket_order_id)
+        self.assertNotContains(response, other_order.shiprocket_order_id)
+
+    def test_vendor_cannot_open_or_update_other_tenant_order(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        other_order = ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="TENANT-B-ORDER-DETAIL",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        self.client.force_login(self.vendor_user)
+
+        detail_response = self.client.get(reverse("order_detail", args=[other_order.pk]))
+        update_response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[other_order.pk]),
+            {
+                f"order-{other_order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{other_order.pk}-manual_customer_phone": "9876543210",
+            },
+        )
+
+        other_order.refresh_from_db()
+        self.assertEqual(detail_response.status_code, 404)
+        self.assertEqual(update_response.status_code, 404)
+        self.assertEqual(other_order.local_status, ShiprocketOrder.STATUS_NEW)
+
+    def test_vendor_stock_management_lists_and_updates_only_active_tenant_products(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        own_product = Product.objects.create(
+            tenant=self.mathukai,
+            name="Tenant A Product",
+            sku="TENANT-A-STOCK-1",
+            stock_quantity=5,
+        )
+        other_product = Product.objects.create(
+            tenant=self.other_tenant,
+            name="Tenant B Product",
+            sku="TENANT-B-STOCK-1",
+            stock_quantity=7,
+        )
+        self.client.force_login(self.vendor_user)
+
+        list_response = self.client.get(reverse("stock_management"))
+        blocked_update = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "TENANT-B-STOCK-1",
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 3,
+            },
+            follow=True,
+        )
+        own_update = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": "TENANT-A-STOCK-1",
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 2,
+            },
+            follow=True,
+        )
+
+        own_product.refresh_from_db()
+        other_product.refresh_from_db()
+        self.assertContains(list_response, own_product.name)
+        self.assertNotContains(list_response, other_product.name)
+        self.assertContains(blocked_update, "No product found")
+        self.assertEqual(other_product.stock_quantity, 7)
+        self.assertContains(own_update, "2 unit(s) added")
+        self.assertEqual(own_product.stock_quantity, 7)
+        self.assertTrue(StockMovement.objects.filter(product=own_product, tenant=self.mathukai).exists())
+
+    def test_vendor_expense_tracker_lists_and_creates_only_active_tenant_expenses(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        own_person = ExpensePerson.objects.create(tenant=self.mathukai, name="Tenant A Buyer")
+        other_person = ExpensePerson.objects.create(tenant=self.other_tenant, name="Tenant B Buyer")
+        own_expense = BusinessExpense.objects.create(
+            tenant=self.mathukai,
+            expense_person=own_person,
+            item_name="Tenant A Boxes",
+            quantity=1,
+            unit_price="10.00",
+        )
+        other_expense = BusinessExpense.objects.create(
+            tenant=self.other_tenant,
+            expense_person=other_person,
+            item_name="Tenant B Boxes",
+            quantity=1,
+            unit_price="20.00",
+        )
+        self.client.force_login(self.vendor_user)
+
+        list_response = self.client.get(reverse("expense_tracker"))
+        create_response = self.client.post(
+            reverse("expense_tracker"),
+            {
+                "expense_person": own_person.pk,
+                "item_name": "Tenant A Tape",
+                "quantity": 2,
+                "unit_price": "5.00",
+                "remark": "",
+            },
+            follow=True,
+        )
+
+        created_expense = BusinessExpense.objects.get(item_name="Tenant A Tape")
+        self.assertContains(list_response, own_expense.item_name)
+        self.assertNotContains(list_response, other_expense.item_name)
+        self.assertContains(create_response, "Saved expense")
+        self.assertEqual(created_expense.tenant, self.mathukai)
+        self.assertFalse(BusinessExpense.objects.filter(tenant=self.other_tenant, item_name="Tenant A Tape").exists())
 
 
 class ShiprocketSyncTests(TestCase):
@@ -266,6 +537,44 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(order.order_items[0]["sku"], "TEA-1")
 
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_scopes_import_to_requested_tenant(self, mock_json_request):
+        vendor_tenant = Tenant.objects.create(name="Woo Vendor", slug="woo-vendor")
+        WooCommerceSettings.objects.create(
+            tenant=vendor_tenant,
+            store_url="https://vendor.example.com",
+            consumer_key="ck_vendor",
+            consumer_secret="cs_vendor",
+        )
+        mock_json_request.return_value = [
+            {
+                "id": 901,
+                "number": "1901",
+                "customer_id": 44,
+                "status": "processing",
+                "total": "499.00",
+                "date_created": "2026-04-01T10:30:00",
+                "billing": {
+                    "first_name": "Tenant",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Tenant billing street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [],
+            }
+        ]
+
+        synced = sync_woocommerce_orders(tenant=vendor_tenant)
+
+        self.assertEqual(synced, 1)
+        mock_json_request.assert_called_once()
+        self.assertEqual(mock_json_request.call_args.kwargs["tenant"], vendor_tenant)
+        order = ShiprocketOrder.objects.get(woocommerce_order_id="901")
+        self.assertEqual(order.tenant, vendor_tenant)
+        self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
+
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
         WOOCOMMERCE_CONSUMER_KEY="ck_test",
@@ -334,6 +643,37 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(amla.smartbiz_product_id, "121")
         self.assertEqual(amla.image_url, "https://shop.example.com/images/amla-500.jpg")
         self.assertEqual(amla.category_master.name, "Juice")
+
+    @patch("core.woocommerce._json_request")
+    def test_sync_products_scopes_products_and_categories_to_requested_tenant(self, mock_json_request):
+        vendor_tenant = Tenant.objects.create(name="Woo Product Vendor", slug="woo-product-vendor")
+        WooCommerceSettings.objects.create(
+            tenant=vendor_tenant,
+            store_url="https://vendor-products.example.com",
+            consumer_key="ck_vendor",
+            consumer_secret="cs_vendor",
+        )
+        mock_json_request.return_value = [
+            {
+                "id": 1901,
+                "name": "Tenant Soap",
+                "type": "simple",
+                "status": "publish",
+                "sku": "tenant-soap-1901",
+                "stock_quantity": 9,
+                "categories": [{"name": "Tenant Soap"}],
+                "images": [],
+            }
+        ]
+
+        summary = sync_woocommerce_products(tenant=vendor_tenant)
+
+        self.assertEqual(summary["created"], 1)
+        mock_json_request.assert_called_once()
+        self.assertEqual(mock_json_request.call_args.kwargs["tenant"], vendor_tenant)
+        product = Product.objects.get(sku="TENANT-SOAP-1901")
+        self.assertEqual(product.tenant, vendor_tenant)
+        self.assertEqual(product.category_master.tenant, vendor_tenant)
 
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
@@ -949,6 +1289,64 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(response.status_code, 200)
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-779")
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
+
+    def test_woocommerce_webhook_signature_resolves_tenant_secret(self):
+        vendor_tenant = Tenant.objects.create(name="Webhook Vendor", slug="webhook-vendor")
+        WooCommerceSettings.objects.create(
+            tenant=vendor_tenant,
+            webhook_secret="vendor-webhook-secret",
+        )
+        payload = {
+            "id": 1780,
+            "number": "1780",
+            "customer_id": 44,
+            "status": "processing",
+            "billing": {
+                "first_name": "Webhook",
+                "last_name": "Tenant",
+                "phone": "9876543210",
+                "address_1": "Tenant delivery road",
+            },
+            "shipping": {},
+            "line_items": [],
+        }
+        raw_body = json.dumps(payload).encode("utf-8")
+
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "vendor-webhook-secret"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        order = ShiprocketOrder.objects.get(woocommerce_order_id="1780")
+        self.assertEqual(order.tenant, vendor_tenant)
+        self.assertEqual(response.json()["order_pk"], order.pk)
+
+    @patch("core.views.sync_woocommerce_orders")
+    def test_vendor_order_sync_uses_active_tenant(self, mock_sync_orders):
+        vendor_tenant = Tenant.objects.create(name="Sync Vendor", slug="sync-vendor")
+        vendor_user = get_user_model().objects.create_user(username="syncvendor", password="testpass123")
+        TenantMembership.objects.create(
+            tenant=vendor_tenant,
+            user=vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        WooCommerceSettings.objects.create(
+            tenant=vendor_tenant,
+            store_url="https://sync-vendor.example.com",
+            consumer_key="ck_vendor",
+            consumer_secret="cs_vendor",
+        )
+        mock_sync_orders.return_value = 2
+        self.client.force_login(vendor_user)
+
+        response = self.client.post(reverse("sync_orders"), follow=True)
+
+        self.assertRedirects(response, reverse("home"))
+        mock_sync_orders.assert_called_once_with(tenant=vendor_tenant)
+        self.assertContains(response, "WooCommerce: 2 orders refreshed")
 
     def test_order_notifications_poll_returns_new_woocommerce_orders(self):
         user = get_user_model().objects.create_user(username="notifyuser", password="testpass123")
@@ -4593,6 +4991,172 @@ class WhatsAppQueueProcessingTests(TestCase):
         )
         self.assertFalse(second["queued"])
         self.assertEqual(second["reason"], "already_sent")
+
+
+class WhatsAppTenantIsolationTests(TestCase):
+    def setUp(self):
+        self.tenant_a = Tenant.objects.create(name="Vendor A", slug="vendor-a")
+        self.tenant_b = Tenant.objects.create(name="Vendor B", slug="vendor-b")
+        for tenant in [self.tenant_a, self.tenant_b]:
+            settings_row = WhatsAppSettings.get_for_tenant(tenant)
+            settings_row.enabled = True
+            settings_row.api_base_url = "https://wa-api.cloud"
+            settings_row.api_key = f"token-{tenant.slug}"
+            settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
+
+    def _order(self, tenant, order_id):
+        return ShiprocketOrder.objects.create(
+            tenant=tenant,
+            shiprocket_order_id=order_id,
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543210",
+            shipping_address={"phone": "9876543210", "name": "Customer"},
+        )
+
+    def test_whatsapp_templates_and_status_configs_are_unique_per_tenant(self):
+        WhatsAppTemplate.objects.create(
+            tenant=self.tenant_a,
+            name="order_accepted_template",
+            language="en",
+            template_id="tpl-a",
+        )
+        WhatsAppTemplate.objects.create(
+            tenant=self.tenant_b,
+            name="order_accepted_template",
+            language="en",
+            template_id="tpl-b",
+        )
+        WhatsAppStatusTemplateConfig.objects.create(
+            tenant=self.tenant_a,
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            enabled=True,
+            template_name="order_accepted_template",
+        )
+        WhatsAppStatusTemplateConfig.objects.create(
+            tenant=self.tenant_b,
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            enabled=True,
+            template_name="order_accepted_template",
+        )
+
+        self.assertEqual(WhatsAppTemplate.objects.filter(name="order_accepted_template").count(), 2)
+        self.assertEqual(
+            WhatsAppStatusTemplateConfig.objects.filter(
+                tenant__in=[self.tenant_a, self.tenant_b],
+                local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            ).count(),
+            2,
+        )
+
+    @override_settings(WHATOMATE_ENABLED=True, WHATOMATE_BASE_URL="https://global.example", WHATOMATE_API_KEY="global")
+    def test_non_default_vendor_does_not_fallback_to_global_whatsapp_settings(self):
+        WhatsAppSettings.objects.filter(tenant=self.tenant_a).update(enabled=False, api_base_url="", api_key="")
+        order = self._order(self.tenant_a, "SR-WA-TENANT-DISABLED")
+
+        plan = build_order_status_idempotency_payload(order)
+
+        self.assertFalse(plan["sendable"])
+        self.assertEqual(plan["reason"], "disabled")
+
+    def test_enqueue_and_worker_logs_are_tenant_scoped(self):
+        order = self._order(self.tenant_a, "SR-WA-TENANT-QUEUE")
+        other_plan = build_order_status_idempotency_payload(order)
+        WhatsAppNotificationLog.objects.create(
+            tenant=self.tenant_b,
+            shiprocket_order_id="SR-OTHER-TENANT",
+            trigger=WhatsAppNotificationLog.TRIGGER_STATUS_CHANGE,
+            idempotency_key=other_plan["idempotency_key"],
+            is_success=True,
+        )
+
+        enqueue_result = enqueue_whatsapp_notification(
+            order=order,
+            trigger=WhatsAppNotificationLog.TRIGGER_STATUS_CHANGE,
+            previous_status=ShiprocketOrder.STATUS_NEW,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )
+
+        self.assertTrue(enqueue_result["queued"])
+        self.assertEqual(enqueue_result["job"].tenant, self.tenant_a)
+
+    @patch("core.whatsapp_queue.send_order_status_update")
+    def test_worker_processes_only_requested_tenant(self, mock_send_order_status_update):
+        mock_send_order_status_update.return_value = {
+            "sent": True,
+            "phone_number": "919876543210",
+            "mode": "text",
+            "request_payload": {"text": "ok"},
+            "response_payload": {"status": "success"},
+        }
+        order_a = self._order(self.tenant_a, "SR-WA-TENANT-A")
+        order_b = self._order(self.tenant_b, "SR-WA-TENANT-B")
+        job_a = enqueue_whatsapp_notification(
+            order=order_a,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )["job"]
+        job_b = enqueue_whatsapp_notification(
+            order=order_b,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )["job"]
+
+        summary = process_whatsapp_notification_queue(limit=5, worker_name="tenant-worker", tenant=self.tenant_a)
+
+        job_a.refresh_from_db()
+        job_b.refresh_from_db()
+        self.assertEqual(summary["success"], 1)
+        self.assertEqual(job_a.status, WhatsAppNotificationQueue.STATUS_SUCCESS)
+        self.assertEqual(job_b.status, WhatsAppNotificationQueue.STATUS_PENDING)
+        self.assertTrue(
+            WhatsAppNotificationLog.objects.filter(
+                tenant=self.tenant_a,
+                shiprocket_order_id=order_a.shiprocket_order_id,
+                is_success=True,
+            ).exists()
+        )
+
+    @patch("core.whatomate._json_request")
+    def test_template_sync_writes_to_requested_tenant(self, mock_json_request):
+        mock_json_request.return_value = {
+            "items": [
+                {
+                    "id": "tpl-shared",
+                    "name": "shared_status_template",
+                    "language": "en",
+                    "status": "APPROVED",
+                }
+            ]
+        }
+
+        sync_templates_from_api(
+            config_overrides={"enabled": True, "base_url": "https://whatomate.example", "api_key": "a"},
+            tenant=self.tenant_a,
+        )
+        sync_templates_from_api(
+            config_overrides={"enabled": True, "base_url": "https://whatomate.example", "api_key": "b"},
+            tenant=self.tenant_b,
+        )
+
+        self.assertTrue(
+            WhatsAppTemplate.objects.filter(
+                tenant=self.tenant_a,
+                name="shared_status_template",
+                language="en",
+            ).exists()
+        )
+        self.assertTrue(
+            WhatsAppTemplate.objects.filter(
+                tenant=self.tenant_b,
+                name="shared_status_template",
+                language="en",
+            ).exists()
+        )
 
 
 class OrderNotificationConfigViewTests(TestCase):

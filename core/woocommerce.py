@@ -8,7 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import Product, ProductCategory, ShiprocketOrder, WooCommerceSettings, normalize_sku
+from .models import DEFAULT_TENANT_SLUG, Product, ProductCategory, ShiprocketOrder, WooCommerceSettings, normalize_sku
 from .product_text import clean_product_description
 
 
@@ -57,8 +57,8 @@ WOOCOMMERCE_TO_LOCAL_STATUS = {
 }
 
 
-def is_configured():
-    config = _get_config()
+def is_configured(tenant=None):
+    config = _get_config(tenant=tenant)
     return bool(
         config["store_url"]
         and config["consumer_key"]
@@ -66,22 +66,47 @@ def is_configured():
     )
 
 
-def _get_config():
-    row = WooCommerceSettings.objects.order_by("-updated_at", "-created_at").first()
-    store_url = str(getattr(row, "store_url", "") or getattr(settings, "WOOCOMMERCE_STORE_URL", "") or "").strip()
+def _get_settings_row(tenant=None):
+    queryset = WooCommerceSettings.objects.order_by("-updated_at", "-created_at")
+    if tenant is not None:
+        tenant_id = getattr(tenant, "pk", tenant)
+        return queryset.filter(tenant_id=tenant_id).first()
+    return queryset.first()
+
+
+def _is_default_tenant(tenant):
+    return str(getattr(tenant, "slug", "") or "").strip().lower() == DEFAULT_TENANT_SLUG
+
+
+def _api_tenant_context(tenant=None):
+    return None if tenant is None or _is_default_tenant(tenant) else tenant
+
+
+def _get_config(tenant=None, settings_row=None):
+    row = settings_row if settings_row is not None else _get_settings_row(tenant=tenant)
+    use_env_fallback = tenant is None or _is_default_tenant(tenant)
+    store_url = str(
+        getattr(row, "store_url", "") or (getattr(settings, "WOOCOMMERCE_STORE_URL", "") if use_env_fallback else "")
+    ).strip()
     consumer_key = str(
-        getattr(row, "consumer_key", "") or getattr(settings, "WOOCOMMERCE_CONSUMER_KEY", "") or ""
+        getattr(row, "consumer_key", "")
+        or (getattr(settings, "WOOCOMMERCE_CONSUMER_KEY", "") if use_env_fallback else "")
     ).strip()
     consumer_secret = str(
-        getattr(row, "consumer_secret", "") or getattr(settings, "WOOCOMMERCE_CONSUMER_SECRET", "") or ""
+        getattr(row, "consumer_secret", "")
+        or (getattr(settings, "WOOCOMMERCE_CONSUMER_SECRET", "") if use_env_fallback else "")
     ).strip()
     webhook_secret = str(
-        getattr(row, "webhook_secret", "") or getattr(settings, "WOOCOMMERCE_WEBHOOK_SECRET", "") or ""
+        getattr(row, "webhook_secret", "")
+        or (getattr(settings, "WOOCOMMERCE_WEBHOOK_SECRET", "") if use_env_fallback else "")
     ).strip()
     import_statuses = str(
-        getattr(row, "import_statuses", "") or getattr(settings, "WOOCOMMERCE_IMPORT_STATUSES", "") or ""
+        getattr(row, "import_statuses", "")
+        or (getattr(settings, "WOOCOMMERCE_IMPORT_STATUSES", "") if use_env_fallback else "")
     ).strip()
-    status_map = str(getattr(row, "status_map", "") or getattr(settings, "WOOCOMMERCE_STATUS_MAP", "") or "").strip()
+    status_map = str(
+        getattr(row, "status_map", "") or (getattr(settings, "WOOCOMMERCE_STATUS_MAP", "") if use_env_fallback else "")
+    ).strip()
     return {
         "store_url": store_url.rstrip("/"),
         "consumer_key": consumer_key,
@@ -92,29 +117,41 @@ def _get_config():
     }
 
 
-def get_webhook_secret():
-    return _get_config()["webhook_secret"]
+def get_webhook_secret(tenant=None):
+    return _get_config(tenant=tenant)["webhook_secret"]
 
 
-def _require_config():
-    if not is_configured():
+def get_settings_for_webhook_secret(secret):
+    secret = str(secret or "").strip()
+    if not secret:
+        return None
+    return (
+        WooCommerceSettings.objects.select_related("tenant")
+        .filter(webhook_secret=secret, tenant__is_active=True)
+        .order_by("-updated_at", "-created_at")
+        .first()
+    )
+
+
+def _require_config(tenant=None):
+    if not is_configured(tenant=tenant):
         raise WooCommerceAPIError(
             "WooCommerce credentials are missing. Set WOOCOMMERCE_STORE_URL, "
             "WOOCOMMERCE_CONSUMER_KEY, and WOOCOMMERCE_CONSUMER_SECRET."
         )
 
 
-def _api_url(path, params=None):
-    store_url = _get_config()["store_url"]
+def _api_url(path, params=None, tenant=None):
+    store_url = _get_config(tenant=tenant)["store_url"]
     path = str(path or "").strip().lstrip("/")
     query = parse.urlencode(params or {}, doseq=True)
     url = f"{store_url}/wp-json/wc/v3/{path}"
     return f"{url}?{query}" if query else url
 
 
-def _json_request(path, method="GET", payload=None, params=None):
-    _require_config()
-    config = _get_config()
+def _json_request(path, method="GET", payload=None, params=None, tenant=None):
+    _require_config(tenant=tenant)
+    config = _get_config(tenant=tenant)
     credentials = f"{config['consumer_key']}:{config['consumer_secret']}"
     auth_value = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
     headers = {
@@ -123,7 +160,7 @@ def _json_request(path, method="GET", payload=None, params=None):
         "Authorization": f"Basic {auth_value}",
     }
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    req = request.Request(_api_url(path, params=params), data=body, headers=headers, method=method)
+    req = request.Request(_api_url(path, params=params, tenant=tenant), data=body, headers=headers, method=method)
     try:
         with request.urlopen(req, timeout=30) as response:
             raw_body = response.read().decode("utf-8")
@@ -135,6 +172,18 @@ def _json_request(path, method="GET", payload=None, params=None):
         ) from exc
     except error.URLError as exc:
         raise WooCommerceAPIError(f"Unable to reach WooCommerce API: {exc.reason}") from exc
+
+
+def _json_request_for_tenant(path, method="GET", payload=None, params=None, tenant=None):
+    api_tenant = _api_tenant_context(tenant)
+    kwargs = {"method": method}
+    if payload is not None:
+        kwargs["payload"] = payload
+    if params is not None:
+        kwargs["params"] = params
+    if api_tenant is None:
+        return _json_request(path, **kwargs)
+    return _json_request(path, **kwargs, tenant=api_tenant)
 
 
 def _to_decimal(value):
@@ -199,7 +248,7 @@ def _customer_matches_phone(customer, phone_keys):
     return False
 
 
-def _find_unique_customer_id_by_phone(phone):
+def _find_unique_customer_id_by_phone(phone, tenant=None):
     phone_keys = _phone_match_keys(phone)
     if not phone_keys:
         return None
@@ -213,7 +262,7 @@ def _find_unique_customer_id_by_phone(phone):
 
     def collect_matches(params):
         matches = {}
-        customers = _json_request("customers", params=params)
+        customers = _json_request_for_tenant("customers", params=params, tenant=tenant)
         if not isinstance(customers, list):
             return matches, 0
         for customer in customers:
@@ -243,7 +292,7 @@ def _find_unique_customer_id_by_phone(phone):
     return next(iter(customers_by_id))
 
 
-def _assign_guest_order_customer_by_phone(order_payload, phone):
+def _assign_guest_order_customer_by_phone(order_payload, phone, tenant=None):
     if not isinstance(order_payload, dict):
         return None
     order_id = order_payload.get("id")
@@ -251,10 +300,10 @@ def _assign_guest_order_customer_by_phone(order_payload, phone):
         return None
 
     try:
-        customer_id = _find_unique_customer_id_by_phone(phone)
+        customer_id = _find_unique_customer_id_by_phone(phone, tenant=tenant)
         if not customer_id:
             return None
-        _json_request(f"orders/{order_id}", method="PUT", payload={"customer_id": customer_id})
+        _json_request_for_tenant(f"orders/{order_id}", method="PUT", payload={"customer_id": customer_id}, tenant=tenant)
     except WooCommerceAPIError:
         return None
 
@@ -275,7 +324,11 @@ def _assign_order_record_customer_by_phone(order):
     if "customer_id" not in order_payload:
         order_payload["customer_id"] = 0
 
-    assigned_customer_id = _assign_guest_order_customer_by_phone(order_payload, order.resolved_customer_phone)
+    assigned_customer_id = _assign_guest_order_customer_by_phone(
+        order_payload,
+        order.resolved_customer_phone,
+        tenant=getattr(order, "tenant", None),
+    )
     if not assigned_customer_id:
         return None
 
@@ -458,7 +511,7 @@ def _normalized_product_row(product, *, parent_product=None):
 
 
 def _apply_product_row(product, row):
-    category = _get_or_create_product_category(row.get("category"))
+    category = _get_or_create_product_category(row.get("category"), tenant=getattr(product, "tenant", None))
     defaults = {
         "name": row.get("name") or product.sku,
         "category": row.get("category") or "",
@@ -482,45 +535,60 @@ def _apply_product_row(product, row):
     return bool(changed_fields)
 
 
-def _get_or_create_product_category(name):
+def _get_or_create_product_category(name, tenant=None):
     category_name = str(name or "").strip()
     if not category_name:
         return None
-    existing = ProductCategory.objects.filter(name__iexact=category_name).first()
+    queryset = ProductCategory.objects.all()
+    if tenant is not None:
+        queryset = queryset.filter(tenant=tenant)
+    existing = queryset.filter(name__iexact=category_name).first()
     if existing:
         return existing
-    return ProductCategory.objects.create(name=category_name, is_active=True)
+    create_kwargs = {"name": category_name, "is_active": True}
+    if tenant is not None:
+        create_kwargs["tenant"] = tenant
+    return ProductCategory.objects.create(**create_kwargs)
 
 
-def _sync_product_row(row):
+def _sync_product_row(row, tenant=None):
     sku = normalize_sku(row.get("sku"))
     external_id = str(row.get("smartbiz_product_id") or "").strip()
     if not sku or not external_id:
         return "skipped"
 
-    product = Product.objects.filter(sku=sku).first()
-    if not product:
-        product = Product.objects.filter(smartbiz_product_id__iexact=external_id).first()
+    product_queryset = Product.objects.all()
+    if tenant is not None:
+        product_queryset = product_queryset.filter(tenant=tenant)
 
-    if product and product.sku != sku and Product.objects.filter(sku=sku).exclude(pk=product.pk).exists():
+    product = product_queryset.filter(sku=sku).first()
+    if not product:
+        product = product_queryset.filter(smartbiz_product_id__iexact=external_id).first()
+
+    if product and product.sku != sku and product_queryset.filter(sku=sku).exclude(pk=product.pk).exists():
         return "skipped"
-    if product and Product.objects.filter(smartbiz_product_id__iexact=external_id).exclude(pk=product.pk).exists():
+    if product and product_queryset.filter(smartbiz_product_id__iexact=external_id).exclude(pk=product.pk).exists():
         return "skipped"
 
     if not product:
-        category = _get_or_create_product_category(row.get("category"))
+        category = _get_or_create_product_category(row.get("category"), tenant=tenant)
+        create_kwargs = {
+            "name": row.get("name") or sku,
+            "category": row.get("category") or "",
+            "category_master": category,
+            "sku": sku,
+            "smartbiz_product_id": external_id,
+            "image_url": row.get("image_url") or "",
+            "description": row.get("description") or "",
+            "regular_price": row.get("regular_price"),
+            "sale_price": row.get("sale_price"),
+            "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
+            "is_active": bool(row.get("is_active", True)),
+        }
+        if tenant is not None:
+            create_kwargs["tenant"] = tenant
         Product.objects.create(
-            name=row.get("name") or sku,
-            category=row.get("category") or "",
-            category_master=category,
-            sku=sku,
-            smartbiz_product_id=external_id,
-            image_url=row.get("image_url") or "",
-            description=row.get("description") or "",
-            regular_price=row.get("regular_price"),
-            sale_price=row.get("sale_price"),
-            stock_quantity=_to_int(row.get("stock_quantity"), default=0),
-            is_active=bool(row.get("is_active", True)),
+            **create_kwargs
         )
         return "created"
 
@@ -529,12 +597,12 @@ def _sync_product_row(row):
     return "unchanged"
 
 
-def _fetch_paginated(path, params=None, *, per_page=100):
+def _fetch_paginated(path, params=None, *, per_page=100, tenant=None):
     rows = []
     page = 1
     while True:
         page_params = {**(params or {}), "per_page": per_page, "page": page}
-        response = _json_request(path, params=page_params)
+        response = _json_request_for_tenant(path, params=page_params, tenant=tenant)
         if not isinstance(response, list):
             raise WooCommerceAPIError(f"WooCommerce {path} response was not a list.")
         rows.extend(response)
@@ -544,10 +612,11 @@ def _fetch_paginated(path, params=None, *, per_page=100):
     return rows
 
 
-def sync_products():
+def sync_products(tenant=None):
     products = _fetch_paginated(
         "products",
         params={"status": "any", "orderby": "id", "order": "asc"},
+        tenant=tenant,
     )
     summary = {
         "products_seen": len(products),
@@ -561,7 +630,7 @@ def sync_products():
     for product in products:
         row = _normalized_product_row(product)
         if row:
-            summary[_sync_product_row(row)] += 1
+            summary[_sync_product_row(row, tenant=tenant)] += 1
         elif normalize_sku(product.get("sku")):
             summary["skipped"] += 1
 
@@ -573,6 +642,7 @@ def sync_products():
         variations = _fetch_paginated(
             f"products/{product.get('id')}/variations",
             params={"status": "any", "orderby": "id", "order": "asc"},
+            tenant=tenant,
         )
         summary["variations_seen"] += len(variations)
         for variation in variations:
@@ -580,16 +650,17 @@ def sync_products():
             if not row:
                 summary["skipped"] += 1
                 continue
-            summary[_sync_product_row(row)] += 1
+            summary[_sync_product_row(row, tenant=tenant)] += 1
 
     return summary
 
 
 def refresh_product_from_woocommerce(product):
-    if not is_configured():
+    tenant = getattr(product, "tenant", None)
+    if not is_configured(tenant=tenant):
         return False
     path = _product_update_path(product)
-    response = _json_request(path)
+    response = _json_request_for_tenant(path, tenant=tenant)
     row = _normalized_product_row(response)
     if not row:
         return False
@@ -605,12 +676,12 @@ def _product_update_path(product):
     return f"products/{external_id}"
 
 
-def _woocommerce_category_id(category_name):
+def _woocommerce_category_id(category_name, tenant=None):
     category_name = str(category_name or "").strip()
     if not category_name:
         return None
 
-    categories = _json_request("products/categories", params={"search": category_name, "per_page": 100})
+    categories = _json_request_for_tenant("products/categories", params={"search": category_name, "per_page": 100}, tenant=tenant)
     if isinstance(categories, list):
         for category in categories:
             if not isinstance(category, dict):
@@ -618,13 +689,14 @@ def _woocommerce_category_id(category_name):
             if str(category.get("name") or "").strip().lower() == category_name.lower():
                 return _to_int(category.get("id"), default=None)
 
-    category = _json_request("products/categories", method="POST", payload={"name": category_name})
+    category = _json_request_for_tenant("products/categories", method="POST", payload={"name": category_name}, tenant=tenant)
     if isinstance(category, dict):
         return _to_int(category.get("id"), default=None)
     return None
 
 
 def update_product(product, extra_fields=None):
+    tenant = getattr(product, "tenant", None)
     payload = {
         "name": product.name,
         "sku": product.sku,
@@ -634,7 +706,7 @@ def update_product(product, extra_fields=None):
     }
     if product.image_url:
         payload["images"] = [{"src": product.image_url}]
-    category_id = _woocommerce_category_id(product.category_label)
+    category_id = _woocommerce_category_id(product.category_label, tenant=tenant)
     if category_id:
         payload["categories"] = [{"id": category_id}]
 
@@ -651,11 +723,11 @@ def update_product(product, extra_fields=None):
         elif field_name in extra_fields:
             payload[field_name] = ""
 
-    return _json_request(_product_update_path(product), method="PUT", payload=payload)
+    return _json_request_for_tenant(_product_update_path(product), method="PUT", payload=payload, tenant=tenant)
 
 
-def _import_statuses():
-    configured = _get_config()["import_statuses"]
+def _import_statuses(tenant=None):
+    configured = _get_config(tenant=tenant)["import_statuses"]
     statuses = [status.strip() for status in configured.split(",") if status.strip()]
     normalized_statuses = {status.lower() for status in statuses}
     for status in DEFAULT_IMPORT_STATUSES:
@@ -669,9 +741,9 @@ def _local_status_for_woocommerce(status):
     return WOOCOMMERCE_TO_LOCAL_STATUS.get(str(status or "").strip().lower(), ShiprocketOrder.STATUS_NEW)
 
 
-def _status_map():
+def _status_map(tenant=None):
     mapping = dict(DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS)
-    raw_mapping = _get_config()["status_map"]
+    raw_mapping = _get_config(tenant=tenant)["status_map"]
     if raw_mapping:
         try:
             configured = json.loads(raw_mapping)
@@ -692,21 +764,25 @@ def _normalize_woocommerce_status_value(value, local_status):
     return DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS.get(str(local_status or "").strip(), "")
 
 
-def check_connection():
-    response = _json_request("orders", params={"per_page": 1, "page": 1, "orderby": "date", "order": "desc"})
+def check_connection(tenant=None):
+    response = _json_request_for_tenant(
+        "orders",
+        params={"per_page": 1, "page": 1, "orderby": "date", "order": "desc"},
+        tenant=tenant,
+    )
     if not isinstance(response, list):
         raise WooCommerceAPIError("WooCommerce connection succeeded but orders response was not a list.")
     return {"ok": True, "sample_count": len(response)}
 
 
-def woocommerce_status_for_local_status(local_status):
+def woocommerce_status_for_local_status(local_status, tenant=None):
     local_status = str(local_status or "").strip()
-    return _normalize_woocommerce_status_value(_status_map().get(local_status), local_status)
+    return _normalize_woocommerce_status_value(_status_map(tenant=tenant).get(local_status), local_status)
 
 
-def sync_orders():
-    statuses = _import_statuses()
-    response = _json_request(
+def sync_orders(tenant=None):
+    statuses = _import_statuses(tenant=tenant)
+    response = _json_request_for_tenant(
         "orders",
         params={
             "per_page": 50,
@@ -715,19 +791,31 @@ def sync_orders():
             "orderby": "date",
             "order": "desc",
         },
+        tenant=tenant,
     )
     if not isinstance(response, list):
         raise WooCommerceAPIError("WooCommerce orders response was not a list.")
 
     synced = 0
     for item in response:
-        order, created = import_order_payload(item)
+        order, created = import_order_payload(item, tenant=tenant)
         if order:
             synced += 1
     return synced
 
 
-def import_order_payload(item):
+def _source_order_id_for_tenant(order_id, tenant=None):
+    base_id = f"WC-{order_id}"
+    if tenant is None:
+        return base_id
+    existing_same_tenant = ShiprocketOrder.objects.filter(tenant=tenant, shiprocket_order_id=base_id).exists()
+    existing_other_tenant = ShiprocketOrder.objects.filter(shiprocket_order_id=base_id).exclude(tenant=tenant).exists()
+    if existing_same_tenant or not existing_other_tenant:
+        return base_id
+    return f"WC-{tenant.pk}-{order_id}"
+
+
+def import_order_payload(item, tenant=None):
     if not isinstance(item, dict):
         return None, False
     order_id = item.get("id")
@@ -740,8 +828,16 @@ def import_order_payload(item):
     has_billing_address = _has_delivery_address(billing)
 
     order_number = str(item.get("number") or order_id)
-    source_order_id = f"WC-{order_id}"
-    existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
+    source_order_id = _source_order_id_for_tenant(order_id, tenant=tenant)
+    existing_queryset = ShiprocketOrder.objects.filter(
+        source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+        woocommerce_order_id=str(order_id),
+    )
+    if tenant is not None:
+        existing_queryset = existing_queryset.filter(tenant=tenant)
+    existing = existing_queryset.first()
+    if not existing:
+        existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
     if not existing and not has_billing_address:
         return None, False
 
@@ -770,15 +866,19 @@ def import_order_payload(item):
         "order_items": _extract_items(item),
         "raw_payload": item,
     }
-    assigned_customer_id = _assign_guest_order_customer_by_phone(item, defaults["customer_phone"])
+    if tenant is not None:
+        defaults["tenant"] = tenant
+    assigned_customer_id = _assign_guest_order_customer_by_phone(item, defaults["customer_phone"], tenant=tenant)
     if assigned_customer_id:
         defaults["raw_payload"] = item
     if not existing:
         defaults["local_status"] = _local_status_for_woocommerce(wc_status)
-    return ShiprocketOrder.objects.update_or_create(
-        shiprocket_order_id=source_order_id,
-        defaults=defaults,
-    )
+    if existing:
+        for field_name, value in defaults.items():
+            setattr(existing, field_name, value)
+        existing.save()
+        return existing, False
+    return ShiprocketOrder.objects.update_or_create(shiprocket_order_id=source_order_id, defaults=defaults)
 
 
 def update_order_status(order):
@@ -788,7 +888,8 @@ def update_order_status(order):
     if not wc_order_id:
         return {"skipped": True, "reason": "missing_woocommerce_order_id"}
     assigned_customer_id = _assign_order_record_customer_by_phone(order)
-    target_status = woocommerce_status_for_local_status(order.local_status)
+    tenant = getattr(order, "tenant", None)
+    target_status = woocommerce_status_for_local_status(order.local_status, tenant=tenant)
     if not target_status:
         return {"skipped": True, "reason": "no_status_mapping"}
     if str(order.woocommerce_status or "").strip().lower() == target_status.lower():
@@ -796,7 +897,7 @@ def update_order_status(order):
             order.save(update_fields=["raw_payload", "updated_at"])
         return {"skipped": True, "reason": "already_synced", "status": target_status}
 
-    response = _json_request(f"orders/{wc_order_id}", method="PUT", payload={"status": target_status})
+    response = _json_request_for_tenant(f"orders/{wc_order_id}", method="PUT", payload={"status": target_status}, tenant=tenant)
     updated_status = str(response.get("status") or target_status).strip()
     order.woocommerce_status = updated_status
     order.status = updated_status

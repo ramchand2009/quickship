@@ -17,3 +17,10 @@ Main models live in `core/models.py`.
 - `SenderAddress`: default sender details for shipping labels.
 - `BusinessExpense` and `ExpensePerson`: basic expense tracking.
 - `ContactMessage` and `Project`: simple site/project support models.
+
+## SaaS Foundation Models
+
+- `Tenant`: vendor/business account with name, slug, active flag, owner, contact fields, and timestamps.
+- `TenantMembership`: user-to-tenant role mapping with `vendor_owner`, `vendor_operator`, and `vendor_viewer` roles plus active flag.
+
+Most business-owned models now include a tenant FK defaulting to the Mathukai tenant. Queryset filtering is still a later phase and must be completed before enabling real second-vendor production data.

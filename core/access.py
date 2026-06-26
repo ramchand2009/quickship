@@ -1,6 +1,7 @@
 OPS_ADMIN_GROUP = "admin"
 OPS_VIEWER_GROUP = "ops_viewer"
 SUPER_ADMIN_ROLE = "super_admin"
+VENDOR_ROLES = {"vendor_owner", "vendor_operator", "vendor_viewer"}
 
 
 def user_group_names(user):
@@ -23,6 +24,8 @@ def is_ops_admin(user):
         return True
     if OPS_VIEWER_GROUP in group_names:
         return False
+    if tenant_memberships(user):
+        return False
     # Backward compatible default for existing users without explicit role assignment.
     return True
 
@@ -32,8 +35,49 @@ def is_ops_viewer(user):
         return False
     if user.is_superuser or user.is_staff:
         return False
+    if is_vendor_user(user):
+        return True
     group_names = user_group_names(user)
     return OPS_VIEWER_GROUP in group_names and OPS_ADMIN_GROUP not in group_names
+
+
+def is_vendor_user(user):
+    if not getattr(user, "is_authenticated", False) or is_super_admin(user):
+        return False
+    return any(membership.role in VENDOR_ROLES for membership in active_tenant_memberships(user))
+
+
+def is_vendor_owner(user, tenant=None):
+    from .models import TenantMembership
+
+    if tenant is None:
+        return any(
+            membership.role == TenantMembership.ROLE_VENDOR_OWNER
+            for membership in active_tenant_memberships(user)
+        )
+    return has_tenant_role(user, tenant, TenantMembership.ROLE_VENDOR_OWNER)
+
+
+def is_vendor_operator(user, tenant=None):
+    from .models import TenantMembership
+
+    if tenant is None:
+        return any(
+            membership.role == TenantMembership.ROLE_VENDOR_OPERATOR
+            for membership in active_tenant_memberships(user)
+        )
+    return has_tenant_role(user, tenant, TenantMembership.ROLE_VENDOR_OPERATOR)
+
+
+def is_vendor_viewer(user, tenant=None):
+    from .models import TenantMembership
+
+    if tenant is None:
+        return any(
+            membership.role == TenantMembership.ROLE_VENDOR_VIEWER
+            for membership in active_tenant_memberships(user)
+        )
+    return has_tenant_role(user, tenant, TenantMembership.ROLE_VENDOR_VIEWER)
 
 
 def can_edit_operations(user):
@@ -76,11 +120,27 @@ def active_tenant_memberships(user):
     )
 
 
+def tenant_memberships(user):
+    if not getattr(user, "is_authenticated", False):
+        return []
+    from .models import TenantMembership
+
+    return list(TenantMembership.objects.select_related("tenant").filter(user=user).order_by("tenant__name", "role"))
+
+
 def get_user_default_tenant(user):
     memberships = active_tenant_memberships(user)
     if memberships:
         return memberships[0].tenant
     return None
+
+
+def get_active_tenant(request):
+    tenant = getattr(request, "tenant", None)
+    if tenant is not None:
+        return tenant
+    user = getattr(request, "user", None)
+    return get_user_default_tenant(user)
 
 
 def can_access_tenant(user, tenant):

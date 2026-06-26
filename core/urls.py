@@ -1,4 +1,4 @@
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LogoutView
 from django.urls import path
 
 from .forms import LoginForm
@@ -64,6 +64,7 @@ from .views import (
     whatsapp_settings,
     update_shiprocket_order,
     mark_order_payment_received,
+    TenantAwareLoginView,
     update_shiprocket_order_tracking,
     update_shiprocket_order_status,
 )
@@ -142,7 +143,7 @@ urlpatterns = [
     path("shiprocket/sync/", sync_shiprocket_orders, name="sync_shiprocket_orders"),
     path(
         "accounts/login/",
-        LoginView.as_view(
+        TenantAwareLoginView.as_view(
             template_name="registration/login.html",
             authentication_form=LoginForm,
         ),

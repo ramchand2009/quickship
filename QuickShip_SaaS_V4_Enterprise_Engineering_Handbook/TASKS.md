@@ -30,34 +30,40 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
 
 ## Phase 2 - User Roles
 
-- Define global role: `super_admin`.
+- [Done] Define global role: `super_admin`.
 - Define tenant roles:
-  - `vendor_owner`
-  - `vendor_operator`
-  - optional `vendor_viewer`
-- Replace broad fallback admin behavior for users without explicit group/role.
-- Keep Django `is_superuser` mapped to super admin desktop access.
-- Vendor roles must never see another tenant's data.
-- Update access helper design before touching views:
-  - `is_super_admin(user)`
-  - `get_active_tenant(request)`
-  - `can_access_tenant(user, tenant)`
-  - `can_manage_vendor_settings(user, tenant)`
-  - `can_operate_vendor_orders(user, tenant)`
+  - [Done] `vendor_owner`
+  - [Done] `vendor_operator`
+  - [Done] optional `vendor_viewer`
+- [Done] Prevent tenant-membership users from falling through to broad legacy ops admin access.
+- Keep full removal of the legacy no-group admin fallback for a later hardening pass after all current users have explicit roles.
+- [Done] Keep Django `is_superuser` / `is_staff` mapped to super admin desktop access.
+- Vendor roles must never see another tenant's data. Foundation helpers exist, but full query/object isolation is Phase 6.
+- [Done] Update access helper design before touching business querysets:
+  - [Done] `is_super_admin(user)`
+  - [Done] `get_active_tenant(request)`
+  - [Done] `can_access_tenant(user, tenant)`
+  - [Done] `can_manage_vendor_settings(user, tenant)`
+  - [Done] `can_operate_vendor_orders(user, tenant)`
+- [Done] Add request-scoped active tenant middleware for vendor users.
+- [Done] Add role flags for templates/context without changing UI templates.
+- [Done] Add tenant-aware login routing:
+  - [Done] super admin -> desktop dashboard
+  - [Done] vendor/mobile user -> mobile operations dashboard
 
 ## Phase 3 - Signup And Login
 
-- Redesign signup as vendor onboarding:
-  - create tenant
-  - create owner user
-  - create tenant membership
-  - seed default sender/settings rows for that tenant
-- Keep super admin creation separate through Django admin/management command.
+- [Done] Redesign signup as vendor onboarding:
+  - [Done] create tenant
+  - [Done] create owner user
+  - [Done] create tenant membership
+  - [Done] seed default sender/settings rows for that tenant
+- [Done] Keep super admin creation separate through Django admin/management command.
 - On login, route users by role:
-  - super admin -> desktop dashboard
-  - vendor user -> mobile operations dashboard
-- Add tenant selection only if one user can belong to multiple tenants.
-- Ensure inactive tenants and inactive memberships cannot log into vendor workflows.
+  - [Done in Phase 2] super admin -> desktop dashboard
+  - [Done in Phase 2] vendor user -> mobile operations dashboard
+- Add tenant selection only if one user can belong to multiple tenants. Deferred because current onboarding creates one tenant per owner.
+- [Done] Ensure inactive tenants and inactive memberships cannot access vendor workflow permissions.
 
 ## Phase 4 - Tenant Isolation Data Model
 
@@ -83,7 +89,8 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
   - product barcode
   - external product id
   - Shiprocket/WooCommerce order ids
-  - WhatsApp status template config
+  - [Done] WhatsApp status template config
+  - [Done] WhatsApp template name/language
   - sender/default settings
 - Add indexes for common tenant-scoped queries:
   - `(tenant, local_status, order_date)`
@@ -111,17 +118,25 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
 
 ## Phase 6 - Queryset Isolation
 
-- Add tenant filtering to every data access path before enabling multiple tenants.
-- Scope dashboards, order lists, order detail, stock, products, categories, labels, packing, expenses, WhatsApp logs, webhooks, and exports by active tenant.
-- Add defensive checks on object detail/update views: object tenant must match active tenant.
+- [Partial] Add tenant filtering to data access paths before enabling multiple tenants.
+- [Done - vendor-facing slice] Scope dashboards, order lists, order detail, order updates, stock, products, labels/print queues, packing lists, expenses, and order export by active tenant.
+- Still pending: admin/reporting paths, category management hardening, sender-label configuration, web push, and non-WooCommerce integration workers.
+- [Done - vendor-facing slice] Add defensive checks on object detail/update views: object tenant must match active tenant.
 - Scope service functions by tenant:
-  - product matching
-  - stock deduction/restore
-  - profit calculation
-  - packing scan requirements
-  - WooCommerce sync
-  - WhatsApp queue processing
-- Add tests proving vendor A cannot access vendor B orders, products, labels, exports, logs, or settings.
+  - [Done] product matching
+  - [Done] stock deduction/restore through order tenant product matching
+  - [Done] profit calculation
+  - [Done] packing scan requirements
+  - [Done] WooCommerce sync
+  - [Done] WhatsApp queue processing
+- [Partial] Add tests proving vendor A cannot access vendor B records:
+  - [Done] orders
+  - [Done] order detail/update
+  - [Done] products/stock
+  - [Done] expenses
+  - [Done] WooCommerce sync/webhook tenant behavior
+  - [Done] WhatsApp settings/templates/queue worker tenant behavior
+  - Pending: labels/export edge cases and remaining admin/config/reporting surfaces
 
 ## Phase 7 - Vendor Mobile UI Only
 
@@ -154,10 +169,10 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
 
 ## Phase 9 - Integration Isolation
 
-- WooCommerce credentials and webhook secrets must be tenant-owned.
-- WooCommerce webhook resolution must identify tenant by secret, URL token, or configured mapping before importing.
-- WhatsApp settings/templates must be tenant-owned.
-- WhatsApp queue workers must process tenant-scoped jobs and load that tenant's credentials.
+- [Done] WooCommerce credentials and webhook secrets are tenant-owned for non-default vendor tenants.
+- [Done] WooCommerce webhook resolution identifies tenant by signature/query secret before importing.
+- [Done] WhatsApp settings/templates are tenant-owned.
+- [Done] WhatsApp queue workers can process tenant-scoped jobs and load that tenant's credentials.
 - Sender address and shipping labels must use the order tenant's sender config.
 - Web Push subscriptions must be tenant/user scoped.
 
@@ -184,3 +199,8 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
 - Added project memory for recent profit/dashboard behavior.
 - Created phased implementation plan for multi-vendor SaaS conversion.
 - Implemented Phase 1 tenant foundation: `Tenant`, `TenantMembership`, default Mathukai tenant migration, business data tenant backfill, membership backfill, access helpers, and foundation tests.
+- Implemented Phase 2 role foundation: vendor role helpers, active tenant request middleware, tenant-aware login routing, template context flags, and focused tenant foundation tests.
+- Implemented Phase 3 vendor onboarding: signup creates tenant, owner membership, default sender/WooCommerce/WhatsApp settings, routes to mobile operations, and blocks inactive tenant users from legacy admin fallback.
+- Implemented Phase 6 first isolation slice: vendor-facing dashboard/orders/labels/stock/expenses now scope to active tenant, stock/product service matching uses tenant context, and isolation tests cover order, stock, and expense access.
+- Implemented WooCommerce tenant isolation: vendor sync and product sync use active tenant settings, webhooks resolve tenant by secret/signature, imports assign tenant-owned orders/products/categories, and tests cover tenant-scoped behavior.
+- Implemented WhatsApp tenant isolation: non-default vendor tenants use their own settings only, template/status uniqueness is tenant-scoped, queue jobs/logs carry tenant, queue workers can process by tenant, and tests cover tenant-scoped behavior.

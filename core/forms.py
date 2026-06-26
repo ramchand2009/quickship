@@ -7,6 +7,8 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.db import transaction
+from django.utils.text import slugify
 
 from .models import (
     BusinessExpense,
@@ -17,6 +19,8 @@ from .models import (
     SenderAddress,
     ShiprocketOrder,
     StockMovement,
+    Tenant,
+    TenantMembership,
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WooCommerceSettings,
@@ -98,6 +102,11 @@ class ExpensePersonForm(forms.ModelForm):
 
 
 class SignUpForm(UserCreationForm):
+    tenant_name = forms.CharField(
+        label="Business Name",
+        max_length=160,
+        help_text="This creates your vendor workspace.",
+    )
     email = forms.EmailField()
 
     def __init__(self, *args, **kwargs):
@@ -107,13 +116,55 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = ("username", "email")
+        fields = ("tenant_name", "username", "email")
+
+    def clean_tenant_name(self):
+        value = str(self.cleaned_data.get("tenant_name") or "").strip()
+        if not value:
+            raise forms.ValidationError("Enter your business name.")
+        slug = slugify(value)
+        if not slug:
+            raise forms.ValidationError("Enter a business name with letters or numbers.")
+        if Tenant.objects.filter(slug=slug).exists():
+            raise forms.ValidationError("A vendor workspace with this business name already exists.")
+        return value
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data["email"]
-        if commit:
+        if not commit:
+            return user
+
+        tenant_name = self.cleaned_data["tenant_name"]
+        tenant_slug = slugify(tenant_name)
+        with transaction.atomic():
             user.save()
+            tenant = Tenant.objects.create(
+                name=tenant_name,
+                slug=tenant_slug,
+                owner=user,
+                contact_name=user.username,
+                contact_email=user.email,
+            )
+            TenantMembership.objects.create(
+                tenant=tenant,
+                user=user,
+                role=TenantMembership.ROLE_VENDOR_OWNER,
+            )
+            SenderAddress.objects.get_or_create(
+                tenant=tenant,
+                defaults={
+                    "name": tenant.name,
+                    "email": tenant.contact_email,
+                    "phone": tenant.contact_phone,
+                    "country": "India",
+                },
+            )
+            WooCommerceSettings.objects.get_or_create(tenant=tenant)
+            WhatsAppSettings.objects.get_or_create(
+                tenant=tenant,
+                defaults={"test_message_text": f"Hi from {tenant.name} test message."},
+            )
         return user
 
 
