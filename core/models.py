@@ -3,6 +3,9 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 
+DEFAULT_TENANT_NAME = "Mathukai"
+DEFAULT_TENANT_SLUG = "mathukai"
+
 
 def normalize_sku(value):
     return str(value or "").strip().upper()
@@ -41,7 +44,80 @@ def first_present(*values):
     return ""
 
 
+def get_default_tenant():
+    tenant, _created = Tenant.objects.get_or_create(
+        slug=DEFAULT_TENANT_SLUG,
+        defaults={"name": DEFAULT_TENANT_NAME},
+    )
+    return tenant
+
+
+def get_default_tenant_pk():
+    return get_default_tenant().pk
+
+
+class Tenant(models.Model):
+    name = models.CharField(max_length=160)
+    slug = models.SlugField(max_length=80, unique=True)
+    is_active = models.BooleanField(default=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="owned_tenants",
+    )
+    contact_name = models.CharField(max_length=160, blank=True)
+    contact_email = models.EmailField(blank=True)
+    contact_phone = models.CharField(max_length=32, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name or self.slug
+
+    @classmethod
+    def get_default(cls):
+        return get_default_tenant()
+
+
+class TenantMembership(models.Model):
+    ROLE_VENDOR_OWNER = "vendor_owner"
+    ROLE_VENDOR_OPERATOR = "vendor_operator"
+    ROLE_VENDOR_VIEWER = "vendor_viewer"
+    ROLE_CHOICES = [
+        (ROLE_VENDOR_OWNER, "Vendor Owner"),
+        (ROLE_VENDOR_OPERATOR, "Vendor Operator"),
+        (ROLE_VENDOR_VIEWER, "Vendor Viewer"),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tenant_memberships")
+    role = models.CharField(max_length=32, choices=ROLE_CHOICES, default=ROLE_VENDOR_OPERATOR)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["tenant__name", "user__username"]
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "user"], name="uniq_tenant_membership_tenant_user"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} @ {self.tenant} ({self.role})"
+
+
 class Project(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="projects",
+        default=get_default_tenant_pk,
+    )
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -54,6 +130,12 @@ class Project(models.Model):
 
 
 class ContactMessage(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="contact_messages",
+        default=get_default_tenant_pk,
+    )
     name = models.CharField(max_length=120)
     email = models.EmailField()
     subject = models.CharField(max_length=160)
@@ -68,6 +150,12 @@ class ContactMessage(models.Model):
 
 
 class SenderAddress(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="sender_addresses",
+        default=get_default_tenant_pk,
+    )
     name = models.CharField(max_length=160, default="Mathukai Organic")
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=32, blank=True)
@@ -98,6 +186,12 @@ class SenderAddress(models.Model):
 
 
 class WhatsAppSettings(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="whatsapp_settings",
+        default=get_default_tenant_pk,
+    )
     enabled = models.BooleanField(default=False)
     api_base_url = models.CharField(max_length=255, blank=True)
     api_key = models.TextField(blank=True)
@@ -131,6 +225,12 @@ class WhatsAppSettings(models.Model):
 
 
 class WooCommerceSettings(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="woocommerce_settings",
+        default=get_default_tenant_pk,
+    )
     store_url = models.CharField(max_length=255, blank=True)
     consumer_key = models.CharField(max_length=255, blank=True)
     consumer_secret = models.CharField(max_length=255, blank=True)
@@ -157,6 +257,12 @@ class WooCommerceSettings(models.Model):
 
 
 class WebPushSubscription(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="web_push_subscriptions",
+        default=get_default_tenant_pk,
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -193,6 +299,12 @@ class WebPushSubscription(models.Model):
 
 
 class WhatsAppTemplate(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="whatsapp_templates",
+        default=get_default_tenant_pk,
+    )
     template_id = models.CharField(max_length=128, blank=True)
     name = models.CharField(max_length=160)
     language = models.CharField(max_length=32, blank=True)
@@ -218,6 +330,12 @@ class WhatsAppTemplate(models.Model):
 
 
 class WhatsAppStatusTemplateConfig(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="whatsapp_status_template_configs",
+        default=get_default_tenant_pk,
+    )
     local_status = models.CharField(max_length=32, unique=True)
     enabled = models.BooleanField(default=False)
     template_name = models.CharField(max_length=160, blank=True)
@@ -311,6 +429,12 @@ class ShiprocketOrder(models.Model):
         ("pincode", "Pincode"),
     ]
 
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="orders",
+        default=get_default_tenant_pk,
+    )
     source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default=SOURCE_SHIPROCKET)
     shiprocket_order_id = models.CharField(max_length=64, unique=True)
     woocommerce_order_id = models.CharField(max_length=64, blank=True, db_index=True)
@@ -574,6 +698,12 @@ class ShiprocketOrder(models.Model):
 
 
 class ProductCategory(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="product_categories",
+        default=get_default_tenant_pk,
+    )
     name = models.CharField(max_length=120, unique=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -589,6 +719,12 @@ class ProductCategory(models.Model):
 
 
 class Product(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="products",
+        default=get_default_tenant_pk,
+    )
     name = models.CharField(max_length=160)
     category = models.CharField(max_length=120, blank=True)
     category_master = models.ForeignKey(
@@ -645,6 +781,12 @@ class Product(models.Model):
 
 
 class BusinessExpense(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="business_expenses",
+        default=get_default_tenant_pk,
+    )
     expense_person = models.ForeignKey(
         "ExpensePerson",
         on_delete=models.SET_NULL,
@@ -671,6 +813,12 @@ class BusinessExpense(models.Model):
 
 
 class ExpensePerson(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="expense_people",
+        default=get_default_tenant_pk,
+    )
     name = models.CharField(max_length=120, unique=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -707,6 +855,12 @@ class StockMovement(models.Model):
         (ISSUE_CATEGORY_COMPLIMENTARY, "Complimentary"),
     ]
 
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="stock_movements",
+        default=get_default_tenant_pk,
+    )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -769,6 +923,12 @@ class OrderActivityLog(models.Model):
         (EVENT_STOCK_WARNING, "Stock Warning"),
     ]
 
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="order_activity_logs",
+        default=get_default_tenant_pk,
+    )
     order = models.ForeignKey(
         ShiprocketOrder,
         on_delete=models.SET_NULL,
@@ -813,6 +973,12 @@ class WhatsAppNotificationLog(models.Model):
         (TRIGGER_WEBHOOK_INCOMING, "Webhook Incoming"),
     ]
 
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="whatsapp_notification_logs",
+        default=get_default_tenant_pk,
+    )
     order = models.ForeignKey(
         ShiprocketOrder,
         on_delete=models.SET_NULL,
@@ -862,6 +1028,12 @@ class WhatsAppNotificationQueue(models.Model):
         (STATUS_FAILED, "Failed"),
     ]
 
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="whatsapp_notification_queue_jobs",
+        default=get_default_tenant_pk,
+    )
     order = models.ForeignKey(
         ShiprocketOrder,
         on_delete=models.SET_NULL,

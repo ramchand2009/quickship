@@ -1,5 +1,6 @@
 import json
 import tempfile
+from types import SimpleNamespace
 from io import StringIO
 from datetime import timedelta
 from pathlib import Path
@@ -12,6 +13,7 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import CommandError
 from django.core.management import call_command
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -27,6 +29,8 @@ from .models import (
     SenderAddress,
     ShiprocketOrder,
     StockMovement,
+    Tenant,
+    TenantMembership,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -34,6 +38,14 @@ from .models import (
     WhatsAppTemplate,
     WebPushSubscription,
     WooCommerceSettings,
+)
+from .access import (
+    TenantScopedQuerysetMixin,
+    can_access_tenant,
+    can_manage_vendor_settings,
+    can_operate_vendor_orders,
+    get_user_default_tenant,
+    is_super_admin,
 )
 from .stock import summarize_order_profit
 from .system_status import write_system_heartbeat
@@ -58,6 +70,104 @@ from .woocommerce import sync_orders as sync_woocommerce_orders
 from .woocommerce import sync_products as sync_woocommerce_products
 from .woocommerce import update_order_status as update_woocommerce_order_status
 from .woocommerce import woocommerce_status_for_local_status
+
+
+class TenantFoundationTests(TestCase):
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.vendor_user = self.user_model.objects.create_user(username="vendor", password="pass")
+        self.other_user = self.user_model.objects.create_user(username="other", password="pass")
+        self.super_user = self.user_model.objects.create_superuser(
+            username="root",
+            email="root@example.com",
+            password="pass",
+        )
+        self.mathukai = Tenant.get_default()
+        self.other_tenant = Tenant.objects.create(name="Other Vendor", slug="other-vendor")
+
+    def test_default_tenant_is_mathukai(self):
+        tenant = Tenant.get_default()
+
+        self.assertEqual(tenant.name, "Mathukai")
+        self.assertEqual(tenant.slug, "mathukai")
+        self.assertTrue(tenant.is_active)
+
+    def test_business_models_default_to_mathukai_tenant(self):
+        order = ShiprocketOrder.objects.create(shiprocket_order_id="TENANT-ORDER-1")
+        product = Product.objects.create(name="Tenant Product", sku="TENANT-PRODUCT-1")
+
+        self.assertEqual(order.tenant, self.mathukai)
+        self.assertEqual(product.tenant, self.mathukai)
+
+    def test_vendor_membership_grants_tenant_access(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+
+        self.assertEqual(get_user_default_tenant(self.vendor_user), self.mathukai)
+        self.assertTrue(can_access_tenant(self.vendor_user, self.mathukai))
+        self.assertTrue(can_operate_vendor_orders(self.vendor_user, self.mathukai))
+        self.assertFalse(can_manage_vendor_settings(self.vendor_user, self.mathukai))
+        self.assertFalse(can_access_tenant(self.vendor_user, self.other_tenant))
+
+    def test_vendor_owner_can_manage_vendor_settings(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+
+        self.assertTrue(can_manage_vendor_settings(self.vendor_user, self.mathukai))
+        self.assertTrue(can_operate_vendor_orders(self.vendor_user, self.mathukai))
+
+    def test_inactive_membership_does_not_grant_access(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+            is_active=False,
+        )
+
+        self.assertIsNone(get_user_default_tenant(self.vendor_user))
+        self.assertFalse(can_access_tenant(self.vendor_user, self.mathukai))
+
+    def test_super_admin_can_access_all_tenants_without_membership(self):
+        self.assertTrue(is_super_admin(self.super_user))
+        self.assertTrue(can_access_tenant(self.super_user, self.mathukai))
+        self.assertTrue(can_manage_vendor_settings(self.super_user, self.other_tenant))
+        self.assertTrue(can_operate_vendor_orders(self.super_user, self.other_tenant))
+
+    def test_membership_is_unique_per_user_and_tenant(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                TenantMembership.objects.create(
+                    tenant=self.mathukai,
+                    user=self.vendor_user,
+                    role=TenantMembership.ROLE_VENDOR_OPERATOR,
+                )
+
+    def test_tenant_scoped_queryset_mixin_filters_by_active_tenant(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        mathukai_product = Product.objects.create(name="Mathukai Product", sku="TENANT-SCOPE-1")
+        Product.objects.create(name="Other Product", sku="TENANT-SCOPE-2", tenant=self.other_tenant)
+
+        mixin = TenantScopedQuerysetMixin()
+        mixin.request = SimpleNamespace(user=self.vendor_user)
+        queryset = mixin.scope_queryset_to_tenant(Product.objects.all())
+
+        self.assertEqual(list(queryset), [mathukai_product])
 
 
 class ShiprocketSyncTests(TestCase):
