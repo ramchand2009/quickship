@@ -283,6 +283,15 @@
                                                 + Tax Rs {{ item.order.shipping_tax_amount|floatformat:2 }}
                                                 = Rs {{ item.order.shipping_total_amount|floatformat:2 }}
                                             </div>
+                                            <div class="small mt-1 {% if item.profit_summary.profit_amount < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                Profit: Rs {{ item.profit_summary.profit_amount|floatformat:2 }}
+                                                <span class="text-muted">
+                                                    (Sales Rs {{ item.profit_summary.revenue_total|floatformat:2 }} - Actual Rs {{ item.profit_summary.actual_cost_total|floatformat:2 }})
+                                                </span>
+                                            </div>
+                                            {% if not item.profit_summary.is_complete %}
+                                                <div class="small text-warning mt-1">Profit incomplete: update actual price or product mapping.</div>
+                                            {% endif %}
                                             {% if item.missing_packing_fields %}
                                                 <div class="small mt-1">
                                                     <span class="fw-semibold">Packing Checklist</span>:

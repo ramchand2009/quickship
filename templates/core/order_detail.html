@@ -77,6 +77,22 @@
     <div class="col-md-6 col-xl-3">
         <div class="card order-stat-card">
             <div class="card-block">
+                <h6 class="mb-2">Order Profit</h6>
+                <h5 class="mb-0 {% if profit_summary.profit_amount < 0 %}text-danger{% else %}text-success{% endif %}">
+                    Rs {{ profit_summary.profit_amount|floatformat:2 }}
+                </h5>
+                <div class="small text-muted mt-1">
+                    Sales Rs {{ profit_summary.revenue_total|floatformat:2 }} - Actual Rs {{ profit_summary.actual_cost_total|floatformat:2 }}
+                </div>
+                {% if not profit_summary.is_complete %}
+                    <div class="small text-warning mt-1">Incomplete until actual price/product mapping is updated.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
                 <h6 class="mb-2">Last WhatsApp Attempt</h6>
                 {% if latest_queue_job %}
                     <h5 class="mb-0 text-capitalize">{{ latest_queue_job.status }}</h5>

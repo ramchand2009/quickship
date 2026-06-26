@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 
@@ -114,6 +115,90 @@ def summarize_order_stock_availability(order):
         "shortage_count": len(shortages),
         "shortages": shortages,
         "missing_identifiers": product_summary["missing_identifiers"],
+    }
+
+
+def _to_profit_decimal(value):
+    text = str(value or "").strip().replace(",", "")
+    if not text:
+        return Decimal("0.00")
+    for prefix in ["Rs", "rs", "INR", "inr", "₹"]:
+        if text.startswith(prefix):
+            text = text[len(prefix):].strip()
+            break
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return Decimal("0.00")
+
+
+def summarize_order_profit(order):
+    items = order.order_items if isinstance(order.order_items, list) else []
+    revenue_total = Decimal("0.00")
+    actual_cost_total = Decimal("0.00")
+    missing_identifiers = []
+    missing_actual_price_items = []
+    matched_item_count = 0
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            quantity = int(item.get("quantity") or 0)
+        except (TypeError, ValueError):
+            quantity = 0
+        if quantity <= 0:
+            continue
+
+        unit_price = _to_profit_decimal(
+            item.get("price")
+            or item.get("unit_price")
+            or item.get("sale_price")
+            or item.get("regular_price")
+        )
+        revenue_total += unit_price * quantity
+
+        product, matched_identifier = find_product_for_order_item(item)
+        if not product:
+            missing_identifier = (
+                normalize_channel_product_id(
+                    item.get("smartbiz_product_id")
+                    or item.get("channel_product_id")
+                    or item.get("product_id")
+                    or item.get("variant_id")
+                    or item.get("id")
+                    or item.get("sku")
+                    or item.get("channel_sku")
+                )
+                or item.get("name")
+                or "Unknown item"
+            )
+            missing_identifiers.append(str(missing_identifier))
+            continue
+
+        matched_item_count += 1
+        if product.actual_price is None:
+            missing_actual_price_items.append(
+                {
+                    "name": product.name,
+                    "sku": product.sku,
+                    "matched_identifier": matched_identifier,
+                    "quantity": quantity,
+                }
+            )
+            continue
+
+        actual_cost_total += (product.actual_price or Decimal("0.00")) * quantity
+
+    profit_amount = revenue_total - actual_cost_total
+    return {
+        "revenue_total": revenue_total,
+        "actual_cost_total": actual_cost_total,
+        "profit_amount": profit_amount,
+        "missing_identifiers": missing_identifiers,
+        "missing_actual_price_items": missing_actual_price_items,
+        "matched_item_count": matched_item_count,
+        "is_complete": not missing_identifiers and not missing_actual_price_items,
     }
 
 

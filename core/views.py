@@ -98,6 +98,7 @@ from .stock import (
     issue_special_stock,
     reconcile_missed_stock_deductions,
     set_manual_stock_quantity,
+    summarize_order_profit,
     summarize_order_stock_availability,
     sync_stock_for_status_transition,
     validate_packing_scans,
@@ -2154,6 +2155,7 @@ def order_management(request):
                 "order": order,
                 "status_form": status_form,
                 "missing_packing_fields": order.missing_fields_for_packing(),
+                "profit_summary": summarize_order_profit(order),
                 "stock_availability": summarize_order_stock_availability(order),
                 "primary_action": _build_ops_viewer_primary_action(order, status_form) if ops_mobile_mode else None,
             }
@@ -2693,6 +2695,7 @@ def order_detail(request, pk):
     activity_timeline = activity_queryset.order_by("-created_at")[:200]
     ops_mobile_actions = _build_ops_viewer_detail_actions(order, status_form)
     packing_scan_summary = build_packing_scan_requirements(order)
+    profit_summary = summarize_order_profit(order)
     stock_availability = summarize_order_stock_availability(order)
     pack_action_available = False
     return render(
@@ -2712,6 +2715,7 @@ def order_detail(request, pk):
             "can_update_order_status": can_update_order_status,
             "can_view_raw_payload": can_view_raw_payload,
             "ops_mobile_mode": ops_mobile_mode,
+            "profit_summary": profit_summary,
             "stock_availability": stock_availability,
             "ops_mobile_stage_key": _ops_viewer_stage_key(order.local_status),
             "ops_mobile_actions": ops_mobile_actions,
@@ -3835,6 +3839,7 @@ def _product_detail_update_data(product, post_data):
         "stock_quantity": product.stock_quantity,
         "reorder_level": product.reorder_level,
         "description": clean_product_description(product.description),
+        "actual_price": product.actual_price or "",
         "regular_price": product.regular_price or "",
         "sale_price": product.sale_price or "",
     }

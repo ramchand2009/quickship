@@ -603,6 +603,7 @@ class Product(models.Model):
     smartbiz_product_id = models.CharField(max_length=160, blank=True, null=True, unique=True)
     image_url = models.URLField(max_length=1000, blank=True)
     description = models.TextField(blank=True)
+    actual_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     regular_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     stock_quantity = models.IntegerField(default=0)

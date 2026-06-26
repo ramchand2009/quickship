@@ -498,6 +498,7 @@ class ProductDetailUpdateForm(ProductForm):
         fields = [
             *ProductForm.Meta.fields,
             "description",
+            "actual_price",
             "regular_price",
             "sale_price",
         ]
@@ -515,6 +516,9 @@ class ProductDetailUpdateForm(ProductForm):
             self.initial["description"] = clean_product_description(self.instance.description)
         self.fields["description"].widget.attrs["class"] = "form-control"
         self.fields["description"].widget.attrs["placeholder"] = "Product description for WooCommerce"
+        self.fields["actual_price"].widget.attrs["class"] = "form-control"
+        self.fields["actual_price"].widget.attrs["placeholder"] = "320.00"
+        self.fields["actual_price"].min_value = 0
         self.fields["regular_price"].widget.attrs["class"] = "form-control"
         self.fields["regular_price"].widget.attrs["placeholder"] = "300.00"
         self.fields["regular_price"].min_value = 0

@@ -35,6 +35,7 @@ from .models import (
     WebPushSubscription,
     WooCommerceSettings,
 )
+from .stock import summarize_order_profit
 from .system_status import write_system_heartbeat
 from .whatomate import (
     WhatomateNotificationError,
@@ -972,6 +973,30 @@ class ShiprocketOrderStatusFormTests(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn("shipping_base_amount", form.errors)
+
+
+class ShiprocketOrderProfitTests(TestCase):
+    def test_order_profit_uses_product_actual_price(self):
+        Product.objects.create(
+            name="Profit Soap",
+            sku="PROFIT-SOAP-1",
+            actual_price="40.00",
+            regular_price="100.00",
+            sale_price="90.00",
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-PROFIT-1",
+            order_items=[
+                {"name": "Profit Soap", "sku": "PROFIT-SOAP-1", "quantity": 2, "price": "90.00"},
+            ],
+        )
+
+        summary = summarize_order_profit(order)
+
+        self.assertTrue(summary["is_complete"])
+        self.assertEqual(str(summary["revenue_total"]), "180.00")
+        self.assertEqual(str(summary["actual_cost_total"]), "80.00")
+        self.assertEqual(str(summary["profit_amount"]), "100.00")
 
 
 class LoginRateLimitTests(TestCase):
@@ -4861,6 +4886,11 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, reverse("ops_print_queue"))
 
     def test_ops_viewer_order_management_shows_tracking_number(self):
+        Product.objects.create(
+            name="Tracking Profit Soap",
+            sku="TRACK-PROFIT-1",
+            actual_price="40.00",
+        )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-TRACK-LIST-1",
             local_status=ShiprocketOrder.STATUS_SHIPPED,
@@ -4873,6 +4903,9 @@ class RoleAccessTests(TestCase):
                 "state": "TN",
                 "pincode": "638004",
             },
+            order_items=[
+                {"name": "Tracking Profit Soap", "sku": "TRACK-PROFIT-1", "quantity": 2, "price": "90.00"},
+            ],
         )
         self.client.force_login(self.viewer)
 
@@ -4880,6 +4913,7 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tracking: AA123456789AA")
+        self.assertContains(response, "Profit: Rs 100.00")
 
     def test_ops_viewer_cancelled_tab_keeps_cancelled_label_active(self):
         ShiprocketOrder.objects.create(
@@ -5283,6 +5317,34 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, 'name="manual_customer_phone"', html=False)
         self.assertContains(response, 'name="manual_shipping_address_1"', html=False)
         self.assertContains(response, 'name="manual_shipping_pincode"', html=False)
+
+    def test_ops_viewer_order_detail_shows_order_profit(self):
+        Product.objects.create(
+            name="Soap Bar",
+            sku="DETAIL-PROFIT-1",
+            actual_price="50.00",
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-DETAIL-PROFIT-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            payment_method="Cash on Delivery",
+            shipping_address={
+                "name": "Profit Detail",
+                "phone": "9876543210",
+                "address_1": "42 Demo Street",
+                "pincode": "638001",
+            },
+            order_items=[
+                {"name": "Soap Bar", "sku": "DETAIL-PROFIT-1", "quantity": 2, "price": "90"},
+            ],
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(reverse("order_detail", args=[order.pk]), {"tab": "pending"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Order Profit")
+        self.assertContains(response, "Rs 80.00")
 
     def test_ops_viewer_can_update_delivery_details(self):
         order = ShiprocketOrder.objects.create(
@@ -5853,6 +5915,7 @@ class RoleAccessTests(TestCase):
             reorder_level=2,
             smartbiz_product_id="101",
             image_url="https://shop.example.com/serum.jpg",
+            actual_price="320.00",
             regular_price="300.00",
             sale_price="240.00",
         )
@@ -5865,6 +5928,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Description")
         self.assertContains(response, "Product image")
         self.assertContains(response, "Price")
+        self.assertContains(response, "Actual price: Rs 320.00")
         self.assertContains(response, "Regular price: Rs 300.00")
         self.assertContains(response, "Sale price: Rs 240.00")
         self.assertContains(response, "Inventory")
@@ -5894,6 +5958,7 @@ class RoleAccessTests(TestCase):
             smartbiz_product_id="101",
             image_url="https://shop.example.com/serum.jpg",
             description="<p>1.Reduces Dark spots &amp; pigmentation<br />2.Promotes even skin tone &amp; glow</p>",
+            actual_price="320.00",
             regular_price="300.00",
             sale_price="240.00",
         )
@@ -5918,8 +5983,10 @@ class RoleAccessTests(TestCase):
         self.assertContains(image_response, 'accept="image/*"', html=False)
         self.assertContains(image_response, "https://shop.example.com/serum.jpg")
         self.assertEqual(price_response.status_code, 200)
+        self.assertContains(price_response, "Actual price")
         self.assertContains(price_response, "Regular price")
         self.assertContains(price_response, "Sale price")
+        self.assertContains(price_response, 'value="320.00"', html=False)
         self.assertContains(price_response, 'value="300.00"', html=False)
         self.assertContains(price_response, 'value="240.00"', html=False)
         self.assertEqual(inventory_response.status_code, 200)
@@ -5955,6 +6022,7 @@ class RoleAccessTests(TestCase):
                 "reorder_level": "3",
                 "is_active": "on",
                 "description": "Reduces fine lines and wrinkles.",
+                "actual_price": "320.00",
                 "regular_price": "300.00",
                 "sale_price": "240.00",
             },
@@ -5966,6 +6034,7 @@ class RoleAccessTests(TestCase):
         self.assertEqual(product.stock_quantity, 6)
         self.assertEqual(product.reorder_level, 3)
         self.assertEqual(product.image_url, "https://shop.example.com/serum-plus.jpg")
+        self.assertEqual(str(product.actual_price), "320.00")
         mock_update_product.assert_called_once()
         self.assertEqual(mock_update_product.call_args.args[0], product)
         self.assertEqual(
@@ -5985,6 +6054,7 @@ class RoleAccessTests(TestCase):
             stock_quantity=4,
             reorder_level=2,
             smartbiz_product_id="101",
+            actual_price="320.00",
             regular_price="300.00",
             sale_price="240.00",
             is_active=True,
@@ -5998,7 +6068,7 @@ class RoleAccessTests(TestCase):
         )
         price_response = self.client.post(
             reverse("stock_product_section", args=[product.pk, "price"]),
-            {"regular_price": "350.00", "sale_price": "280.00"},
+            {"actual_price": "360.00", "regular_price": "350.00", "sale_price": "280.00"},
             follow=True,
         )
         image_response = self.client.post(
@@ -6019,6 +6089,7 @@ class RoleAccessTests(TestCase):
 
         product.refresh_from_db()
         self.assertEqual(product.description, "Reduces fine lines and wrinkles.")
+        self.assertEqual(str(product.actual_price), "360.00")
         self.assertEqual(str(product.regular_price), "350.00")
         self.assertEqual(str(product.sale_price), "280.00")
         self.assertEqual(product.image_url, "https://shop.example.com/images/serum-updated.jpg")
@@ -6033,6 +6104,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(category_response, "Updated 24K Gold Serum locally and in WooCommerce.")
 
         detail_response = self.client.get(reverse("stock_product_detail", args=[product.pk]))
+        self.assertContains(detail_response, "Actual price: Rs 360.00")
         self.assertContains(detail_response, "Regular price: Rs 350.00")
         self.assertContains(detail_response, "Sale price: Rs 280.00")
         self.assertContains(detail_response, "https://shop.example.com/images/serum-updated.jpg")

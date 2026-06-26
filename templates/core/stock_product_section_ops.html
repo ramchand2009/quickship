@@ -84,6 +84,10 @@ body { overflow-x:hidden; background:#f3f3f4; }
             </div>
         {% elif section == "price" %}
             <div class="ops-section-block">
+                <h2>Actual Price</h2>
+                <div class="ops-section-field"><label for="{{ form.actual_price.id_for_label }}">Actual price</label>{{ form.actual_price }}</div>
+            </div>
+            <div class="ops-section-block">
                 <h2>Price</h2>
                 <div class="ops-section-field"><label for="{{ form.regular_price.id_for_label }}">Regular price</label>{{ form.regular_price }}</div>
             </div>

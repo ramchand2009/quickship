@@ -102,6 +102,7 @@ class ProductAdmin(admin.ModelAdmin):
         "smartbiz_product_id",
         "barcode",
         "image_url",
+        "actual_price",
         "regular_price",
         "sale_price",
         "stock_quantity",

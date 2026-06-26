@@ -993,6 +993,12 @@
                                 <div class="ops-desktop-cell">
                                     <div>Mode: {{ order.payment_method|default:"COD" }}</div>
                                     <div class="ops-desktop-payment-total">Total: Rs {{ order.total|floatformat:0 }}</div>
+                                    <div class="ops-desktop-subtext">
+                                        Profit: Rs {{ item.profit_summary.profit_amount|floatformat:2 }}
+                                    </div>
+                                    {% if not item.profit_summary.is_complete %}
+                                        <div class="ops-desktop-subtext">Profit incomplete: update actual price or product mapping.</div>
+                                    {% endif %}
                                 </div>
 
                                 <div class="ops-desktop-cell">
@@ -1197,7 +1203,14 @@
                                     <span class="ops-order-fact-label">Amount</span>
                                     <span class="ops-order-fact-value">Rs {{ item.order.total|floatformat:0 }}</span>
                                 </div>
+                                <div>
+                                    <span class="ops-order-fact-label">Profit</span>
+                                    <span class="ops-order-fact-value">Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
+                                </div>
                             </div>
+                            {% if not item.profit_summary.is_complete %}
+                                <div class="ops-order-card-meta">Profit incomplete: update actual price or product mapping.</div>
+                            {% endif %}
                             {% if item.order.local_status == 'shipped' and item.order.tracking_number %}
                                 <div class="ops-order-tracking">
                                     <span class="ops-order-fact-label">Tracking</span>
