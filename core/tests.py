@@ -4633,6 +4633,58 @@ class FreshStartInventoryCommandTests(TestCase):
         self.assertFalse(WhatsAppNotificationQueue.objects.exists())
 
 
+class FreshStartOrdersCommandTests(TestCase):
+    def test_fresh_start_orders_requires_confirm_for_deletion(self):
+        product = Product.objects.create(name="Keep Product", sku="KEEP-1", stock_quantity=4)
+        ShiprocketOrder.objects.create(shiprocket_order_id="RESET-ORDER-1")
+
+        stdout = StringIO()
+        call_command("fresh_start_orders", stdout=stdout)
+
+        self.assertIn("Fresh orders dry run", stdout.getvalue())
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())
+        self.assertTrue(ShiprocketOrder.objects.filter(shiprocket_order_id="RESET-ORDER-1").exists())
+
+    def test_fresh_start_orders_deletes_orders_and_order_related_rows_only(self):
+        product = Product.objects.create(name="Keep Product", sku="KEEP-1", stock_quantity=4)
+        order = ShiprocketOrder.objects.create(shiprocket_order_id="RESET-ORDER-1")
+        StockMovement.objects.create(
+            product=product,
+            order=order,
+            shiprocket_order_id=order.shiprocket_order_id,
+            movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+            quantity_delta=-1,
+            quantity_before=4,
+            quantity_after=3,
+        )
+        unrelated_movement = StockMovement.objects.create(
+            product=product,
+            movement_type=StockMovement.TYPE_MANUAL_ADD,
+            quantity_delta=4,
+            quantity_before=0,
+            quantity_after=4,
+        )
+        OrderActivityLog.objects.create(order=order, shiprocket_order_id=order.shiprocket_order_id)
+        OrderActivityLog.objects.create(shiprocket_order_id=order.shiprocket_order_id)
+        WhatsAppNotificationLog.objects.create(order=order, shiprocket_order_id=order.shiprocket_order_id)
+        WhatsAppNotificationQueue.objects.create(
+            order=order,
+            shiprocket_order_id=order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_STATUS_CHANGE,
+        )
+
+        stdout = StringIO()
+        call_command("fresh_start_orders", "--confirm", stdout=stdout)
+
+        self.assertIn("Fresh orders complete", stdout.getvalue())
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())
+        self.assertFalse(ShiprocketOrder.objects.exists())
+        self.assertEqual(list(StockMovement.objects.values_list("pk", flat=True)), [unrelated_movement.pk])
+        self.assertFalse(OrderActivityLog.objects.exists())
+        self.assertFalse(WhatsAppNotificationLog.objects.exists())
+        self.assertFalse(WhatsAppNotificationQueue.objects.exists())
+
+
 class BackupRestoreCommandTests(TestCase):
     def test_restore_local_data_dry_run(self):
         base_dir = Path(__file__).resolve().parents[1]
