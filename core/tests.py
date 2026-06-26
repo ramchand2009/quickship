@@ -2408,39 +2408,54 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, "Backups")
         self.assertNotContains(response, "Never")
 
-    def test_home_shows_current_month_sales_total(self):
+    def test_home_shows_current_month_profit_total(self):
         current_month = timezone.now()
         previous_month = current_month - timedelta(days=35)
+        Product.objects.create(name="Profit Soap A", sku="HOME-PROFIT-A", actual_price="40.00")
+        Product.objects.create(name="Profit Soap B", sku="HOME-PROFIT-B", actual_price="25.00")
+        Product.objects.create(name="Profit Soap C", sku="HOME-PROFIT-C", actual_price="10.00")
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-HOME-SALES-1",
             local_status=ShiprocketOrder.STATUS_NEW,
             total="250.00",
             order_date=current_month,
+            order_items=[
+                {"name": "Profit Soap A", "sku": "HOME-PROFIT-A", "quantity": 2, "price": "90.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-HOME-SALES-2",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             total="175.00",
             order_date=current_month,
+            order_items=[
+                {"name": "Profit Soap B", "sku": "HOME-PROFIT-B", "quantity": 1, "price": "75.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-HOME-SALES-CANCELLED-1",
             local_status=ShiprocketOrder.STATUS_CANCELLED,
             total="1000.00",
             order_date=current_month,
+            order_items=[
+                {"name": "Profit Soap C", "sku": "HOME-PROFIT-C", "quantity": 1, "price": "999.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-HOME-SALES-OLD-1",
             local_status=ShiprocketOrder.STATUS_COMPLETED,
             total="999.00",
             order_date=previous_month,
+            order_items=[
+                {"name": "Profit Soap C", "sku": "HOME-PROFIT-C", "quantity": 1, "price": "999.00"},
+            ],
         )
 
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Monthly sales")
-        self.assertContains(response, "Rs 425.00")
+        self.assertContains(response, "Monthly profit")
+        self.assertContains(response, "Rs 150.00")
 
     def test_home_shows_action_sections_and_work_queues(self):
         Product.objects.create(
@@ -4805,30 +4820,45 @@ class RoleAccessTests(TestCase):
 
     def test_ops_viewer_home_shows_live_order_counts(self):
         previous_month = timezone.now() - timedelta(days=35)
+        Product.objects.create(name="Viewer Profit Accepted", sku="VIEWER-PROFIT-A", actual_price="300.00")
+        Product.objects.create(name="Viewer Profit Shipped", sku="VIEWER-PROFIT-S", actual_price="50.00")
+        Product.objects.create(name="Viewer Profit Cancelled", sku="VIEWER-PROFIT-C", actual_price="10.00")
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-HOME-OLD-PACKED-1",
             local_status=ShiprocketOrder.STATUS_PACKED,
             customer_name="Old Packed Count",
             order_date=previous_month,
             total="999.00",
+            order_items=[
+                {"name": "Viewer Profit Accepted", "sku": "VIEWER-PROFIT-A", "quantity": 1, "price": "999.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-HOME-ACCEPTED-1",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             customer_name="Accepted Count",
             total="1200.50",
+            order_items=[
+                {"name": "Viewer Profit Accepted", "sku": "VIEWER-PROFIT-A", "quantity": 2, "price": "500.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-HOME-SHIPPED-1",
             local_status=ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
             customer_name="Shipped Count",
             total="300.00",
+            order_items=[
+                {"name": "Viewer Profit Shipped", "sku": "VIEWER-PROFIT-S", "quantity": 1, "price": "150.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-HOME-CANCELLED-1",
             local_status=ShiprocketOrder.STATUS_CANCELLED,
             customer_name="Cancelled Count",
             total="700.00",
+            order_items=[
+                {"name": "Viewer Profit Cancelled", "sku": "VIEWER-PROFIT-C", "quantity": 1, "price": "700.00"},
+            ],
         )
         self.client.force_login(self.viewer)
 
@@ -4836,8 +4866,8 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Live order status and stock overview.")
-        self.assertContains(response, "This Month Order Amount")
-        self.assertContains(response, "Rs 1500.50")
+        self.assertContains(response, "This Month Profit")
+        self.assertContains(response, "Rs 500.00")
         self.assertContains(response, '<span class="ops-home-card-label">Accepted</span>', html=False)
         self.assertContains(response, '<span class="ops-home-card-value">2</span>', html=False)
         self.assertContains(response, '<span class="ops-home-card-label">Shipped</span>', html=False)

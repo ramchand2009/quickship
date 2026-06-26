@@ -1762,6 +1762,10 @@ def _build_orders_dashboard_context(request):
     monthly_sales_total = monthly_orders.exclude(
         local_status=ShiprocketOrder.STATUS_CANCELLED
     ).aggregate(total_amount=Sum("total")).get("total_amount") or 0
+    monthly_profit_total = sum(
+        summarize_order_profit(order)["profit_amount"]
+        for order in monthly_orders.exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
+    )
 
     order_action_cards = [
         {
@@ -2086,6 +2090,7 @@ def _build_orders_dashboard_context(request):
         "current_month_label": current_month_label,
         "monthly_status_total": monthly_total,
         "monthly_sales_total": monthly_sales_total,
+        "monthly_profit_total": monthly_profit_total,
         "monthly_status_cards": monthly_status_cards,
         "mobile_dashboard_cards": mobile_order_dashboard_cards + mobile_stock_dashboard_cards,
         "mobile_order_dashboard_cards": mobile_order_dashboard_cards,
