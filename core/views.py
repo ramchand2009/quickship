@@ -1759,12 +1759,20 @@ def _build_orders_dashboard_context(request):
     monthly_rows = monthly_orders.values("local_status").annotate(total=Count("id"))
     monthly_status_map = {row["local_status"]: int(row["total"] or 0) for row in monthly_rows}
     monthly_total = sum(monthly_status_map.values())
-    monthly_sales_total = monthly_orders.exclude(
-        local_status=ShiprocketOrder.STATUS_CANCELLED
-    ).aggregate(total_amount=Sum("total")).get("total_amount") or 0
+    monthly_value_statuses = [
+        ShiprocketOrder.STATUS_ACCEPTED,
+        ShiprocketOrder.STATUS_PACKED,
+        ShiprocketOrder.STATUS_SHIPPED,
+        ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+        ShiprocketOrder.STATUS_DELIVERED,
+        ShiprocketOrder.STATUS_COMPLETED,
+    ]
+    monthly_value_orders = monthly_orders.filter(local_status__in=monthly_value_statuses)
+    monthly_sales_total = monthly_value_orders.aggregate(total_amount=Sum("total")).get("total_amount") or 0
     monthly_profit_total = sum(
         summarize_order_profit(order)["profit_amount"]
-        for order in monthly_orders.exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
+        for order in monthly_value_orders
     )
 
     order_action_cards = [

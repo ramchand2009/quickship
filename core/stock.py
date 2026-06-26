@@ -136,6 +136,7 @@ def summarize_order_profit(order):
     items = order.order_items if isinstance(order.order_items, list) else []
     revenue_total = Decimal("0.00")
     actual_cost_total = Decimal("0.00")
+    known_profit_total = Decimal("0.00")
     missing_identifiers = []
     missing_actual_price_items = []
     matched_item_count = 0
@@ -188,13 +189,14 @@ def summarize_order_profit(order):
             )
             continue
 
-        actual_cost_total += (product.actual_price or Decimal("0.00")) * quantity
+        actual_cost = (product.actual_price or Decimal("0.00")) * quantity
+        actual_cost_total += actual_cost
+        known_profit_total += (unit_price * quantity) - actual_cost
 
-    profit_amount = revenue_total - actual_cost_total
     return {
         "revenue_total": revenue_total,
         "actual_cost_total": actual_cost_total,
-        "profit_amount": profit_amount,
+        "profit_amount": known_profit_total,
         "missing_identifiers": missing_identifiers,
         "missing_actual_price_items": missing_actual_price_items,
         "matched_item_count": matched_item_count,

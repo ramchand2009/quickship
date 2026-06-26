@@ -998,6 +998,27 @@ class ShiprocketOrderProfitTests(TestCase):
         self.assertEqual(str(summary["actual_cost_total"]), "80.00")
         self.assertEqual(str(summary["profit_amount"]), "100.00")
 
+    def test_order_profit_does_not_treat_missing_actual_price_as_full_profit(self):
+        Product.objects.create(
+            name="Profit Soap",
+            sku="PROFIT-SOAP-1",
+            regular_price="100.00",
+            sale_price="90.00",
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-PROFIT-MISSING-1",
+            order_items=[
+                {"name": "Profit Soap", "sku": "PROFIT-SOAP-1", "quantity": 2, "price": "90.00"},
+            ],
+        )
+
+        summary = summarize_order_profit(order)
+
+        self.assertFalse(summary["is_complete"])
+        self.assertEqual(str(summary["revenue_total"]), "180.00")
+        self.assertEqual(str(summary["actual_cost_total"]), "0.00")
+        self.assertEqual(str(summary["profit_amount"]), "0.00")
+
 
 class LoginRateLimitTests(TestCase):
     def setUp(self):
@@ -2455,9 +2476,9 @@ class BulkShippingLabelsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Monthly sales")
-        self.assertContains(response, "Rs 425.00")
+        self.assertContains(response, "Rs 175.00")
         self.assertContains(response, "Monthly profit")
-        self.assertContains(response, "Rs 150.00")
+        self.assertContains(response, "Rs 50.00")
 
     def test_home_shows_action_sections_and_work_queues(self):
         Product.objects.create(
