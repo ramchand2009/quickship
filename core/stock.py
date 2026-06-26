@@ -419,6 +419,12 @@ def find_product_for_order_item(item):
         if product:
             return product, sku
 
+    name = str(item.get("name") or "").strip()
+    if name:
+        products = list(Product.objects.filter(name__iexact=name)[:2])
+        if len(products) == 1:
+            return products[0], name
+
     return None, ""
 
 

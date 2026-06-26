@@ -1019,6 +1019,26 @@ class ShiprocketOrderProfitTests(TestCase):
         self.assertEqual(str(summary["actual_cost_total"]), "0.00")
         self.assertEqual(str(summary["profit_amount"]), "0.00")
 
+    def test_order_profit_matches_product_by_unique_name_when_sku_missing(self):
+        Product.objects.create(
+            name="Profit Soap",
+            sku="PROFIT-SOAP-NAME-1",
+            actual_price="40.00",
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-PROFIT-NAME-1",
+            order_items=[
+                {"name": "Profit Soap", "quantity": 2, "price": "90.00"},
+            ],
+        )
+
+        summary = summarize_order_profit(order)
+
+        self.assertTrue(summary["is_complete"])
+        self.assertEqual(str(summary["revenue_total"]), "180.00")
+        self.assertEqual(str(summary["actual_cost_total"]), "80.00")
+        self.assertEqual(str(summary["profit_amount"]), "100.00")
+
 
 class LoginRateLimitTests(TestCase):
     def setUp(self):
@@ -2450,7 +2470,7 @@ class BulkShippingLabelsViewTests(TestCase):
             total="175.00",
             order_date=current_month,
             order_items=[
-                {"name": "Profit Soap B", "sku": "HOME-PROFIT-B", "quantity": 1, "price": "75.00"},
+                {"name": "Profit Soap B", "quantity": 1, "price": "75.00"},
             ],
         )
         ShiprocketOrder.objects.create(
@@ -5442,7 +5462,7 @@ class RoleAccessTests(TestCase):
                 "pincode": "638001",
             },
             order_items=[
-                {"name": "Soap Bar", "sku": "DETAIL-PROFIT-1", "quantity": 2, "price": "90"},
+                {"name": "Soap Bar", "quantity": 2, "price": "90"},
             ],
         )
         self.client.force_login(self.viewer)
