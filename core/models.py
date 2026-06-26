@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.conf import settings
 
@@ -338,6 +340,7 @@ class ShiprocketOrder(models.Model):
     cancellation_reason = models.CharField(max_length=32, choices=CANCELLATION_REASON_CHOICES, blank=True)
     cancellation_note = models.CharField(max_length=255, blank=True)
     tracking_number = models.CharField(max_length=128, blank=True)
+    shipping_base_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     packed_at = models.DateTimeField(null=True, blank=True)
     shipped_at = models.DateTimeField(null=True, blank=True)
     out_for_delivery_at = models.DateTimeField(null=True, blank=True)
@@ -560,6 +563,14 @@ class ShiprocketOrder(models.Model):
         if self.local_status == self.STATUS_CANCELLED:
             return self.updated_at
         return self.last_status_changed_at or self.updated_at
+
+    @property
+    def shipping_tax_amount(self):
+        return (self.shipping_base_amount or Decimal("0.00")) * Decimal("0.18")
+
+    @property
+    def shipping_total_amount(self):
+        return (self.shipping_base_amount or Decimal("0.00")) + self.shipping_tax_amount
 
 
 class ProductCategory(models.Model):

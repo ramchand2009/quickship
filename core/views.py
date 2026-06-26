@@ -2498,6 +2498,7 @@ def bulk_update_shiprocket_order_status(request):
             f"{prefix}-manual_customer_phone": bulk_phone or order.manual_customer_phone,
             f"{prefix}-courier_name": order.courier_name or "Self-Ship",
             f"{prefix}-tracking_number": bulk_tracking_number or order.tracking_number,
+            f"{prefix}-shipping_base_amount": order.shipping_base_amount,
             f"{prefix}-cancellation_reason": bulk_cancellation_reason or order.cancellation_reason,
             f"{prefix}-cancellation_note": bulk_cancellation_note or order.cancellation_note,
         }
@@ -2551,6 +2552,9 @@ def bulk_update_shiprocket_order_status(request):
                 metadata={
                     "bulk_update": True,
                     "tracking_number": updated_order.tracking_number,
+                    "shipping_base_amount": str(updated_order.shipping_base_amount),
+                    "shipping_tax_amount": str(updated_order.shipping_tax_amount),
+                    "shipping_total_amount": str(updated_order.shipping_total_amount),
                     "cancellation_reason": updated_order.cancellation_reason,
                     "cancellation_note": updated_order.cancellation_note,
                 },
@@ -5510,29 +5514,36 @@ def update_shiprocket_order_tracking(request, pk):
         return redirect("order_detail", pk=pk)
 
     previous_tracking_number = str(order.tracking_number or "").strip()
+    previous_shipping_base_amount = order.shipping_base_amount
     form = ShiprocketOrderTrackingUpdateForm(request.POST, instance=order)
     if form.is_valid():
         updated_order = form.save()
         changed_tracking_number = str(updated_order.tracking_number or "").strip()
-        if changed_tracking_number != previous_tracking_number:
+        changed_shipping_base_amount = updated_order.shipping_base_amount
+        if changed_tracking_number != previous_tracking_number or changed_shipping_base_amount != previous_shipping_base_amount:
             log_order_activity(
                 order=updated_order,
                 event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
-                title="Tracking number updated",
+                title="Tracking details updated",
                 description=(
                     f"Tracking number changed from {previous_tracking_number or '-'} "
-                    f"to {changed_tracking_number or '-'}."
+                    f"to {changed_tracking_number or '-'}. Shipping base amount changed from "
+                    f"Rs {previous_shipping_base_amount:.2f} to Rs {changed_shipping_base_amount:.2f}."
                 ),
                 previous_status=updated_order.local_status,
                 current_status=updated_order.local_status,
                 metadata={
                     "previous_tracking_number": previous_tracking_number,
                     "tracking_number": changed_tracking_number,
+                    "previous_shipping_base_amount": str(previous_shipping_base_amount),
+                    "shipping_base_amount": str(changed_shipping_base_amount),
+                    "shipping_tax_amount": str(updated_order.shipping_tax_amount),
+                    "shipping_total_amount": str(updated_order.shipping_total_amount),
                 },
                 is_success=True,
                 triggered_by=_request_actor(request),
             )
-        messages.success(request, "Tracking number updated.")
+        messages.success(request, "Tracking details updated.")
     else:
         log_order_activity(
             order=order,
@@ -5545,7 +5556,7 @@ def update_shiprocket_order_tracking(request, pk):
             is_success=False,
             triggered_by=_request_actor(request),
         )
-        messages.error(request, "Unable to update tracking number. Check the format and try again.")
+        messages.error(request, "Unable to update tracking details. Check the format and amount, then try again.")
 
     return redirect("order_detail", pk=pk)
 
@@ -5717,6 +5728,9 @@ def update_shiprocket_order_status(request, pk):
                 metadata={
                     "courier_name": updated_order.courier_name,
                     "tracking_number": updated_order.tracking_number,
+                    "shipping_base_amount": str(updated_order.shipping_base_amount),
+                    "shipping_tax_amount": str(updated_order.shipping_tax_amount),
+                    "shipping_total_amount": str(updated_order.shipping_total_amount),
                     "cancellation_reason": updated_order.cancellation_reason,
                     "cancellation_note": updated_order.cancellation_note,
                     "packing_scan_verified": (

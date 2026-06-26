@@ -250,12 +250,21 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
 
     class Meta:
         model = ShiprocketOrder
-        fields = ["local_status", "manual_customer_phone", "courier_name", "tracking_number", "cancellation_reason", "cancellation_note"]
+        fields = [
+            "local_status",
+            "manual_customer_phone",
+            "courier_name",
+            "tracking_number",
+            "shipping_base_amount",
+            "cancellation_reason",
+            "cancellation_note",
+        ]
         labels = {
             "local_status": "Order Status",
             "manual_customer_phone": "Customer Mobile",
             "courier_name": "Courier Partner",
             "tracking_number": "Tracking Number",
+            "shipping_base_amount": "Shipping Cost",
             "cancellation_reason": "Cancel Reason",
             "cancellation_note": "Cancel Note",
         }
@@ -284,6 +293,14 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
         self.fields["tracking_number"].widget.attrs["autocomplete"] = "off"
         self.fields["tracking_number"].widget.attrs["autocapitalize"] = "characters"
         self.fields["tracking_number"].widget.attrs["spellcheck"] = "false"
+        self.fields["shipping_base_amount"].required = False
+        self.fields["shipping_base_amount"].widget.attrs["class"] = "form-control form-control-sm"
+        self.fields["shipping_base_amount"].widget.attrs["placeholder"] = "Base shipping cost"
+        self.fields["shipping_base_amount"].widget.attrs["style"] = "min-width: 150px;"
+        self.fields["shipping_base_amount"].widget.attrs["title"] = "Shipping Cost Before Tax"
+        self.fields["shipping_base_amount"].widget.attrs["inputmode"] = "decimal"
+        self.fields["shipping_base_amount"].widget.attrs["min"] = "0"
+        self.fields["shipping_base_amount"].widget.attrs["step"] = "0.01"
         self.fields["cancellation_reason"].widget.attrs["class"] = "form-select form-select-sm form-control form-control-sm"
         self.fields["cancellation_reason"].widget.attrs["style"] = "min-width: 170px;"
         self.fields["cancellation_reason"].widget.attrs["title"] = "Cancel Reason"
@@ -307,6 +324,7 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
         selected_manual_customer_phone = (cleaned_data.get("manual_customer_phone") or "").strip()
         selected_courier_name = (cleaned_data.get("courier_name") or "").strip()
         selected_tracking_number = (cleaned_data.get("tracking_number") or "").strip().upper()
+        selected_shipping_base_amount = cleaned_data.get("shipping_base_amount")
         selected_cancellation_reason = (cleaned_data.get("cancellation_reason") or "").strip()
 
         if not selected_status:
@@ -361,9 +379,14 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
                 self.add_error("tracking_number", "Tracking number must match format AA123456789AA.")
             else:
                 cleaned_data["tracking_number"] = selected_tracking_number
+            if selected_shipping_base_amount is None:
+                self.add_error("shipping_base_amount", "Enter shipping cost before moving to shipped.")
+            elif selected_shipping_base_amount < 0:
+                self.add_error("shipping_base_amount", "Shipping cost cannot be negative.")
         else:
             cleaned_data["courier_name"] = self.instance.courier_name
             cleaned_data["tracking_number"] = self.instance.tracking_number
+            cleaned_data["shipping_base_amount"] = self.instance.shipping_base_amount
 
         if selected_status == ShiprocketOrder.STATUS_CANCELLED:
             if not selected_cancellation_reason:
@@ -386,9 +409,10 @@ class ShiprocketOrderStatusForm(forms.ModelForm):
 class ShiprocketOrderTrackingUpdateForm(forms.ModelForm):
     class Meta:
         model = ShiprocketOrder
-        fields = ["tracking_number"]
+        fields = ["tracking_number", "shipping_base_amount"]
         labels = {
             "tracking_number": "Tracking Number",
+            "shipping_base_amount": "Shipping Cost",
         }
 
     def __init__(self, *args, **kwargs):
@@ -403,6 +427,15 @@ class ShiprocketOrderTrackingUpdateForm(forms.ModelForm):
                 "spellcheck": "false",
             }
         )
+        self.fields["shipping_base_amount"].widget.attrs.update(
+            {
+                "class": "form-control",
+                "placeholder": "Base shipping cost before 18% tax",
+                "inputmode": "decimal",
+                "min": "0",
+                "step": "0.01",
+            }
+        )
 
     def clean_tracking_number(self):
         value = str(self.cleaned_data.get("tracking_number") or "").strip().upper()
@@ -410,6 +443,14 @@ class ShiprocketOrderTrackingUpdateForm(forms.ModelForm):
             raise forms.ValidationError("Enter tracking number.")
         if len(value) != 13:
             raise forms.ValidationError("Tracking number must be exactly 13 characters.")
+        return value
+
+    def clean_shipping_base_amount(self):
+        value = self.cleaned_data.get("shipping_base_amount")
+        if value is None:
+            raise forms.ValidationError("Enter shipping cost.")
+        if value < 0:
+            raise forms.ValidationError("Shipping cost cannot be negative.")
         return value
 
 

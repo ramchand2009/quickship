@@ -278,6 +278,11 @@
                                             <a class="order-id-link" href="{% url 'order_detail' item.order.pk %}">{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</a>
                                             <div class="text-muted small mt-1">Workflow: {{ item.order.get_local_status_display }}</div>
                                             <div class="text-muted small mt-1">Tracking: {{ item.order.tracking_number|default:"Not added" }}</div>
+                                            <div class="text-muted small mt-1">
+                                                Shipping: Rs {{ item.order.shipping_base_amount|floatformat:2 }}
+                                                + Tax Rs {{ item.order.shipping_tax_amount|floatformat:2 }}
+                                                = Rs {{ item.order.shipping_total_amount|floatformat:2 }}
+                                            </div>
                                             {% if item.missing_packing_fields %}
                                                 <div class="small mt-1">
                                                     <span class="fw-semibold">Packing Checklist</span>:
@@ -338,6 +343,10 @@
                                                             {{ item.status_form.tracking_number }}
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-scan-start>Scan Barcode</button>
                                                             <button type="button" class="btn btn-sm btn-outline-danger d-none" data-scan-stop>Stop Scan</button>
+                                                        </div>
+                                                        {{ item.status_form.shipping_base_amount }}
+                                                        <div class="small text-muted mt-1" data-shipping-total-preview>
+                                                            Tax 18%: Rs 0.00 | Total: Rs 0.00
                                                         </div>
                                                         <div class="small text-muted mt-1 d-none" data-scan-status>Manual option: type tracking number here in format AA123456789AA, or scan barcode.</div>
                                                         <div class="tracking-scanner-panel d-none mt-2" data-scanner-panel>
@@ -796,6 +805,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const acceptedPhoneField = form.querySelector("input[name$='-manual_customer_phone']");
         const acceptedFields = form.querySelector("[data-accepted-fields]");
         const trackingField = form.querySelector("input[name$='-tracking_number']");
+        const shippingBaseField = form.querySelector("input[name$='-shipping_base_amount']");
+        const shippingTotalPreview = form.querySelector("[data-shipping-total-preview]");
         const shippedFields = form.querySelector("[data-shipped-fields]");
         const scanStartButton = form.querySelector("[data-scan-start]");
         const scanStopButton = form.querySelector("[data-scan-stop]");
@@ -1013,6 +1024,23 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
+        const refreshShippingPreview = function () {
+            if (!shippingTotalPreview) {
+                return;
+            }
+            const base = parseFloat(String(shippingBaseField ? shippingBaseField.value : "0").replace(/,/g, ""));
+            const normalizedBase = Number.isFinite(base) && base > 0 ? base : 0;
+            const tax = normalizedBase * 0.18;
+            const total = normalizedBase + tax;
+            shippingTotalPreview.textContent =
+                "Tax 18%: Rs " + tax.toFixed(2) + " | Total: Rs " + total.toFixed(2);
+        };
+
+        if (shippingBaseField) {
+            shippingBaseField.addEventListener("input", refreshShippingPreview);
+            refreshShippingPreview();
+        }
+
         if (scanStartButton) {
             scanStartButton.addEventListener("click", function () {
                 startScanner();
@@ -1039,6 +1067,9 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             if (trackingField) {
                 trackingField.required = showShipped;
+            }
+            if (shippingBaseField) {
+                shippingBaseField.required = showShipped;
             }
             if (scanStatus) {
                 scanStatus.classList.toggle("d-none", !showShipped);
@@ -1071,6 +1102,15 @@ document.addEventListener("DOMContentLoaded", function () {
             stopScanner();
             if (trackingField) {
                 trackingField.value = normalizeTrackingNumber(trackingField.value);
+            }
+            if (selectedStatus === "shipped" && shippingBaseField) {
+                const shippingBase = parseFloat(String(shippingBaseField.value || "").replace(/,/g, ""));
+                if (!Number.isFinite(shippingBase) || shippingBase < 0) {
+                    event.preventDefault();
+                    shippingBaseField.focus();
+                    window.alert("Enter a valid shipping cost before shipping.");
+                    return;
+                }
             }
             const submitButton = form.querySelector("button[type='submit']");
             if (submitButton) {

@@ -954,6 +954,25 @@ class ShiprocketOrderStatusFormTests(TestCase):
             [ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_CANCELLED],
         )
 
+    def test_shipped_status_requires_shipping_base_amount(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STATUS-FORM-SHIP-COST-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+        )
+
+        form = ShiprocketOrderStatusForm(
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_SHIPPED,
+                f"order-{order.pk}-courier_name": "India Post",
+                f"order-{order.pk}-tracking_number": "AA123456789AA",
+            },
+            instance=order,
+            prefix=f"order-{order.pk}",
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("shipping_base_amount", form.errors)
+
 
 class LoginRateLimitTests(TestCase):
     def setUp(self):
@@ -1819,11 +1838,15 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
             {
                 f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_SHIPPED,
                 f"order-{order.pk}-tracking_number": "AA123456789AA",
+                f"order-{order.pk}-shipping_base_amount": "100.00",
             },
             follow=True,
         )
         order.refresh_from_db()
         self.assertIsNotNone(order.shipped_at)
+        self.assertEqual(str(order.shipping_base_amount), "100.00")
+        self.assertEqual(str(order.shipping_tax_amount), "18.0000")
+        self.assertEqual(str(order.shipping_total_amount), "118.0000")
 
         self.client.post(
             reverse("update_shiprocket_order_status", args=[order.pk]),
@@ -2861,13 +2884,15 @@ class ShiprocketOrderTrackingUpdateViewTests(TestCase):
 
         response = self.client.post(
             reverse("update_shiprocket_order_tracking", args=[order.pk]),
-            {"tracking_number": "BB123456789BB"},
+            {"tracking_number": "BB123456789BB", "shipping_base_amount": "120.00"},
             follow=True,
         )
 
         order.refresh_from_db()
         self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
         self.assertEqual(order.tracking_number, "BB123456789BB")
+        self.assertEqual(str(order.shipping_base_amount), "120.00")
+        self.assertEqual(str(order.shipping_total_amount), "141.6000")
 
     def test_tracking_update_rejects_invalid_length(self):
         order = ShiprocketOrder.objects.create(
@@ -2878,7 +2903,7 @@ class ShiprocketOrderTrackingUpdateViewTests(TestCase):
 
         response = self.client.post(
             reverse("update_shiprocket_order_tracking", args=[order.pk]),
-            {"tracking_number": "SHORT123"},
+            {"tracking_number": "SHORT123", "shipping_base_amount": "120.00"},
             follow=True,
         )
 
@@ -5308,13 +5333,15 @@ class RoleAccessTests(TestCase):
 
         response = self.client.post(
             reverse("update_shiprocket_order_tracking", args=[order.pk]),
-            {"tracking_number": "BB123456789BB"},
+            {"tracking_number": "BB123456789BB", "shipping_base_amount": "120.00"},
             follow=True,
         )
 
         order.refresh_from_db()
         self.assertRedirects(response, reverse("order_detail", args=[order.pk]))
         self.assertEqual(order.tracking_number, "BB123456789BB")
+        self.assertEqual(str(order.shipping_base_amount), "120.00")
+        self.assertEqual(str(order.shipping_total_amount), "141.6000")
 
     def test_ops_viewer_accepted_order_detail_hides_mobile_packing_options(self):
         order = ShiprocketOrder.objects.create(
@@ -5502,6 +5529,7 @@ class RoleAccessTests(TestCase):
                 f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_SHIPPED,
                 f"order-{order.pk}-tracking_number": "AA123456789AA",
                 f"order-{order.pk}-courier_name": "India Post",
+                f"order-{order.pk}-shipping_base_amount": "75.00",
             },
             follow=True,
         )
@@ -5509,6 +5537,8 @@ class RoleAccessTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_SHIPPED)
         self.assertEqual(order.courier_name, "India Post")
+        self.assertEqual(str(order.shipping_base_amount), "75.00")
+        self.assertEqual(str(order.shipping_total_amount), "88.5000")
         self.assertContains(response, "Order moved to the selected tab.")
 
     def test_ops_viewer_order_detail_shipped_action_uses_manual_tracking_entry(self):

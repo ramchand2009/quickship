@@ -66,6 +66,17 @@
     <div class="col-md-6 col-xl-3">
         <div class="card order-stat-card">
             <div class="card-block">
+                <h6 class="mb-2">Shipping Total</h6>
+                <h5 class="mb-0">Rs {{ order.shipping_total_amount|floatformat:2 }}</h5>
+                <div class="small text-muted mt-1">
+                    Base Rs {{ order.shipping_base_amount|floatformat:2 }} + Tax Rs {{ order.shipping_tax_amount|floatformat:2 }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card order-stat-card">
+            <div class="card-block">
                 <h6 class="mb-2">Last WhatsApp Attempt</h6>
                 {% if latest_queue_job %}
                     <h5 class="mb-0 text-capitalize">{{ latest_queue_job.status }}</h5>
@@ -221,6 +232,12 @@
             <div class="card-header"><h5 class="mb-0">Tracking Details</h5></div>
             <div class="card-block">
                 <p class="mb-1"><strong>Current Tracking Number:</strong> {{ order.tracking_number|default:"-" }}</p>
+                <p class="mb-1">
+                    <strong>Shipping Cost:</strong>
+                    Base Rs {{ order.shipping_base_amount|floatformat:2 }},
+                    Tax 18% Rs {{ order.shipping_tax_amount|floatformat:2 }},
+                    Total Rs {{ order.shipping_total_amount|floatformat:2 }}
+                </p>
                 <p class="mb-2 text-muted"><strong>{{ order.current_status_date_label }}:</strong> {{ order.current_status_date|date:"Y-m-d H:i:s T"|default:"-" }}</p>
                 {% if can_edit_manual_order_details %}
                     {% if order.local_status == "order_cancelled" %}
@@ -236,7 +253,15 @@
                                 {% endif %}
                                 <div class="form-text">Use 13 characters, for example <code>AA123456789AA</code>.</div>
                             </div>
-                            <button type="submit" class="btn btn-primary">Save Tracking Number</button>
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ tracking_form.shipping_base_amount.id_for_label }}">{{ tracking_form.shipping_base_amount.label }}</label>
+                                {{ tracking_form.shipping_base_amount }}
+                                {% if tracking_form.shipping_base_amount.errors %}
+                                    <div class="text-danger small mt-1">{{ tracking_form.shipping_base_amount.errors|join:", " }}</div>
+                                {% endif %}
+                                <div class="form-text">Enter base amount. Tax 18% and total are calculated automatically.</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Tracking Details</button>
                         </form>
                     {% endif %}
                 {% elif request.user.is_authenticated %}

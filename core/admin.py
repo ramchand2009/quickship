@@ -59,6 +59,8 @@ class ShiprocketOrderAdmin(admin.ModelAdmin):
         "status",
         "woocommerce_status",
         "total",
+        "shipping_base_amount",
+        "shipping_total_amount",
         "order_date",
         "cancellation_reason",
         "payment_received_at",

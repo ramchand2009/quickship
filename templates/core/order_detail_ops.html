@@ -887,6 +887,15 @@
                     {% endif %}
                 </div>
             </div>
+            <div class="ops-detail-inline-row">
+                <div>
+                    <div class="fw-semibold">Shipping Total</div>
+                    <div class="text-muted small">
+                        Base Rs {{ order.shipping_base_amount|floatformat:2 }} + 18% tax Rs {{ order.shipping_tax_amount|floatformat:2 }}
+                    </div>
+                </div>
+                <div class="ops-detail-pill">Rs {{ order.shipping_total_amount|floatformat:2 }}</div>
+            </div>
         </div>
 
         <div class="ops-detail-card">
@@ -964,6 +973,7 @@
                     <input type="hidden" name="order-{{ order.pk }}-manual_customer_phone" id="opsPhoneInput" value="{{ order.resolved_customer_phone }}">
                     <input type="hidden" name="order-{{ order.pk }}-courier_name" id="opsCourierInput" value="India Post">
                     <input type="hidden" name="order-{{ order.pk }}-tracking_number" id="opsTrackingInput" value="{{ order.tracking_number }}">
+                    <input type="hidden" name="order-{{ order.pk }}-shipping_base_amount" id="opsShippingBaseInput" value="{{ order.shipping_base_amount|floatformat:2 }}">
                     <div class="ops-detail-action-grid">
                         {% for action in ops_mobile_actions %}
                             {% if action.value == 'order_accepted' or action.value == 'shipped' or action.value == 'completed' or action.value == 'order_cancelled' %}
@@ -1024,6 +1034,14 @@
                 <p class="ops-tracking-error" id="opsTrackingScreenError"></p>
             </section>
 
+            <section>
+                <label for="opsShippingBaseScreenInput" class="ops-tracking-label">Shipping Cost</label>
+                <div class="ops-tracking-input-wrap">
+                    <input type="number" id="opsShippingBaseScreenInput" class="ops-tracking-input" value="{{ order.shipping_base_amount|floatformat:2 }}" placeholder="Base amount" min="0" step="0.01" inputmode="decimal">
+                </div>
+                <p class="ops-tracking-hint" id="opsShippingTotalPreview">18% tax will be added automatically.</p>
+            </section>
+
             <div class="ops-tracking-actions">
                 <button type="button" class="ops-tracking-save" id="opsTrackingSaveButton"><i class="far fa-save me-2"></i>Save &amp; Update Status</button>
                 <button type="button" class="ops-tracking-cancel" id="opsTrackingCancelButton">Cancel</button>
@@ -1049,6 +1067,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const trackingInput = document.getElementById("opsTrackingInput");
     const trackingScreen = document.getElementById("opsTrackingScreen");
     const trackingScreenInput = document.getElementById("opsTrackingScreenInput");
+    const shippingBaseInput = document.getElementById("opsShippingBaseInput");
+    const shippingBaseScreenInput = document.getElementById("opsShippingBaseScreenInput");
+    const shippingTotalPreview = document.getElementById("opsShippingTotalPreview");
     const trackingScreenError = document.getElementById("opsTrackingScreenError");
     const trackingSaveButton = document.getElementById("opsTrackingSaveButton");
     const trackingCancelButton = document.getElementById("opsTrackingCancelButton");
@@ -1086,6 +1107,23 @@ document.addEventListener("DOMContentLoaded", function () {
         return TRACKING_NUMBER_PATTERN.test(String(value || ""));
     };
 
+    const parseShippingBase = function (value) {
+        const parsed = parseFloat(String(value || "").replace(/,/g, ""));
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    };
+
+    const refreshShippingTotalPreview = function () {
+        if (!shippingTotalPreview) {
+            return;
+        }
+        const base = parseShippingBase(shippingBaseScreenInput ? shippingBaseScreenInput.value : "");
+        const normalizedBase = base === null ? 0 : base;
+        const tax = normalizedBase * 0.18;
+        const total = normalizedBase + tax;
+        shippingTotalPreview.textContent =
+            "Tax 18%: Rs " + tax.toFixed(2) + " | Total: Rs " + total.toFixed(2);
+    };
+
     const DEFAULT_COURIER = "India Post";
 
     const setDefaultCourier = function () {
@@ -1107,6 +1145,10 @@ document.addEventListener("DOMContentLoaded", function () {
         setTrackingScreenError("");
         if (trackingScreenInput && trackingInput) {
             trackingScreenInput.value = normalizeTrackingNumber(trackingInput.value);
+        }
+        if (shippingBaseScreenInput && shippingBaseInput) {
+            shippingBaseScreenInput.value = shippingBaseInput.value || "0.00";
+            refreshShippingTotalPreview();
         }
         setDefaultCourier();
         if (trackingScreen) {
@@ -1553,12 +1595,25 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    if (shippingBaseScreenInput) {
+        shippingBaseScreenInput.addEventListener("input", refreshShippingTotalPreview);
+        refreshShippingTotalPreview();
+    }
+
     const saveTrackingScreen = function () {
         const trackingValue = normalizeTrackingNumber(trackingScreenInput ? trackingScreenInput.value : "");
+        const shippingBaseValue = parseShippingBase(shippingBaseScreenInput ? shippingBaseScreenInput.value : "");
         if (!isExactTrackingNumber(trackingValue)) {
             setTrackingScreenError("Enter a valid tracking number in format AA123456789AA.");
             if (trackingScreenInput) {
                 trackingScreenInput.focus();
+            }
+            return;
+        }
+        if (shippingBaseValue === null) {
+            setTrackingScreenError("Enter a valid shipping cost.");
+            if (shippingBaseScreenInput) {
+                shippingBaseScreenInput.focus();
             }
             return;
         }
@@ -1567,6 +1622,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         if (trackingInput) {
             trackingInput.value = trackingValue;
+        }
+        if (shippingBaseInput) {
+            shippingBaseInput.value = shippingBaseValue.toFixed(2);
         }
         if (pendingShipButton) {
             pendingShipButton.setAttribute("data-tracking-confirmed", "true");
