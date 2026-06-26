@@ -1,0 +1,1 @@
+Read PROJECT.md, AI_RULES.md, MEMORY.md, TASKS.md and all docs. Summarize project before coding. Update MEMORY.md and TASKS.md after changes.
