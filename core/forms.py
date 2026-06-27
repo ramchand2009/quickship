@@ -567,6 +567,7 @@ class ProductDetailUpdateForm(ProductForm):
             "stock_quantity": "Stock quantity",
         }
         widgets = {
+            **ProductForm.Meta.widgets,
             "description": forms.Textarea(attrs={"rows": 4}),
         }
 

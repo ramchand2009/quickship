@@ -7405,6 +7405,8 @@ class RoleAccessTests(TestCase):
             stock_quantity=4,
             reorder_level=2,
             smartbiz_product_id="101",
+            woocommerce_product_id="300",
+            woocommerce_variation_id="",
             image_url="https://shop.example.com/serum.jpg",
             actual_price="320.00",
             regular_price="300.00",
@@ -7465,6 +7467,10 @@ class RoleAccessTests(TestCase):
         self.assertContains(description_response, "Description")
         self.assertContains(description_response, "1.Reduces Dark spots &amp; pigmentation")
         self.assertContains(description_response, "2.Promotes even skin tone &amp; glow")
+        self.assertContains(description_response, 'type="hidden" name="woocommerce_product_id"', html=False)
+        self.assertContains(description_response, 'type="hidden" name="woocommerce_variation_id"', html=False)
+        self.assertNotContains(description_response, 'type="text" name="woocommerce_product_id"', html=False)
+        self.assertNotContains(description_response, 'type="text" name="woocommerce_variation_id"', html=False)
         self.assertNotContains(description_response, "&lt;p&gt;")
         self.assertNotContains(description_response, "&lt;br /&gt;")
         self.assertEqual(image_response.status_code, 200)
