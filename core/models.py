@@ -796,6 +796,8 @@ class Product(models.Model):
     sku = models.CharField(max_length=120, unique=True)
     barcode = models.CharField(max_length=120, blank=True, null=True, unique=True)
     smartbiz_product_id = models.CharField(max_length=160, blank=True, null=True, unique=True)
+    woocommerce_product_id = models.CharField(max_length=160, blank=True)
+    woocommerce_variation_id = models.CharField(max_length=160, blank=True)
     image_url = models.URLField(max_length=1000, blank=True)
     description = models.TextField(blank=True)
     actual_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -836,6 +838,8 @@ class Product(models.Model):
         self.barcode = barcode_value or None
         smartbiz_product_id = normalize_channel_product_id(self.smartbiz_product_id)
         self.smartbiz_product_id = smartbiz_product_id or None
+        self.woocommerce_product_id = normalize_channel_product_id(self.woocommerce_product_id)
+        self.woocommerce_variation_id = normalize_channel_product_id(self.woocommerce_variation_id)
         super().save(*args, **kwargs)
 
 

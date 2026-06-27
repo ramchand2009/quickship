@@ -730,6 +730,8 @@ def _apply_product_row(product, row):
         "sale_price": row.get("sale_price"),
         "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
         "is_active": bool(row.get("is_active", True)),
+        "woocommerce_product_id": str(row.get("woocommerce_product_id") or "").strip(),
+        "woocommerce_variation_id": str(row.get("woocommerce_variation_id") or "").strip(),
     }
     changed_fields = []
     for field_name, value in defaults.items():
@@ -784,6 +786,8 @@ def _sync_product_row(row, tenant=None):
             "sale_price": row.get("sale_price"),
             "stock_quantity": _to_int(row.get("stock_quantity"), default=0),
             "is_active": bool(row.get("is_active", True)),
+            "woocommerce_product_id": str(row.get("woocommerce_product_id") or "").strip(),
+            "woocommerce_variation_id": str(row.get("woocommerce_variation_id") or "").strip(),
         }
         if tenant is not None:
             create_kwargs["tenant"] = tenant
@@ -868,7 +872,14 @@ def refresh_product_from_woocommerce(product):
 
 
 def _product_update_path(product):
-    external_id = str(getattr(product, "smartbiz_product_id", "") or "").strip()
+    parent_product_id = str(getattr(product, "woocommerce_product_id", "") or "").strip()
+    variation_id = str(getattr(product, "woocommerce_variation_id", "") or "").strip()
+    if parent_product_id and variation_id:
+        if not parent_product_id.isdigit() or not variation_id.isdigit():
+            raise WooCommerceAPIError("WooCommerce product updates require numeric product and variation IDs.")
+        return f"products/{parent_product_id}/variations/{variation_id}"
+
+    external_id = str(parent_product_id or getattr(product, "smartbiz_product_id", "") or "").strip()
     if not external_id:
         raise WooCommerceAPIError("This product is missing a WooCommerce product ID.")
     if not external_id.isdigit():
@@ -895,20 +906,30 @@ def _woocommerce_category_id(category_name, tenant=None):
     return None
 
 
+def _is_variation_product(product):
+    return bool(str(getattr(product, "woocommerce_product_id", "") or "").strip() and str(getattr(product, "woocommerce_variation_id", "") or "").strip())
+
+
 def update_product(product, extra_fields=None):
     tenant = getattr(product, "tenant", None)
+    is_variation = _is_variation_product(product)
     payload = {
-        "name": product.name,
         "sku": product.sku,
         "manage_stock": True,
         "stock_quantity": int(product.stock_quantity or 0),
-        "status": "publish" if product.is_active else "draft",
     }
+    if not is_variation:
+        payload["name"] = product.name
+        payload["status"] = "publish" if product.is_active else "draft"
     if product.image_url:
-        payload["images"] = [{"src": product.image_url}]
-    category_id = _woocommerce_category_id(product.category_label, tenant=tenant)
-    if category_id:
-        payload["categories"] = [{"id": category_id}]
+        if is_variation:
+            payload["image"] = {"src": product.image_url}
+        else:
+            payload["images"] = [{"src": product.image_url}]
+    if not is_variation:
+        category_id = _woocommerce_category_id(product.category_label, tenant=tenant)
+        if category_id:
+            payload["categories"] = [{"id": category_id}]
 
     extra_fields = {
         "description": product.description,

@@ -1170,6 +1170,8 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(amla.smartbiz_product_id, "121")
         self.assertEqual(amla.image_url, "https://shop.example.com/images/amla-500.jpg")
         self.assertEqual(amla.category_master.name, "Juice")
+        self.assertEqual(amla.woocommerce_product_id, "12")
+        self.assertEqual(amla.woocommerce_variation_id, "121")
 
     @patch("core.woocommerce._json_request")
     def test_sync_products_assigns_tenant_from_category_mapping(self, mock_json_request):
@@ -1331,6 +1333,49 @@ class WooCommerceSyncTests(TestCase):
                 "status": "publish",
                 "images": [{"src": "https://shop.example.com/images/serum.jpg"}],
                 "description": "Reduces fine lines and wrinkles.",
+                "regular_price": "300.00",
+                "sale_price": "240.00",
+            },
+        )
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
+    def test_update_product_uses_variation_endpoint_for_variations(self, mock_json_request):
+        from .woocommerce import update_product as update_woocommerce_product
+
+        product = Product.objects.create(
+            name="Amla Juice - 500 ml",
+            sku="EN-AMLA-500",
+            stock_quantity=4,
+            smartbiz_product_id="121",
+            woocommerce_product_id="12",
+            woocommerce_variation_id="121",
+            image_url="https://shop.example.com/images/amla-500.jpg",
+            is_active=True,
+        )
+
+        update_woocommerce_product(
+            product,
+            extra_fields={
+                "description": "Fresh amla juice.",
+                "regular_price": "300.00",
+                "sale_price": "240.00",
+            },
+        )
+
+        mock_json_request.assert_called_once_with(
+            "products/12/variations/121",
+            method="PUT",
+            payload={
+                "sku": "EN-AMLA-500",
+                "manage_stock": True,
+                "stock_quantity": 4,
+                "image": {"src": "https://shop.example.com/images/amla-500.jpg"},
+                "description": "Fresh amla juice.",
                 "regular_price": "300.00",
                 "sale_price": "240.00",
             },

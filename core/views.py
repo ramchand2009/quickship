@@ -4016,6 +4016,8 @@ def _product_detail_update_data(product, post_data):
         "category_master": product.category_master_id or "",
         "sku": product.sku or "",
         "smartbiz_product_id": product.smartbiz_product_id or "",
+        "woocommerce_product_id": product.woocommerce_product_id or "",
+        "woocommerce_variation_id": product.woocommerce_variation_id or "",
         "barcode": product.barcode or "",
         "image_url": product.image_url or "",
         "stock_quantity": product.stock_quantity,

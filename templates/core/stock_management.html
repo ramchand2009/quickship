@@ -59,6 +59,8 @@
                     {% csrf_token %}
                     <input type="hidden" name="form_action" value="save_product">
                     <input type="hidden" name="product_id" value="{% if editing_product %}{{ editing_product.pk }}{% endif %}">
+                    {{ product_form.woocommerce_product_id }}
+                    {{ product_form.woocommerce_variation_id }}
                     <div class="mb-3">
                         <label class="form-label">Name</label>
                         {{ product_form.name }}

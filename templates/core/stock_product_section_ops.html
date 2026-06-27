@@ -52,6 +52,8 @@ body { overflow-x:hidden; background:#f3f3f4; }
 <div class="ops-section-shell">
     <form method="post" enctype="multipart/form-data" class="ops-section-form">
         {% csrf_token %}
+        {{ form.woocommerce_product_id }}
+        {{ form.woocommerce_variation_id }}
     <div class="ops-section-topbar">
         <a href="{% url 'stock_product_detail' product.pk %}" class="ops-section-icon-btn" aria-label="Back to product"><i class="fas fa-arrow-left"></i></a>
         <h1>{{ section_title }}</h1>

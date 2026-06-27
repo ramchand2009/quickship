@@ -514,6 +514,8 @@ class ProductForm(forms.ModelForm):
             "category_master",
             "sku",
             "smartbiz_product_id",
+            "woocommerce_product_id",
+            "woocommerce_variation_id",
             "barcode",
             "image_url",
             "stock_quantity",
@@ -523,10 +525,16 @@ class ProductForm(forms.ModelForm):
         labels = {
             "category_master": "Category",
             "smartbiz_product_id": "WooCommerce Product/Variation ID",
+            "woocommerce_product_id": "WooCommerce Product ID",
+            "woocommerce_variation_id": "WooCommerce Variation ID",
             "image_url": "Product Image URL",
             "stock_quantity": "Opening Stock",
             "reorder_level": "Low Stock Threshold",
             "is_active": "Active",
+        }
+        widgets = {
+            "woocommerce_product_id": forms.HiddenInput(),
+            "woocommerce_variation_id": forms.HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):
