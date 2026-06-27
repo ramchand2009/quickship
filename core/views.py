@@ -21,7 +21,7 @@ from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
 from django.core.management import CommandError, call_command
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
@@ -99,6 +99,8 @@ from .models import (
     WhatsAppTemplate,
     WebPushSubscription,
     WooCommerceSettings,
+    normalize_channel_product_id,
+    normalize_sku,
 )
 from .stock import (
     apply_manual_stock_movement,
@@ -1621,6 +1623,91 @@ def _apply_status_timestamps(order_obj):
 def _is_woocommerce_config_missing_error(error_text):
     text = str(error_text or "").strip().lower()
     return "woocommerce credentials are missing" in text
+
+
+def _product_image_from_order_item(item):
+    image_value = item.get("image") or item.get("image_url") or ""
+    if isinstance(image_value, dict):
+        image_value = image_value.get("src") or image_value.get("url") or ""
+    return str(image_value or "").strip()
+
+
+def _external_product_id_from_order_item(item):
+    return normalize_channel_product_id(
+        item.get("smartbiz_product_id")
+        or item.get("channel_product_id")
+        or item.get("product_id")
+        or item.get("variation_id")
+        or item.get("id")
+    )
+
+
+def _sku_from_order_item(item, external_id):
+    sku = normalize_sku(item.get("sku") or item.get("channel_sku"))
+    if sku:
+        return sku
+    if external_id:
+        return normalize_sku(f"WC-{external_id}")
+    return ""
+
+
+def _create_products_from_tenant_order_items(tenant):
+    if tenant is None:
+        return {"created": 0, "unchanged": 0, "skipped": 0}
+
+    created_count = 0
+    unchanged_count = 0
+    skipped_count = 0
+    orders = ShiprocketOrder.objects.filter(
+        tenant=tenant,
+        source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+    ).order_by("-order_date", "-updated_at")[:200]
+
+    for order in orders:
+        items = order.order_items if isinstance(order.order_items, list) else []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            name = str(item.get("name") or "").strip()
+            external_id = _external_product_id_from_order_item(item)
+            sku = _sku_from_order_item(item, external_id)
+            if not name or not sku:
+                skipped_count += 1
+                continue
+
+            tenant_products = Product.objects.filter(tenant=tenant)
+            if external_id and tenant_products.filter(smartbiz_product_id__iexact=external_id).exists():
+                unchanged_count += 1
+                continue
+            if tenant_products.filter(sku__iexact=sku).exists():
+                unchanged_count += 1
+                continue
+
+            if external_id and Product.objects.filter(smartbiz_product_id__iexact=external_id).exclude(tenant=tenant).exists():
+                skipped_count += 1
+                continue
+            if Product.objects.filter(sku__iexact=sku).exclude(tenant=tenant).exists():
+                skipped_count += 1
+                continue
+
+            try:
+                Product.objects.create(
+                    tenant=tenant,
+                    name=name[:160],
+                    sku=sku,
+                    smartbiz_product_id=external_id or None,
+                    image_url=_product_image_from_order_item(item)[:1000],
+                    stock_quantity=0,
+                    reorder_level=0,
+                    is_active=True,
+                )
+            except IntegrityError:
+                skipped_count += 1
+            else:
+                created_count += 1
+
+    return {"created": created_count, "unchanged": unchanged_count, "skipped": skipped_count}
 
 
 def _sync_woocommerce_status_for_order(order, *, previous_status="", actor="", request=None):
@@ -3833,7 +3920,31 @@ def stock_management(request):
                 woo_tenant = _woocommerce_call_tenant(active_tenant)
                 summary = sync_woocommerce_products(tenant=woo_tenant) if woo_tenant is not None else sync_woocommerce_products()
             except WooCommerceAPIError as exc:
-                messages.error(request, f"WooCommerce product sync failed: {exc}")
+                if _is_woocommerce_config_missing_error(exc):
+                    fallback_summary = _create_products_from_tenant_order_items(active_tenant)
+                    if fallback_summary["created"]:
+                        messages.success(
+                            request,
+                            (
+                                "Created local stock products from this vendor's existing WooCommerce orders. "
+                                f"Created {fallback_summary['created']}, unchanged {fallback_summary['unchanged']}, "
+                                f"skipped {fallback_summary['skipped']}."
+                            ),
+                        )
+                        messages.info(
+                            request,
+                            "Full WooCommerce product sync uses the shared platform connection and can be configured by Super Admin.",
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            (
+                                "No local products could be created from existing orders. "
+                                "Ask Super Admin to configure the shared WooCommerce connection or create the product manually."
+                            ),
+                        )
+                else:
+                    messages.error(request, f"WooCommerce product sync failed: {exc}")
             else:
                 messages.success(
                     request,

@@ -379,6 +379,48 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "No products found")
         self.assertContains(response, "import mapped WooCommerce products")
 
+    @patch("core.views.sync_woocommerce_products")
+    def test_vendor_stock_sync_falls_back_to_order_items_when_shared_woocommerce_missing(self, mock_sync_products):
+        mock_sync_products.side_effect = WooCommerceAPIError(
+            "WooCommerce credentials are missing. Set WOOCOMMERCE_STORE_URL, "
+            "WOOCOMMERCE_CONSUMER_KEY, and WOOCOMMERCE_CONSUMER_SECRET."
+        )
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-406",
+            woocommerce_order_id="406",
+            order_items=[
+                {
+                    "name": "Tenant Woo Product",
+                    "product_id": 300,
+                    "sku": "",
+                    "quantity": 1,
+                    "price": "130.00",
+                    "image": "https://shop.example.com/product.jpg",
+                }
+            ],
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {"form_action": "sync_woocommerce_products"},
+            follow=True,
+        )
+
+        product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="300")
+        self.assertEqual(product.name, "Tenant Woo Product")
+        self.assertEqual(product.sku, "WC-300")
+        self.assertEqual(product.stock_quantity, 0)
+        self.assertContains(response, "Created local stock products from this vendor")
+        self.assertNotContains(response, "WOOCOMMERCE_STORE_URL")
+
     def test_vendor_order_management_lists_only_active_tenant_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
