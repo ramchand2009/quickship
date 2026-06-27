@@ -25,6 +25,12 @@ class WooCommerceAPIError(Exception):
     pass
 
 
+WOOCOMMERCE_USER_AGENT = (
+    "Mozilla/5.0 (compatible; QuickshipWooCommerceSync/1.0; "
+    "+https://quickship.mathukaiorganic.store)"
+)
+
+
 DEFAULT_LOCAL_TO_WOOCOMMERCE_STATUS = {
     ShiprocketOrder.STATUS_NEW: "pending",
     ShiprocketOrder.STATUS_ACCEPTED: "processing",
@@ -162,8 +168,10 @@ def _json_request(path, method="GET", payload=None, params=None, tenant=None):
     auth_value = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
     headers = {
         "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
         "Content-Type": "application/json",
         "Authorization": f"Basic {auth_value}",
+        "User-Agent": WOOCOMMERCE_USER_AGENT,
     }
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = request.Request(_api_url(path, params=params, tenant=tenant), data=body, headers=headers, method=method)
@@ -173,6 +181,12 @@ def _json_request(path, method="GET", payload=None, params=None, tenant=None):
             return json.loads(raw_body) if raw_body else {}
     except error.HTTPError as exc:
         response_body = exc.read().decode("utf-8", errors="ignore")
+        if exc.code == 403 and "cloudfront" in response_body.lower():
+            raise WooCommerceAPIError(
+                "WooCommerce API returned HTTP 403: CloudFront blocked the request. "
+                "Allow the Quickship server in the WooCommerce site/CDN security rules, "
+                "or use the WooCommerce origin URL that accepts REST API requests."
+            ) from exc
         raise WooCommerceAPIError(
             f"WooCommerce API returned HTTP {exc.code}: {response_body or exc.reason}"
         ) from exc
