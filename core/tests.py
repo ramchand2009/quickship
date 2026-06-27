@@ -1387,6 +1387,47 @@ class WooCommerceSyncTests(TestCase):
         WOOCOMMERCE_CONSUMER_SECRET="cs_test",
     )
     @patch("core.woocommerce._json_request")
+    def test_update_product_resolves_missing_variation_parent_and_retries(self, mock_json_request):
+        from .woocommerce import update_product as update_woocommerce_product
+
+        product = Product.objects.create(
+            name="Amla Juice - 500 ml",
+            sku="EN-AMLA-500",
+            stock_quantity=4,
+            smartbiz_product_id="121",
+            is_active=True,
+        )
+        mock_json_request.side_effect = [
+            WooCommerceAPIError("WooCommerce API returned HTTP 404: not found"),
+            [{"id": 12, "name": "Amla Juice", "type": "variable", "variations": [121]}],
+            [{"id": 121, "sku": "EN-AMLA-500", "stock_quantity": 4}],
+            {"id": 121, "sku": "EN-AMLA-500"},
+        ]
+
+        update_woocommerce_product(
+            product,
+            extra_fields={
+                "description": "Fresh amla juice.",
+                "regular_price": "300.00",
+                "sale_price": "240.00",
+            },
+        )
+
+        product.refresh_from_db()
+        self.assertEqual(product.woocommerce_product_id, "12")
+        self.assertEqual(product.woocommerce_variation_id, "121")
+        self.assertEqual(mock_json_request.call_args_list[0].args[0], "products/121")
+        self.assertEqual(mock_json_request.call_args_list[1].args[0], "products")
+        self.assertEqual(mock_json_request.call_args_list[2].args[0], "products/12/variations")
+        self.assertEqual(mock_json_request.call_args_list[3].args[0], "products/12/variations/121")
+        self.assertEqual(mock_json_request.call_args_list[3].kwargs["method"], "PUT")
+
+    @override_settings(
+        WOOCOMMERCE_STORE_URL="https://shop.example.com",
+        WOOCOMMERCE_CONSUMER_KEY="ck_test",
+        WOOCOMMERCE_CONSUMER_SECRET="cs_test",
+    )
+    @patch("core.woocommerce._json_request")
     def test_refresh_product_from_woocommerce_updates_local_prices_and_image(self, mock_json_request):
         from .woocommerce import refresh_product_from_woocommerce
 

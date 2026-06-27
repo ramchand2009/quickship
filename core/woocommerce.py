@@ -910,7 +910,7 @@ def _is_variation_product(product):
     return bool(str(getattr(product, "woocommerce_product_id", "") or "").strip() and str(getattr(product, "woocommerce_variation_id", "") or "").strip())
 
 
-def update_product(product, extra_fields=None):
+def _build_product_update_payload(product, extra_fields=None):
     tenant = getattr(product, "tenant", None)
     is_variation = _is_variation_product(product)
     payload = {
@@ -944,7 +944,62 @@ def update_product(product, extra_fields=None):
         elif field_name in extra_fields:
             payload[field_name] = ""
 
-    return _json_request_for_tenant(_product_update_path(product), method="PUT", payload=payload, tenant=tenant)
+    return payload
+
+
+def _resolve_variation_ids_for_product(product):
+    sku = normalize_sku(getattr(product, "sku", ""))
+    legacy_id = str(getattr(product, "smartbiz_product_id", "") or "").strip()
+    if not sku and not legacy_id:
+        return False
+
+    tenant = getattr(product, "tenant", None)
+    parents = _fetch_paginated(
+        "products",
+        params={"status": "any", "type": "variable", "orderby": "id", "order": "asc"},
+        tenant=tenant,
+    )
+    for parent in parents:
+        parent_id = str((parent or {}).get("id") or "").strip()
+        if not parent_id:
+            continue
+        variations = _fetch_paginated(
+            f"products/{parent_id}/variations",
+            params={"status": "any", "orderby": "id", "order": "asc"},
+            tenant=tenant,
+        )
+        for variation in variations:
+            variation_id = str((variation or {}).get("id") or "").strip()
+            variation_sku = normalize_sku((variation or {}).get("sku"))
+            if (sku and variation_sku == sku) or (legacy_id and variation_id == legacy_id):
+                product.woocommerce_product_id = parent_id
+                product.woocommerce_variation_id = variation_id
+                product.smartbiz_product_id = product.smartbiz_product_id or variation_id
+                product.save(
+                    update_fields=[
+                        "woocommerce_product_id",
+                        "woocommerce_variation_id",
+                        "smartbiz_product_id",
+                        "updated_at",
+                    ]
+                )
+                return True
+    return False
+
+
+def update_product(product, extra_fields=None):
+    tenant = getattr(product, "tenant", None)
+    payload = _build_product_update_payload(product, extra_fields=extra_fields)
+    try:
+        return _json_request_for_tenant(_product_update_path(product), method="PUT", payload=payload, tenant=tenant)
+    except WooCommerceAPIError as exc:
+        if _is_variation_product(product) or not _resolve_variation_ids_for_product(product):
+            raise
+        payload = _build_product_update_payload(product, extra_fields=extra_fields)
+        try:
+            return _json_request_for_tenant(_product_update_path(product), method="PUT", payload=payload, tenant=tenant)
+        except WooCommerceAPIError as retry_exc:
+            raise retry_exc from exc
 
 
 def _import_statuses(tenant=None):
