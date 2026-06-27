@@ -13,6 +13,7 @@ Main models live in `core/models.py`.
 - `WhatsAppNotificationQueue`: queued notification work with retry/lock/result fields.
 - `WhatsAppNotificationLog`: send/webhook audit log.
 - `WooCommerceSettings`: runtime WooCommerce store credentials, webhook secret, import statuses, and status mapping.
+- `TenantWooCommerceMappingRule`: maps shared WooCommerce data to tenants by category, tag, SKU prefix, or product id.
 - `WebPushSubscription`: browser push subscription keys.
 - `SenderAddress`: default sender details for shipping labels.
 - `BusinessExpense` and `ExpensePerson`: basic expense tracking.
@@ -23,4 +24,4 @@ Main models live in `core/models.py`.
 - `Tenant`: vendor/business account with name, slug, active flag, owner, contact fields, and timestamps.
 - `TenantMembership`: user-to-tenant role mapping with `vendor_owner`, `vendor_operator`, and `vendor_viewer` roles plus active flag.
 
-Most business-owned models now include a tenant FK defaulting to the Mathukai tenant. Queryset filtering is still a later phase and must be completed before enabling real second-vendor production data.
+Most business-owned models now include a tenant FK defaulting to the Mathukai tenant. WooCommerce and WhatsApp credentials are shared platform settings; vendor data ownership is handled by tenant FKs and WooCommerce mapping rules.

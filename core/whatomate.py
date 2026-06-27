@@ -61,7 +61,7 @@ def _apply_settings_row(config, settings_row):
 
 
 def _load_runtime_config(tenant=None):
-    use_environment = tenant is None or _is_default_tenant(tenant)
+    use_environment = True
     config = {
         "enabled": _is_truthy(getattr(settings, "WHATOMATE_ENABLED", False)) if use_environment else False,
         "base_url": str(getattr(settings, "WHATOMATE_BASE_URL", "") or "").strip() if use_environment else "",
@@ -92,7 +92,7 @@ def _load_runtime_config(tenant=None):
     }
 
     try:
-        _apply_settings_row(config, _settings_row_for_tenant(tenant))
+        _apply_settings_row(config, _settings_row_for_tenant(None))
     except Exception:
         # Keep environment fallback if DB/table is unavailable.
         pass

@@ -5,11 +5,11 @@ WhatsApp messaging is implemented through `core.whatomate` and `core.whatsapp_qu
 ## Configuration Sources
 
 - Environment variables: `WHATOMATE_*`, `WHATSAPP_ALERT_*`.
-- Tenant database row: `WhatsAppSettings`.
+- Shared platform database row: `WhatsAppSettings`.
 - Tenant status template rows: `WhatsAppStatusTemplateConfig`.
 - Tenant synced templates: `WhatsAppTemplate`.
 
-The default Mathukai tenant can still use environment fallback values for backward compatibility. Non-default vendor tenants load only their own `WhatsAppSettings` row and do not fall back to Mathukai/global credentials.
+All vendors currently send through the same Libromi/WhatsApp number. Non-default vendor queue jobs and logs keep their tenant for audit and dashboard isolation, but runtime sends load the shared/default `WhatsAppSettings` row and environment fallback values.
 
 Template names/languages and status template configs are unique per tenant, so two vendors can use the same approved WhatsApp template names independently.
 

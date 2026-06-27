@@ -11,6 +11,7 @@ from .models import (
     SenderAddress,
     ShiprocketOrder,
     StockMovement,
+    TenantWooCommerceMappingRule,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -84,6 +85,14 @@ class ShiprocketOrderAdmin(admin.ModelAdmin):
 @admin.register(WooCommerceSettings)
 class WooCommerceSettingsAdmin(admin.ModelAdmin):
     list_display = ("store_url", "import_statuses", "updated_at")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(TenantWooCommerceMappingRule)
+class TenantWooCommerceMappingRuleAdmin(admin.ModelAdmin):
+    list_display = ("tenant", "match_type", "match_value", "is_active", "updated_at")
+    list_filter = ("match_type", "is_active", "tenant")
+    search_fields = ("tenant__name", "tenant__slug", "match_value")
     readonly_fields = ("created_at", "updated_at")
 
 

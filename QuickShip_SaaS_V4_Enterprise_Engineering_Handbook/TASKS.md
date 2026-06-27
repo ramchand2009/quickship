@@ -158,21 +158,31 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
 ## Phase 8 - Super Admin Desktop UI Only
 
 - Super admin desktop dashboard should manage SaaS-wide concerns:
-  - tenants
-  - tenant users/memberships
+  - [Done - foundation] tenants
+  - [Done - read-only foundation] tenant users/memberships
   - tenant status/activation
   - support impersonation or tenant switch, if approved
   - platform health and metrics
   - cross-tenant audit overview
 - Super admin should not use mobile vendor UI as the default.
 - Any support access into a tenant must be explicit and logged.
+- [Done - foundation] Add `/tenants/` Super Admin tenant list with user/order/product and integration status counts.
+- [Done - foundation] Add `/tenants/<id>/` tenant detail with memberships, integration status, recent orders, order status counts, and recent activity.
+- [Done - foundation] Block vendor users from Super Admin tenant pages.
 
 ## Phase 9 - Integration Isolation
 
-- [Done] WooCommerce credentials and webhook secrets are tenant-owned for non-default vendor tenants.
-- [Done] WooCommerce webhook resolution identifies tenant by signature/query secret before importing.
-- [Done] WhatsApp settings/templates are tenant-owned.
-- [Done] WhatsApp queue workers can process tenant-scoped jobs and load that tenant's credentials.
+- [Changed] WooCommerce credentials/webhook secret are shared platform settings managed by Super Admin because all vendors use the same WooCommerce store.
+- [Changed] WhatsApp/Libromi credentials are shared platform settings managed by Super Admin because all vendors use the same WhatsApp number.
+- [Done - foundation] Add vendor data mapping rules so shared WooCommerce products/orders are assigned to the correct tenant:
+  - [Done] WooCommerce category name
+  - [Done] WooCommerce tag name
+  - [Done] SKU prefix
+  - [Done] WooCommerce product id
+- [Done - foundation] WooCommerce product sync assigns product tenant from mapping rules.
+- [Done - foundation] WooCommerce order sync/webhook assigns order tenant from line item product/SKU/category/tag mapping.
+- [Done - Super Admin UI] Manage each tenant's WooCommerce mapping rules from `/tenants/<id>/`.
+- WhatsApp queue/log records stay tenant-owned for audit and dashboards, but sends use the shared Libromi credentials.
 - Sender address and shipping labels must use the order tenant's sender config.
 - Web Push subscriptions must be tenant/user scoped.
 
@@ -202,5 +212,8 @@ Convert the current single-vendor Mathukai operations dashboard into a multi-ven
 - Implemented Phase 2 role foundation: vendor role helpers, active tenant request middleware, tenant-aware login routing, template context flags, and focused tenant foundation tests.
 - Implemented Phase 3 vendor onboarding: signup creates tenant, owner membership, default sender/WooCommerce/WhatsApp settings, routes to mobile operations, and blocks inactive tenant users from legacy admin fallback.
 - Implemented Phase 6 first isolation slice: vendor-facing dashboard/orders/labels/stock/expenses now scope to active tenant, stock/product service matching uses tenant context, and isolation tests cover order, stock, and expense access.
-- Implemented WooCommerce tenant isolation: vendor sync and product sync use active tenant settings, webhooks resolve tenant by secret/signature, imports assign tenant-owned orders/products/categories, and tests cover tenant-scoped behavior.
-- Implemented WhatsApp tenant isolation: non-default vendor tenants use their own settings only, template/status uniqueness is tenant-scoped, queue jobs/logs carry tenant, queue workers can process by tenant, and tests cover tenant-scoped behavior.
+- Implemented WooCommerce tenant isolation foundation. Current design correction: credentials are shared; tenant assignment must come from WooCommerce mapping rules.
+- Implemented WhatsApp tenant audit isolation. Current design correction: Libromi credentials are shared; queue jobs/logs remain tenant-owned.
+- Implemented Super Admin tenant desktop foundation: tenant list/detail pages, sidebar link for super admins, read-only membership/integration/order/activity summaries, and access tests proving vendor users are blocked.
+- Implemented shared WooCommerce mapping foundation: `TenantWooCommerceMappingRule` assigns products/orders from one shared WooCommerce store to tenants by category, tag, SKU prefix, or product id.
+- Added Super Admin management for tenant WooCommerce mapping rules on tenant detail pages, with create/edit validation and access tests.

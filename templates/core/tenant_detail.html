@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tenant.name }} | Tenant | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.tenant-detail-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.tenant-detail-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
+.tenant-detail-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
+.tenant-detail-value { color:#253142; font-size:1.35rem; font-weight:700; line-height:1.1; }
+.tenant-section-table-wrap { overflow-x:auto; }
+.tenant-section-table th { white-space:nowrap; font-size:.78rem; text-transform:uppercase; letter-spacing:0; color:#5d6675; }
+.tenant-section-table td { vertical-align:middle; }
+.tenant-status-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.55rem; }
+.tenant-status-item { border:1px solid #e5e9f2; border-radius:6px; padding:.65rem .75rem; background:#fff; }
+.tenant-status-label { color:#6c757d; font-size:.78rem; }
+.tenant-status-value { font-weight:700; color:#253142; }
+.tenant-mapping-form { display:grid; grid-template-columns:180px minmax(220px,1fr) 88px auto; gap:.75rem; align-items:end; }
+.tenant-mapping-form .form-check { min-height:38px; display:flex; align-items:center; gap:.45rem; margin-bottom:0; }
+@media (max-width: 1199px) { .tenant-status-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width: 991px) { .tenant-detail-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 767px) { .tenant-mapping-form { grid-template-columns:1fr; } }
+@media (max-width: 575px) { .tenant-detail-metrics, .tenant-status-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">{{ tenant.name }}</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tenant_list' %}">Tenants</a></li>
+            <li class="breadcrumb-item">{{ tenant.slug }}</li>
+        </ul>
+    </div>
+</div>
+
+<div class="tenant-detail-metrics">
+    <div class="tenant-detail-metric">
+        <div class="tenant-detail-label">Status</div>
+        <div class="tenant-detail-value">{% if tenant.is_active %}Active{% else %}Inactive{% endif %}</div>
+    </div>
+    <div class="tenant-detail-metric">
+        <div class="tenant-detail-label">Users</div>
+        <div class="tenant-detail-value">{{ summary.active_member_count }} / {{ summary.member_count }}</div>
+    </div>
+    <div class="tenant-detail-metric">
+        <div class="tenant-detail-label">Orders</div>
+        <div class="tenant-detail-value">{{ summary.order_count }}</div>
+    </div>
+    <div class="tenant-detail-metric">
+        <div class="tenant-detail-label">Products</div>
+        <div class="tenant-detail-value">{{ summary.product_count }}</div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-4">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Workspace</h5></div>
+            <div class="card-block">
+                <div class="mb-2"><strong>Slug:</strong> {{ tenant.slug }}</div>
+                <div class="mb-2"><strong>Owner:</strong> {% if tenant.owner %}{{ tenant.owner.username }}{% else %}<span class="text-muted">-</span>{% endif %}</div>
+                <div class="mb-2"><strong>Contact:</strong> {{ tenant.contact_name|default:"-" }}</div>
+                <div class="mb-2"><strong>Email:</strong> {{ tenant.contact_email|default:"-" }}</div>
+                <div class="mb-2"><strong>Phone:</strong> {{ tenant.contact_phone|default:"-" }}</div>
+                <div class="small text-muted">Created {{ tenant.created_at|date:"Y-m-d H:i" }} | Updated {{ tenant.updated_at|date:"Y-m-d H:i" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Integrations</h5></div>
+            <div class="card-block">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>WooCommerce</strong>
+                        {% if woocommerce.configured %}<span class="badge bg-light-success">Mapped</span>{% else %}<span class="badge bg-light-warning">Needs Mapping</span>{% endif %}
+                    </div>
+                    {% if woocommerce.settings %}
+                        <div class="small text-muted mt-1">Shared store: {{ woocommerce.settings.store_url|default:"No store URL" }}</div>
+                        <div class="small text-muted mt-1">{{ woocommerce.mapping_count }} active mapping rule{{ woocommerce.mapping_count|pluralize }}</div>
+                    {% else %}
+                        <div class="small text-muted mt-1">No settings row.</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>WhatsApp</strong>
+                        {% if whatsapp.configured %}<span class="badge bg-light-success">Shared</span>{% else %}<span class="badge bg-light-warning">Missing</span>{% endif %}
+                    </div>
+                    {% if whatsapp.settings %}
+                        <div class="small text-muted mt-1">Shared API: {{ whatsapp.settings.api_base_url|default:"No API URL" }}</div>
+                    {% else %}
+                        <div class="small text-muted mt-1">No settings row.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Operations</h5></div>
+            <div class="card-block">
+                <div class="mb-2"><strong>WhatsApp Jobs:</strong> {{ summary.queue_count }}</div>
+                <div class="mb-2"><strong>WhatsApp Logs:</strong> {{ summary.whatsapp_log_count }}</div>
+                <div class="mb-2"><strong>Expenses:</strong> {{ summary.expense_count }}</div>
+                <div class="small text-muted">Operational counts are scoped to this tenant.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">WooCommerce Mapping Rules</h5>
+        {% if editing_mapping_rule %}
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'tenant_detail' tenant.pk %}">Cancel Edit</a>
+        {% endif %}
+    </div>
+    <div class="card-block">
+        <form method="post" class="tenant-mapping-form mb-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_mapping_rule">
+            {% if editing_mapping_rule %}
+                <input type="hidden" name="mapping_rule_id" value="{{ editing_mapping_rule.pk }}">
+            {% endif %}
+            <div>
+                <label class="form-label" for="{{ mapping_form.match_type.id_for_label }}">{{ mapping_form.match_type.label }}</label>
+                {{ mapping_form.match_type }}
+                {% for error in mapping_form.match_type.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div>
+                <label class="form-label" for="{{ mapping_form.match_value.id_for_label }}">{{ mapping_form.match_value.label }}</label>
+                {{ mapping_form.match_value }}
+                {% for error in mapping_form.match_value.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="form-check">
+                {{ mapping_form.is_active }}
+                <label class="form-check-label" for="{{ mapping_form.is_active.id_for_label }}">{{ mapping_form.is_active.label }}</label>
+            </div>
+            <button type="submit" class="btn btn-primary">{% if editing_mapping_rule %}Update{% else %}Add Rule{% endif %}</button>
+            {% for error in mapping_form.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </form>
+
+        <div class="tenant-section-table-wrap">
+            <table class="table table-sm tenant-section-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in mapping_rules %}
+                        <tr>
+                            <td>{{ rule.get_match_type_display }}</td>
+                            <td>{{ rule.match_value }}</td>
+                            <td>{% if rule.is_active %}<span class="badge bg-light-success">Active</span>{% else %}<span class="badge bg-light-secondary">Inactive</span>{% endif %}</td>
+                            <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'tenant_detail' tenant.pk %}?mapping_rule={{ rule.pk }}">Edit</a></td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-muted">No WooCommerce mapping rules.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mt-3">
+    <div class="card-header"><h5 class="mb-0">Order Status</h5></div>
+    <div class="card-block">
+        <div class="tenant-status-grid">
+            {% for item in status_counts %}
+                <div class="tenant-status-item">
+                    <div class="tenant-status-label">{{ item.label }}</div>
+                    <div class="tenant-status-value">{{ item.count }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Users</h5></div>
+            <div class="card-block tenant-section-table-wrap">
+                <table class="table table-sm tenant-section-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for membership in memberships %}
+                            <tr>
+                                <td>{{ membership.user.username }}</td>
+                                <td>{{ membership.get_role_display }}</td>
+                                <td>{% if membership.is_active %}<span class="badge bg-light-success">Active</span>{% else %}<span class="badge bg-light-secondary">Inactive</span>{% endif %}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="text-muted">No tenant users.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card ops-admin-card">
+            <div class="card-header"><h5 class="mb-0">Recent Orders</h5></div>
+            <div class="card-block tenant-section-table-wrap">
+                <table class="table table-sm tenant-section-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Status</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in recent_orders %}
+                            <tr>
+                                <td><a href="{% url 'order_detail' order.pk %}">{{ order.shiprocket_order_id }}</a></td>
+                                <td>{{ order.customer_name|default:"-" }}</td>
+                                <td>{{ order.get_local_status_display }}</td>
+                                <td>Rs {{ order.total|floatformat:2 }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4" class="text-muted">No orders for this tenant.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mt-3">
+    <div class="card-header"><h5 class="mb-0">Recent Activity</h5></div>
+    <div class="card-block tenant-section-table-wrap">
+        <table class="table table-sm tenant-section-table mb-0">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Order</th>
+                    <th>Event</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for activity in recent_activity %}
+                    <tr>
+                        <td>{{ activity.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ activity.shiprocket_order_id|default:"-" }}</td>
+                        <td>{{ activity.title|default:activity.get_event_type_display }}</td>
+                        <td>{% if activity.is_success %}<span class="badge bg-light-success">OK</span>{% else %}<span class="badge bg-light-danger">Issue</span>{% endif %}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="text-muted">No recent activity.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

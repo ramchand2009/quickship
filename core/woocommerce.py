@@ -8,7 +8,16 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import DEFAULT_TENANT_SLUG, Product, ProductCategory, ShiprocketOrder, WooCommerceSettings, normalize_sku
+from .models import (
+    DEFAULT_TENANT_SLUG,
+    Product,
+    ProductCategory,
+    ShiprocketOrder,
+    Tenant,
+    TenantWooCommerceMappingRule,
+    WooCommerceSettings,
+    normalize_sku,
+)
 from .product_text import clean_product_description
 
 
@@ -68,9 +77,6 @@ def is_configured(tenant=None):
 
 def _get_settings_row(tenant=None):
     queryset = WooCommerceSettings.objects.order_by("-updated_at", "-created_at")
-    if tenant is not None:
-        tenant_id = getattr(tenant, "pk", tenant)
-        return queryset.filter(tenant_id=tenant_id).first()
     return queryset.first()
 
 
@@ -79,12 +85,12 @@ def _is_default_tenant(tenant):
 
 
 def _api_tenant_context(tenant=None):
-    return None if tenant is None or _is_default_tenant(tenant) else tenant
+    return None
 
 
 def _get_config(tenant=None, settings_row=None):
     row = settings_row if settings_row is not None else _get_settings_row(tenant=tenant)
-    use_env_fallback = tenant is None or _is_default_tenant(tenant)
+    use_env_fallback = True
     store_url = str(
         getattr(row, "store_url", "") or (getattr(settings, "WOOCOMMERCE_STORE_URL", "") if use_env_fallback else "")
     ).strip()
@@ -440,6 +446,137 @@ def _first_category_name(product):
     return ""
 
 
+def _term_names(product, key):
+    rows = product.get(key) if isinstance(product, dict) else []
+    if not isinstance(rows, list):
+        return []
+    names = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        if name:
+            names.append(name)
+    return names
+
+
+def _active_mapping_rules():
+    return list(
+        TenantWooCommerceMappingRule.objects.select_related("tenant")
+        .filter(is_active=True, tenant__is_active=True)
+        .order_by("match_type", "match_value", "tenant__name")
+    )
+
+
+def _rule_value(rule):
+    value = str(rule.match_value or "").strip()
+    if rule.match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX:
+        return normalize_sku(value)
+    return value.lower()
+
+
+def _tenant_from_mapping_values(*, categories=None, tags=None, sku="", product_ids=None):
+    category_values = {str(value or "").strip().lower() for value in (categories or []) if str(value or "").strip()}
+    tag_values = {str(value or "").strip().lower() for value in (tags or []) if str(value or "").strip()}
+    sku_value = normalize_sku(sku)
+    product_id_values = {str(value or "").strip() for value in (product_ids or []) if str(value or "").strip()}
+
+    for rule in _active_mapping_rules():
+        value = _rule_value(rule)
+        if rule.match_type == TenantWooCommerceMappingRule.MATCH_CATEGORY and value in category_values:
+            return rule.tenant
+        if rule.match_type == TenantWooCommerceMappingRule.MATCH_TAG and value in tag_values:
+            return rule.tenant
+        if rule.match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX and sku_value.startswith(value):
+            return rule.tenant
+        if rule.match_type == TenantWooCommerceMappingRule.MATCH_PRODUCT_ID and str(rule.match_value).strip() in product_id_values:
+            return rule.tenant
+    return None
+
+
+def _default_import_tenant(fallback_tenant=None):
+    return fallback_tenant or Tenant.get_default()
+
+
+def _tenant_for_product_payload(product, *, parent_product=None, fallback_tenant=None):
+    parent = parent_product if isinstance(parent_product, dict) else {}
+    payload_for_terms = parent or product or {}
+    product_ids = [
+        (product or {}).get("id") if isinstance(product, dict) else "",
+        parent.get("id"),
+    ]
+    tenant = _tenant_from_mapping_values(
+        categories=_term_names(payload_for_terms, "categories"),
+        tags=_term_names(payload_for_terms, "tags"),
+        sku=(product or {}).get("sku") if isinstance(product, dict) else "",
+        product_ids=product_ids,
+    )
+    return tenant or _default_import_tenant(fallback_tenant)
+
+
+def _tenant_from_existing_product(line_item):
+    if not isinstance(line_item, dict):
+        return None
+    product_id = str(line_item.get("product_id") or line_item.get("channel_product_id") or "").strip()
+    sku = normalize_sku(line_item.get("sku") or line_item.get("channel_sku"))
+    product_qs = Product.objects.select_related("tenant")
+    if product_id:
+        product = product_qs.filter(smartbiz_product_id__iexact=product_id).first()
+        if product:
+            return product.tenant
+    if sku:
+        product = product_qs.filter(sku=sku).first()
+        if product:
+            return product.tenant
+    return None
+
+
+def _tenant_for_order_payload(order_payload, *, fallback_tenant=None, product_payload_cache=None):
+    line_items = order_payload.get("line_items") if isinstance(order_payload, dict) else []
+    if not isinstance(line_items, list):
+        line_items = []
+    cache = product_payload_cache if isinstance(product_payload_cache, dict) else {}
+
+    for item in line_items:
+        product_ids = [item.get("product_id"), item.get("variation_id")] if isinstance(item, dict) else []
+        tenant = _tenant_from_mapping_values(
+            sku=item.get("sku") if isinstance(item, dict) else "",
+            product_ids=product_ids,
+        )
+        if tenant:
+            return tenant
+        existing_tenant = _tenant_from_existing_product(item)
+        if existing_tenant:
+            return existing_tenant
+
+    has_term_rules = any(
+        rule.match_type in {TenantWooCommerceMappingRule.MATCH_CATEGORY, TenantWooCommerceMappingRule.MATCH_TAG}
+        for rule in _active_mapping_rules()
+    )
+    if has_term_rules:
+        for item in line_items:
+            product_id = str(item.get("product_id") or "").strip() if isinstance(item, dict) else ""
+            if not product_id:
+                continue
+            try:
+                product_payload = cache.get(product_id)
+                if product_payload is None:
+                    product_payload = _json_request_for_tenant(f"products/{product_id}")
+                    cache[product_id] = product_payload
+            except WooCommerceAPIError:
+                product_payload = {}
+            tenant = _tenant_from_mapping_values(
+                categories=_term_names(product_payload, "categories"),
+                tags=_term_names(product_payload, "tags"),
+                sku=item.get("sku") if isinstance(item, dict) else "",
+                product_ids=[product_id],
+            )
+            if tenant:
+                return tenant
+
+    return _default_import_tenant(fallback_tenant)
+
+
 def _variation_name(parent_product, variation):
     parent_name = str(parent_product.get("name") or "").strip()
     attributes = variation.get("attributes") if isinstance(variation, dict) else []
@@ -507,6 +644,7 @@ def _normalized_product_row(product, *, parent_product=None):
         "is_active": status not in {"trash", "deleted"},
         "woocommerce_product_id": str(parent_id or product_id or "").strip(),
         "woocommerce_variation_id": str(product_id or "").strip() if parent_id else "",
+        "tenant": _tenant_for_product_payload(product, parent_product=parent_product),
     }
 
 
@@ -552,6 +690,7 @@ def _get_or_create_product_category(name, tenant=None):
 
 
 def _sync_product_row(row, tenant=None):
+    tenant = tenant or row.get("tenant") or Tenant.get_default()
     sku = normalize_sku(row.get("sku"))
     external_id = str(row.get("smartbiz_product_id") or "").strip()
     if not sku or not external_id:
@@ -630,7 +769,7 @@ def sync_products(tenant=None):
     for product in products:
         row = _normalized_product_row(product)
         if row:
-            summary[_sync_product_row(row, tenant=tenant)] += 1
+            summary[_sync_product_row(row)] += 1
         elif normalize_sku(product.get("sku")):
             summary["skipped"] += 1
 
@@ -650,7 +789,7 @@ def sync_products(tenant=None):
             if not row:
                 summary["skipped"] += 1
                 continue
-            summary[_sync_product_row(row, tenant=tenant)] += 1
+            summary[_sync_product_row(row)] += 1
 
     return summary
 
@@ -826,15 +965,16 @@ def import_order_payload(item, tenant=None):
     billing = _compact_address(item.get("billing") or {})
     shipping = _compact_address(item.get("shipping") or {})
     has_billing_address = _has_delivery_address(billing)
+    resolved_tenant = _tenant_for_order_payload(item, fallback_tenant=tenant)
 
     order_number = str(item.get("number") or order_id)
-    source_order_id = _source_order_id_for_tenant(order_id, tenant=tenant)
+    source_order_id = _source_order_id_for_tenant(order_id, tenant=resolved_tenant)
     existing_queryset = ShiprocketOrder.objects.filter(
         source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
         woocommerce_order_id=str(order_id),
     )
-    if tenant is not None:
-        existing_queryset = existing_queryset.filter(tenant=tenant)
+    if resolved_tenant is not None:
+        existing_queryset = existing_queryset.filter(tenant=resolved_tenant)
     existing = existing_queryset.first()
     if not existing:
         existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
@@ -866,9 +1006,9 @@ def import_order_payload(item, tenant=None):
         "order_items": _extract_items(item),
         "raw_payload": item,
     }
-    if tenant is not None:
-        defaults["tenant"] = tenant
-    assigned_customer_id = _assign_guest_order_customer_by_phone(item, defaults["customer_phone"], tenant=tenant)
+    if resolved_tenant is not None:
+        defaults["tenant"] = resolved_tenant
+    assigned_customer_id = _assign_guest_order_customer_by_phone(item, defaults["customer_phone"], tenant=resolved_tenant)
     if assigned_customer_id:
         defaults["raw_payload"] = item
     if not existing:

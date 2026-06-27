@@ -23,11 +23,14 @@
 - `ActiveTenantMiddleware` attaches `request.tenant` and `request.tenant_membership` for authenticated vendor users.
 - Super admin requests remain platform-scoped by default with no implicit active tenant.
 - `TenantAwareLoginView` routes super admins to the desktop dashboard and vendor/mobile users to order management.
+- Super admins have desktop tenant administration pages at `/tenants/` and `/tenants/<id>/` for tenant summaries, membership overview, integration status, recent orders, and recent activity.
+- Super admins can create and edit tenant WooCommerce mapping rules on `/tenants/<id>/`.
 - Signup now creates a vendor workspace: tenant, owner user, owner membership, sender address, WooCommerce settings, and WhatsApp settings.
 - Vendor-facing dashboard, order list/detail/update, labels/print queues, stock/product screens, and expense tracker now scope querysets and object access to `request.tenant`.
 - Order item product matching, profit summaries, packing scan requirements, and stock reconciliation now use the order or active tenant when matching products.
-- WooCommerce settings, manual order sync, product sync, product updates, order status updates, and webhooks are tenant-aware. Non-default vendor tenants use their own WooCommerce settings only.
-- WhatsApp settings, templates, status configs, queue jobs, queue workers, and delivery logs are tenant-aware. Non-default vendor tenants use their own WhatsApp settings only and do not fall back to Mathukai/global environment credentials.
+- WooCommerce uses a shared store/API connection for all vendors. Product/order tenant assignment must come from WooCommerce mapping rules, not per-vendor WooCommerce credentials.
+- WhatsApp/Libromi uses one shared WhatsApp number/API connection for all vendors. Queue jobs/logs remain tenant-owned for audit and dashboard isolation.
+- `TenantWooCommerceMappingRule` maps shared WooCommerce data to tenants by category, tag, SKU prefix, or product id.
 
 ## Important Recent Changes
 
@@ -39,13 +42,16 @@
 - Phase 2 SaaS role groundwork added vendor role helpers, active tenant request resolution, tenant-aware login routing, context flags, and tests for the role/middleware/login foundation.
 - Phase 3 SaaS onboarding changed signup into vendor onboarding and added tests for workspace creation and inactive tenant/membership access blocking.
 - Phase 6 first slice added tenant isolation for vendor dashboard/orders/labels/stock/expenses and focused tests proving vendor A cannot view or mutate vendor B records through those screens.
-- WooCommerce tenant isolation was added for the active commerce integration: sync uses the active vendor tenant, webhooks resolve tenant by secret/signature, imports write tenant-owned orders/products/categories, and tests cover tenant-scoped sync/webhook behavior.
-- WhatsApp tenant isolation was added: settings lookup is tenant-specific, template/status config uniqueness is tenant-scoped, queue jobs/logs carry tenant, workers can process one tenant at a time, and tests cover cross-tenant queue/template behavior.
+- Design correction: all vendors use the same WooCommerce store and same Libromi WhatsApp number. Do not build vendor credential entry for WooCommerce or WhatsApp.
+- WooCommerce tenant assignment is driven by vendor mapping rules such as category/tag/SKU prefix/product id during product sync and order import/webhooks.
+- WhatsApp tenant isolation is audit/workflow isolation only: queue jobs/logs carry tenant, but sends use shared Libromi credentials.
+- Super Admin tenant desktop foundation was added: `/tenants/` lists vendor workspaces and `/tenants/<id>/` shows tenant-scoped users, integration status, orders, counts, and activity; vendor users are redirected away.
+- Super Admin tenant detail pages now manage WooCommerce mapping rules for assigning shared-store products/orders to tenants.
 
 ## Known Constraints
 
 - Business data tables have tenant FKs, core vendor-facing screens scope by tenant, WooCommerce is tenant-aware, and WhatsApp runtime/queue/settings are tenant-aware.
-- Do not enable full production multi-vendor automation until remaining admin/config/reporting surfaces, sender-label configuration, web push, and the rest of the tenant-aware uniqueness constraints are hardened.
+- Do not enable full production multi-vendor automation until remaining admin actions/config/reporting surfaces, sender-label configuration, web push, and the rest of the tenant-aware uniqueness constraints are hardened.
 - Legacy users without explicit groups or tenant memberships still fall back to admin-like access for backward compatibility; any user with tenant memberships no longer falls through to ops admin, even if the membership or tenant is inactive.
 - There is no Celery dependency in the current code; queue workers are Django management commands.
 - WooCommerce is the active commerce integration. Shiprocket remains legacy naming/integration code and is not the current implementation priority.

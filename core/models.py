@@ -266,6 +266,48 @@ class WooCommerceSettings(models.Model):
         return cls.objects.create()
 
 
+class TenantWooCommerceMappingRule(models.Model):
+    MATCH_CATEGORY = "category"
+    MATCH_TAG = "tag"
+    MATCH_SKU_PREFIX = "sku_prefix"
+    MATCH_PRODUCT_ID = "product_id"
+    MATCH_CHOICES = [
+        (MATCH_CATEGORY, "WooCommerce Category"),
+        (MATCH_TAG, "WooCommerce Tag"),
+        (MATCH_SKU_PREFIX, "SKU Prefix"),
+        (MATCH_PRODUCT_ID, "WooCommerce Product ID"),
+    ]
+
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="woocommerce_mapping_rules",
+    )
+    match_type = models.CharField(max_length=32, choices=MATCH_CHOICES)
+    match_value = models.CharField(max_length=160)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["tenant__name", "match_type", "match_value"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "match_type", "match_value"],
+                name="uniq_tenant_woocommerce_mapping_rule",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tenant} | {self.match_type}: {self.match_value}"
+
+    def save(self, *args, **kwargs):
+        self.match_value = str(self.match_value or "").strip()
+        if self.match_type == self.MATCH_SKU_PREFIX:
+            self.match_value = self.match_value.upper()
+        super().save(*args, **kwargs)
+
+
 class WebPushSubscription(models.Model):
     tenant = models.ForeignKey(
         Tenant,

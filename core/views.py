@@ -70,6 +70,7 @@ from .forms import (
     SignUpForm,
     SpecialStockIssueForm,
     StockAdjustmentForm,
+    TenantWooCommerceMappingRuleForm,
     WhatsAppApiSettingsForm,
     WhatsAppMessageTestForm,
     WhatsAppStatusTemplateConfigForm,
@@ -89,6 +90,8 @@ from .models import (
     SenderAddress,
     ShiprocketOrder,
     StockMovement,
+    Tenant,
+    TenantWooCommerceMappingRule,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -632,19 +635,11 @@ def _can_access_tenant_owned_object(request, obj):
 
 
 def _woocommerce_call_tenant(tenant):
-    if tenant is None:
-        return None
-    if str(getattr(tenant, "slug", "") or "").strip().lower() == DEFAULT_TENANT_SLUG:
-        return None
-    return tenant
+    return None
 
 
 def _whatsapp_call_tenant(tenant):
-    if tenant is None:
-        return None
-    if str(getattr(tenant, "slug", "") or "").strip().lower() == DEFAULT_TENANT_SLUG:
-        return None
-    return tenant
+    return None
 
 
 def _active_whatsapp_tenant(request):
@@ -695,6 +690,15 @@ def _redirect_ops_viewer_to_order_management(request, *, include_message=True):
     if include_message:
         messages.error(request, "Your role can access only Order Management and Stock Management.")
     return redirect("order_management")
+
+
+def _require_super_admin(request):
+    if is_super_admin(getattr(request, "user", None)):
+        return None
+    messages.error(request, "Super admin access is required for tenant administration.")
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return redirect(resolve_post_login_url(request.user))
+    return redirect("login")
 
 
 def _status_update_soft_lock_key(*, order_id, actor, target_status, session_key=""):
@@ -4723,6 +4727,171 @@ def webhook_diagnostics(request):
     )
 
 
+def _tenant_integration_status(tenant):
+    woo_settings = WooCommerceSettings.get_default()
+    whatsapp_settings = WhatsAppSettings.get_default()
+    mapping_rules = TenantWooCommerceMappingRule.objects.filter(tenant=tenant, is_active=True)
+    woo_configured = bool(
+        woo_settings
+        and str(woo_settings.store_url or "").strip()
+        and str(woo_settings.consumer_key or "").strip()
+        and str(woo_settings.consumer_secret or "").strip()
+    )
+    whatsapp_configured = bool(
+        whatsapp_settings
+        and whatsapp_settings.enabled
+        and str(whatsapp_settings.api_base_url or "").strip()
+        and str(whatsapp_settings.api_key or "").strip()
+    )
+    return {
+        "woocommerce": {
+            "settings": woo_settings,
+            "configured": woo_configured and mapping_rules.exists(),
+            "shared_configured": woo_configured,
+            "mapping_count": mapping_rules.count(),
+            "label": "Mapped" if woo_configured and mapping_rules.exists() else "Needs Mapping",
+        },
+        "whatsapp": {
+            "settings": whatsapp_settings,
+            "configured": whatsapp_configured,
+            "label": "Shared" if whatsapp_configured else "Missing",
+        },
+    }
+
+
+def _tenant_summary_row(tenant):
+    integration_status = _tenant_integration_status(tenant)
+    return {
+        "tenant": tenant,
+        "member_count": tenant.memberships.count(),
+        "active_member_count": tenant.memberships.filter(is_active=True).count(),
+        "order_count": tenant.orders.count(),
+        "product_count": tenant.products.count(),
+        "open_order_count": tenant.orders.exclude(
+            local_status__in=[
+                ShiprocketOrder.STATUS_COMPLETED,
+                ShiprocketOrder.STATUS_CANCELLED,
+            ]
+        ).count(),
+        "woocommerce": integration_status["woocommerce"],
+        "whatsapp": integration_status["whatsapp"],
+    }
+
+
+@login_required
+def tenant_list(request):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    tenants = (
+        Tenant.objects.select_related("owner")
+        .prefetch_related("memberships")
+        .order_by("name", "slug")
+    )
+    tenant_rows = [_tenant_summary_row(tenant) for tenant in tenants]
+    totals = {
+        "tenant_count": len(tenant_rows),
+        "active_tenant_count": sum(1 for row in tenant_rows if row["tenant"].is_active),
+        "member_count": sum(row["member_count"] for row in tenant_rows),
+        "order_count": sum(row["order_count"] for row in tenant_rows),
+        "product_count": sum(row["product_count"] for row in tenant_rows),
+        "woocommerce_configured_count": sum(1 for row in tenant_rows if row["woocommerce"]["configured"]),
+        "whatsapp_configured_count": sum(1 for row in tenant_rows if row["whatsapp"]["configured"]),
+    }
+    return render(
+        request,
+        "core/tenant_list.html",
+        {
+            "tenant_rows": tenant_rows,
+            "totals": totals,
+        },
+    )
+
+
+@login_required
+def tenant_detail(request, pk):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    tenant = get_object_or_404(Tenant.objects.select_related("owner"), pk=pk)
+    editing_mapping_rule = None
+    mapping_rule_id = request.POST.get("mapping_rule_id") or request.GET.get("mapping_rule")
+    if mapping_rule_id:
+        editing_mapping_rule = get_object_or_404(
+            TenantWooCommerceMappingRule,
+            pk=mapping_rule_id,
+            tenant=tenant,
+        )
+
+    if request.method == "POST" and request.POST.get("action") == "save_mapping_rule":
+        mapping_form = TenantWooCommerceMappingRuleForm(
+            request.POST,
+            instance=editing_mapping_rule,
+            tenant=tenant,
+        )
+        if mapping_form.is_valid():
+            mapping_rule = mapping_form.save(commit=False)
+            mapping_rule.tenant = tenant
+            mapping_rule.save()
+            messages.success(request, "WooCommerce mapping rule saved.")
+            return redirect("tenant_detail", pk=tenant.pk)
+    else:
+        mapping_form = TenantWooCommerceMappingRuleForm(
+            instance=editing_mapping_rule,
+            tenant=tenant,
+        )
+
+    integration_status = _tenant_integration_status(tenant)
+    mapping_rules = list(
+        tenant.woocommerce_mapping_rules.order_by("-is_active", "match_type", "match_value")
+    )
+    status_counts = [
+        {
+            "key": status_key,
+            "label": status_label,
+            "count": tenant.orders.filter(local_status=status_key).count(),
+        }
+        for status_key, status_label in ShiprocketOrder.STATUS_CHOICES
+    ]
+    recent_orders = list(
+        tenant.orders.order_by("-order_date", "-updated_at")[:12]
+    )
+    recent_activity = list(
+        tenant.order_activity_logs.select_related("order").order_by("-created_at")[:12]
+    )
+    memberships = list(
+        tenant.memberships.select_related("user").order_by("-is_active", "role", "user__username")
+    )
+    summary = {
+        "member_count": tenant.memberships.count(),
+        "active_member_count": tenant.memberships.filter(is_active=True).count(),
+        "order_count": tenant.orders.count(),
+        "product_count": tenant.products.count(),
+        "queue_count": tenant.whatsapp_notification_queue_jobs.count(),
+        "whatsapp_log_count": tenant.whatsapp_notification_logs.count(),
+        "expense_count": tenant.business_expenses.count(),
+    }
+    return render(
+        request,
+        "core/tenant_detail.html",
+        {
+            "tenant": tenant,
+            "summary": summary,
+            "memberships": memberships,
+            "status_counts": status_counts,
+            "recent_orders": recent_orders,
+            "recent_activity": recent_activity,
+            "woocommerce": integration_status["woocommerce"],
+            "whatsapp": integration_status["whatsapp"],
+            "mapping_rules": mapping_rules,
+            "mapping_form": mapping_form,
+            "editing_mapping_rule": editing_mapping_rule,
+        },
+    )
+
+
 @login_required
 def admin_utilities(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
@@ -5456,12 +5625,11 @@ def woocommerce_webhook(request):
             },
             status=401,
         )
-    tenant = settings_row.tenant
+    settings_tenant = settings_row.tenant
 
     def fallback_sync_response(detail):
         try:
-            woo_tenant = _woocommerce_call_tenant(tenant)
-            synced = sync_woocommerce_orders(tenant=woo_tenant) if woo_tenant is not None else sync_woocommerce_orders()
+            synced = sync_woocommerce_orders()
         except WooCommerceAPIError as exc:
             return JsonResponse(
                 {
@@ -5492,12 +5660,7 @@ def woocommerce_webhook(request):
     if not isinstance(payload, dict):
         return JsonResponse({"ok": False, "error": "Payload must be a JSON object."}, status=400)
 
-    woo_tenant = _woocommerce_call_tenant(tenant)
-    order, created = (
-        import_woocommerce_order_payload(payload, tenant=woo_tenant)
-        if woo_tenant is not None
-        else import_woocommerce_order_payload(payload)
-    )
+    order, created = import_woocommerce_order_payload(payload)
     if not order:
         return fallback_sync_response(
             "WooCommerce webhook did not include an order id; fallback sync attempted."
@@ -5517,7 +5680,8 @@ def woocommerce_webhook(request):
             "webhook_resource": str(request.headers.get("X-WC-Webhook-Resource") or ""),
             "webhook_event": str(request.headers.get("X-WC-Webhook-Event") or ""),
             "auth_mode": auth_mode,
-            "tenant_id": tenant.pk,
+            "settings_tenant_id": settings_tenant.pk,
+            "tenant_id": order.tenant_id,
             "woocommerce_order_id": order.woocommerce_order_id,
             "woocommerce_status": order.woocommerce_status,
         },

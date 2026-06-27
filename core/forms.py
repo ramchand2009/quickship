@@ -21,6 +21,7 @@ from .models import (
     StockMovement,
     Tenant,
     TenantMembership,
+    TenantWooCommerceMappingRule,
     WhatsAppSettings,
     WhatsAppStatusTemplateConfig,
     WooCommerceSettings,
@@ -814,6 +815,55 @@ class WooCommerceSettingsForm(forms.ModelForm):
         if not isinstance(parsed, dict):
             raise forms.ValidationError("Status map must be a JSON object.")
         return json.dumps(parsed, separators=(",", ":"))
+
+
+class TenantWooCommerceMappingRuleForm(forms.ModelForm):
+    class Meta:
+        model = TenantWooCommerceMappingRule
+        fields = ["match_type", "match_value", "is_active"]
+        labels = {
+            "match_type": "Type",
+            "match_value": "Value",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.tenant = kwargs.pop("tenant", None)
+        super().__init__(*args, **kwargs)
+        self.fields["match_type"].widget.attrs["class"] = "form-select"
+        self.fields["match_value"].widget.attrs["class"] = "form-control"
+        self.fields["match_value"].widget.attrs["placeholder"] = "Category, tag, SKU prefix, or product ID"
+        self.fields["is_active"].widget.attrs["class"] = "form-check-input"
+
+    def clean_match_value(self):
+        value = str(self.cleaned_data.get("match_value") or "").strip()
+        if not value:
+            raise forms.ValidationError("Enter a mapping value.")
+        match_type = self.cleaned_data.get("match_type")
+        if match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX:
+            value = value.upper()
+        if match_type == TenantWooCommerceMappingRule.MATCH_PRODUCT_ID and not value.isdigit():
+            raise forms.ValidationError("WooCommerce product ID must contain only numbers.")
+        return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        tenant = self.tenant or getattr(self.instance, "tenant", None)
+        match_type = cleaned_data.get("match_type")
+        match_value = cleaned_data.get("match_value")
+        if not tenant or not match_type or not match_value:
+            return cleaned_data
+
+        queryset = TenantWooCommerceMappingRule.objects.filter(
+            tenant=tenant,
+            match_type=match_type,
+            match_value=match_value,
+        )
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            self.add_error("match_value", "This mapping rule already exists for this tenant.")
+        return cleaned_data
 
 
 class WhatsAppStatusTemplateConfigForm(forms.ModelForm):

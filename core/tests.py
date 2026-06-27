@@ -31,6 +31,7 @@ from .models import (
     StockMovement,
     Tenant,
     TenantMembership,
+    TenantWooCommerceMappingRule,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -441,6 +442,204 @@ class TenantFoundationTests(TestCase):
         self.assertFalse(BusinessExpense.objects.filter(tenant=self.other_tenant, item_name="Tenant A Tape").exists())
 
 
+class SuperAdminTenantViewTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.super_user = user_model.objects.create_superuser(
+            username="platform",
+            email="platform@example.com",
+            password="pass",
+        )
+        self.vendor_user = user_model.objects.create_user(username="vendoruser", password="pass")
+        self.tenant = Tenant.objects.create(
+            name="Vendor Workspace",
+            slug="vendor-workspace",
+            owner=self.vendor_user,
+            contact_name="Vendor Owner",
+            contact_email="owner@example.com",
+            contact_phone="9876543210",
+        )
+        self.other_tenant = Tenant.objects.create(name="Other Workspace", slug="other-workspace")
+        TenantMembership.objects.create(
+            tenant=self.tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        Product.objects.create(tenant=self.tenant, name="Tenant Product", sku="TENANT-ADMIN-1")
+        Product.objects.create(tenant=self.other_tenant, name="Other Product", sku="TENANT-ADMIN-2")
+        ShiprocketOrder.objects.create(
+            tenant=self.tenant,
+            shiprocket_order_id="SR-TENANT-ADMIN-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Tenant Customer",
+            total="450.00",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="SR-TENANT-ADMIN-2",
+            local_status=ShiprocketOrder.STATUS_CANCELLED,
+            customer_name="Other Customer",
+            total="900.00",
+        )
+        WooCommerceSettings.objects.create(
+            store_url="https://vendor.example",
+            consumer_key="ck_vendor",
+            consumer_secret="cs_vendor",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="TENANT-",
+        )
+        WhatsAppSettings.objects.create(
+            enabled=True,
+            api_base_url="https://wa-api.cloud",
+            api_key="token",
+        )
+
+    def test_super_admin_can_view_tenant_list(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("tenant_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendor Workspaces")
+        self.assertContains(response, "Vendor Workspace")
+        self.assertContains(response, "vendor-workspace")
+        self.assertContains(response, "Mapped")
+        self.assertContains(response, "Shared")
+        self.assertContains(response, reverse("tenant_detail", args=[self.tenant.pk]))
+
+    def test_super_admin_can_view_tenant_detail(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendor Workspace")
+        self.assertContains(response, "vendoruser")
+        self.assertContains(response, "SR-TENANT-ADMIN-1")
+        self.assertNotContains(response, "SR-TENANT-ADMIN-2")
+        self.assertContains(response, "WooCommerce")
+        self.assertContains(response, "WooCommerce Mapping Rules")
+        self.assertContains(response, "SKU Prefix")
+        self.assertContains(response, "TENANT-")
+        self.assertContains(response, "WhatsApp")
+
+    def test_super_admin_can_create_mapping_rule_from_tenant_detail(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("tenant_detail", args=[self.tenant.pk]),
+            {
+                "action": "save_mapping_rule",
+                "match_type": TenantWooCommerceMappingRule.MATCH_CATEGORY,
+                "match_value": "Vendor Category",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            TenantWooCommerceMappingRule.objects.filter(
+                tenant=self.tenant,
+                match_type=TenantWooCommerceMappingRule.MATCH_CATEGORY,
+                match_value="Vendor Category",
+                is_active=True,
+            ).exists()
+        )
+
+    def test_super_admin_can_edit_mapping_rule_from_tenant_detail(self):
+        self.client.force_login(self.super_user)
+        rule = TenantWooCommerceMappingRule.objects.get(
+            tenant=self.tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+        )
+
+        response = self.client.post(
+            reverse("tenant_detail", args=[self.tenant.pk]),
+            {
+                "action": "save_mapping_rule",
+                "mapping_rule_id": str(rule.pk),
+                "match_type": TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+                "match_value": "vendor-new-",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        rule.refresh_from_db()
+        self.assertEqual(rule.match_value, "VENDOR-NEW-")
+        self.assertFalse(rule.is_active)
+
+    def test_duplicate_mapping_rule_shows_error(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("tenant_detail", args=[self.tenant.pk]),
+            {
+                "action": "save_mapping_rule",
+                "match_type": TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+                "match_value": "TENANT-",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This mapping rule already exists for this tenant.")
+        self.assertEqual(
+            TenantWooCommerceMappingRule.objects.filter(
+                tenant=self.tenant,
+                match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+                match_value="TENANT-",
+            ).count(),
+            1,
+        )
+
+    def test_vendor_user_cannot_create_mapping_rule(self):
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("tenant_detail", args=[self.tenant.pk]),
+            {
+                "action": "save_mapping_rule",
+                "match_type": TenantWooCommerceMappingRule.MATCH_TAG,
+                "match_value": "Blocked Tag",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("order_management"), response.url)
+        self.assertFalse(
+            TenantWooCommerceMappingRule.objects.filter(
+                tenant=self.tenant,
+                match_type=TenantWooCommerceMappingRule.MATCH_TAG,
+                match_value="Blocked Tag",
+            ).exists()
+        )
+
+    def test_vendor_user_cannot_view_tenant_pages(self):
+        self.client.force_login(self.vendor_user)
+
+        list_response = self.client.get(reverse("tenant_list"))
+        detail_response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
+
+        self.assertEqual(list_response.status_code, 302)
+        self.assertIn(reverse("order_management"), list_response.url)
+        self.assertEqual(detail_response.status_code, 302)
+        self.assertIn(reverse("order_management"), detail_response.url)
+
+    def test_tenant_link_only_shows_for_super_admin_sidebar(self):
+        self.client.force_login(self.super_user)
+        super_response = self.client.get(reverse("home"))
+        self.assertContains(super_response, reverse("tenant_list"))
+        self.assertContains(super_response, "Tenants")
+
+        self.client.force_login(self.vendor_user)
+        vendor_response = self.client.get(reverse("order_management"))
+        self.assertNotContains(vendor_response, reverse("tenant_list"))
+
+
 class ShiprocketSyncTests(TestCase):
     @patch("core.shiprocket._get_auth_token", return_value="token-123")
     @patch("core.shiprocket._json_request")
@@ -538,14 +737,9 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.order_items[0]["sku"], "TEA-1")
 
     @patch("core.woocommerce._json_request")
-    def test_sync_orders_scopes_import_to_requested_tenant(self, mock_json_request):
+    def test_sync_orders_uses_shared_connection_with_requested_tenant_fallback(self, mock_json_request):
         vendor_tenant = Tenant.objects.create(name="Woo Vendor", slug="woo-vendor")
-        WooCommerceSettings.objects.create(
-            tenant=vendor_tenant,
-            store_url="https://vendor.example.com",
-            consumer_key="ck_vendor",
-            consumer_secret="cs_vendor",
-        )
+        WooCommerceSettings.objects.create(store_url="https://shared.example.com", consumer_key="ck_shared", consumer_secret="cs_shared")
         mock_json_request.return_value = [
             {
                 "id": 901,
@@ -570,7 +764,7 @@ class WooCommerceSyncTests(TestCase):
 
         self.assertEqual(synced, 1)
         mock_json_request.assert_called_once()
-        self.assertEqual(mock_json_request.call_args.kwargs["tenant"], vendor_tenant)
+        self.assertNotIn("tenant", mock_json_request.call_args.kwargs)
         order = ShiprocketOrder.objects.get(woocommerce_order_id="901")
         self.assertEqual(order.tenant, vendor_tenant)
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
@@ -645,13 +839,17 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(amla.category_master.name, "Juice")
 
     @patch("core.woocommerce._json_request")
-    def test_sync_products_scopes_products_and_categories_to_requested_tenant(self, mock_json_request):
+    def test_sync_products_assigns_tenant_from_category_mapping(self, mock_json_request):
         vendor_tenant = Tenant.objects.create(name="Woo Product Vendor", slug="woo-product-vendor")
         WooCommerceSettings.objects.create(
+            store_url="https://shared-products.example.com",
+            consumer_key="ck_shared",
+            consumer_secret="cs_shared",
+        )
+        TenantWooCommerceMappingRule.objects.create(
             tenant=vendor_tenant,
-            store_url="https://vendor-products.example.com",
-            consumer_key="ck_vendor",
-            consumer_secret="cs_vendor",
+            match_type=TenantWooCommerceMappingRule.MATCH_CATEGORY,
+            match_value="Tenant Soap",
         )
         mock_json_request.return_value = [
             {
@@ -666,11 +864,11 @@ class WooCommerceSyncTests(TestCase):
             }
         ]
 
-        summary = sync_woocommerce_products(tenant=vendor_tenant)
+        summary = sync_woocommerce_products()
 
         self.assertEqual(summary["created"], 1)
         mock_json_request.assert_called_once()
-        self.assertEqual(mock_json_request.call_args.kwargs["tenant"], vendor_tenant)
+        self.assertNotIn("tenant", mock_json_request.call_args.kwargs)
         product = Product.objects.get(sku="TENANT-SOAP-1901")
         self.assertEqual(product.tenant, vendor_tenant)
         self.assertEqual(product.category_master.tenant, vendor_tenant)
@@ -1290,11 +1488,15 @@ class WooCommerceSyncTests(TestCase):
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-779")
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
 
-    def test_woocommerce_webhook_signature_resolves_tenant_secret(self):
+    def test_woocommerce_webhook_assigns_tenant_from_sku_mapping(self):
         vendor_tenant = Tenant.objects.create(name="Webhook Vendor", slug="webhook-vendor")
         WooCommerceSettings.objects.create(
+            webhook_secret="shared-webhook-secret",
+        )
+        TenantWooCommerceMappingRule.objects.create(
             tenant=vendor_tenant,
-            webhook_secret="vendor-webhook-secret",
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="VENDOR-",
         )
         payload = {
             "id": 1780,
@@ -1308,7 +1510,9 @@ class WooCommerceSyncTests(TestCase):
                 "address_1": "Tenant delivery road",
             },
             "shipping": {},
-            "line_items": [],
+            "line_items": [
+                {"name": "Vendor Product", "sku": "VENDOR-001", "product_id": 9901, "quantity": 1, "price": "499.00"}
+            ],
         }
         raw_body = json.dumps(payload).encode("utf-8")
 
@@ -1316,7 +1520,7 @@ class WooCommerceSyncTests(TestCase):
             reverse("woocommerce_webhook"),
             data=raw_body,
             content_type="application/json",
-            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "vendor-webhook-secret"),
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "shared-webhook-secret"),
         )
 
         self.assertEqual(response.status_code, 200)
@@ -1325,7 +1529,7 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(response.json()["order_pk"], order.pk)
 
     @patch("core.views.sync_woocommerce_orders")
-    def test_vendor_order_sync_uses_active_tenant(self, mock_sync_orders):
+    def test_vendor_order_sync_uses_shared_woocommerce_connection(self, mock_sync_orders):
         vendor_tenant = Tenant.objects.create(name="Sync Vendor", slug="sync-vendor")
         vendor_user = get_user_model().objects.create_user(username="syncvendor", password="testpass123")
         TenantMembership.objects.create(
@@ -1333,19 +1537,14 @@ class WooCommerceSyncTests(TestCase):
             user=vendor_user,
             role=TenantMembership.ROLE_VENDOR_OPERATOR,
         )
-        WooCommerceSettings.objects.create(
-            tenant=vendor_tenant,
-            store_url="https://sync-vendor.example.com",
-            consumer_key="ck_vendor",
-            consumer_secret="cs_vendor",
-        )
+        WooCommerceSettings.objects.create(store_url="https://shared.example.com", consumer_key="ck_shared", consumer_secret="cs_shared")
         mock_sync_orders.return_value = 2
         self.client.force_login(vendor_user)
 
         response = self.client.post(reverse("sync_orders"), follow=True)
 
         self.assertRedirects(response, reverse("home"))
-        mock_sync_orders.assert_called_once_with(tenant=vendor_tenant)
+        mock_sync_orders.assert_called_once_with()
         self.assertContains(response, "WooCommerce: 2 orders refreshed")
 
     def test_order_notifications_poll_returns_new_woocommerce_orders(self):
@@ -4997,12 +5196,11 @@ class WhatsAppTenantIsolationTests(TestCase):
     def setUp(self):
         self.tenant_a = Tenant.objects.create(name="Vendor A", slug="vendor-a")
         self.tenant_b = Tenant.objects.create(name="Vendor B", slug="vendor-b")
-        for tenant in [self.tenant_a, self.tenant_b]:
-            settings_row = WhatsAppSettings.get_for_tenant(tenant)
-            settings_row.enabled = True
-            settings_row.api_base_url = "https://wa-api.cloud"
-            settings_row.api_key = f"token-{tenant.slug}"
-            settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
+        settings_row = WhatsAppSettings.get_default()
+        settings_row.enabled = True
+        settings_row.api_base_url = "https://wa-api.cloud"
+        settings_row.api_key = "shared-token"
+        settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
 
     def _order(self, tenant, order_id):
         return ShiprocketOrder.objects.create(
@@ -5049,14 +5247,14 @@ class WhatsAppTenantIsolationTests(TestCase):
         )
 
     @override_settings(WHATOMATE_ENABLED=True, WHATOMATE_BASE_URL="https://global.example", WHATOMATE_API_KEY="global")
-    def test_non_default_vendor_does_not_fallback_to_global_whatsapp_settings(self):
+    def test_non_default_vendor_uses_shared_whatsapp_settings(self):
         WhatsAppSettings.objects.filter(tenant=self.tenant_a).update(enabled=False, api_base_url="", api_key="")
         order = self._order(self.tenant_a, "SR-WA-TENANT-DISABLED")
 
         plan = build_order_status_idempotency_payload(order)
 
-        self.assertFalse(plan["sendable"])
-        self.assertEqual(plan["reason"], "disabled")
+        self.assertTrue(plan["sendable"])
+        self.assertEqual(plan["config"]["api_key"], "shared-token")
 
     def test_enqueue_and_worker_logs_are_tenant_scoped(self):
         order = self._order(self.tenant_a, "SR-WA-TENANT-QUEUE")

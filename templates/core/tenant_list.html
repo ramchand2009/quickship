@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Tenants | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.tenant-metric-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.tenant-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
+.tenant-metric-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
+.tenant-metric-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
+.tenant-table-wrap { overflow-x:auto; }
+.tenant-table th { white-space:nowrap; font-size:.78rem; text-transform:uppercase; letter-spacing:0; color:#5d6675; }
+.tenant-table td { vertical-align:middle; }
+.tenant-name { min-width:180px; }
+.tenant-count-cell { min-width:92px; }
+@media (max-width: 991px) { .tenant-metric-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 575px) { .tenant-metric-row { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Tenants</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">Tenants</li>
+        </ul>
+    </div>
+</div>
+
+<div class="tenant-metric-row">
+    <div class="tenant-metric">
+        <div class="tenant-metric-label">Active Tenants</div>
+        <div class="tenant-metric-value">{{ totals.active_tenant_count }} / {{ totals.tenant_count }}</div>
+    </div>
+    <div class="tenant-metric">
+        <div class="tenant-metric-label">Users</div>
+        <div class="tenant-metric-value">{{ totals.member_count }}</div>
+    </div>
+    <div class="tenant-metric">
+        <div class="tenant-metric-label">Orders</div>
+        <div class="tenant-metric-value">{{ totals.order_count }}</div>
+    </div>
+    <div class="tenant-metric">
+        <div class="tenant-metric-label">Products</div>
+        <div class="tenant-metric-value">{{ totals.product_count }}</div>
+    </div>
+</div>
+
+<div class="card ops-admin-card">
+    <div class="card-header">
+        <h5 class="mb-0">Vendor Workspaces</h5>
+    </div>
+    <div class="card-block">
+        <div class="tenant-table-wrap">
+            <table class="table table-hover tenant-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Tenant</th>
+                        <th>Status</th>
+                        <th>Owner</th>
+                        <th>Contact</th>
+                        <th>Users</th>
+                        <th>Orders</th>
+                        <th>Products</th>
+                        <th>WooCommerce</th>
+                        <th>WhatsApp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in tenant_rows %}
+                        <tr>
+                            <td class="tenant-name">
+                                <a href="{% url 'tenant_detail' row.tenant.pk %}" class="fw-semibold">{{ row.tenant.name }}</a>
+                                <div class="small text-muted">{{ row.tenant.slug }}</div>
+                            </td>
+                            <td>
+                                {% if row.tenant.is_active %}
+                                    <span class="badge bg-light-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-light-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if row.tenant.owner %}
+                                    {{ row.tenant.owner.username }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div>{{ row.tenant.contact_name|default:"-" }}</div>
+                                <div class="small text-muted">{{ row.tenant.contact_email|default:row.tenant.contact_phone|default:"" }}</div>
+                            </td>
+                            <td class="tenant-count-cell">{{ row.active_member_count }} active / {{ row.member_count }}</td>
+                            <td class="tenant-count-cell">{{ row.order_count }} <span class="small text-muted">({{ row.open_order_count }} open)</span></td>
+                            <td class="tenant-count-cell">{{ row.product_count }}</td>
+                            <td>
+                                {% if row.woocommerce.configured %}
+                                    <span class="badge bg-light-success">Mapped</span>
+                                {% else %}
+                                    <span class="badge bg-light-warning">Needs Mapping</span>
+                                {% endif %}
+                                <div class="small text-muted">{{ row.woocommerce.mapping_count }} rule{{ row.woocommerce.mapping_count|pluralize }}</div>
+                            </td>
+                            <td>
+                                {% if row.whatsapp.configured %}
+                                    <span class="badge bg-light-success">Shared</span>
+                                {% else %}
+                                    <span class="badge bg-light-warning">Missing</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-muted">No tenants found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
