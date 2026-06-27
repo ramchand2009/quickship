@@ -390,6 +390,11 @@ class TenantFoundationTests(TestCase):
             user=self.vendor_user,
             role=TenantMembership.ROLE_VENDOR_OWNER,
         )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.mathukai,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="ENQ-",
+        )
         ShiprocketOrder.objects.create(
             tenant=self.mathukai,
             source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
@@ -399,7 +404,7 @@ class TenantFoundationTests(TestCase):
                 {
                     "name": "Tenant Woo Product",
                     "product_id": 300,
-                    "sku": "",
+                    "sku": "ENQ-300",
                     "quantity": 1,
                     "price": "130.00",
                     "image": "https://shop.example.com/product.jpg",
@@ -416,10 +421,79 @@ class TenantFoundationTests(TestCase):
 
         product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="300")
         self.assertEqual(product.name, "Tenant Woo Product")
-        self.assertEqual(product.sku, "WC-300")
+        self.assertEqual(product.sku, "ENQ-300")
         self.assertEqual(product.stock_quantity, 0)
         self.assertContains(response, "Created local stock products from this vendor")
         self.assertNotContains(response, "WOOCOMMERCE_STORE_URL")
+
+    def test_vendor_stock_page_auto_creates_products_from_existing_woocommerce_orders(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.mathukai,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="ENQ-",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-407",
+            woocommerce_order_id="407",
+            order_items=[
+                {
+                    "name": "Auto Created Woo Product",
+                    "product_id": 300,
+                    "sku": "ENQ-300",
+                    "quantity": 1,
+                    "price": "130.00",
+                }
+            ],
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("stock_management"))
+
+        product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="300")
+        self.assertEqual(product.sku, "ENQ-300")
+        self.assertContains(response, "Auto Created Woo Product")
+        self.assertContains(response, "Created local stock products from this vendor")
+
+    def test_vendor_stock_page_does_not_create_product_without_matching_sku_prefix(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.mathukai,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="ENQ-",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-408",
+            woocommerce_order_id="408",
+            order_items=[
+                {
+                    "name": "Wrong Vendor Product",
+                    "product_id": 301,
+                    "sku": "OTHER-301",
+                    "quantity": 1,
+                    "price": "130.00",
+                }
+            ],
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("stock_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Product.objects.filter(tenant=self.mathukai, smartbiz_product_id="301").exists())
+        self.assertNotContains(response, "Wrong Vendor Product")
 
     def test_vendor_order_management_lists_only_active_tenant_orders(self):
         TenantMembership.objects.create(

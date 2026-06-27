@@ -1642,13 +1642,27 @@ def _external_product_id_from_order_item(item):
     )
 
 
-def _sku_from_order_item(item, external_id):
-    sku = normalize_sku(item.get("sku") or item.get("channel_sku"))
-    if sku:
-        return sku
-    if external_id:
-        return normalize_sku(f"WC-{external_id}")
-    return ""
+def _sku_from_order_item(item):
+    return normalize_sku(item.get("sku") or item.get("channel_sku"))
+
+
+def _tenant_sku_prefixes(tenant):
+    if tenant is None:
+        return []
+    return [
+        normalize_sku(rule.match_value)
+        for rule in TenantWooCommerceMappingRule.objects.filter(
+            tenant=tenant,
+            is_active=True,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+        )
+        if normalize_sku(rule.match_value)
+    ]
+
+
+def _sku_matches_tenant_prefix(sku, sku_prefixes):
+    normalized_sku = normalize_sku(sku)
+    return bool(normalized_sku and any(normalized_sku.startswith(prefix) for prefix in sku_prefixes))
 
 
 def _create_products_from_tenant_order_items(tenant):
@@ -1658,6 +1672,10 @@ def _create_products_from_tenant_order_items(tenant):
     created_count = 0
     unchanged_count = 0
     skipped_count = 0
+    sku_prefixes = _tenant_sku_prefixes(tenant)
+    if not sku_prefixes:
+        return {"created": 0, "unchanged": 0, "skipped": 0}
+
     orders = ShiprocketOrder.objects.filter(
         tenant=tenant,
         source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
@@ -1671,8 +1689,8 @@ def _create_products_from_tenant_order_items(tenant):
 
             name = str(item.get("name") or "").strip()
             external_id = _external_product_id_from_order_item(item)
-            sku = _sku_from_order_item(item, external_id)
-            if not name or not sku:
+            sku = _sku_from_order_item(item)
+            if not name or not _sku_matches_tenant_prefix(sku, sku_prefixes):
                 skipped_count += 1
                 continue
 
@@ -3983,6 +4001,19 @@ def stock_management(request):
         else:
             messages.error(request, "Invalid stock action.")
             return redirect(redirect_url)
+
+    if request.method == "GET" and active_tenant is not None:
+        has_tenant_products = _scope_queryset_to_active_tenant(request, Product.objects.all()).exists()
+        if not has_tenant_products:
+            fallback_summary = _create_products_from_tenant_order_items(active_tenant)
+            if fallback_summary["created"]:
+                messages.info(
+                    request,
+                    (
+                        "Created local stock products from this vendor's WooCommerce orders. "
+                        f"Created {fallback_summary['created']}."
+                    ),
+                )
 
     products = _scope_queryset_to_active_tenant(request, Product.objects.all()).annotate(
         sort_category=Coalesce("category_master__name", "category"),
