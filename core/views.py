@@ -99,6 +99,7 @@ from .models import (
     WhatsAppTemplate,
     WebPushSubscription,
     WooCommerceSettings,
+    WooCommerceSyncRun,
 )
 from .stock import (
     apply_manual_stock_movement,
@@ -4823,6 +4824,131 @@ def _product_mapping_rule_matches(product, rule):
 
 def _matching_mapping_rules_for_product(product, active_rules):
     return [rule for rule in active_rules if _product_mapping_rule_matches(product, rule)]
+
+
+def _latest_woocommerce_sync_run(run_type):
+    return WooCommerceSyncRun.objects.filter(run_type=run_type).order_by("-finished_at", "-started_at").first()
+
+
+def _record_woocommerce_sync_run(*, run_type, started_at, triggered_by, summary=None, error_message=""):
+    status = WooCommerceSyncRun.STATUS_FAILED if error_message else WooCommerceSyncRun.STATUS_SUCCESS
+    return WooCommerceSyncRun.objects.create(
+        run_type=run_type,
+        status=status,
+        started_at=started_at,
+        finished_at=timezone.now(),
+        triggered_by=str(triggered_by or "").strip(),
+        summary=summary or {},
+        error_message=str(error_message or "").strip(),
+    )
+
+
+def _run_recorded_woocommerce_product_sync(request):
+    started_at = timezone.now()
+    actor = _request_actor(request)
+    try:
+        summary = sync_woocommerce_products()
+    except WooCommerceAPIError as exc:
+        _record_woocommerce_sync_run(
+            run_type=WooCommerceSyncRun.RUN_PRODUCT_SYNC,
+            started_at=started_at,
+            triggered_by=actor,
+            error_message=str(exc),
+        )
+        messages.error(request, f"WooCommerce product sync failed: {exc}")
+        return
+    _record_woocommerce_sync_run(
+        run_type=WooCommerceSyncRun.RUN_PRODUCT_SYNC,
+        started_at=started_at,
+        triggered_by=actor,
+        summary=summary,
+    )
+    messages.success(
+        request,
+        (
+            "WooCommerce product sync completed: "
+            f"{summary.get('created', 0)} created, {summary.get('updated', 0)} updated, "
+            f"{summary.get('skipped', 0)} skipped."
+        ),
+    )
+
+
+def _run_recorded_woocommerce_order_sync(request):
+    started_at = timezone.now()
+    actor = _request_actor(request)
+    try:
+        synced_count = sync_woocommerce_orders()
+    except WooCommerceAPIError as exc:
+        _record_woocommerce_sync_run(
+            run_type=WooCommerceSyncRun.RUN_ORDER_SYNC,
+            started_at=started_at,
+            triggered_by=actor,
+            error_message=str(exc),
+        )
+        messages.error(request, f"WooCommerce order sync failed: {exc}")
+        return
+    summary = {
+        "synced": int(synced_count or 0),
+        "imported_or_updated": int(synced_count or 0),
+    }
+    _record_woocommerce_sync_run(
+        run_type=WooCommerceSyncRun.RUN_ORDER_SYNC,
+        started_at=started_at,
+        triggered_by=actor,
+        summary=summary,
+    )
+    messages.success(request, f"WooCommerce order sync completed: {synced_count} order(s) imported or updated.")
+
+
+def _woocommerce_sync_status_context():
+    missing_cost_count = Product.objects.filter(actual_price__isnull=True).count()
+    unmapped_order_count = 0
+    for order in ShiprocketOrder.objects.select_related("tenant").defer("raw_payload").order_by("-order_date", "-updated_at", "-created_at")[:100]:
+        stock_summary = summarize_order_stock_availability(order)
+        if stock_summary.get("missing_identifiers"):
+            unmapped_order_count += 1
+
+    product_run = _latest_woocommerce_sync_run(WooCommerceSyncRun.RUN_PRODUCT_SYNC)
+    order_run = _latest_woocommerce_sync_run(WooCommerceSyncRun.RUN_ORDER_SYNC)
+    settings_row = WooCommerceSettings.get_default()
+    settings_configured = bool(
+        settings_row
+        and str(settings_row.store_url or "").strip()
+        and str(settings_row.consumer_key or "").strip()
+        and str(settings_row.consumer_secret or "").strip()
+    )
+    return {
+        "product_run": product_run,
+        "order_run": order_run,
+        "recent_runs": WooCommerceSyncRun.objects.order_by("-finished_at", "-started_at")[:10],
+        "settings_configured": settings_configured,
+        "settings_row": settings_row,
+        "mapping_rule_count": TenantWooCommerceMappingRule.objects.filter(is_active=True).count(),
+        "product_count": Product.objects.count(),
+        "order_count": ShiprocketOrder.objects.filter(source=ShiprocketOrder.SOURCE_WOOCOMMERCE).count(),
+        "missing_cost_count": missing_cost_count,
+        "unmapped_order_count": unmapped_order_count,
+    }
+
+
+@login_required
+def woocommerce_sync_status(request):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    if request.method == "POST":
+        action = str(request.POST.get("action") or "").strip()
+        if action == "sync_products":
+            _run_recorded_woocommerce_product_sync(request)
+            return redirect("woocommerce_sync_status")
+        if action == "sync_orders":
+            _run_recorded_woocommerce_order_sync(request)
+            return redirect("woocommerce_sync_status")
+        messages.error(request, "Unknown WooCommerce sync action.")
+        return redirect("woocommerce_sync_status")
+
+    return render(request, "core/woocommerce_sync_status.html", _woocommerce_sync_status_context())
 
 
 @login_required

@@ -308,6 +308,35 @@ class TenantWooCommerceMappingRule(models.Model):
         super().save(*args, **kwargs)
 
 
+class WooCommerceSyncRun(models.Model):
+    RUN_PRODUCT_SYNC = "product_sync"
+    RUN_ORDER_SYNC = "order_sync"
+    RUN_CHOICES = [
+        (RUN_PRODUCT_SYNC, "Product Sync"),
+        (RUN_ORDER_SYNC, "Order Sync"),
+    ]
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    run_type = models.CharField(max_length=32, choices=RUN_CHOICES)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES)
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField()
+    triggered_by = models.CharField(max_length=150, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-finished_at", "-started_at"]
+
+    def __str__(self):
+        return f"{self.get_run_type_display()} {self.status} at {self.finished_at}"
+
+
 class WebPushSubscription(models.Model):
     tenant = models.ForeignKey(
         Tenant,

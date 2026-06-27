@@ -91,6 +91,12 @@
                                         <span class="pcoded-mtext">Mapping Health</span>
                                     </a>
                                 </li>
+                                <li class="nav-item {% if current == 'woocommerce_sync_status' %}active{% endif %}">
+                                    <a href="{% url 'woocommerce_sync_status' %}" class="nav-link">
+                                        <span class="pcoded-micon"><i class="feather icon-refresh-cw"></i></span>
+                                        <span class="pcoded-mtext">Woo Sync Status</span>
+                                    </a>
+                                </li>
                                 <li class="nav-item pcoded-menu-caption">
                                     <label>Workspace</label>
                                 </li>

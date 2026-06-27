@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}WooCommerce Sync Status | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.woo-sync-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.woo-sync-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
+.woo-sync-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
+.woo-sync-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
+.woo-sync-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+.woo-sync-table-wrap { overflow-x:auto; }
+.woo-sync-table th { white-space:nowrap; font-size:.78rem; text-transform:uppercase; letter-spacing:0; color:#5d6675; }
+.woo-sync-table td { vertical-align:middle; }
+.woo-sync-run-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.woo-sync-result { border:1px solid #e5e9f2; border-radius:6px; padding:1rem; background:#fff; min-height:180px; }
+.woo-sync-result-title { display:flex; justify-content:space-between; gap:.75rem; align-items:center; margin-bottom:.75rem; }
+.woo-sync-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem; }
+.woo-sync-summary-item { background:#f7f9fc; border-radius:4px; padding:.55rem .65rem; }
+.woo-sync-error { color:#9f1d20; word-break:break-word; }
+@media (max-width: 991px) { .woo-sync-metrics, .woo-sync-run-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 767px) { .woo-sync-metrics, .woo-sync-run-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">WooCommerce Sync Status</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">WooCommerce Sync Status</li>
+        </ul>
+    </div>
+</div>
+
+<div class="woo-sync-metrics">
+    <div class="woo-sync-metric">
+        <div class="woo-sync-label">Connection</div>
+        <div class="woo-sync-value">{% if settings_configured %}Ready{% else %}Missing{% endif %}</div>
+    </div>
+    <div class="woo-sync-metric">
+        <div class="woo-sync-label">Active Rules</div>
+        <div class="woo-sync-value">{{ mapping_rule_count }}</div>
+    </div>
+    <div class="woo-sync-metric">
+        <div class="woo-sync-label">Products</div>
+        <div class="woo-sync-value">{{ product_count }}</div>
+    </div>
+    <div class="woo-sync-metric">
+        <div class="woo-sync-label">Woo Orders</div>
+        <div class="woo-sync-value">{{ order_count }}</div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header">
+        <h5 class="mb-0">Manual Sync</h5>
+    </div>
+    <div class="card-block">
+        <div class="woo-sync-actions">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="sync_products">
+                <button type="submit" class="btn btn-primary">Run Product Sync</button>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="sync_orders">
+                <button type="submit" class="btn btn-outline-primary">Run Order Sync</button>
+            </form>
+            <a class="btn btn-outline-secondary" href="{% url 'tenant_mapping_health' %}">Open Mapping Health</a>
+            <a class="btn btn-outline-secondary" href="{% url 'whatsapp_settings' %}">WooCommerce Settings</a>
+        </div>
+        {% if not settings_configured %}
+            <div class="alert alert-warning mt-3 mb-0">WooCommerce credentials are missing. Add Store URL, Consumer Key, and Consumer Secret before running sync.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="woo-sync-run-grid mb-3">
+    <div class="woo-sync-result">
+        <div class="woo-sync-result-title">
+            <h5 class="mb-0">Last Product Sync</h5>
+            {% if product_run %}
+                {% if product_run.status == "success" %}
+                    <span class="badge bg-light-success">Success</span>
+                {% else %}
+                    <span class="badge bg-light-danger">Failed</span>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% if product_run %}
+            <div class="small text-muted mb-2">{{ product_run.finished_at|date:"Y-m-d H:i" }} by {{ product_run.triggered_by|default:"system" }}</div>
+            {% if product_run.error_message %}
+                <div class="woo-sync-error">{{ product_run.error_message }}</div>
+            {% else %}
+                <div class="woo-sync-summary">
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Created</div><strong>{{ product_run.summary.created|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Updated</div><strong>{{ product_run.summary.updated|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Skipped</div><strong>{{ product_run.summary.skipped|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Unchanged</div><strong>{{ product_run.summary.unchanged|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Products</div><strong>{{ product_run.summary.products_seen|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Variations</div><strong>{{ product_run.summary.variations_seen|default:0 }}</strong></div>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="text-muted">No product sync recorded yet.</div>
+        {% endif %}
+    </div>
+    <div class="woo-sync-result">
+        <div class="woo-sync-result-title">
+            <h5 class="mb-0">Last Order Sync</h5>
+            {% if order_run %}
+                {% if order_run.status == "success" %}
+                    <span class="badge bg-light-success">Success</span>
+                {% else %}
+                    <span class="badge bg-light-danger">Failed</span>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% if order_run %}
+            <div class="small text-muted mb-2">{{ order_run.finished_at|date:"Y-m-d H:i" }} by {{ order_run.triggered_by|default:"system" }}</div>
+            {% if order_run.error_message %}
+                <div class="woo-sync-error">{{ order_run.error_message }}</div>
+            {% else %}
+                <div class="woo-sync-summary">
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Imported/Updated</div><strong>{{ order_run.summary.imported_or_updated|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Synced</div><strong>{{ order_run.summary.synced|default:0 }}</strong></div>
+                    <div class="woo-sync-summary-item"><div class="woo-sync-label">Skipped</div><strong>{{ order_run.summary.skipped|default:0 }}</strong></div>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="text-muted">No order sync recorded yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header">
+        <h5 class="mb-0">Mapping Attention</h5>
+    </div>
+    <div class="card-block">
+        <div class="woo-sync-summary">
+            <div class="woo-sync-summary-item">
+                <div class="woo-sync-label">Products Missing Actual Price</div>
+                <strong>{{ missing_cost_count }}</strong>
+            </div>
+            <div class="woo-sync-summary-item">
+                <div class="woo-sync-label">Recent Orders Missing Product Mapping</div>
+                <strong>{{ unmapped_order_count }}</strong>
+            </div>
+            <div class="woo-sync-summary-item">
+                <div class="woo-sync-label">Mapping Review</div>
+                <a href="{% url 'tenant_mapping_health' %}">Open Mapping Health</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card">
+    <div class="card-header">
+        <h5 class="mb-0">Recent Sync Runs</h5>
+    </div>
+    <div class="card-block woo-sync-table-wrap">
+        <table class="table table-sm woo-sync-table mb-0">
+            <thead>
+                <tr>
+                    <th>Finished</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Triggered By</th>
+                    <th>Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent_runs %}
+                    <tr>
+                        <td>{{ run.finished_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ run.get_run_type_display }}</td>
+                        <td>
+                            {% if run.status == "success" %}
+                                <span class="badge bg-light-success">Success</span>
+                            {% else %}
+                                <span class="badge bg-light-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ run.triggered_by|default:"system" }}</td>
+                        <td>
+                            {% if run.error_message %}
+                                <span class="woo-sync-error">{{ run.error_message }}</span>
+                            {% else %}
+                                {{ run.summary }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-muted">No sync runs recorded.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

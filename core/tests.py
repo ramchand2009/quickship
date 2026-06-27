@@ -40,6 +40,7 @@ from .models import (
     WhatsAppTemplate,
     WebPushSubscription,
     WooCommerceSettings,
+    WooCommerceSyncRun,
 )
 from .access import (
     TenantScopedQuerysetMixin,
@@ -840,6 +841,77 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "SR-TENANT-MISSING-MAP-1")
         self.assertContains(response, "UNKNOWN-1")
 
+    def test_super_admin_can_view_woocommerce_sync_status(self):
+        WooCommerceSyncRun.objects.create(
+            run_type=WooCommerceSyncRun.RUN_PRODUCT_SYNC,
+            status=WooCommerceSyncRun.STATUS_SUCCESS,
+            started_at=timezone.now(),
+            finished_at=timezone.now(),
+            triggered_by="platform",
+            summary={"created": 2, "updated": 3, "skipped": 1, "products_seen": 5},
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("woocommerce_sync_status"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "WooCommerce Sync Status")
+        self.assertContains(response, "Manual Sync")
+        self.assertContains(response, "Run Product Sync")
+        self.assertContains(response, "Run Order Sync")
+        self.assertContains(response, "Last Product Sync")
+        self.assertContains(response, "Mapping Attention")
+        self.assertContains(response, reverse("tenant_mapping_health"))
+
+    @patch("core.views.sync_woocommerce_products")
+    def test_super_admin_product_sync_action_records_success(self, mock_sync_products):
+        mock_sync_products.return_value = {
+            "products_seen": 4,
+            "variations_seen": 2,
+            "created": 1,
+            "updated": 2,
+            "unchanged": 1,
+            "skipped": 0,
+        }
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(reverse("woocommerce_sync_status"), {"action": "sync_products"}, follow=True)
+
+        self.assertRedirects(response, reverse("woocommerce_sync_status"))
+        run = WooCommerceSyncRun.objects.get(run_type=WooCommerceSyncRun.RUN_PRODUCT_SYNC)
+        self.assertEqual(run.status, WooCommerceSyncRun.STATUS_SUCCESS)
+        self.assertEqual(run.summary["created"], 1)
+        self.assertEqual(run.summary["updated"], 2)
+        self.assertContains(response, "WooCommerce product sync completed")
+        mock_sync_products.assert_called_once_with()
+
+    @patch("core.views.sync_woocommerce_orders")
+    def test_super_admin_order_sync_action_records_success(self, mock_sync_orders):
+        mock_sync_orders.return_value = 3
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(reverse("woocommerce_sync_status"), {"action": "sync_orders"}, follow=True)
+
+        self.assertRedirects(response, reverse("woocommerce_sync_status"))
+        run = WooCommerceSyncRun.objects.get(run_type=WooCommerceSyncRun.RUN_ORDER_SYNC)
+        self.assertEqual(run.status, WooCommerceSyncRun.STATUS_SUCCESS)
+        self.assertEqual(run.summary["synced"], 3)
+        self.assertContains(response, "WooCommerce order sync completed")
+        mock_sync_orders.assert_called_once_with()
+
+    @patch("core.views.sync_woocommerce_products")
+    def test_super_admin_sync_action_records_failure(self, mock_sync_products):
+        mock_sync_products.side_effect = WooCommerceAPIError("API blocked")
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(reverse("woocommerce_sync_status"), {"action": "sync_products"}, follow=True)
+
+        self.assertRedirects(response, reverse("woocommerce_sync_status"))
+        run = WooCommerceSyncRun.objects.get(run_type=WooCommerceSyncRun.RUN_PRODUCT_SYNC)
+        self.assertEqual(run.status, WooCommerceSyncRun.STATUS_FAILED)
+        self.assertEqual(run.error_message, "API blocked")
+        self.assertContains(response, "WooCommerce product sync failed")
+
     def test_super_admin_can_create_mapping_rule_from_tenant_detail(self):
         self.client.force_login(self.super_user)
 
@@ -938,6 +1010,7 @@ class SuperAdminTenantViewTests(TestCase):
         list_response = self.client.get(reverse("tenant_list"))
         detail_response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
         mapping_health_response = self.client.get(reverse("tenant_mapping_health"))
+        sync_status_response = self.client.get(reverse("woocommerce_sync_status"))
 
         self.assertEqual(list_response.status_code, 302)
         self.assertIn(reverse("order_management"), list_response.url)
@@ -945,19 +1018,24 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertIn(reverse("order_management"), detail_response.url)
         self.assertEqual(mapping_health_response.status_code, 302)
         self.assertIn(reverse("order_management"), mapping_health_response.url)
+        self.assertEqual(sync_status_response.status_code, 302)
+        self.assertIn(reverse("order_management"), sync_status_response.url)
 
     def test_tenant_link_only_shows_for_super_admin_sidebar(self):
         self.client.force_login(self.super_user)
         super_response = self.client.get(reverse("home"))
         self.assertContains(super_response, reverse("tenant_list"))
         self.assertContains(super_response, reverse("tenant_mapping_health"))
+        self.assertContains(super_response, reverse("woocommerce_sync_status"))
         self.assertContains(super_response, "Tenants")
         self.assertContains(super_response, "Mapping Health")
+        self.assertContains(super_response, "Woo Sync Status")
 
         self.client.force_login(self.vendor_user)
         vendor_response = self.client.get(reverse("order_management"))
         self.assertNotContains(vendor_response, reverse("tenant_list"))
         self.assertNotContains(vendor_response, reverse("tenant_mapping_health"))
+        self.assertNotContains(vendor_response, reverse("woocommerce_sync_status"))
 
 
 class ShiprocketSyncTests(TestCase):
