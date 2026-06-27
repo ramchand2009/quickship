@@ -126,7 +126,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
             <h1>{{ active_tenant.name|default:"Quickship" }}</h1>
             <div class="ops-stock-topbar-actions">
-                <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+                <form method="post" action="{% url 'stock_management' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="sync_woocommerce_products">
+                    <input type="hidden" name="return_view" value="list">
+                    <button type="submit" class="ops-mobile-topbar-control" aria-label="Sync WooCommerce products">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </form>
                 <span class="ops-stock-profile-dot"><i class="fas fa-user-friends"></i></span>
             </div>
         </div>
@@ -196,7 +203,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </div>
             </section>
         {% else %}
-            <div class="ops-stock-empty">No products found.</div>
+            <div class="ops-stock-empty">
+                No products found. Tap the sync button above to import mapped WooCommerce products for this vendor.
+            </div>
         {% endif %}
     </main>
 

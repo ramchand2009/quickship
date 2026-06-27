@@ -363,6 +363,22 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "Logout")
         self.assertContains(response, "fa-sign-out-alt")
 
+    def test_vendor_mobile_stock_empty_state_shows_product_sync_action(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("stock_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="form_action" value="sync_woocommerce_products"', html=False)
+        self.assertContains(response, "Sync WooCommerce products")
+        self.assertContains(response, "No products found")
+        self.assertContains(response, "import mapped WooCommerce products")
+
     def test_vendor_order_management_lists_only_active_tenant_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
