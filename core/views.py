@@ -3938,17 +3938,17 @@ def stock_management(request):
                 woo_tenant = _woocommerce_call_tenant(active_tenant)
                 summary = sync_woocommerce_products(tenant=woo_tenant) if woo_tenant is not None else sync_woocommerce_products()
             except WooCommerceAPIError as exc:
-                if _is_woocommerce_config_missing_error(exc):
-                    fallback_summary = _create_products_from_tenant_order_items(active_tenant)
-                    if fallback_summary["created"]:
-                        messages.success(
-                            request,
-                            (
-                                "Created local stock products from this vendor's existing WooCommerce orders. "
-                                f"Created {fallback_summary['created']}, unchanged {fallback_summary['unchanged']}, "
-                                f"skipped {fallback_summary['skipped']}."
-                            ),
-                        )
+                fallback_summary = _create_products_from_tenant_order_items(active_tenant)
+                if fallback_summary["created"]:
+                    messages.success(
+                        request,
+                        (
+                            "Created local stock products from this vendor's existing WooCommerce orders. "
+                            f"Created {fallback_summary['created']}, unchanged {fallback_summary['unchanged']}, "
+                            f"skipped {fallback_summary['skipped']}."
+                        ),
+                    )
+                    if _is_woocommerce_config_missing_error(exc):
                         messages.info(
                             request,
                             "Full WooCommerce product sync uses the shared platform connection and can be configured by Super Admin.",
@@ -3956,13 +3956,17 @@ def stock_management(request):
                     else:
                         messages.warning(
                             request,
-                            (
-                                "No local products could be created from existing orders. "
-                                "Ask Super Admin to configure the shared WooCommerce connection or create the product manually."
-                            ),
+                            f"Full WooCommerce product sync is unavailable right now: {exc}",
                         )
                 else:
                     messages.error(request, f"WooCommerce product sync failed: {exc}")
+                    messages.warning(
+                        request,
+                        (
+                            "No local products could be created from existing orders. "
+                            "Check that this vendor has an active SKU prefix mapping and matching WooCommerce order item SKUs."
+                        ),
+                    )
             else:
                 messages.success(
                     request,

@@ -428,6 +428,49 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "Created local stock products from this vendor")
         self.assertNotContains(response, "WOOCOMMERCE_STORE_URL")
 
+    @patch("core.views.sync_woocommerce_products")
+    def test_vendor_stock_sync_falls_back_to_order_items_when_woocommerce_product_api_blocked(self, mock_sync_products):
+        mock_sync_products.side_effect = WooCommerceAPIError(
+            "CloudFront returned a non-JSON page instead of the WooCommerce REST API."
+        )
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.mathukai,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="ENQ-",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-409",
+            woocommerce_order_id="409",
+            order_items=[
+                {
+                    "name": "Blocked API Fallback Product",
+                    "product_id": 409,
+                    "sku": "ENQ-409",
+                    "quantity": 1,
+                    "price": "130.00",
+                }
+            ],
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("stock_management"),
+            {"form_action": "sync_woocommerce_products"},
+            follow=True,
+        )
+
+        product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="409")
+        self.assertEqual(product.sku, "ENQ-409")
+        self.assertContains(response, "Created local stock products from this vendor")
+        self.assertContains(response, "Full WooCommerce product sync is unavailable right now")
+
     def test_vendor_stock_page_auto_creates_products_from_existing_woocommerce_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
