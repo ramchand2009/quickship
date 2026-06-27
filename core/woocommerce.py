@@ -153,16 +153,39 @@ def _require_config(tenant=None):
         )
 
 
-def _api_url(path, params=None, tenant=None):
+def _api_url(path, params=None, tenant=None, query_auth_config=None):
     store_url = _get_config(tenant=tenant)["store_url"]
     path = str(path or "").strip().lstrip("/")
-    query = parse.urlencode(params or {}, doseq=True)
+    query_params = {**(params or {})}
+    if query_auth_config:
+        query_params["consumer_key"] = query_auth_config["consumer_key"]
+        query_params["consumer_secret"] = query_auth_config["consumer_secret"]
+    query = parse.urlencode(query_params, doseq=True)
     url = f"{store_url}/wp-json/wc/v3/{path}"
     return f"{url}?{query}" if query else url
 
 
-def _json_request(path, method="GET", payload=None, params=None, tenant=None):
-    _require_config(tenant=tenant)
+def _woocommerce_response_error(raw_body):
+    detail = "CloudFront returned a non-JSON page instead of the WooCommerce REST API."
+    if "cloudfront" not in raw_body.lower():
+        detail = "WooCommerce returned a non-JSON response instead of REST API data."
+    return WooCommerceAPIError(f"{detail} Check the Store URL and CDN/WAF rules for /wp-json/wc/v3/.")
+
+
+def _should_retry_with_query_auth(exc):
+    text = str(exc or "").lower()
+    return any(
+        marker in text
+        for marker in [
+            "cloudfront",
+            "non-json",
+            "http 401",
+            "http 403",
+        ]
+    )
+
+
+def _json_request_once(path, method="GET", payload=None, params=None, tenant=None, *, query_auth=False):
     config = _get_config(tenant=tenant)
     credentials = f"{config['consumer_key']}:{config['consumer_secret']}"
     auth_value = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
@@ -170,23 +193,24 @@ def _json_request(path, method="GET", payload=None, params=None, tenant=None):
         "Accept": "application/json",
         "Accept-Language": "en-US,en;q=0.9",
         "Content-Type": "application/json",
-        "Authorization": f"Basic {auth_value}",
         "User-Agent": WOOCOMMERCE_USER_AGENT,
     }
+    if not query_auth:
+        headers["Authorization"] = f"Basic {auth_value}"
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    req = request.Request(_api_url(path, params=params, tenant=tenant), data=body, headers=headers, method=method)
+    req = request.Request(
+        _api_url(path, params=params, tenant=tenant, query_auth_config=config if query_auth else None),
+        data=body,
+        headers=headers,
+        method=method,
+    )
     try:
         with request.urlopen(req, timeout=30) as response:
             raw_body = response.read().decode("utf-8")
             try:
                 return json.loads(raw_body) if raw_body else {}
             except json.JSONDecodeError as exc:
-                detail = "CloudFront returned a non-JSON page instead of the WooCommerce REST API."
-                if "cloudfront" not in raw_body.lower():
-                    detail = "WooCommerce returned a non-JSON response instead of REST API data."
-                raise WooCommerceAPIError(
-                    f"{detail} Check the Store URL and CDN/WAF rules for /wp-json/wc/v3/."
-                ) from exc
+                raise _woocommerce_response_error(raw_body) from exc
     except error.HTTPError as exc:
         response_body = exc.read().decode("utf-8", errors="ignore")
         if exc.code == 403 and "cloudfront" in response_body.lower():
@@ -200,6 +224,26 @@ def _json_request(path, method="GET", payload=None, params=None, tenant=None):
         ) from exc
     except error.URLError as exc:
         raise WooCommerceAPIError(f"Unable to reach WooCommerce API: {exc.reason}") from exc
+
+
+def _json_request(path, method="GET", payload=None, params=None, tenant=None):
+    _require_config(tenant=tenant)
+    try:
+        return _json_request_once(path, method=method, payload=payload, params=params, tenant=tenant)
+    except WooCommerceAPIError as exc:
+        if not _should_retry_with_query_auth(exc):
+            raise
+        try:
+            return _json_request_once(
+                path,
+                method=method,
+                payload=payload,
+                params=params,
+                tenant=tenant,
+                query_auth=True,
+            )
+        except WooCommerceAPIError as query_exc:
+            raise query_exc from exc
 
 
 def _json_request_for_tenant(path, method="GET", payload=None, params=None, tenant=None):
