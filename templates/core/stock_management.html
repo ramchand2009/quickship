@@ -16,7 +16,7 @@
                     </div>
                     <div class="col-md-4 text-md-end mt-3 mt-md-0">
                         <form method="get" class="d-inline-flex gap-2 align-items-center flex-wrap">
-                            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search name, SKU, barcode, SmartBiz ID">
+                            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Search name, SKU, barcode, WooCommerce ID">
                             <select name="category" class="form-select">
                                 <option value="">All categories</option>
                                 {% for category in product_categories %}
@@ -80,9 +80,9 @@
                         <div class="form-text">Use camera scan or USB barcode scanner for quick entry.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">SmartBiz Product/Variant ID</label>
+                        <label class="form-label">WooCommerce Product/Variation ID</label>
                         {{ product_form.smartbiz_product_id }}
-                        <div class="form-text">Map the SmartBiz internal product or variant ID from the product URL/order item so stock can match incoming orders.</div>
+                        <div class="form-text">Synced from WooCommerce so stock can match product and variation order items.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Product Image URL</label>
@@ -148,18 +148,18 @@
 
         <div class="card">
             <div class="card-header">
-                <h5>Bulk SmartBiz Mapping</h5>
+                <h5>Bulk WooCommerce ID Mapping</h5>
             </div>
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
                     <input type="hidden" name="form_action" value="bulk_map_smartbiz">
                     <div class="mb-3">
-                        <label class="form-label">Paste SKU and SmartBiz ID</label>
+                        <label class="form-label">Paste SKU and WooCommerce ID</label>
                         {{ mapping_form.mapping_text }}
-                        <div class="form-text">Use one line per product: <code>SKU,SmartBiz ID</code> or paste two columns from a spreadsheet.</div>
+                        <div class="form-text">Use one line per product: <code>SKU,WooCommerce ID</code> or paste two columns from a spreadsheet.</div>
                     </div>
-                    <button type="submit" class="btn btn-outline-primary" {% if not can_edit_operations %}disabled{% endif %}>Update SmartBiz Mapping</button>
+                    <button type="submit" class="btn btn-outline-primary" {% if not can_edit_operations %}disabled{% endif %}>Update WooCommerce Mapping</button>
                 </form>
             </div>
         </div>
@@ -170,7 +170,7 @@
             </div>
             <div class="card-body">
                 <p class="text-muted mb-3">
-                    Use this after adding SmartBiz mappings for products that already had accepted or completed orders.
+                    Use this after adding WooCommerce ID mappings for products that already had accepted or completed orders.
                     It backfills missing stock deductions once and skips orders that were already deducted.
                 </p>
                 <form method="post">
@@ -199,7 +199,7 @@
                                     <th>Product</th>
                                     <th>Category</th>
                                     <th>SKU</th>
-                                    <th>SmartBiz ID</th>
+                                    <th>WooCommerce ID</th>
                                     <th>Stock</th>
                                     <th>Threshold</th>
                                 </tr>
@@ -237,7 +237,7 @@
                                     <th>Name</th>
                                     <th>Category</th>
                                     <th>SKU</th>
-                                    <th>SmartBiz ID</th>
+                                    <th>WooCommerce ID</th>
                                     <th>Barcode</th>
                                 <th>Stock</th>
                                 <th>Threshold</th>

@@ -108,7 +108,7 @@ class ProductAdmin(admin.ModelAdmin):
         "name",
         "category_name",
         "sku",
-        "smartbiz_product_id",
+        "woocommerce_product_id",
         "barcode",
         "image_url",
         "actual_price",
@@ -134,6 +134,10 @@ class ProductAdmin(admin.ModelAdmin):
     @admin.display(description="Category")
     def category_name(self, obj):
         return obj.category_label or "-"
+
+    @admin.display(description="WooCommerce ID")
+    def woocommerce_product_id(self, obj):
+        return obj.smartbiz_product_id or "-"
 
 
 @admin.register(ProductCategory)

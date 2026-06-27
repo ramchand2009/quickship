@@ -3816,18 +3816,18 @@ def stock_management(request):
                         product.save(update_fields=["smartbiz_product_id", "updated_at"])
                         updated_count += 1
                 if updated_count:
-                    messages.success(request, f"Updated SmartBiz mapping for {updated_count} product(s).")
+                    messages.success(request, f"Updated WooCommerce ID mapping for {updated_count} product(s).")
                 if missing_skus:
                     messages.warning(request, f"SKU not found: {', '.join(missing_skus)}.")
                 if duplicate_ids:
                     messages.warning(
                         request,
-                        f"SmartBiz ID already mapped to another product: {', '.join(duplicate_ids)}.",
+                        f"WooCommerce ID already mapped to another product: {', '.join(duplicate_ids)}.",
                     )
                 if not updated_count and not missing_skus and not duplicate_ids:
-                    messages.info(request, "No SmartBiz mappings needed updating.")
+                    messages.info(request, "No WooCommerce ID mappings needed updating.")
                 return redirect(redirect_url)
-            messages.error(request, "Unable to apply bulk SmartBiz mappings. Check the pasted rows.")
+            messages.error(request, "Unable to apply bulk WooCommerce ID mappings. Check the pasted rows.")
         elif action == "sync_woocommerce_products":
             try:
                 woo_tenant = _woocommerce_call_tenant(active_tenant)

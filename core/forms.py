@@ -522,7 +522,7 @@ class ProductForm(forms.ModelForm):
         ]
         labels = {
             "category_master": "Category",
-            "smartbiz_product_id": "SmartBiz Product/Variant ID",
+            "smartbiz_product_id": "WooCommerce Product/Variation ID",
             "image_url": "Product Image URL",
             "stock_quantity": "Opening Stock",
             "reorder_level": "Low Stock Threshold",
@@ -539,7 +539,7 @@ class ProductForm(forms.ModelForm):
         self.fields["category_master"].widget.attrs["class"] = "form-select"
         self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
         self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
-        self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "06d3d905-2768-4f8c-8ce5-22c7fed3c54d"
+        self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "WooCommerce product or variation ID"
         self.fields["image_url"].widget.attrs["placeholder"] = "https://your-store.com/path/product-image.jpg"
         self.fields["name"].widget.attrs["placeholder"] = "Product name"
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
@@ -608,7 +608,7 @@ class StockAdjustmentForm(forms.Form):
         (ACTION_SET, "Set Exact Qty"),
     ]
 
-    lookup_value = forms.CharField(label="Barcode, SKU, or SmartBiz ID", max_length=160)
+    lookup_value = forms.CharField(label="Barcode, SKU, or WooCommerce ID", max_length=160)
     action = forms.ChoiceField(choices=ACTION_CHOICES)
     quantity = forms.IntegerField(min_value=0)
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
@@ -616,7 +616,7 @@ class StockAdjustmentForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["lookup_value"].widget.attrs["class"] = "form-control"
-        self.fields["lookup_value"].widget.attrs["placeholder"] = "Scan barcode or type SKU / SmartBiz ID"
+        self.fields["lookup_value"].widget.attrs["placeholder"] = "Scan barcode or type SKU / WooCommerce ID"
         self.fields["action"].widget.attrs["class"] = "form-select"
         self.fields["quantity"].widget.attrs["class"] = "form-control"
         self.fields["notes"].widget.attrs["class"] = "form-control"
@@ -624,29 +624,29 @@ class StockAdjustmentForm(forms.Form):
     def clean_lookup_value(self):
         value = str(self.cleaned_data.get("lookup_value") or "").strip()
         if not value:
-            raise forms.ValidationError("Scan or enter a barcode, SKU, or SmartBiz ID.")
+            raise forms.ValidationError("Scan or enter a barcode, SKU, or WooCommerce ID.")
         return value
 
 
 class BulkSmartbizMappingForm(forms.Form):
     mapping_text = forms.CharField(
-        label="Bulk SmartBiz Mapping",
+        label="Bulk WooCommerce ID Mapping",
         widget=forms.Textarea(attrs={"rows": 8}),
-        help_text="Paste one mapping per line in SKU,SmartBiz ID format.",
+        help_text="Paste one mapping per line in SKU,WooCommerce ID format.",
     )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["mapping_text"].widget.attrs["class"] = "form-control"
         self.fields["mapping_text"].widget.attrs["placeholder"] = (
-            "MTHKS01,06d3d905-2768-4f8c-8ce5-22c7fed3c54d\n"
-            "MTHKS02,smartbiz-second-id"
+            "EN-SERUM-1,123\n"
+            "MO-SOAP-1,456"
         )
 
     def clean_mapping_text(self):
         raw_value = str(self.cleaned_data.get("mapping_text") or "").strip()
         if not raw_value:
-            raise forms.ValidationError("Paste at least one SKU to SmartBiz ID mapping.")
+            raise forms.ValidationError("Paste at least one SKU to WooCommerce ID mapping.")
         return raw_value
 
     def parse_rows(self):
@@ -662,7 +662,7 @@ class BulkSmartbizMappingForm(forms.Form):
                 parts = [part.strip() for part in line.split(",") if str(part).strip()]
             if len(parts) < 2:
                 raise forms.ValidationError(
-                    f"Line {index} is invalid. Use SKU,SmartBiz ID or tab-separated values."
+                    f"Line {index} is invalid. Use SKU,WooCommerce ID or tab-separated values."
                 )
             rows.append({"sku": parts[0], "smartbiz_product_id": parts[1]})
         if not rows:

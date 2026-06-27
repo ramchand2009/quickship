@@ -2421,7 +2421,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertContains(response, "stock deducted for 1 SKU")
 
     @patch("core.views.enqueue_whatsapp_notification")
-    def test_accept_status_deducts_stock_by_matching_smartbiz_product_id(self, mock_enqueue_whatsapp_notification):
+    def test_accept_status_deducts_stock_by_matching_woocommerce_product_id(self, mock_enqueue_whatsapp_notification):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": False,
             "reason": "disabled",
@@ -2435,7 +2435,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
             reorder_level=2,
         )
         order = ShiprocketOrder.objects.create(
-            shiprocket_order_id="SR-STOCK-SMARTBIZ-1",
+            shiprocket_order_id="SR-STOCK-WOO-1",
             local_status=ShiprocketOrder.STATUS_NEW,
             order_items=[
                 {"sku": "06d3d905-2768-4f8c-8ce5-22c7fed3c54d", "quantity": 2},
@@ -7826,7 +7826,7 @@ class StockManagementViewTests(TestCase):
                 "name": "Amla Juice",
                 "category_master": category.pk,
                 "sku": "sku-create-1",
-                "smartbiz_product_id": "smartbiz-product-1",
+                "smartbiz_product_id": "101",
                 "barcode": "890000000010",
                 "stock_quantity": 14,
                 "reorder_level": 3,
@@ -7840,7 +7840,7 @@ class StockManagementViewTests(TestCase):
         self.assertEqual(product.category_master, category)
         self.assertEqual(product.category, "Herbal Drink")
         self.assertEqual(product.barcode, "890000000010")
-        self.assertEqual(product.smartbiz_product_id, "smartbiz-product-1")
+        self.assertEqual(product.smartbiz_product_id, "101")
         self.assertEqual(product.stock_quantity, 14)
         self.assertContains(response, "Saved product Amla Juice")
 
@@ -7929,10 +7929,10 @@ class StockManagementViewTests(TestCase):
         self.assertEqual(product.stock_quantity, 9)
         self.assertContains(response, "4 unit(s) added to Neem Powder")
 
-    def test_stock_management_can_adjust_stock_by_smartbiz_product_id(self):
+    def test_stock_management_can_adjust_stock_by_woocommerce_product_id(self):
         product = Product.objects.create(
-            name="SmartBiz Product",
-            sku="SKU-SMARTBIZ-1",
+            name="WooCommerce Product",
+            sku="SKU-WOO-1",
             smartbiz_product_id="06d3d905-2768-4f8c-8ce5-22c7fed3c54d",
             stock_quantity=7,
         )
@@ -7944,7 +7944,7 @@ class StockManagementViewTests(TestCase):
                 "lookup_value": "06d3d905-2768-4f8c-8ce5-22c7fed3c54d",
                 "action": StockAdjustmentForm.ACTION_ADD,
                 "quantity": 2,
-                "notes": "SmartBiz mapping lookup",
+                "notes": "WooCommerce mapping lookup",
             },
             follow=True,
         )
@@ -7952,9 +7952,9 @@ class StockManagementViewTests(TestCase):
         self.assertRedirects(response, reverse("stock_management"))
         product.refresh_from_db()
         self.assertEqual(product.stock_quantity, 9)
-        self.assertContains(response, "2 unit(s) added to SmartBiz Product")
+        self.assertContains(response, "2 unit(s) added to WooCommerce Product")
 
-    def test_stock_management_can_bulk_map_smartbiz_ids_by_sku(self):
+    def test_stock_management_can_bulk_map_woocommerce_ids_by_sku(self):
         first_product = Product.objects.create(
             name="Goat Milk Soap",
             sku="MTHKS01",
@@ -7972,7 +7972,7 @@ class StockManagementViewTests(TestCase):
                 "form_action": "bulk_map_smartbiz",
                 "mapping_text": (
                     "MTHKS01,06d3d905-2768-4f8c-8ce5-22c7fed3c54d\n"
-                    "MTHKS02\tsecond-smartbiz-id"
+                    "MTHKS02\t202"
                 ),
             },
             follow=True,
@@ -7982,8 +7982,8 @@ class StockManagementViewTests(TestCase):
         first_product.refresh_from_db()
         second_product.refresh_from_db()
         self.assertEqual(first_product.smartbiz_product_id, "06d3d905-2768-4f8c-8ce5-22c7fed3c54d")
-        self.assertEqual(second_product.smartbiz_product_id, "second-smartbiz-id")
-        self.assertContains(response, "Updated SmartBiz mapping for 2 product(s).")
+        self.assertEqual(second_product.smartbiz_product_id, "202")
+        self.assertContains(response, "Updated WooCommerce ID mapping for 2 product(s).")
 
     def test_stock_management_can_reconcile_missing_stock_deduction_for_accepted_order(self):
         product = Product.objects.create(
