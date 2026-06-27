@@ -295,7 +295,15 @@ class TenantFoundationTests(TestCase):
         self.assertFalse(self.user_model.objects.filter(username="existingvendoruser").exists())
 
     def test_short_signup_url_opens_vendor_registration(self):
-        response = self.client.get("/signup/")
+        self.assertEqual(reverse("signup"), "/signup/")
+
+        response = self.client.get(reverse("signup"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Business Name")
+        self.assertContains(response, "responsive-form-card")
+
+    def test_legacy_signup_url_still_opens_vendor_registration(self):
+        response = self.client.get("/accounts/signup/")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Business Name")
