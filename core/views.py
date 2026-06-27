@@ -1618,6 +1618,11 @@ def _apply_status_timestamps(order_obj):
     return order_obj
 
 
+def _is_woocommerce_config_missing_error(error_text):
+    text = str(error_text or "").strip().lower()
+    return "woocommerce credentials are missing" in text
+
+
 def _sync_woocommerce_status_for_order(order, *, previous_status="", actor="", request=None):
     if getattr(order, "source", "") != ShiprocketOrder.SOURCE_WOOCOMMERCE:
         return {"skipped": True, "reason": "not_woocommerce"}
@@ -1636,7 +1641,13 @@ def _sync_woocommerce_status_for_order(order, *, previous_status="", actor="", r
             triggered_by=actor,
         )
         if request is not None:
-            messages.warning(request, f"Order moved locally, but WooCommerce status sync failed: {exc}")
+            if _is_woocommerce_config_missing_error(exc):
+                messages.warning(
+                    request,
+                    "Order moved locally. WooCommerce status sync is not configured in shared platform settings.",
+                )
+            else:
+                messages.warning(request, f"Order moved locally, but WooCommerce status sync failed: {exc}")
         return {"skipped": False, "error": str(exc)}
 
     if result.get("skipped"):

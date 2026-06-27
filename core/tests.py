@@ -73,6 +73,7 @@ from .whatomate import (
 from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signature, _send_internal_webhook_test
 from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
 from .shiprocket import sync_orders
+from .woocommerce import WooCommerceAPIError
 from .woocommerce import import_order_payload as import_woocommerce_order_payload
 from .woocommerce import sync_orders as sync_woocommerce_orders
 from .woocommerce import sync_products as sync_woocommerce_products
@@ -1919,6 +1920,33 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
                 is_success=True,
             ).exists()
         )
+
+    @patch("core.views.update_woocommerce_order_status")
+    def test_missing_woocommerce_credentials_show_vendor_friendly_warning(self, mock_update_woocommerce_order_status):
+        mock_update_woocommerce_order_status.side_effect = WooCommerceAPIError(
+            "WooCommerce credentials are missing. Set WOOCOMMERCE_STORE_URL, "
+            "WOOCOMMERCE_CONSUMER_KEY, and WOOCOMMERCE_CONSUMER_SECRET."
+        )
+        order = ShiprocketOrder.objects.create(
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-9004",
+            woocommerce_order_id="9004",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        self.assertContains(response, "WooCommerce status sync is not configured in shared platform settings.")
+        self.assertNotContains(response, "WOOCOMMERCE_STORE_URL")
 
     @patch("core.views.update_woocommerce_order_status")
     @patch("core.views.enqueue_whatsapp_notification")
