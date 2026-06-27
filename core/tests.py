@@ -323,6 +323,21 @@ class TenantFoundationTests(TestCase):
             self.assertEqual(response.status_code, 200, url_name)
             self.assertContains(response, "Blue Lotus Vendor")
 
+    def test_vendor_mobile_bottom_nav_shows_logout_action(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("logout"))
+        self.assertContains(response, "Logout")
+        self.assertContains(response, "fa-sign-out-alt")
+
     def test_vendor_order_management_lists_only_active_tenant_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,

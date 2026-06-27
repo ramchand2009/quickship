@@ -19,4 +19,18 @@
         <span class="ops-mobile-bottomnav-icon"><i class="fas fa-wallet"></i></span>
         <span class="ops-mobile-bottomnav-label">Expenses</span>
     </a>
+    {% if request.user.is_authenticated %}
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit">
+                <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                <span class="ops-mobile-bottomnav-label">Logout</span>
+            </button>
+        </form>
+    {% else %}
+        <a href="{% url 'login' %}">
+            <span class="ops-mobile-bottomnav-icon"><i class="fas fa-sign-in-alt"></i></span>
+            <span class="ops-mobile-bottomnav-label">Login</span>
+        </a>
+    {% endif %}
 </div>
