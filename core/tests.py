@@ -294,6 +294,12 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "already exists")
         self.assertFalse(self.user_model.objects.filter(username="existingvendoruser").exists())
 
+    def test_short_signup_url_opens_vendor_registration(self):
+        response = self.client.get("/signup/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Business Name")
+
     def test_vendor_order_management_lists_only_active_tenant_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,

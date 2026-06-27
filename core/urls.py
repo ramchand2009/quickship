@@ -154,5 +154,6 @@ urlpatterns = [
         name="login",
     ),
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
+    path("signup/", signup, name="signup_short"),
     path("accounts/signup/", signup, name="signup"),
 ]
