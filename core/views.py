@@ -2210,6 +2210,7 @@ def _build_orders_dashboard_context(request):
     return context
 
 
+@login_required
 def home(request):
     context = _build_orders_dashboard_context(request)
     if context["ops_mobile_mode"]:
@@ -2217,6 +2218,7 @@ def home(request):
     return render(request, "core/home.html", context)
 
 
+@login_required
 def order_management(request):
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
     can_sync_orders = _can_sync_orders(getattr(request, "user", None))

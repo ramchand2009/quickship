@@ -248,6 +248,30 @@ class TenantFoundationTests(TestCase):
 
         self.assertRedirects(response, reverse("home"), fetch_redirect_response=False)
 
+    def test_logout_redirects_to_login_page(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(reverse("logout"))
+
+        self.assertRedirects(response, reverse("login"), fetch_redirect_response=False)
+
+    def test_home_requires_login(self):
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response.url)
+
+    def test_order_management_requires_login(self):
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response.url)
+
     def test_signup_creates_vendor_tenant_owner_and_default_settings(self):
         response = self.client.post(
             reverse("signup"),

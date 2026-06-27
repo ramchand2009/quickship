@@ -233,7 +233,7 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 LOGIN_REDIRECT_URL = "home"
-LOGOUT_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"
 
 SHIPROCKET_BASE_URL = os.environ.get("SHIPROCKET_BASE_URL", "https://apiv2.shiprocket.in/v1/external")
 SHIPROCKET_EMAIL = os.environ.get("SHIPROCKET_EMAIL", "")
