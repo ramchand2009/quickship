@@ -715,8 +715,10 @@ def _normalized_product_row(product, *, parent_product=None):
 
 
 def _apply_product_row(product, row):
-    category = _get_or_create_product_category(row.get("category"), tenant=getattr(product, "tenant", None))
+    target_tenant = row.get("tenant") or getattr(product, "tenant", None)
+    category = _get_or_create_product_category(row.get("category"), tenant=target_tenant)
     defaults = {
+        "tenant": target_tenant,
         "name": row.get("name") or product.sku,
         "category": row.get("category") or "",
         "category_master": category,
@@ -743,10 +745,7 @@ def _get_or_create_product_category(name, tenant=None):
     category_name = str(name or "").strip()
     if not category_name:
         return None
-    queryset = ProductCategory.objects.all()
-    if tenant is not None:
-        queryset = queryset.filter(tenant=tenant)
-    existing = queryset.filter(name__iexact=category_name).first()
+    existing = ProductCategory.objects.filter(name__iexact=category_name).first()
     if existing:
         return existing
     create_kwargs = {"name": category_name, "is_active": True}
@@ -762,17 +761,13 @@ def _sync_product_row(row, tenant=None):
     if not sku or not external_id:
         return "skipped"
 
-    product_queryset = Product.objects.all()
-    if tenant is not None:
-        product_queryset = product_queryset.filter(tenant=tenant)
-
-    product = product_queryset.filter(sku=sku).first()
+    product = Product.objects.filter(sku=sku).first()
     if not product:
-        product = product_queryset.filter(smartbiz_product_id__iexact=external_id).first()
+        product = Product.objects.filter(smartbiz_product_id__iexact=external_id).first()
 
-    if product and product.sku != sku and product_queryset.filter(sku=sku).exclude(pk=product.pk).exists():
+    if product and product.sku != sku and Product.objects.filter(sku=sku).exclude(pk=product.pk).exists():
         return "skipped"
-    if product and product_queryset.filter(smartbiz_product_id__iexact=external_id).exclude(pk=product.pk).exists():
+    if product and Product.objects.filter(smartbiz_product_id__iexact=external_id).exclude(pk=product.pk).exists():
         return "skipped"
 
     if not product:

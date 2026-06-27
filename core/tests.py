@@ -1206,6 +1206,93 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(product.tenant, vendor_tenant)
         self.assertEqual(product.category_master.tenant, vendor_tenant)
 
+    @patch("core.woocommerce._json_request")
+    def test_sync_products_assigns_tenants_from_sku_prefix_mapping(self, mock_json_request):
+        en_tenant = Tenant.objects.create(name="Enquirechat", slug="enquirechat")
+        mo_tenant = Tenant.objects.create(name="Mathukai Organic", slug="mathukai-organic")
+        WooCommerceSettings.objects.create(
+            store_url="https://shared-products.example.com",
+            consumer_key="ck_shared",
+            consumer_secret="cs_shared",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=en_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="EN-",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=mo_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="MO-",
+        )
+        mock_json_request.return_value = [
+            {
+                "id": 2101,
+                "name": "EN Serum",
+                "type": "simple",
+                "status": "publish",
+                "sku": "EN-SERUM-1",
+                "stock_quantity": 8,
+                "images": [],
+            },
+            {
+                "id": 2201,
+                "name": "MO Soap",
+                "type": "simple",
+                "status": "publish",
+                "sku": "MO-SOAP-1",
+                "stock_quantity": 14,
+                "images": [],
+            },
+        ]
+
+        summary = sync_woocommerce_products()
+
+        self.assertEqual(summary["created"], 2)
+        self.assertEqual(Product.objects.get(sku="EN-SERUM-1").tenant, en_tenant)
+        self.assertEqual(Product.objects.get(sku="MO-SOAP-1").tenant, mo_tenant)
+
+    @patch("core.woocommerce._json_request")
+    def test_sync_products_moves_existing_product_to_sku_prefix_tenant(self, mock_json_request):
+        default_tenant = Tenant.get_default()
+        en_tenant = Tenant.objects.create(name="Enquirechat", slug="enquirechat")
+        WooCommerceSettings.objects.create(
+            store_url="https://shared-products.example.com",
+            consumer_key="ck_shared",
+            consumer_secret="cs_shared",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=en_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="EN-",
+        )
+        Product.objects.create(
+            tenant=default_tenant,
+            name="Old EN Serum",
+            sku="EN-SERUM-2",
+            smartbiz_product_id="2301",
+            stock_quantity=1,
+        )
+        mock_json_request.return_value = [
+            {
+                "id": 2301,
+                "name": "Updated EN Serum",
+                "type": "simple",
+                "status": "publish",
+                "sku": "EN-SERUM-2",
+                "stock_quantity": 11,
+                "images": [],
+            },
+        ]
+
+        summary = sync_woocommerce_products()
+
+        self.assertEqual(summary["updated"], 1)
+        product = Product.objects.get(sku="EN-SERUM-2")
+        self.assertEqual(product.tenant, en_tenant)
+        self.assertEqual(product.name, "Updated EN Serum")
+        self.assertEqual(product.stock_quantity, 11)
+
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
         WOOCOMMERCE_CONSUMER_KEY="ck_test",
