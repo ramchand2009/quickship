@@ -178,7 +178,15 @@ def _json_request(path, method="GET", payload=None, params=None, tenant=None):
     try:
         with request.urlopen(req, timeout=30) as response:
             raw_body = response.read().decode("utf-8")
-            return json.loads(raw_body) if raw_body else {}
+            try:
+                return json.loads(raw_body) if raw_body else {}
+            except json.JSONDecodeError as exc:
+                detail = "CloudFront returned a non-JSON page instead of the WooCommerce REST API."
+                if "cloudfront" not in raw_body.lower():
+                    detail = "WooCommerce returned a non-JSON response instead of REST API data."
+                raise WooCommerceAPIError(
+                    f"{detail} Check the Store URL and CDN/WAF rules for /wp-json/wc/v3/."
+                ) from exc
     except error.HTTPError as exc:
         response_body = exc.read().decode("utf-8", errors="ignore")
         if exc.code == 403 and "cloudfront" in response_body.lower():
