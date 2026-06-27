@@ -42,20 +42,7 @@ def summarize_order_items_by_product(order):
             continue
         product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
         if not product:
-            missing_identifier = (
-                normalize_channel_product_id(
-                    item.get("smartbiz_product_id")
-                    or item.get("channel_product_id")
-                    or item.get("product_id")
-                    or item.get("variant_id")
-                    or item.get("id")
-                    or item.get("sku")
-                    or item.get("channel_sku")
-                )
-                or item.get("name")
-                or "Unknown item"
-            )
-            missing_identifiers.append(str(missing_identifier))
+            missing_identifiers.append(str(_missing_order_item_identifier(item)))
             continue
         product_totals[product.pk] += quantity
         if matched_identifier and matched_identifier not in matched_identifiers[product.pk]:
@@ -132,6 +119,37 @@ def _to_profit_decimal(value):
         return Decimal("0.00")
 
 
+def _order_item_identifier_candidates(item):
+    if not isinstance(item, dict):
+        return []
+    candidates = [
+        item.get("variant_id"),
+        item.get("variation_id"),
+        item.get("smartbiz_product_id"),
+        item.get("channel_product_id"),
+        item.get("product_id"),
+        item.get("id"),
+    ]
+    normalized = []
+    for value in candidates:
+        candidate = normalize_channel_product_id(value)
+        if candidate and candidate not in normalized:
+            normalized.append(candidate)
+    return normalized
+
+
+def _missing_order_item_identifier(item):
+    candidates = _order_item_identifier_candidates(item)
+    if candidates:
+        return candidates[0]
+    return (
+        normalize_sku(item.get("sku"))
+        or normalize_sku(item.get("channel_sku"))
+        or str(item.get("name") or "").strip()
+        or "Unknown item"
+    )
+
+
 def summarize_order_profit(order):
     items = order.order_items if isinstance(order.order_items, list) else []
     revenue_total = Decimal("0.00")
@@ -161,20 +179,7 @@ def summarize_order_profit(order):
 
         product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
         if not product:
-            missing_identifier = (
-                normalize_channel_product_id(
-                    item.get("smartbiz_product_id")
-                    or item.get("channel_product_id")
-                    or item.get("product_id")
-                    or item.get("variant_id")
-                    or item.get("id")
-                    or item.get("sku")
-                    or item.get("channel_sku")
-                )
-                or item.get("name")
-                or "Unknown item"
-            )
-            missing_identifiers.append(str(missing_identifier))
+            missing_identifiers.append(str(_missing_order_item_identifier(item)))
             continue
 
         matched_item_count += 1
@@ -223,23 +228,10 @@ def build_packing_scan_requirements(order):
 
         product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
         if not product:
-            unmatched_identifier = (
-                normalize_channel_product_id(
-                    item.get("smartbiz_product_id")
-                    or item.get("channel_product_id")
-                    or item.get("product_id")
-                    or item.get("variant_id")
-                    or item.get("id")
-                    or item.get("sku")
-                    or item.get("channel_sku")
-                )
-                or str(item.get("name") or "").strip()
-                or "Unknown item"
-            )
             unmatched_items.append(
                 {
                     "name": str(item.get("name") or "Unknown item").strip(),
-                    "identifier": str(unmatched_identifier).strip(),
+                    "identifier": str(_missing_order_item_identifier(item)).strip(),
                     "quantity": quantity,
                 }
             )
@@ -411,17 +403,16 @@ def find_product_for_order_item(item, tenant=None):
         if product:
             return product, channel_sku
 
-    smartbiz_product_id = normalize_channel_product_id(
-        item.get("smartbiz_product_id")
-        or item.get("channel_product_id")
-        or item.get("product_id")
-        or item.get("variant_id")
-        or item.get("id")
-    )
-    if smartbiz_product_id:
-        product = queryset.filter(smartbiz_product_id__iexact=smartbiz_product_id).first()
+    for identifier in _order_item_identifier_candidates(item):
+        product = queryset.filter(smartbiz_product_id__iexact=identifier).first()
         if product:
-            return product, smartbiz_product_id
+            return product, identifier
+        product = queryset.filter(woocommerce_variation_id__iexact=identifier).first()
+        if product:
+            return product, identifier
+        product = queryset.filter(woocommerce_product_id__iexact=identifier, woocommerce_variation_id="").first()
+        if product:
+            return product, identifier
 
     if sku:
         product = queryset.filter(smartbiz_product_id__iexact=sku).first()

@@ -2289,6 +2289,39 @@ class ShiprocketOrderProfitTests(TestCase):
         self.assertEqual(str(summary["actual_cost_total"]), "80.00")
         self.assertEqual(str(summary["profit_amount"]), "100.00")
 
+    def test_order_profit_matches_woocommerce_variation_id_before_parent_product_id(self):
+        tenant = Tenant.objects.create(name="Profit Vendor", slug="profit-vendor")
+        Product.objects.create(
+            tenant=tenant,
+            name="Variant Lip Balm",
+            sku="EN-LIP-300",
+            actual_price="40.00",
+            woocommerce_product_id="12",
+            woocommerce_variation_id="300",
+        )
+        order = ShiprocketOrder.objects.create(
+            tenant=tenant,
+            shiprocket_order_id="SR-PROFIT-WOO-VARIATION-1",
+            order_items=[
+                {
+                    "name": "Variant Lip Balm",
+                    "sku": "",
+                    "channel_product_id": "12",
+                    "variant_id": "300",
+                    "quantity": 2,
+                    "price": "90.00",
+                },
+            ],
+        )
+
+        summary = summarize_order_profit(order)
+
+        self.assertTrue(summary["is_complete"])
+        self.assertEqual(str(summary["revenue_total"]), "180.00")
+        self.assertEqual(str(summary["actual_cost_total"]), "80.00")
+        self.assertEqual(str(summary["profit_amount"]), "100.00")
+        self.assertEqual(summary["missing_identifiers"], [])
+
 
 class LoginRateLimitTests(TestCase):
     def setUp(self):
