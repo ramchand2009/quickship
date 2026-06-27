@@ -23,15 +23,15 @@
     <link rel="stylesheet" href="{% static 'css/site.css' %}?v=20260320-6">
     {% block extrastyle %}{% endblock %}
 </head>
-{% with current=request.resolver_match.url_name %}
+{% with current=request.resolver_match.url_name brand_name=active_tenant.name|default:"Mathukai" %}
 <body class="{% if current == 'login' or current == 'signup' %}auth-wrapper{% endif %}{% if viewer_order_management_only and current == 'home' or viewer_order_management_only and current == 'order_management' or viewer_order_management_only and current == 'order_detail' or viewer_order_management_only and current == 'stock_management' or viewer_order_management_only and current == 'special_stock_issue_register' or viewer_order_management_only and current == 'expense_tracker' %} no-sidebar-layout ops-mobile-layout{% endif %}">
     {% if current != "login" and current != "signup" %}
         <nav class="pcoded-navbar menupos-fixed navbar-dark brand-dark">
             <div class="navbar-wrapper">
                 <div class="navbar-brand header-logo">
                     <a href="{% url 'home' %}" class="b-brand custom-brand">
-                        <img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="Mathukai Logo" class="brand-logo-img" width="34" height="34" style="width:34px;height:34px;max-width:34px;min-width:34px;object-fit:contain;">
-                        <span class="b-title">Mathukai</span>
+                        <img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="{{ brand_name }} Logo" class="brand-logo-img" width="34" height="34" style="width:34px;height:34px;max-width:34px;min-width:34px;object-fit:contain;">
+                        <span class="b-title">{{ brand_name }}</span>
                     </a>
                     <a class="mobile-menu" id="mobile-collapse" href="#!"><span></span></a>
                 </div>
@@ -173,8 +173,8 @@
             <div class="m-header">
                 <a class="mobile-menu" id="mobile-collapse1" href="#!"><span></span></a>
                 <a href="{% url 'home' %}" class="b-brand custom-brand">
-                    <img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="Mathukai Logo" class="brand-logo-img" width="34" height="34" style="width:34px;height:34px;max-width:34px;min-width:34px;object-fit:contain;">
-                    <span class="b-title">Mathukai</span>
+                    <img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="{{ brand_name }} Logo" class="brand-logo-img" width="34" height="34" style="width:34px;height:34px;max-width:34px;min-width:34px;object-fit:contain;">
+                    <span class="b-title">{{ brand_name }}</span>
                 </a>
             </div>
             <a class="mobile-menu" id="mobile-header" href="#!">

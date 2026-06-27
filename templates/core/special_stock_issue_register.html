@@ -41,7 +41,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
             <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
-            <h1>Mathukai</h1>
+            <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
             <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
         </div>
     </div>

@@ -314,14 +314,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
             <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
-            <h1>Mathukai</h1>
+            <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
             <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
         </div>
     </div>
 
     <div class="ops-home-header">
         <div class="ops-home-eyebrow">Dashboard Overview</div>
-        <h2 class="ops-home-title">Welcome back, Admin</h2>
+        <h2 class="ops-home-title">Welcome back, {{ request.user.first_name|default:request.user.username|default:"Admin" }}</h2>
         <p>Live order status and stock overview.</p>
     </div>
 

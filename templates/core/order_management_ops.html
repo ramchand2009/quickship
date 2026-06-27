@@ -858,8 +858,8 @@
                 <button type="submit" class="ops-desktop-logout-btn">Logout</button>
             </form>
             <div class="ops-desktop-brand">
-                <span class="ops-desktop-brand-mark">MO</span>
-                <span class="ops-desktop-brand-name">Mathukai Organic</span>
+                <span class="ops-desktop-brand-mark">{{ active_tenant.name|default:"MO"|slice:":2"|upper }}</span>
+                <span class="ops-desktop-brand-name">{{ active_tenant.name|default:"Mathukai Organic" }}</span>
             </div>
         </div>
 
@@ -1127,7 +1127,7 @@
         <div class="ops-mobile-topbar">
             <div class="ops-mobile-topbar-row">
                 <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
-                <h1>Mathukai</h1>
+                <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
                 {% if can_sync_orders %}
                     <form method="post" action="{% url 'sync_orders' %}">
                         {% csrf_token %}

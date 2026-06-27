@@ -124,7 +124,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
             <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
-            <h1>Quickship</h1>
+            <h1>{{ active_tenant.name|default:"Quickship" }}</h1>
             <div class="ops-stock-topbar-actions">
                 <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
                 <span class="ops-stock-profile-dot"><i class="fas fa-user-friends"></i></span>

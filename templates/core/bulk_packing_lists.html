@@ -188,7 +188,7 @@
                         </div>
                     </div>
                     <div class="meta">
-                        <p><strong>Seller:</strong> {{ sender.name|default:"Mathukai Organic" }}</p>
+                        <p><strong>Seller:</strong> {{ sender.name|default:active_tenant.name|default:"Mathukai Organic" }}</p>
                         <p><strong>Phone:</strong> {{ sender.phone|default:"-" }}</p>
                     </div>
                 </div>

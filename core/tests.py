@@ -308,6 +308,21 @@ class TenantFoundationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Business Name")
 
+    def test_vendor_mobile_pages_show_active_tenant_brand_name(self):
+        brand_tenant = Tenant.objects.create(name="Blue Lotus Vendor", slug="blue-lotus-vendor")
+        TenantMembership.objects.create(
+            tenant=brand_tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        Product.objects.create(tenant=brand_tenant, name="Blue Product", sku="BLUE-1")
+        self.client.force_login(self.vendor_user)
+
+        for url_name in ["order_management", "home", "stock_management", "expense_tracker", "special_stock_issue_register"]:
+            response = self.client.get(reverse(url_name))
+            self.assertEqual(response.status_code, 200, url_name)
+            self.assertContains(response, "Blue Lotus Vendor")
+
     def test_vendor_order_management_lists_only_active_tenant_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
