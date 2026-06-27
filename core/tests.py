@@ -382,7 +382,7 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "import mapped WooCommerce products")
 
     @patch("core.views.sync_woocommerce_products")
-    def test_vendor_stock_sync_falls_back_to_order_items_when_shared_woocommerce_missing(self, mock_sync_products):
+    def test_vendor_stock_sync_does_not_create_from_order_items_when_shared_woocommerce_missing(self, mock_sync_products):
         mock_sync_products.side_effect = WooCommerceAPIError(
             "WooCommerce credentials are missing. Set WOOCOMMERCE_STORE_URL, "
             "WOOCOMMERCE_CONSUMER_KEY, and WOOCOMMERCE_CONSUMER_SECRET."
@@ -421,15 +421,13 @@ class TenantFoundationTests(TestCase):
             follow=True,
         )
 
-        product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="300")
-        self.assertEqual(product.name, "Tenant Woo Product")
-        self.assertEqual(product.sku, "ENQ-300")
-        self.assertEqual(product.stock_quantity, 0)
-        self.assertContains(response, "Created local stock products from this vendor")
-        self.assertNotContains(response, "WOOCOMMERCE_STORE_URL")
+        self.assertFalse(Product.objects.filter(tenant=self.mathukai, smartbiz_product_id="300").exists())
+        self.assertContains(response, "WooCommerce product sync failed")
+        self.assertContains(response, "Full WooCommerce product sync uses the shared platform connection")
+        self.assertNotContains(response, "Created local stock products from this vendor")
 
     @patch("core.views.sync_woocommerce_products")
-    def test_vendor_stock_sync_falls_back_to_order_items_when_woocommerce_product_api_blocked(self, mock_sync_products):
+    def test_vendor_stock_sync_does_not_create_from_order_items_when_woocommerce_product_api_blocked(self, mock_sync_products):
         mock_sync_products.side_effect = WooCommerceAPIError(
             "CloudFront returned a non-JSON page instead of the WooCommerce REST API."
         )
@@ -466,12 +464,11 @@ class TenantFoundationTests(TestCase):
             follow=True,
         )
 
-        product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="409")
-        self.assertEqual(product.sku, "ENQ-409")
-        self.assertContains(response, "Created local stock products from this vendor")
-        self.assertContains(response, "Full WooCommerce product sync is unavailable right now")
+        self.assertFalse(Product.objects.filter(tenant=self.mathukai, smartbiz_product_id="409").exists())
+        self.assertContains(response, "WooCommerce product sync failed")
+        self.assertNotContains(response, "Created local stock products from this vendor")
 
-    def test_vendor_stock_page_auto_creates_products_from_existing_woocommerce_orders(self):
+    def test_vendor_stock_page_does_not_auto_create_products_from_existing_woocommerce_orders(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
             user=self.vendor_user,
@@ -501,10 +498,10 @@ class TenantFoundationTests(TestCase):
 
         response = self.client.get(reverse("stock_management"))
 
-        product = Product.objects.get(tenant=self.mathukai, smartbiz_product_id="300")
-        self.assertEqual(product.sku, "ENQ-300")
-        self.assertContains(response, "Auto Created Woo Product")
-        self.assertContains(response, "Created local stock products from this vendor")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Product.objects.filter(tenant=self.mathukai, smartbiz_product_id="300").exists())
+        self.assertNotContains(response, "Auto Created Woo Product")
+        self.assertNotContains(response, "Created local stock products from this vendor")
 
     def test_vendor_stock_page_does_not_create_product_without_matching_sku_prefix(self):
         TenantMembership.objects.create(
