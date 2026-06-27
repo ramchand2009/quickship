@@ -628,6 +628,17 @@ def _scope_queryset_to_active_tenant(request, queryset, tenant_field="tenant"):
     return queryset.filter(**{tenant_field: tenant})
 
 
+def _product_category_form_queryset(request, product=None):
+    queryset = _scope_queryset_to_active_tenant(
+        request,
+        ProductCategory.objects.filter(is_active=True),
+    )
+    current_category_id = getattr(product, "category_master_id", None)
+    if current_category_id:
+        queryset = queryset | ProductCategory.objects.filter(pk=current_category_id)
+    return queryset.distinct().order_by("name")
+
+
 def _can_access_tenant_owned_object(request, obj):
     if not _should_scope_to_active_tenant(request):
         return True
@@ -3696,10 +3707,7 @@ def stock_management(request):
         return redirect("stock_management")
 
     product_form = ProductForm(instance=edit_product)
-    product_form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
-        request,
-        ProductCategory.objects.filter(is_active=True),
-    ).order_by("name")
+    product_form.fields["category_master"].queryset = _product_category_form_queryset(request, edit_product)
     stock_form = StockAdjustmentForm()
     mapping_form = BulkSmartbizMappingForm()
 
@@ -3722,10 +3730,7 @@ def stock_management(request):
                 else None
             )
             product_form = ProductForm(request.POST, instance=instance)
-            product_form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
-                request,
-                ProductCategory.objects.filter(is_active=True),
-            ).order_by("name")
+            product_form.fields["category_master"].queryset = _product_category_form_queryset(request, instance)
             if product_form.is_valid():
                 product = product_form.save(commit=False)
                 if active_tenant is not None and not product.pk:
@@ -3976,10 +3981,7 @@ def stock_product_detail(request, pk):
             pass
 
     form = ProductDetailUpdateForm(request.POST or None, instance=product)
-    form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
-        request,
-        ProductCategory.objects.filter(is_active=True),
-    ).order_by("name")
+    form.fields["category_master"].queryset = _product_category_form_queryset(request, product)
     if request.method == "POST":
         if form.is_valid():
             product = form.save()
@@ -4098,10 +4100,7 @@ def stock_product_section(request, pk, section):
             upload_error = str(exc)
             messages.error(request, upload_error)
     form = ProductDetailUpdateForm(form_data, instance=product)
-    form.fields["category_master"].queryset = _scope_queryset_to_active_tenant(
-        request,
-        ProductCategory.objects.filter(is_active=True),
-    ).order_by("name")
+    form.fields["category_master"].queryset = _product_category_form_queryset(request, product)
     if upload_error:
         form.add_error("image_url", upload_error)
     if request.method == "POST":
@@ -4121,10 +4120,7 @@ def stock_product_section(request, pk, section):
             return redirect("stock_product_section", pk=product.pk, section=section)
         messages.error(request, "Unable to save product. Check the product fields.")
 
-    product_categories = _scope_queryset_to_active_tenant(
-        request,
-        ProductCategory.objects.filter(is_active=True),
-    ).order_by("name")
+    product_categories = _product_category_form_queryset(request, product)
     section_titles = {
         "description": "Description",
         "images": "Product image",

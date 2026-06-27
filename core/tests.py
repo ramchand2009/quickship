@@ -640,6 +640,43 @@ class TenantFoundationTests(TestCase):
         self.assertEqual(own_product.stock_quantity, 7)
         self.assertTrue(StockMovement.objects.filter(product=own_product, tenant=self.mathukai).exists())
 
+    @patch("core.views.update_woocommerce_product")
+    def test_vendor_can_update_section_when_current_category_is_outside_tenant_choices(self, mock_update_product):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        imported_category = ProductCategory.objects.create(
+            tenant=self.other_tenant,
+            name="Imported Woo Category",
+            is_active=True,
+        )
+        product = Product.objects.create(
+            tenant=self.mathukai,
+            name="Mapped Woo Product",
+            sku="EN-300",
+            category_master=imported_category,
+            smartbiz_product_id="300",
+            woocommerce_product_id="300",
+            stock_quantity=4,
+            is_active=True,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("stock_product_section", args=[product.pk, "description"]),
+            {"description": "Updated vendor description."},
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(product.description, "Updated vendor description.")
+        self.assertEqual(product.category_master, imported_category)
+        self.assertContains(response, "Updated Mapped Woo Product locally and in WooCommerce.")
+        mock_update_product.assert_called_once()
+
     def test_vendor_expense_tracker_lists_and_creates_only_active_tenant_expenses(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
