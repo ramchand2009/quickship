@@ -747,6 +747,13 @@ class SuperAdminTenantViewTests(TestCase):
         )
         Product.objects.create(tenant=self.tenant, name="Tenant Product", sku="TENANT-ADMIN-1")
         Product.objects.create(tenant=self.other_tenant, name="Other Product", sku="TENANT-ADMIN-2")
+        Product.objects.create(
+            tenant=self.other_tenant,
+            name="Unmapped Product",
+            sku="NO-RULE-1",
+            actual_price="20.00",
+            woocommerce_product_id="900",
+        )
         ShiprocketOrder.objects.create(
             tenant=self.tenant,
             shiprocket_order_id="SR-TENANT-ADMIN-1",
@@ -760,6 +767,15 @@ class SuperAdminTenantViewTests(TestCase):
             local_status=ShiprocketOrder.STATUS_CANCELLED,
             customer_name="Other Customer",
             total="900.00",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.tenant,
+            shiprocket_order_id="SR-TENANT-MISSING-MAP-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Missing Mapping Customer",
+            order_items=[
+                {"name": "Unknown Woo Item", "sku": "UNKNOWN-1", "quantity": 1, "price": "100.00"},
+            ],
         )
         WooCommerceSettings.objects.create(
             store_url="https://vendor.example",
@@ -805,6 +821,24 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "SKU Prefix")
         self.assertContains(response, "TENANT-")
         self.assertContains(response, "WhatsApp")
+
+    def test_super_admin_can_view_tenant_mapping_health(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("tenant_mapping_health"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tenant Mapping Health")
+        self.assertContains(response, "Vendor Mapping Summary")
+        self.assertContains(response, "Vendor Workspace")
+        self.assertContains(response, "TENANT-")
+        self.assertContains(response, "Products Missing Actual Price")
+        self.assertContains(response, "Tenant Product")
+        self.assertContains(response, "Unmapped Products")
+        self.assertContains(response, "Unmapped Product")
+        self.assertContains(response, "Orders Missing Product Mapping")
+        self.assertContains(response, "SR-TENANT-MISSING-MAP-1")
+        self.assertContains(response, "UNKNOWN-1")
 
     def test_super_admin_can_create_mapping_rule_from_tenant_detail(self):
         self.client.force_login(self.super_user)
@@ -903,21 +937,27 @@ class SuperAdminTenantViewTests(TestCase):
 
         list_response = self.client.get(reverse("tenant_list"))
         detail_response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
+        mapping_health_response = self.client.get(reverse("tenant_mapping_health"))
 
         self.assertEqual(list_response.status_code, 302)
         self.assertIn(reverse("order_management"), list_response.url)
         self.assertEqual(detail_response.status_code, 302)
         self.assertIn(reverse("order_management"), detail_response.url)
+        self.assertEqual(mapping_health_response.status_code, 302)
+        self.assertIn(reverse("order_management"), mapping_health_response.url)
 
     def test_tenant_link_only_shows_for_super_admin_sidebar(self):
         self.client.force_login(self.super_user)
         super_response = self.client.get(reverse("home"))
         self.assertContains(super_response, reverse("tenant_list"))
+        self.assertContains(super_response, reverse("tenant_mapping_health"))
         self.assertContains(super_response, "Tenants")
+        self.assertContains(super_response, "Mapping Health")
 
         self.client.force_login(self.vendor_user)
         vendor_response = self.client.get(reverse("order_management"))
         self.assertNotContains(vendor_response, reverse("tenant_list"))
+        self.assertNotContains(vendor_response, reverse("tenant_mapping_health"))
 
 
 class ShiprocketSyncTests(TestCase):

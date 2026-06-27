@@ -4794,6 +4794,146 @@ def _tenant_summary_row(tenant):
     }
 
 
+def _tenant_mapping_rule_label(rule):
+    return f"{rule.get_match_type_display()}: {rule.match_value}"
+
+
+def _product_mapping_rule_matches(product, rule):
+    match_value = str(rule.match_value or "").strip()
+    if not match_value:
+        return False
+    if rule.match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX:
+        return str(product.sku or "").upper().startswith(match_value.upper())
+    if rule.match_type == TenantWooCommerceMappingRule.MATCH_PRODUCT_ID:
+        normalized_value = str(match_value).strip()
+        identifiers = [
+            product.smartbiz_product_id,
+            product.woocommerce_product_id,
+            product.woocommerce_variation_id,
+        ]
+        return any(str(identifier or "").strip() == normalized_value for identifier in identifiers)
+    if rule.match_type == TenantWooCommerceMappingRule.MATCH_CATEGORY:
+        category_names = [
+            product.category,
+            getattr(getattr(product, "category_master", None), "name", ""),
+        ]
+        return any(str(category or "").strip().lower() == match_value.lower() for category in category_names)
+    return False
+
+
+def _matching_mapping_rules_for_product(product, active_rules):
+    return [rule for rule in active_rules if _product_mapping_rule_matches(product, rule)]
+
+
+@login_required
+def tenant_mapping_health(request):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    tenants = list(
+        Tenant.objects.select_related("owner")
+        .prefetch_related("woocommerce_mapping_rules")
+        .order_by("name", "slug")
+    )
+    active_rules = list(
+        TenantWooCommerceMappingRule.objects.select_related("tenant")
+        .filter(is_active=True, tenant__is_active=True)
+        .order_by("tenant__name", "match_type", "match_value")
+    )
+    products = list(Product.objects.select_related("tenant", "category_master").order_by("tenant__name", "sku", "name"))
+
+    tenant_rows = []
+    total_missing_cost = 0
+    for tenant in tenants:
+        tenant_products = [product for product in products if product.tenant_id == tenant.pk]
+        tenant_rules = [rule for rule in active_rules if rule.tenant_id == tenant.pk]
+        missing_cost_products = [product for product in tenant_products if product.actual_price is None]
+        total_missing_cost += len(missing_cost_products)
+        tenant_rows.append(
+            {
+                "tenant": tenant,
+                "rules": tenant_rules,
+                "rule_count": len(tenant_rules),
+                "sku_prefix_rules": [
+                    rule.match_value
+                    for rule in tenant_rules
+                    if rule.match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX
+                ],
+                "product_count": len(tenant_products),
+                "order_count": tenant.orders.count(),
+                "open_order_count": tenant.orders.exclude(
+                    local_status__in=[
+                        ShiprocketOrder.STATUS_COMPLETED,
+                        ShiprocketOrder.STATUS_CANCELLED,
+                    ]
+                ).count(),
+                "missing_cost_count": len(missing_cost_products),
+                "missing_cost_products": missing_cost_products[:8],
+            }
+        )
+
+    unmapped_products = []
+    mapped_product_count = 0
+    multi_rule_products = []
+    for product in products:
+        matches = _matching_mapping_rules_for_product(product, active_rules)
+        if matches:
+            mapped_product_count += 1
+            if len(matches) > 1:
+                multi_rule_products.append(
+                    {
+                        "product": product,
+                        "rules": matches,
+                        "rule_labels": [_tenant_mapping_rule_label(rule) for rule in matches],
+                    }
+                )
+            continue
+        unmapped_products.append(product)
+
+    orders_with_missing_mapping = []
+    for order in ShiprocketOrder.objects.select_related("tenant").defer("raw_payload").order_by("-order_date", "-updated_at", "-created_at"):
+        stock_summary = summarize_order_stock_availability(order)
+        missing_identifiers = stock_summary.get("missing_identifiers") or []
+        if missing_identifiers:
+            orders_with_missing_mapping.append(
+                {
+                    "order": order,
+                    "missing_identifiers": missing_identifiers,
+                }
+            )
+        if len(orders_with_missing_mapping) >= 25:
+            break
+
+    category_or_tag_rules = [
+        rule
+        for rule in active_rules
+        if rule.match_type in {TenantWooCommerceMappingRule.MATCH_CATEGORY, TenantWooCommerceMappingRule.MATCH_TAG}
+    ]
+    totals = {
+        "tenant_count": len(tenants),
+        "active_rule_count": len(active_rules),
+        "product_count": len(products),
+        "mapped_product_count": mapped_product_count,
+        "unmapped_product_count": len(unmapped_products),
+        "multi_rule_product_count": len(multi_rule_products),
+        "missing_cost_product_count": total_missing_cost,
+        "orders_with_missing_mapping_count": len(orders_with_missing_mapping),
+    }
+    return render(
+        request,
+        "core/tenant_mapping_health.html",
+        {
+            "tenant_rows": tenant_rows,
+            "totals": totals,
+            "unmapped_products": unmapped_products[:25],
+            "multi_rule_products": multi_rule_products[:25],
+            "orders_with_missing_mapping": orders_with_missing_mapping,
+            "category_or_tag_rules": category_or_tag_rules,
+        },
+    )
+
+
 @login_required
 def tenant_list(request):
     restricted_response = _require_super_admin(request)

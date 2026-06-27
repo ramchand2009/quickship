@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Mapping Health | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.mapping-health-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.mapping-health-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
+.mapping-health-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
+.mapping-health-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
+.mapping-health-table-wrap { overflow-x:auto; }
+.mapping-health-table th { white-space:nowrap; font-size:.78rem; text-transform:uppercase; letter-spacing:0; color:#5d6675; }
+.mapping-health-table td { vertical-align:middle; }
+.mapping-health-name { min-width:190px; }
+.mapping-health-rule-list { display:flex; flex-wrap:wrap; gap:.35rem; }
+.mapping-health-rule { display:inline-flex; align-items:center; min-height:24px; padding:.15rem .45rem; border-radius:4px; background:#eef4ff; color:#23476f; font-size:.8rem; }
+.mapping-health-warning { color:#a15c00; }
+@media (max-width: 991px) { .mapping-health-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 575px) { .mapping-health-metrics { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Tenant Mapping Health</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tenant_list' %}">Tenants</a></li>
+            <li class="breadcrumb-item">Mapping Health</li>
+        </ul>
+    </div>
+</div>
+
+<div class="mapping-health-metrics">
+    <div class="mapping-health-metric">
+        <div class="mapping-health-label">Tenants</div>
+        <div class="mapping-health-value">{{ totals.tenant_count }}</div>
+    </div>
+    <div class="mapping-health-metric">
+        <div class="mapping-health-label">Active Rules</div>
+        <div class="mapping-health-value">{{ totals.active_rule_count }}</div>
+    </div>
+    <div class="mapping-health-metric">
+        <div class="mapping-health-label">Mapped Products</div>
+        <div class="mapping-health-value">{{ totals.mapped_product_count }} / {{ totals.product_count }}</div>
+    </div>
+    <div class="mapping-health-metric">
+        <div class="mapping-health-label">Missing Cost</div>
+        <div class="mapping-health-value">{{ totals.missing_cost_product_count }}</div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header">
+        <h5 class="mb-0">Vendor Mapping Summary</h5>
+    </div>
+    <div class="card-block mapping-health-table-wrap">
+        <table class="table table-hover mapping-health-table mb-0">
+            <thead>
+                <tr>
+                    <th>Vendor</th>
+                    <th>SKU Prefix</th>
+                    <th>Rules</th>
+                    <th>Products</th>
+                    <th>Orders</th>
+                    <th>Missing Cost</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in tenant_rows %}
+                    <tr>
+                        <td class="mapping-health-name">
+                            <a href="{% url 'tenant_detail' row.tenant.pk %}" class="fw-semibold">{{ row.tenant.name }}</a>
+                            <div class="small text-muted">{{ row.tenant.slug }}</div>
+                        </td>
+                        <td>
+                            {% if row.sku_prefix_rules %}
+                                <div class="mapping-health-rule-list">
+                                    {% for prefix in row.sku_prefix_rules %}
+                                        <span class="mapping-health-rule">{{ prefix }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted">No prefix rule</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.rule_count }}</td>
+                        <td>{{ row.product_count }}</td>
+                        <td>{{ row.order_count }} <span class="small text-muted">({{ row.open_order_count }} open)</span></td>
+                        <td>
+                            {% if row.missing_cost_count %}
+                                <span class="mapping-health-warning">{{ row.missing_cost_count }}</span>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="{% url 'tenant_detail' row.tenant.pk %}">Open</a></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="text-muted">No tenants found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xl-6">
+        <div class="card ops-admin-card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Products Missing Actual Price</h5>
+            </div>
+            <div class="card-block mapping-health-table-wrap">
+                <table class="table table-sm mapping-health-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Product</th>
+                            <th>SKU</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in tenant_rows %}
+                            {% for product in row.missing_cost_products %}
+                                <tr>
+                                    <td>{{ row.tenant.name }}</td>
+                                    <td>{{ product.name }}</td>
+                                    <td>{{ product.sku|default:"-" }}</td>
+                                </tr>
+                            {% endfor %}
+                        {% empty %}
+                            <tr><td colspan="3" class="text-muted">No tenants found.</td></tr>
+                        {% endfor %}
+                        {% if not totals.missing_cost_product_count %}
+                            <tr><td colspan="3" class="text-muted">All products have actual price.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card ops-admin-card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Unmapped Products</h5>
+            </div>
+            <div class="card-block mapping-health-table-wrap">
+                <table class="table table-sm mapping-health-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Current Vendor</th>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th>Woo ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in unmapped_products %}
+                            <tr>
+                                <td>{{ product.tenant.name }}</td>
+                                <td>{{ product.name }}</td>
+                                <td>{{ product.sku|default:"-" }}</td>
+                                <td>{{ product.woocommerce_variation_id|default:product.woocommerce_product_id|default:product.smartbiz_product_id|default:"-" }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4" class="text-muted">All local products match an active mapping rule.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xl-6">
+        <div class="card ops-admin-card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Products Matching Multiple Rules</h5>
+            </div>
+            <div class="card-block mapping-health-table-wrap">
+                <table class="table table-sm mapping-health-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th>Matched Rules</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in multi_rule_products %}
+                            <tr>
+                                <td>{{ item.product.name }}</td>
+                                <td>{{ item.product.sku|default:"-" }}</td>
+                                <td>
+                                    <div class="mapping-health-rule-list">
+                                        {% for label in item.rule_labels %}
+                                            <span class="mapping-health-rule">{{ label }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="text-muted">No local products match multiple active rules.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card ops-admin-card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Orders Missing Product Mapping</h5>
+            </div>
+            <div class="card-block mapping-health-table-wrap">
+                <table class="table table-sm mapping-health-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Vendor</th>
+                            <th>Missing IDs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in orders_with_missing_mapping %}
+                            <tr>
+                                <td><a href="{% url 'order_detail' item.order.pk %}">{{ item.order.shiprocket_order_id }}</a></td>
+                                <td>{{ item.order.tenant.name }}</td>
+                                <td>{{ item.missing_identifiers|join:", " }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="text-muted">No recent orders have missing product mappings.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if category_or_tag_rules %}
+    <div class="card ops-admin-card">
+        <div class="card-header">
+            <h5 class="mb-0">Category and Tag Rules</h5>
+        </div>
+        <div class="card-block">
+            <div class="mapping-health-rule-list">
+                {% for rule in category_or_tag_rules %}
+                    <span class="mapping-health-rule">{{ rule.tenant.name }} | {{ rule.get_match_type_display }}: {{ rule.match_value }}</span>
+                {% endfor %}
+            </div>
+            <div class="small text-muted mt-2">These rules are applied during WooCommerce sync. Local products may need manual review when WooCommerce category or tag metadata is not stored locally.</div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
