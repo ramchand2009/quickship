@@ -137,6 +137,92 @@ class TenantFoundationTests(TestCase):
         self.assertTrue(can_manage_vendor_settings(self.vendor_user, self.mathukai))
         self.assertTrue(can_operate_vendor_orders(self.vendor_user, self.mathukai))
 
+    def test_vendor_owner_can_update_vendor_profile(self):
+        TenantMembership.objects.create(
+            tenant=self.other_tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("vendor_profile"),
+            {
+                "action": "save_profile",
+                "name": "Enquirechat Store",
+                "contact_name": "Ram",
+                "contact_email": "vendor@example.com",
+                "contact_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("vendor_profile"))
+        self.other_tenant.refresh_from_db()
+        self.mathukai.refresh_from_db()
+        self.assertEqual(self.other_tenant.name, "Enquirechat Store")
+        self.assertEqual(self.other_tenant.contact_email, "vendor@example.com")
+        self.assertEqual(self.mathukai.name, "Mathukai")
+
+    def test_vendor_owner_sender_address_is_tenant_scoped(self):
+        SenderAddress.objects.create(
+            tenant=self.mathukai,
+            name="Mathukai Warehouse",
+            address_1="Main Road",
+        )
+        TenantMembership.objects.create(
+            tenant=self.other_tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("vendor_profile"),
+            {
+                "action": "save_sender",
+                "name": "Other Vendor Warehouse",
+                "email": "other@example.com",
+                "phone": "9000000000",
+                "address_1": "Vendor Street",
+                "address_2": "",
+                "city": "Chennai",
+                "state": "TN",
+                "country": "India",
+                "pincode": "600001",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("vendor_profile"))
+        self.assertTrue(
+            SenderAddress.objects.filter(
+                tenant=self.other_tenant,
+                name="Other Vendor Warehouse",
+                address_1="Vendor Street",
+            ).exists()
+        )
+        self.assertTrue(
+            SenderAddress.objects.filter(
+                tenant=self.mathukai,
+                name="Mathukai Warehouse",
+                address_1="Main Road",
+            ).exists()
+        )
+
+    def test_vendor_operator_cannot_access_vendor_profile(self):
+        TenantMembership.objects.create(
+            tenant=self.other_tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("vendor_profile"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("order_management"))
+
     def test_inactive_membership_does_not_grant_access(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,

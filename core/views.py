@@ -44,6 +44,7 @@ from reportlab.lib.utils import simpleSplit
 from reportlab.pdfgen import canvas
 
 from .access import (
+    can_manage_vendor_settings,
     can_manage_stock,
     can_edit_manual_order_details,
     can_edit_operations,
@@ -72,6 +73,7 @@ from .forms import (
     SpecialStockIssueForm,
     StockAdjustmentForm,
     TenantWooCommerceMappingRuleForm,
+    VendorProfileForm,
     WhatsAppApiSettingsForm,
     WhatsAppMessageTestForm,
     WhatsAppStatusTemplateConfigForm,
@@ -628,6 +630,36 @@ def _scope_queryset_to_active_tenant(request, queryset, tenant_field="tenant"):
     if tenant is None:
         return queryset.none()
     return queryset.filter(**{tenant_field: tenant})
+
+
+def _settings_tenant_for_request(request):
+    tenant = get_active_tenant(request)
+    if tenant is not None:
+        return tenant
+    if is_super_admin(getattr(request, "user", None)):
+        return Tenant.get_default()
+    return None
+
+
+def _sender_address_for_tenant(tenant):
+    if tenant is None:
+        return SenderAddress.get_default()
+    sender = SenderAddress.objects.filter(tenant=tenant).order_by("-updated_at", "-created_at").first()
+    if sender:
+        return sender
+    return SenderAddress.objects.create(
+        tenant=tenant,
+        name=tenant.name or "Sender Address",
+        email=tenant.contact_email,
+        phone=tenant.contact_phone,
+        country="India",
+    )
+
+
+def _sender_address_for_request(request):
+    if _should_scope_to_active_tenant(request):
+        return _sender_address_for_tenant(get_active_tenant(request))
+    return SenderAddress.get_default()
 
 
 def _product_category_form_queryset(request, product=None):
@@ -2887,10 +2919,7 @@ def packing_list(request, pk):
         messages.error(request, "Your role cannot access packing list.")
         return redirect("order_management")
     order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
-    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
-        "-updated_at",
-        "-created_at",
-    ).first() or SenderAddress.get_default()
+    sender = _sender_address_for_request(request)
     context = {
         "order": order,
         "sender": sender,
@@ -2941,10 +2970,7 @@ def bulk_packing_lists(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
     if restricted_response:
         return restricted_response
-    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
-        "-updated_at",
-        "-created_at",
-    ).first() or SenderAddress.get_default()
+    sender = _sender_address_for_request(request)
     orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
         local_status=ShiprocketOrder.STATUS_ACCEPTED
     ).order_by(
@@ -2975,10 +3001,7 @@ def shipping_label_4x6(request, pk):
         messages.error(request, "Shipping label is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
-        "-updated_at",
-        "-created_at",
-    ).first() or SenderAddress.get_default()
+    sender = _sender_address_for_request(request)
     return render(
         request,
         "core/shipping_label_4x6.html",
@@ -3484,10 +3507,7 @@ def shipping_label_pdf(request, pk):
         messages.error(request, "Shipping label PDF is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
-        "-updated_at",
-        "-created_at",
-    ).first() or SenderAddress.get_default()
+    sender = _sender_address_for_request(request)
     order_reference = (
         str(order.channel_order_id or order.shiprocket_order_id or order.pk)
         .strip()
@@ -3502,10 +3522,7 @@ def shipping_label_pdf(request, pk):
 
 
 def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
-    sender = _scope_queryset_to_active_tenant(request, SenderAddress.objects.all()).order_by(
-        "-updated_at",
-        "-created_at",
-    ).first() or SenderAddress.get_default()
+    sender = _sender_address_for_request(request)
     orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
         local_status=ShiprocketOrder.STATUS_PACKED,
     ).order_by(
@@ -3662,18 +3679,65 @@ def ops_print_queue(request):
 
 
 @login_required
+def vendor_profile(request):
+    tenant = _settings_tenant_for_request(request)
+    if tenant is None or not can_manage_vendor_settings(request.user, tenant):
+        messages.error(request, "Your role cannot manage vendor profile settings.")
+        return redirect("order_management")
+
+    sender = _sender_address_for_tenant(tenant)
+    profile_form = VendorProfileForm(instance=tenant)
+    sender_form = SenderAddressForm(instance=sender)
+
+    if request.method == "POST":
+        action = str(request.POST.get("action") or "").strip()
+        if action == "save_sender":
+            sender_form = SenderAddressForm(request.POST, instance=sender)
+            if sender_form.is_valid():
+                sender = sender_form.save(commit=False)
+                sender.tenant = tenant
+                sender.save()
+                messages.success(request, "Sender address saved.")
+                return redirect("vendor_profile")
+            messages.error(request, "Unable to save sender address. Check the form fields.")
+        else:
+            profile_form = VendorProfileForm(request.POST, instance=tenant)
+            if profile_form.is_valid():
+                profile_form.save()
+                messages.success(request, "Vendor profile saved.")
+                return redirect("vendor_profile")
+            messages.error(request, "Unable to save vendor profile. Check the form fields.")
+
+    return render(
+        request,
+        "core/vendor_profile.html",
+        {
+            "tenant": tenant,
+            "profile_form": profile_form,
+            "sender_form": sender_form,
+            "ops_mobile_mode": _is_ops_viewer(request.user),
+        },
+    )
+
+
+@login_required
 def sender_address(request):
-    restricted_response = _redirect_ops_viewer_to_order_management(request)
-    if restricted_response:
-        return restricted_response
-    if request.method == "POST" and not _can_edit_operations(request.user):
+    tenant = _settings_tenant_for_request(request)
+    can_manage_sender = _can_edit_operations(request.user) or can_manage_vendor_settings(request.user, tenant)
+    if not can_manage_sender:
+        messages.error(request, "Your role cannot manage sender address settings.")
+        return redirect("order_management")
+    if request.method == "POST" and not can_manage_sender:
         messages.error(request, "Your role has read-only access for operational settings.")
         return redirect("sender_address")
-    sender = SenderAddress.get_default()
+    sender = _sender_address_for_tenant(tenant) if tenant is not None else SenderAddress.get_default()
     if request.method == "POST":
         form = SenderAddressForm(request.POST, instance=sender)
         if form.is_valid():
-            form.save()
+            sender = form.save(commit=False)
+            if tenant is not None:
+                sender.tenant = tenant
+            sender.save()
             messages.success(request, "Sender address saved.")
             return redirect("sender_address")
         messages.error(request, "Unable to save sender address. Check the form fields.")

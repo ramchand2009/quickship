@@ -992,6 +992,23 @@ class SenderAddressForm(forms.ModelForm):
             field.widget.attrs["class"] = "form-control"
 
 
+class VendorProfileForm(forms.ModelForm):
+    class Meta:
+        model = Tenant
+        fields = ["name", "contact_name", "contact_email", "contact_phone"]
+        labels = {
+            "name": "Business Name",
+            "contact_name": "Contact Name",
+            "contact_email": "Contact Email",
+            "contact_phone": "Contact Phone",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form-control"
+
+
 class SpecialStockIssueForm(forms.Form):
     product = forms.ModelChoiceField(
         queryset=Product.objects.none(),

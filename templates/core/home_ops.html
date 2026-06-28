@@ -313,7 +313,11 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 <div class="ops-home-shell">
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
-            <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
+            {% if can_manage_current_vendor_settings %}
+                <a href="{% url 'vendor_profile' %}" class="ops-mobile-topbar-control" aria-label="Vendor profile"><i class="fas fa-user-cog"></i></a>
+            {% else %}
+                <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
+            {% endif %}
             <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
             <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
         </div>
