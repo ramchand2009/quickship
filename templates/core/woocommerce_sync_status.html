@@ -146,7 +146,7 @@
         <div class="woo-sync-summary">
             <div class="woo-sync-summary-item">
                 <div class="woo-sync-label">Products Missing Actual Price</div>
-                <strong>{{ missing_cost_count }}</strong>
+                <strong><a href="{% url 'missing_cost_products' %}">{{ missing_cost_count }}</a></strong>
             </div>
             <div class="woo-sync-summary-item">
                 <div class="woo-sync-label">Recent Orders Missing Product Mapping</div>
@@ -155,6 +155,7 @@
             <div class="woo-sync-summary-item">
                 <div class="woo-sync-label">Mapping Review</div>
                 <a href="{% url 'tenant_mapping_health' %}">Open Mapping Health</a>
+                <div><a href="{% url 'missing_cost_products' %}">Update Missing Costs</a></div>
             </div>
         </div>
     </div>

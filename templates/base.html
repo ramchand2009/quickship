@@ -97,6 +97,12 @@
                                         <span class="pcoded-mtext">Woo Sync Status</span>
                                     </a>
                                 </li>
+                                <li class="nav-item {% if current == 'missing_cost_products' %}active{% endif %}">
+                                    <a href="{% url 'missing_cost_products' %}" class="nav-link">
+                                        <span class="pcoded-micon"><i class="feather icon-dollar-sign"></i></span>
+                                        <span class="pcoded-mtext">Missing Costs</span>
+                                    </a>
+                                </li>
                                 <li class="nav-item pcoded-menu-caption">
                                     <label>Workspace</label>
                                 </li>

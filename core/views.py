@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import re
 import csv
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from urllib.parse import parse_qsl, urlencode
 from io import StringIO
@@ -4929,6 +4930,93 @@ def _woocommerce_sync_status_context():
         "missing_cost_count": missing_cost_count,
         "unmapped_order_count": unmapped_order_count,
     }
+
+
+def _parse_actual_price_input(value):
+    text = str(value or "").strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        price = Decimal(text)
+    except (InvalidOperation, ValueError):
+        raise ValueError("Enter a valid number.")
+    if price < 0:
+        raise ValueError("Enter zero or a positive amount.")
+    if price > Decimal("99999999.99"):
+        raise ValueError("Amount is too large.")
+    return price.quantize(Decimal("0.01"))
+
+
+def _missing_cost_products_context(price_errors=None, posted_values=None):
+    products = list(
+        Product.objects.select_related("tenant", "category_master")
+        .filter(actual_price__isnull=True, is_active=True)
+        .order_by("tenant__name", "name", "sku")
+    )
+    tenant_rows = []
+    for tenant in Tenant.objects.order_by("name", "slug"):
+        tenant_products = [product for product in products if product.tenant_id == tenant.pk]
+        if tenant_products:
+            product_rows = [
+                {
+                    "product": product,
+                    "posted_value": (posted_values or {}).get(product.pk, ""),
+                    "error": (price_errors or {}).get(product.pk, ""),
+                }
+                for product in tenant_products
+            ]
+            tenant_rows.append({"tenant": tenant, "product_rows": product_rows, "count": len(product_rows)})
+    return {
+        "tenant_rows": tenant_rows,
+        "total_missing_cost_count": len(products),
+        "price_errors": price_errors or {},
+        "posted_values": posted_values or {},
+    }
+
+
+@login_required
+def missing_cost_products(request):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    price_errors = {}
+    posted_values = {}
+    if request.method == "POST":
+        product_ids = [value for value in request.POST.getlist("product_id") if str(value or "").isdigit()]
+        products_by_id = Product.objects.filter(pk__in=product_ids, actual_price__isnull=True).in_bulk()
+        updated_count = 0
+        for product_id in product_ids:
+            product = products_by_id.get(int(product_id))
+            if product is None:
+                continue
+            field_name = f"actual_price_{product_id}"
+            raw_value = str(request.POST.get(field_name) or "").strip()
+            posted_values[int(product_id)] = raw_value
+            if not raw_value:
+                continue
+            try:
+                actual_price = _parse_actual_price_input(raw_value)
+            except ValueError as exc:
+                price_errors[int(product_id)] = str(exc)
+                continue
+            product.actual_price = actual_price
+            product.save(update_fields=["actual_price", "updated_at"])
+            updated_count += 1
+
+        if price_errors:
+            messages.error(request, "Some actual prices were not saved. Check the highlighted rows.")
+        elif updated_count:
+            messages.success(request, f"Updated actual price for {updated_count} product(s).")
+            return redirect("missing_cost_products")
+        else:
+            messages.info(request, "No actual prices were entered.")
+
+    return render(
+        request,
+        "core/missing_cost_products.html",
+        _missing_cost_products_context(price_errors=price_errors, posted_values=posted_values),
+    )
 
 
 @login_required

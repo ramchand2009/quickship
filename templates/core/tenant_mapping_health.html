@@ -49,7 +49,9 @@
     </div>
     <div class="mapping-health-metric">
         <div class="mapping-health-label">Missing Cost</div>
-        <div class="mapping-health-value">{{ totals.missing_cost_product_count }}</div>
+        <div class="mapping-health-value">
+            <a href="{% url 'missing_cost_products' %}">{{ totals.missing_cost_product_count }}</a>
+        </div>
     </div>
 </div>
 
@@ -93,7 +95,7 @@
                         <td>{{ row.order_count }} <span class="small text-muted">({{ row.open_order_count }} open)</span></td>
                         <td>
                             {% if row.missing_cost_count %}
-                                <span class="mapping-health-warning">{{ row.missing_cost_count }}</span>
+                                <a class="mapping-health-warning" href="{% url 'missing_cost_products' %}">{{ row.missing_cost_count }}</a>
                             {% else %}
                                 0
                             {% endif %}
@@ -112,7 +114,10 @@
     <div class="col-xl-6">
         <div class="card ops-admin-card mb-3">
             <div class="card-header">
-                <h5 class="mb-0">Products Missing Actual Price</h5>
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                    <h5 class="mb-0">Products Missing Actual Price</h5>
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'missing_cost_products' %}">Update Costs</a>
+                </div>
             </div>
             <div class="card-block mapping-health-table-wrap">
                 <table class="table table-sm mapping-health-table mb-0">

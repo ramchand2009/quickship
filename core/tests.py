@@ -840,6 +840,65 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Orders Missing Product Mapping")
         self.assertContains(response, "SR-TENANT-MISSING-MAP-1")
         self.assertContains(response, "UNKNOWN-1")
+        self.assertContains(response, reverse("missing_cost_products"))
+
+    def test_super_admin_can_view_missing_cost_products(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("missing_cost_products"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Missing Cost Products")
+        self.assertContains(response, "Vendor Workspace")
+        self.assertContains(response, "Tenant Product")
+        self.assertContains(response, "TENANT-ADMIN-1")
+        self.assertContains(response, "Other Product")
+        self.assertNotContains(response, "Unmapped Product")
+        self.assertContains(response, "Save Actual Prices")
+
+    def test_super_admin_can_bulk_update_missing_actual_prices(self):
+        tenant_product = Product.objects.get(sku="TENANT-ADMIN-1")
+        other_product = Product.objects.get(sku="TENANT-ADMIN-2")
+        priced_product = Product.objects.get(sku="NO-RULE-1")
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("missing_cost_products"),
+            {
+                "product_id": [str(tenant_product.pk), str(other_product.pk), str(priced_product.pk)],
+                f"actual_price_{tenant_product.pk}": "42.50",
+                f"actual_price_{other_product.pk}": "",
+                f"actual_price_{priced_product.pk}": "99.00",
+            },
+            follow=True,
+        )
+
+        tenant_product.refresh_from_db()
+        other_product.refresh_from_db()
+        priced_product.refresh_from_db()
+        self.assertRedirects(response, reverse("missing_cost_products"))
+        self.assertEqual(str(tenant_product.actual_price), "42.50")
+        self.assertIsNone(other_product.actual_price)
+        self.assertEqual(str(priced_product.actual_price), "20.00")
+        self.assertContains(response, "Updated actual price for 1 product(s).")
+
+    def test_missing_cost_products_rejects_invalid_price(self):
+        tenant_product = Product.objects.get(sku="TENANT-ADMIN-1")
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("missing_cost_products"),
+            {
+                "product_id": [str(tenant_product.pk)],
+                f"actual_price_{tenant_product.pk}": "-1",
+            },
+        )
+
+        tenant_product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(tenant_product.actual_price)
+        self.assertContains(response, "Some actual prices were not saved")
+        self.assertContains(response, "Enter zero or a positive amount.")
 
     def test_super_admin_can_view_woocommerce_sync_status(self):
         WooCommerceSyncRun.objects.create(
@@ -862,6 +921,7 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Last Product Sync")
         self.assertContains(response, "Mapping Attention")
         self.assertContains(response, reverse("tenant_mapping_health"))
+        self.assertContains(response, reverse("missing_cost_products"))
 
     @patch("core.views.sync_woocommerce_products")
     def test_super_admin_product_sync_action_records_success(self, mock_sync_products):
@@ -1011,6 +1071,7 @@ class SuperAdminTenantViewTests(TestCase):
         detail_response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
         mapping_health_response = self.client.get(reverse("tenant_mapping_health"))
         sync_status_response = self.client.get(reverse("woocommerce_sync_status"))
+        missing_cost_response = self.client.get(reverse("missing_cost_products"))
 
         self.assertEqual(list_response.status_code, 302)
         self.assertIn(reverse("order_management"), list_response.url)
@@ -1020,6 +1081,8 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertIn(reverse("order_management"), mapping_health_response.url)
         self.assertEqual(sync_status_response.status_code, 302)
         self.assertIn(reverse("order_management"), sync_status_response.url)
+        self.assertEqual(missing_cost_response.status_code, 302)
+        self.assertIn(reverse("order_management"), missing_cost_response.url)
 
     def test_tenant_link_only_shows_for_super_admin_sidebar(self):
         self.client.force_login(self.super_user)
@@ -1027,15 +1090,18 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(super_response, reverse("tenant_list"))
         self.assertContains(super_response, reverse("tenant_mapping_health"))
         self.assertContains(super_response, reverse("woocommerce_sync_status"))
+        self.assertContains(super_response, reverse("missing_cost_products"))
         self.assertContains(super_response, "Tenants")
         self.assertContains(super_response, "Mapping Health")
         self.assertContains(super_response, "Woo Sync Status")
+        self.assertContains(super_response, "Missing Costs")
 
         self.client.force_login(self.vendor_user)
         vendor_response = self.client.get(reverse("order_management"))
         self.assertNotContains(vendor_response, reverse("tenant_list"))
         self.assertNotContains(vendor_response, reverse("tenant_mapping_health"))
         self.assertNotContains(vendor_response, reverse("woocommerce_sync_status"))
+        self.assertNotContains(vendor_response, reverse("missing_cost_products"))
 
 
 class ShiprocketSyncTests(TestCase):
