@@ -15,7 +15,9 @@
 .missing-cost-input { max-width:160px; }
 .missing-cost-error { color:#9f1d20; font-size:.78rem; margin-top:.25rem; }
 .missing-cost-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:space-between; }
+.missing-cost-filter { display:grid; grid-template-columns:minmax(220px,320px) auto; gap:.5rem; align-items:end; margin-bottom:1rem; }
 @media (max-width: 767px) { .missing-cost-metrics { grid-template-columns:1fr; } .missing-cost-actions { align-items:stretch; flex-direction:column; } }
+@media (max-width: 575px) { .missing-cost-filter { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -59,9 +61,25 @@
         </div>
     </div>
     <div class="card-block">
+        <form method="get" class="missing-cost-filter">
+            <div>
+                <label class="form-label" for="missing-cost-category">Category</label>
+                <select class="form-select form-control" id="missing-cost-category" name="category">
+                    <option value="">All categories</option>
+                    {% for category in categories %}
+                        <option value="{{ category.pk }}" {% if selected_category_id == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn btn-outline-primary">Filter</button>
+                {% if selected_category_id %}<a class="btn btn-outline-secondary" href="{% url 'missing_cost_products' %}">Clear</a>{% endif %}
+            </div>
+        </form>
         {% if tenant_rows %}
             <form method="post">
                 {% csrf_token %}
+                {% if selected_category_id %}<input type="hidden" name="category" value="{{ selected_category_id }}">{% endif %}
                 {% for row in tenant_rows %}
                     <h6 class="mt-3 mb-2">{{ row.tenant.name }} <span class="text-muted">({{ row.count }})</span></h6>
                     <div class="missing-cost-table-wrap mb-3">

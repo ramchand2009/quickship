@@ -4947,12 +4947,16 @@ def _parse_actual_price_input(value):
     return price.quantize(Decimal("0.01"))
 
 
-def _missing_cost_products_context(price_errors=None, posted_values=None):
+def _missing_cost_products_context(selected_category_id="", price_errors=None, posted_values=None):
+    selected_category_id = str(selected_category_id or "").strip()
     products = list(
         Product.objects.select_related("tenant", "category_master")
         .filter(actual_price__isnull=True, is_active=True)
         .order_by("tenant__name", "name", "sku")
     )
+    if selected_category_id.isdigit():
+        products = [product for product in products if product.category_master_id == int(selected_category_id)]
+    categories = list(ProductCategory.objects.filter(is_active=True).order_by("name"))
     tenant_rows = []
     for tenant in Tenant.objects.order_by("name", "slug"):
         tenant_products = [product for product in products if product.tenant_id == tenant.pk]
@@ -4969,6 +4973,8 @@ def _missing_cost_products_context(price_errors=None, posted_values=None):
     return {
         "tenant_rows": tenant_rows,
         "total_missing_cost_count": len(products),
+        "categories": categories,
+        "selected_category_id": selected_category_id,
         "price_errors": price_errors or {},
         "posted_values": posted_values or {},
     }
@@ -4982,6 +4988,7 @@ def missing_cost_products(request):
 
     price_errors = {}
     posted_values = {}
+    selected_category_id = str(request.GET.get("category") or request.POST.get("category") or "").strip()
     if request.method == "POST":
         product_ids = [value for value in request.POST.getlist("product_id") if str(value or "").isdigit()]
         products_by_id = Product.objects.filter(pk__in=product_ids, actual_price__isnull=True).in_bulk()
@@ -5008,6 +5015,8 @@ def missing_cost_products(request):
             messages.error(request, "Some actual prices were not saved. Check the highlighted rows.")
         elif updated_count:
             messages.success(request, f"Updated actual price for {updated_count} product(s).")
+            if selected_category_id.isdigit():
+                return redirect(f"{reverse('missing_cost_products')}?{urlencode({'category': selected_category_id})}")
             return redirect("missing_cost_products")
         else:
             messages.info(request, "No actual prices were entered.")
@@ -5015,7 +5024,11 @@ def missing_cost_products(request):
     return render(
         request,
         "core/missing_cost_products.html",
-        _missing_cost_products_context(price_errors=price_errors, posted_values=posted_values),
+        _missing_cost_products_context(
+            selected_category_id=selected_category_id,
+            price_errors=price_errors,
+            posted_values=posted_values,
+        ),
     )
 
 

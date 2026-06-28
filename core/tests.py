@@ -746,12 +746,25 @@ class SuperAdminTenantViewTests(TestCase):
             user=self.vendor_user,
             role=TenantMembership.ROLE_VENDOR_OWNER,
         )
-        Product.objects.create(tenant=self.tenant, name="Tenant Product", sku="TENANT-ADMIN-1")
-        Product.objects.create(tenant=self.other_tenant, name="Other Product", sku="TENANT-ADMIN-2")
+        self.soap_category = ProductCategory.objects.create(name="Soap", is_active=True)
+        self.oil_category = ProductCategory.objects.create(name="Oil", is_active=True)
+        Product.objects.create(
+            tenant=self.tenant,
+            name="Tenant Product",
+            sku="TENANT-ADMIN-1",
+            category_master=self.soap_category,
+        )
+        Product.objects.create(
+            tenant=self.other_tenant,
+            name="Other Product",
+            sku="TENANT-ADMIN-2",
+            category_master=self.oil_category,
+        )
         Product.objects.create(
             tenant=self.other_tenant,
             name="Unmapped Product",
             sku="NO-RULE-1",
+            category_master=self.soap_category,
             actual_price="20.00",
             woocommerce_product_id="900",
         )
@@ -855,6 +868,18 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Other Product")
         self.assertNotContains(response, "Unmapped Product")
         self.assertContains(response, "Save Actual Prices")
+        self.assertContains(response, "All categories")
+        self.assertContains(response, "Soap")
+
+    def test_super_admin_can_filter_missing_cost_products_by_category(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("missing_cost_products"), {"category": self.soap_category.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tenant Product")
+        self.assertNotContains(response, "Other Product")
+        self.assertContains(response, "Clear")
 
     def test_super_admin_can_bulk_update_missing_actual_prices(self):
         tenant_product = Product.objects.get(sku="TENANT-ADMIN-1")
@@ -881,6 +906,24 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertIsNone(other_product.actual_price)
         self.assertEqual(str(priced_product.actual_price), "20.00")
         self.assertContains(response, "Updated actual price for 1 product(s).")
+
+    def test_missing_cost_products_preserves_category_filter_after_save(self):
+        tenant_product = Product.objects.get(sku="TENANT-ADMIN-1")
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            f"{reverse('missing_cost_products')}?category={self.soap_category.pk}",
+            {
+                "product_id": [str(tenant_product.pk)],
+                f"actual_price_{tenant_product.pk}": "55.00",
+                "category": str(self.soap_category.pk),
+            },
+        )
+
+        tenant_product.refresh_from_db()
+        self.assertEqual(str(tenant_product.actual_price), "55.00")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"category={self.soap_category.pk}", response.url)
 
     def test_missing_cost_products_rejects_invalid_price(self):
         tenant_product = Product.objects.get(sku="TENANT-ADMIN-1")
