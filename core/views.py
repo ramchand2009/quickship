@@ -755,7 +755,7 @@ def _settlement_row_for_tenant(tenant, start_date, end_date):
         "sales_total": sales_total,
         "profit_total": profit_total,
         "expense_total": expense_total,
-        "payout_total": profit_total - expense_total,
+        "payout_total": profit_total,
         "incomplete_profit_count": incomplete_profit_count,
     }
 
@@ -3883,8 +3883,8 @@ def vendor_settlements(request):
                 "Orders",
                 "Sales",
                 "Profit",
-                "Expenses",
-                "Payout",
+                "Internal Expenses",
+                "Profit Payout",
                 "Profit Incomplete Orders",
                 "Settlement Status",
             ]

@@ -264,7 +264,7 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "Rs 200.00")
         self.assertContains(response, "Rs 120.00")
         self.assertContains(response, "Rs 20.00")
-        self.assertContains(response, "Rs 100.00")
+        self.assertContains(response, "Profit Payout")
         self.assertNotContains(response, "Mathukai</td>")
 
     def test_super_admin_can_mark_vendor_settlement_paid(self):
@@ -299,7 +299,7 @@ class TenantFoundationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv")
-        self.assertIn("Vendor,Orders,Sales,Profit,Expenses,Payout", response.content.decode())
+        self.assertIn("Vendor,Orders,Sales,Profit,Internal Expenses,Profit Payout", response.content.decode())
 
     def test_inactive_membership_does_not_grant_access(self):
         TenantMembership.objects.create(

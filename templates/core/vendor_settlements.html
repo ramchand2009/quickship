@@ -71,8 +71,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     <div class="settlement-metric"><span class="settlement-label">Orders</span><span class="settlement-value">{{ row.order_count }}</span></div>
                     <div class="settlement-metric"><span class="settlement-label">Sales</span><span class="settlement-value">Rs {{ row.sales_total|floatformat:2 }}</span></div>
                     <div class="settlement-metric"><span class="settlement-label">Profit</span><span class="settlement-value">Rs {{ row.profit_total|floatformat:2 }}</span></div>
-                    <div class="settlement-metric"><span class="settlement-label">Expenses</span><span class="settlement-value">Rs {{ row.expense_total|floatformat:2 }}</span></div>
-                    <div class="settlement-metric"><span class="settlement-label">Payout</span><span class="settlement-value">Rs {{ row.payout_total|floatformat:2 }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Internal Expenses</span><span class="settlement-value">Rs {{ row.expense_total|floatformat:2 }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Profit Payout</span><span class="settlement-value">Rs {{ row.payout_total|floatformat:2 }}</span></div>
                     <div class="settlement-metric"><span class="settlement-label">Missing Profit</span><span class="settlement-value">{{ row.incomplete_profit_count }}</span></div>
                 </div>
             </div>
@@ -118,8 +118,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                     <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Orders</div><div class="h4 mb-0">{{ totals.order_count }}</div></div></div>
                     <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Sales</div><div class="h4 mb-0">Rs {{ totals.sales_total|floatformat:2 }}</div></div></div>
                     <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Profit</div><div class="h4 mb-0">Rs {{ totals.profit_total|floatformat:2 }}</div></div></div>
-                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Expenses</div><div class="h4 mb-0">Rs {{ totals.expense_total|floatformat:2 }}</div></div></div>
-                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Payout</div><div class="h4 mb-0">Rs {{ totals.payout_total|floatformat:2 }}</div></div></div>
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Internal Expenses</div><div class="h4 mb-0">Rs {{ totals.expense_total|floatformat:2 }}</div></div></div>
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Profit Payout</div><div class="h4 mb-0">Rs {{ totals.payout_total|floatformat:2 }}</div></div></div>
                 </div>
 
                 <div class="table-responsive">
@@ -130,8 +130,8 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <th>Orders</th>
                                 <th>Sales</th>
                                 <th>Profit</th>
-                                <th>Expenses</th>
-                                <th>Payout</th>
+                                <th>Internal Expenses</th>
+                                <th>Profit Payout</th>
                                 <th>Profit Gaps</th>
                                 <th>Status</th>
                                 {% if can_mark_settlement_paid %}<th>Action</th>{% endif %}
