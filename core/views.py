@@ -88,6 +88,7 @@ from .models import (
     ExpensePerson,
     OrderActivityLog,
     Product,
+    ProductChangeRequest,
     ProductCategory,
     Project,
     SenderAddress,
@@ -3944,6 +3945,84 @@ def vendor_settlement_toggle_paid(request, pk):
 
 
 @login_required
+def product_change_requests(request):
+    if not is_super_admin(request.user):
+        messages.error(request, "Only super admin can review product change requests.")
+        return redirect("order_management")
+    status_filter = str(request.GET.get("status") or ProductChangeRequest.STATUS_PENDING).strip().lower()
+    if status_filter not in {
+        ProductChangeRequest.STATUS_PENDING,
+        ProductChangeRequest.STATUS_APPROVED,
+        ProductChangeRequest.STATUS_REJECTED,
+        "all",
+    }:
+        status_filter = ProductChangeRequest.STATUS_PENDING
+    requests_query = ProductChangeRequest.objects.select_related("tenant", "product")
+    if status_filter != "all":
+        requests_query = requests_query.filter(status=status_filter)
+    change_requests = []
+    for change_request in requests_query.order_by("-created_at")[:100]:
+        rows = []
+        for field_name, new_value in change_request.new_values.items():
+            rows.append(
+                {
+                    "field": field_name,
+                    "label": PRODUCT_CHANGE_REQUEST_LABELS.get(field_name, field_name.replace("_", " ").title()),
+                    "old": change_request.old_values.get(field_name, ""),
+                    "new": new_value,
+                }
+            )
+        change_requests.append({"request": change_request, "rows": rows})
+    return render(
+        request,
+        "core/product_change_requests.html",
+        {
+            "change_requests": change_requests,
+            "status_filter": status_filter,
+            "status_choices": [
+                ProductChangeRequest.STATUS_PENDING,
+                ProductChangeRequest.STATUS_APPROVED,
+                ProductChangeRequest.STATUS_REJECTED,
+                "all",
+            ],
+            "pending_count": ProductChangeRequest.objects.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
+        },
+    )
+
+
+@login_required
+@require_POST
+def product_change_request_review(request, pk):
+    if not is_super_admin(request.user):
+        messages.error(request, "Only super admin can review product change requests.")
+        return redirect("order_management")
+    change_request = get_object_or_404(ProductChangeRequest.objects.select_related("product", "tenant"), pk=pk)
+    if change_request.status != ProductChangeRequest.STATUS_PENDING:
+        messages.info(request, "This product change request is already reviewed.")
+        return redirect("product_change_requests")
+    action = str(request.POST.get("action") or "").strip().lower()
+    change_request.review_note = str(request.POST.get("review_note") or "").strip()
+    change_request.reviewed_by = _request_actor(request)
+    change_request.reviewed_at = timezone.now()
+    if action == "approve":
+        try:
+            _apply_product_change_request(change_request)
+        except WooCommerceAPIError as exc:
+            messages.error(request, f"Unable to approve because WooCommerce update failed: {exc}")
+            return redirect("product_change_requests")
+        change_request.status = ProductChangeRequest.STATUS_APPROVED
+        messages.success(request, f"Approved product changes for {change_request.product.name}.")
+    elif action == "reject":
+        change_request.status = ProductChangeRequest.STATUS_REJECTED
+        messages.success(request, f"Rejected product changes for {change_request.product.name}.")
+    else:
+        messages.error(request, "Choose approve or reject.")
+        return redirect("product_change_requests")
+    change_request.save(update_fields=["status", "review_note", "reviewed_by", "reviewed_at", "updated_at"])
+    return redirect("product_change_requests")
+
+
+@login_required
 def stock_management(request):
     if not _can_manage_stock(request.user):
         messages.error(request, "Your role cannot access stock management.")
@@ -4247,6 +4326,16 @@ def stock_product_detail(request, pk):
     form.fields["category_master"].queryset = _product_category_form_queryset(request, product)
     if request.method == "POST":
         if form.is_valid():
+            if is_vendor_user(request.user):
+                change_request = _create_product_change_request(request, product, form)
+                if change_request:
+                    messages.success(
+                        request,
+                        f"Submitted product change request #{change_request.pk} for super admin approval.",
+                    )
+                else:
+                    messages.info(request, "No product changes detected.")
+                return redirect("stock_product_detail", pk=product.pk)
             product = form.save()
             extra_fields = {
                 "description": form.cleaned_data.get("description"),
@@ -4269,6 +4358,7 @@ def stock_product_detail(request, pk):
         {
             "form": form,
             "product": product,
+            "pending_change_count": product.change_requests.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": ops_mobile_mode,
         },
@@ -4298,6 +4388,132 @@ def _product_detail_update_data(product, post_data):
         if field_name in post_data:
             data[field_name] = post_data.get(field_name)
     return data
+
+
+PRODUCT_CHANGE_REQUEST_FIELDS = [
+    "name",
+    "category_master",
+    "sku",
+    "smartbiz_product_id",
+    "woocommerce_product_id",
+    "woocommerce_variation_id",
+    "barcode",
+    "image_url",
+    "stock_quantity",
+    "reorder_level",
+    "is_active",
+    "description",
+    "actual_price",
+    "regular_price",
+    "sale_price",
+]
+
+
+PRODUCT_CHANGE_REQUEST_LABELS = {
+    "name": "Product Name",
+    "category_master": "Category",
+    "sku": "SKU",
+    "smartbiz_product_id": "WooCommerce ID",
+    "woocommerce_product_id": "WooCommerce Product ID",
+    "woocommerce_variation_id": "WooCommerce Variation ID",
+    "barcode": "Barcode",
+    "image_url": "Image URL",
+    "stock_quantity": "Stock Quantity",
+    "reorder_level": "Low Stock Threshold",
+    "is_active": "Active",
+    "description": "Description",
+    "actual_price": "Actual Price",
+    "regular_price": "Regular Price",
+    "sale_price": "Sale Price",
+}
+
+
+def _product_value_for_json(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, ProductCategory):
+        return value.pk
+    if value is None:
+        return ""
+    return value
+
+
+def _product_current_change_values(product):
+    return {
+        "name": product.name,
+        "category_master": product.category_master_id or "",
+        "sku": product.sku or "",
+        "smartbiz_product_id": product.smartbiz_product_id or "",
+        "woocommerce_product_id": product.woocommerce_product_id or "",
+        "woocommerce_variation_id": product.woocommerce_variation_id or "",
+        "barcode": product.barcode or "",
+        "image_url": product.image_url or "",
+        "stock_quantity": int(product.stock_quantity or 0),
+        "reorder_level": int(product.reorder_level or 0),
+        "is_active": bool(product.is_active),
+        "description": clean_product_description(product.description),
+        "actual_price": str(product.actual_price) if product.actual_price is not None else "",
+        "regular_price": str(product.regular_price) if product.regular_price is not None else "",
+        "sale_price": str(product.sale_price) if product.sale_price is not None else "",
+    }
+
+
+def _product_form_change_values(form):
+    values = {}
+    for field_name in PRODUCT_CHANGE_REQUEST_FIELDS:
+        values[field_name] = _product_value_for_json(form.cleaned_data.get(field_name))
+    return values
+
+
+def _product_changed_values(product, form):
+    old_values = _product_current_change_values(product)
+    proposed_values = _product_form_change_values(form)
+    changed_old = {}
+    changed_new = {}
+    for field_name in PRODUCT_CHANGE_REQUEST_FIELDS:
+        old_value = old_values.get(field_name, "")
+        new_value = proposed_values.get(field_name, "")
+        if str(old_value) != str(new_value):
+            changed_old[field_name] = old_value
+            changed_new[field_name] = new_value
+    return changed_old, changed_new
+
+
+def _create_product_change_request(request, product, form):
+    product.refresh_from_db()
+    old_values, new_values = _product_changed_values(product, form)
+    if not new_values:
+        return None
+    return ProductChangeRequest.objects.create(
+        tenant=product.tenant,
+        product=product,
+        requested_by=_request_actor(request),
+        old_values=old_values,
+        new_values=new_values,
+    )
+
+
+def _apply_product_change_request(change_request):
+    product = change_request.product
+    for field_name, value in change_request.new_values.items():
+        if field_name == "category_master":
+            setattr(product, "category_master_id", int(value) if str(value).strip().isdigit() else None)
+        elif field_name in {"actual_price", "regular_price", "sale_price"}:
+            setattr(product, field_name, Decimal(str(value)) if str(value).strip() else None)
+        elif field_name in {"stock_quantity", "reorder_level"}:
+            setattr(product, field_name, int(value or 0))
+        elif field_name == "is_active":
+            setattr(product, field_name, bool(value))
+        elif hasattr(product, field_name):
+            setattr(product, field_name, value)
+    product.save()
+    extra_fields = {
+        "description": clean_product_description(product.description),
+        "regular_price": product.regular_price,
+        "sale_price": product.sale_price,
+    }
+    update_woocommerce_product(product, extra_fields=extra_fields)
+    return product
 
 
 def _product_image_upload_url(request, uploaded_file):
@@ -4368,6 +4584,16 @@ def stock_product_section(request, pk, section):
         form.add_error("image_url", upload_error)
     if request.method == "POST":
         if form.is_valid():
+            if is_vendor_user(request.user):
+                change_request = _create_product_change_request(request, product, form)
+                if change_request:
+                    messages.success(
+                        request,
+                        f"Submitted product change request #{change_request.pk} for super admin approval.",
+                    )
+                else:
+                    messages.info(request, "No product changes detected.")
+                return redirect("stock_product_section", pk=product.pk, section=section)
             product = form.save()
             extra_fields = {
                 "description": form.cleaned_data.get("description"),
@@ -4397,6 +4623,7 @@ def stock_product_section(request, pk, section):
         {
             "form": form,
             "product": product,
+            "pending_change_count": product.change_requests.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
             "product_categories": product_categories,
             "section": section,
             "section_title": section_titles[section],

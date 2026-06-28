@@ -25,6 +25,7 @@ from .models import (
     ExpensePerson,
     OrderActivityLog,
     Product,
+    ProductChangeRequest,
     ProductCategory,
     Project,
     SenderAddress,
@@ -8117,6 +8118,82 @@ class RoleAccessTests(TestCase):
         self.assertContains(detail_response, "https://shop.example.com/images/serum-updated.jpg")
         self.assertContains(detail_response, "Stock quantity: 8")
         self.assertContains(detail_response, "Hair Care")
+
+    @patch("core.views.update_woocommerce_product")
+    def test_vendor_product_section_edit_creates_pending_approval_request(self, mock_update_product):
+        tenant = Tenant.objects.create(name="Approval Vendor", slug="approval-vendor")
+        vendor = get_user_model().objects.create_user(username="approvalvendor", password="testpass123")
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=vendor,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        product = Product.objects.create(
+            tenant=tenant,
+            name="Approval Serum",
+            sku="APPROVAL-1",
+            description="Old description",
+            regular_price="300.00",
+            sale_price="240.00",
+            is_active=True,
+        )
+        self.client.force_login(vendor)
+
+        response = self.client.post(
+            reverse("stock_product_section", args=[product.pk, "description"]),
+            {"description": "New vendor description."},
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        change_request = ProductChangeRequest.objects.get(product=product)
+        self.assertEqual(product.description, "Old description")
+        self.assertEqual(change_request.status, ProductChangeRequest.STATUS_PENDING)
+        self.assertEqual(change_request.old_values["description"], "Old description")
+        self.assertEqual(change_request.new_values["description"], "New vendor description.")
+        mock_update_product.assert_not_called()
+        self.assertContains(response, "Submitted product change request")
+
+    @patch("core.views.update_woocommerce_product")
+    def test_super_admin_approves_product_change_request_and_syncs_woocommerce(self, mock_update_product):
+        tenant = Tenant.objects.create(name="Approval Vendor", slug="approval-vendor")
+        product = Product.objects.create(
+            tenant=tenant,
+            name="Approval Serum",
+            sku="APPROVAL-2",
+            description="Old description",
+            regular_price="300.00",
+            sale_price="240.00",
+            is_active=True,
+        )
+        change_request = ProductChangeRequest.objects.create(
+            tenant=tenant,
+            product=product,
+            requested_by="approvalvendor",
+            old_values={"description": "Old description", "sale_price": "240.00"},
+            new_values={"description": "Approved description.", "sale_price": "220.00"},
+        )
+        super_user = get_user_model().objects.create_superuser(
+            username="approvalroot",
+            email="approvalroot@example.com",
+            password="testpass123",
+        )
+        self.client.force_login(super_user)
+
+        response = self.client.post(
+            reverse("product_change_request_review", args=[change_request.pk]),
+            {"action": "approve", "review_note": "Looks good"},
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        change_request.refresh_from_db()
+        self.assertEqual(product.description, "Approved description.")
+        self.assertEqual(str(product.sale_price), "220.00")
+        self.assertEqual(change_request.status, ProductChangeRequest.STATUS_APPROVED)
+        self.assertEqual(change_request.reviewed_by, "approvalroot")
+        mock_update_product.assert_called_once()
+        self.assertContains(response, "Approved product changes")
 
     @patch("core.views.update_woocommerce_product")
     def test_ops_viewer_can_upload_product_image_from_device(self, mock_update_product):

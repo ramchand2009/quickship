@@ -31,6 +31,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-product-chevron { color:#777; font-size:1.1rem; }
 .ops-product-add-more { display:flex; align-items:center; gap:1rem; min-height:64px; padding:0 1rem; color:#9333ea; background:#fff; border-top:1px solid #ddd; border-bottom:1px solid #ddd; font-weight:850; text-decoration:none; text-transform:uppercase; }
 .ops-product-add-more i { font-size:1.25rem; }
+.ops-product-approval-note { margin:.75rem 1rem 0; padding:.75rem .9rem; border-radius:.4rem; background:#fff7d6; color:#7a5a00; font-weight:750; }
 </style>
 {% endblock %}
 
@@ -59,6 +60,9 @@ body { overflow-x:hidden; background:#f3f3f4; }
 
     <div class="ops-product-name-block">
         <h2>{{ product.name }}</h2>
+        {% if pending_change_count %}
+            <div class="ops-product-approval-note">{{ pending_change_count }} change request(s) waiting for super admin approval.</div>
+        {% endif %}
     </div>
 
     <a href="{% url 'stock_product_section' product.pk 'description' %}" class="ops-product-row">

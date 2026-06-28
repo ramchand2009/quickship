@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Product Approvals | Mathukai{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="mb-1">Product Approvals</h5>
+                    <div class="text-muted small">{{ pending_count }} pending request(s)</div>
+                </div>
+                <form method="get" class="d-flex align-items-center gap-2">
+                    <select name="status" class="form-select form-select-sm">
+                        {% for choice in status_choices %}
+                            <option value="{{ choice }}" {% if status_filter == choice %}selected{% endif %}>{{ choice|title }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
+                </form>
+            </div>
+            <div class="card-block">
+                {% for item in change_requests %}
+                    {% with change=item.request %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                                <div>
+                                    <h6 class="mb-1">{{ change.product.name }}</h6>
+                                    <div class="text-muted small">
+                                        {{ change.tenant.name }} | SKU {{ change.product.sku }} | Requested by {{ change.requested_by|default:"-" }}
+                                    </div>
+                                </div>
+                                <span class="badge {% if change.status == 'pending' %}bg-warning text-dark{% elif change.status == 'approved' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ change.get_status_display }}
+                                </span>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Field</th>
+                                            <th>Current Value</th>
+                                            <th>Requested Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in item.rows %}
+                                            <tr>
+                                                <td class="fw-semibold">{{ row.label }}</td>
+                                                <td style="white-space:pre-wrap;">{{ row.old|default:"-" }}</td>
+                                                <td style="white-space:pre-wrap;">{{ row.new|default:"-" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {% if change.status == 'pending' %}
+                                <form method="post" action="{% url 'product_change_request_review' change.pk %}" class="row g-2 align-items-end">
+                                    {% csrf_token %}
+                                    <div class="col-md-8">
+                                        <label class="form-label">Review Note</label>
+                                        <input type="text" name="review_note" class="form-control" placeholder="Optional reason or note">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="submit" name="action" value="reject" class="btn btn-outline-secondary w-100">Reject</button>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="submit" name="action" value="approve" class="btn btn-success w-100">Approve</button>
+                                    </div>
+                                </form>
+                            {% else %}
+                                <div class="text-muted small">
+                                    Reviewed by {{ change.reviewed_by|default:"-" }}
+                                    {% if change.reviewed_at %} on {{ change.reviewed_at|date:"d M Y H:i" }}{% endif %}
+                                    {% if change.review_note %} | {{ change.review_note }}{% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endwith %}
+                {% empty %}
+                    <div class="text-center text-muted py-4">No product change requests found.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

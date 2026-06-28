@@ -15,6 +15,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
 .ops-section-topbar h1 { margin:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:1.35rem; line-height:1.75rem; font-weight:760; letter-spacing:0; }
 .ops-section-body { background:#fff; padding:1rem .85rem; }
 .ops-section-alert { margin:0 0 1rem; padding:.75rem .9rem; border-radius:.25rem; background:#fff7ed; color:#9a3412; font-size:.92rem; line-height:1.3rem; }
+.ops-section-approval-note { margin:0 0 1rem; padding:.75rem .9rem; border-radius:.25rem; background:#fff7d6; color:#7a5a00; font-size:.92rem; font-weight:750; line-height:1.3rem; }
 .ops-section-block { padding:1.25rem 0; border-bottom:1px solid #ddd; }
 .ops-section-block:first-child { padding-top:0; }
 .ops-section-block h2 { margin:0 0 1rem; font-size:1.45rem; line-height:1.8rem; font-weight:760; }
@@ -63,6 +64,9 @@ body { overflow-x:hidden; background:#f3f3f4; }
     <div class="ops-section-body">
         {% if form.errors %}
             <div class="ops-section-alert">Unable to save. Check the highlighted fields and try again.</div>
+        {% endif %}
+        {% if pending_change_count %}
+            <div class="ops-section-approval-note">{{ pending_change_count }} change request(s) waiting for super admin approval.</div>
         {% endif %}
         {% if section == "description" %}
             <div class="ops-section-field">
