@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Settlement Report | Mathukai{% endblock %}
+
+{% block extrastyle %}
+{% if ops_mobile_mode %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+{% include "core/_ops_mobile_topbar_styles.html" %}
+{% include "core/_ops_mobile_bottomnav_styles.html" %}
+
+.settlement-shell {
+    min-height: 100vh;
+    padding: 0 0 6rem;
+    background: #faf8ff;
+    color: #1a1b21;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.settlement-content { display: grid; gap: 1rem; padding: 1rem; }
+.settlement-card {
+    background: #ffffff;
+    border: 1px solid #d8dae5;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.settlement-title { margin:0; color:#00164e; font-size:1.05rem; font-weight:800; }
+.settlement-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin-top:1rem; }
+.settlement-metric { min-width:0; }
+.settlement-label { display:block; color:#555866; font-size:.78rem; font-weight:700; text-transform:uppercase; }
+.settlement-value { display:block; margin-top:.25rem; color:#101828; font-size:1.2rem; font-weight:800; }
+.settlement-status { display:inline-flex; margin-top:.75rem; padding:.25rem .65rem; border-radius:999px; background:#fff7d6; color:#7a5a00; font-weight:800; }
+.settlement-status.is-paid { background:#dcfce7; color:#166534; }
+.settlement-filter { display:grid; gap:.75rem; }
+.settlement-filter .form-control, .settlement-filter .form-select { min-height:44px; border-radius:.45rem; }
+</style>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if ops_mobile_mode %}
+<div class="settlement-shell">
+    <div class="ops-mobile-topbar">
+        <div class="ops-mobile-topbar-row">
+            <a href="{% url 'home' %}" class="ops-mobile-topbar-control" aria-label="Back to home">&#8592;</a>
+            <h1>Settlement</h1>
+            <a href="{% url 'vendor_settlements' %}?period={{ period_context.period }}&from={{ period_context.from_value }}&to={{ period_context.to_value }}&format=csv" class="ops-mobile-topbar-control" aria-label="Export CSV"><i class="fas fa-download"></i></a>
+        </div>
+    </div>
+    <div class="settlement-content">
+        <form method="get" class="settlement-card settlement-filter">
+            <select name="period" class="form-select">
+                <option value="today" {% if period_context.period == "today" %}selected{% endif %}>Today</option>
+                <option value="month" {% if period_context.period == "month" %}selected{% endif %}>This Month</option>
+                <option value="custom" {% if period_context.period == "custom" %}selected{% endif %}>Custom</option>
+            </select>
+            <input type="date" name="from" value="{{ period_context.from_value }}" class="form-control">
+            <input type="date" name="to" value="{{ period_context.to_value }}" class="form-control">
+            <button type="submit" class="btn btn-primary w-100">Apply</button>
+        </form>
+        {% for row in rows %}
+            <div class="settlement-card">
+                <h2 class="settlement-title">{{ row.tenant.name }}</h2>
+                <span class="settlement-status {% if row.settlement.is_paid %}is-paid{% endif %}">
+                    {% if row.settlement.is_paid %}Paid{% else %}Unpaid{% endif %}
+                </span>
+                <div class="settlement-grid">
+                    <div class="settlement-metric"><span class="settlement-label">Orders</span><span class="settlement-value">{{ row.order_count }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Sales</span><span class="settlement-value">Rs {{ row.sales_total|floatformat:2 }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Profit</span><span class="settlement-value">Rs {{ row.profit_total|floatformat:2 }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Expenses</span><span class="settlement-value">Rs {{ row.expense_total|floatformat:2 }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Payout</span><span class="settlement-value">Rs {{ row.payout_total|floatformat:2 }}</span></div>
+                    <div class="settlement-metric"><span class="settlement-label">Missing Profit</span><span class="settlement-value">{{ row.incomplete_profit_count }}</span></div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="expenses" %}
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="mb-1">Vendor Settlement Report</h5>
+                    <div class="text-muted small">{{ period_context.label }}</div>
+                </div>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'vendor_settlements' %}?period={{ period_context.period }}&from={{ period_context.from_value }}&to={{ period_context.to_value }}&format=csv">Export CSV</a>
+            </div>
+            <div class="card-block">
+                <form method="get" class="row g-3 align-items-end mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Period</label>
+                        <select name="period" class="form-select">
+                            <option value="today" {% if period_context.period == "today" %}selected{% endif %}>Today</option>
+                            <option value="month" {% if period_context.period == "month" %}selected{% endif %}>This Month</option>
+                            <option value="custom" {% if period_context.period == "custom" %}selected{% endif %}>Custom</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">From</label>
+                        <input type="date" name="from" value="{{ period_context.from_value }}" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">To</label>
+                        <input type="date" name="to" value="{{ period_context.to_value }}" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+                    </div>
+                </form>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Orders</div><div class="h4 mb-0">{{ totals.order_count }}</div></div></div>
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Sales</div><div class="h4 mb-0">Rs {{ totals.sales_total|floatformat:2 }}</div></div></div>
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Profit</div><div class="h4 mb-0">Rs {{ totals.profit_total|floatformat:2 }}</div></div></div>
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Expenses</div><div class="h4 mb-0">Rs {{ totals.expense_total|floatformat:2 }}</div></div></div>
+                    <div class="col-md"><div class="border rounded p-3"><div class="text-muted small">Payout</div><div class="h4 mb-0">Rs {{ totals.payout_total|floatformat:2 }}</div></div></div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Orders</th>
+                                <th>Sales</th>
+                                <th>Profit</th>
+                                <th>Expenses</th>
+                                <th>Payout</th>
+                                <th>Profit Gaps</th>
+                                <th>Status</th>
+                                {% if can_mark_settlement_paid %}<th>Action</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                                <tr>
+                                    <td>{{ row.tenant.name }}</td>
+                                    <td>{{ row.order_count }}</td>
+                                    <td>Rs {{ row.sales_total|floatformat:2 }}</td>
+                                    <td>Rs {{ row.profit_total|floatformat:2 }}</td>
+                                    <td>Rs {{ row.expense_total|floatformat:2 }}</td>
+                                    <td><strong>Rs {{ row.payout_total|floatformat:2 }}</strong></td>
+                                    <td>{{ row.incomplete_profit_count }}</td>
+                                    <td>
+                                        <span class="badge {% if row.settlement.is_paid %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                            {% if row.settlement.is_paid %}Paid{% else %}Unpaid{% endif %}
+                                        </span>
+                                    </td>
+                                    {% if can_mark_settlement_paid %}
+                                        <td>
+                                            <form method="post" action="{% url 'vendor_settlement_toggle_paid' row.settlement.pk %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="return_query" value="period={{ period_context.period }}&from={{ period_context.from_value }}&to={{ period_context.to_value }}">
+                                                {% if row.settlement.is_paid %}
+                                                    <input type="hidden" name="action" value="mark_unpaid">
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Mark Unpaid</button>
+                                                {% else %}
+                                                    <input type="hidden" name="action" value="mark_paid">
+                                                    <button type="submit" class="btn btn-sm btn-success">Mark Paid</button>
+                                                {% endif %}
+                                            </form>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="9" class="text-center text-muted py-4">No active vendors found.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

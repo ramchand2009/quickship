@@ -95,6 +95,7 @@ from .models import (
     StockMovement,
     Tenant,
     TenantWooCommerceMappingRule,
+    VendorSettlement,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -660,6 +661,103 @@ def _sender_address_for_request(request):
     if _should_scope_to_active_tenant(request):
         return _sender_address_for_tenant(get_active_tenant(request))
     return SenderAddress.get_default()
+
+
+SETTLEMENT_VALUE_STATUSES = [
+    ShiprocketOrder.STATUS_ACCEPTED,
+    ShiprocketOrder.STATUS_PACKED,
+    ShiprocketOrder.STATUS_SHIPPED,
+    ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+    ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+    ShiprocketOrder.STATUS_DELIVERED,
+    ShiprocketOrder.STATUS_COMPLETED,
+]
+
+
+def _settlement_period_from_request(request):
+    today = timezone.localdate()
+    period = str(request.GET.get("period") or "month").strip().lower()
+    if period not in {"today", "month", "custom"}:
+        period = "month"
+
+    if period == "today":
+        start_date = today
+        end_date = today
+    elif period == "custom":
+        start_date = parse_date(str(request.GET.get("from") or "").strip()) or today.replace(day=1)
+        end_date = parse_date(str(request.GET.get("to") or "").strip()) or today
+        if end_date < start_date:
+            start_date, end_date = end_date, start_date
+    else:
+        start_date = today.replace(day=1)
+        if start_date.month == 12:
+            end_date = start_date.replace(year=start_date.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            end_date = start_date.replace(month=start_date.month + 1, day=1) - timedelta(days=1)
+
+    return {
+        "period": period,
+        "start_date": start_date,
+        "end_date": end_date,
+        "from_value": start_date.isoformat(),
+        "to_value": end_date.isoformat(),
+        "label": f"{start_date.strftime('%d %b %Y')} - {end_date.strftime('%d %b %Y')}",
+    }
+
+
+def _date_scoped_orders(queryset, start_date, end_date):
+    return queryset.annotate(settlement_date=Coalesce("order_date", "created_at")).filter(
+        settlement_date__date__gte=start_date,
+        settlement_date__date__lte=end_date,
+    )
+
+
+def _date_scoped_expenses(queryset, start_date, end_date):
+    return queryset.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+
+
+def _expense_total(queryset):
+    line_total_expression = ExpressionWrapper(
+        F("quantity") * F("unit_price"),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+    return queryset.annotate(line_total=line_total_expression).aggregate(total=Sum("line_total")).get("total") or Decimal(
+        "0.00"
+    )
+
+
+def _settlement_row_for_tenant(tenant, start_date, end_date):
+    orders = _date_scoped_orders(
+        ShiprocketOrder.objects.filter(tenant=tenant, local_status__in=SETTLEMENT_VALUE_STATUSES),
+        start_date,
+        end_date,
+    )
+    expenses = _date_scoped_expenses(BusinessExpense.objects.filter(tenant=tenant), start_date, end_date)
+    sales_total = orders.aggregate(total_amount=Sum("total")).get("total_amount") or Decimal("0.00")
+    profit_total = Decimal("0.00")
+    incomplete_profit_count = 0
+    for order in orders.select_related("tenant").defer("raw_payload"):
+        profit_summary = summarize_order_profit(order)
+        profit_total += profit_summary["profit_amount"]
+        if not profit_summary["is_complete"]:
+            incomplete_profit_count += 1
+
+    expense_total = _expense_total(expenses)
+    settlement, _created = VendorSettlement.objects.get_or_create(
+        tenant=tenant,
+        period_start=start_date,
+        period_end=end_date,
+    )
+    return {
+        "tenant": tenant,
+        "settlement": settlement,
+        "order_count": orders.count(),
+        "sales_total": sales_total,
+        "profit_total": profit_total,
+        "expense_total": expense_total,
+        "payout_total": profit_total - expense_total,
+        "incomplete_profit_count": incomplete_profit_count,
+    }
 
 
 def _product_category_form_queryset(request, product=None):
@@ -3744,6 +3842,105 @@ def sender_address(request):
     else:
         form = SenderAddressForm(instance=sender)
     return render(request, "core/sender_address.html", {"form": form})
+
+
+@login_required
+def vendor_settlements(request):
+    period_context = _settlement_period_from_request(request)
+    start_date = period_context["start_date"]
+    end_date = period_context["end_date"]
+    if _should_scope_to_active_tenant(request):
+        tenant = get_active_tenant(request)
+        if tenant is None:
+            messages.error(request, "No vendor workspace is assigned to your account.")
+            return redirect("order_management")
+        tenants = [tenant]
+    elif is_super_admin(request.user):
+        tenants = list(Tenant.objects.filter(is_active=True).order_by("name"))
+    else:
+        messages.error(request, "Your role cannot access settlement reports.")
+        return redirect("order_management")
+
+    rows = [_settlement_row_for_tenant(tenant, start_date, end_date) for tenant in tenants]
+    totals = {
+        "order_count": sum(row["order_count"] for row in rows),
+        "sales_total": sum((row["sales_total"] for row in rows), Decimal("0.00")),
+        "profit_total": sum((row["profit_total"] for row in rows), Decimal("0.00")),
+        "expense_total": sum((row["expense_total"] for row in rows), Decimal("0.00")),
+        "payout_total": sum((row["payout_total"] for row in rows), Decimal("0.00")),
+        "incomplete_profit_count": sum(row["incomplete_profit_count"] for row in rows),
+    }
+
+    if str(request.GET.get("format") or "").strip().lower() == "csv":
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="vendor-settlements-{start_date.isoformat()}-{end_date.isoformat()}.csv"'
+        )
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Vendor",
+                "Orders",
+                "Sales",
+                "Profit",
+                "Expenses",
+                "Payout",
+                "Profit Incomplete Orders",
+                "Settlement Status",
+            ]
+        )
+        for row in rows:
+            writer.writerow(
+                [
+                    row["tenant"].name,
+                    row["order_count"],
+                    row["sales_total"],
+                    row["profit_total"],
+                    row["expense_total"],
+                    row["payout_total"],
+                    row["incomplete_profit_count"],
+                    "Paid" if row["settlement"].is_paid else "Unpaid",
+                ]
+            )
+        return response
+
+    return render(
+        request,
+        "core/vendor_settlements.html",
+        {
+            "period_context": period_context,
+            "rows": rows,
+            "totals": totals,
+            "ops_mobile_mode": _is_ops_viewer(request.user),
+            "can_mark_settlement_paid": is_super_admin(request.user),
+        },
+    )
+
+
+@login_required
+@require_POST
+def vendor_settlement_toggle_paid(request, pk):
+    if not is_super_admin(request.user):
+        messages.error(request, "Only super admin can update settlement payment status.")
+        return redirect("vendor_settlements")
+    settlement = get_object_or_404(VendorSettlement.objects.select_related("tenant"), pk=pk)
+    action = str(request.POST.get("action") or "").strip()
+    if action == "mark_paid":
+        settlement.is_paid = True
+        settlement.paid_at = timezone.now()
+        settlement.paid_by = _request_actor(request)
+        messages.success(request, f"Marked {settlement.tenant.name} settlement as paid.")
+    elif action == "mark_unpaid":
+        settlement.is_paid = False
+        settlement.paid_at = None
+        settlement.paid_by = ""
+        messages.success(request, f"Marked {settlement.tenant.name} settlement as unpaid.")
+    settlement.save(update_fields=["is_paid", "paid_at", "paid_by", "updated_at"])
+    query_string = str(request.POST.get("return_query") or "").strip()
+    redirect_url = reverse("vendor_settlements")
+    if query_string:
+        redirect_url = f"{redirect_url}?{query_string}"
+    return redirect(redirect_url)
 
 
 @login_required

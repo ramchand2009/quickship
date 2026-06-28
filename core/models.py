@@ -904,6 +904,34 @@ class BusinessExpense(models.Model):
         return (self.unit_price or 0) * (self.quantity or 0)
 
 
+class VendorSettlement(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="settlements",
+    )
+    period_start = models.DateField()
+    period_end = models.DateField()
+    is_paid = models.BooleanField(default=False)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    paid_by = models.CharField(max_length=150, blank=True)
+    notes = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-period_start", "tenant__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "period_start", "period_end"],
+                name="unique_vendor_settlement_period",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.tenant} settlement {self.period_start} to {self.period_end}"
+
+
 class ExpensePerson(models.Model):
     tenant = models.ForeignKey(
         Tenant,

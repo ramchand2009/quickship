@@ -33,6 +33,7 @@ from .models import (
     Tenant,
     TenantMembership,
     TenantWooCommerceMappingRule,
+    VendorSettlement,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
     WhatsAppSettings,
@@ -222,6 +223,83 @@ class TenantFoundationTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("order_management"))
+
+    def test_vendor_settlement_report_is_tenant_scoped(self):
+        TenantMembership.objects.create(
+            tenant=self.other_tenant,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        Product.objects.create(
+            tenant=self.other_tenant,
+            name="Vendor Soap",
+            sku="SETTLE-1",
+            actual_price="40.00",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="SETTLE-VENDOR-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="200.00",
+            order_items=[{"sku": "SETTLE-1", "quantity": 2, "price": "100.00"}],
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="SETTLE-MATHUKAI-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="999.00",
+        )
+        BusinessExpense.objects.create(
+            tenant=self.other_tenant,
+            item_name="Packing",
+            quantity=2,
+            unit_price="10.00",
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("vendor_settlements"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Other Vendor")
+        self.assertContains(response, "Rs 200.00")
+        self.assertContains(response, "Rs 120.00")
+        self.assertContains(response, "Rs 20.00")
+        self.assertContains(response, "Rs 100.00")
+        self.assertNotContains(response, "Mathukai</td>")
+
+    def test_super_admin_can_mark_vendor_settlement_paid(self):
+        settlement = VendorSettlement.objects.create(
+            tenant=self.other_tenant,
+            period_start=timezone.localdate().replace(day=1),
+            period_end=timezone.localdate(),
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("vendor_settlement_toggle_paid", args=[settlement.pk]),
+            {"action": "mark_paid"},
+            follow=True,
+        )
+
+        settlement.refresh_from_db()
+        self.assertRedirects(response, reverse("vendor_settlements"))
+        self.assertTrue(settlement.is_paid)
+        self.assertEqual(settlement.paid_by, self.super_user.username)
+
+    def test_super_admin_can_export_vendor_settlements_csv(self):
+        ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="SETTLE-CSV-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            total="150.00",
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(f"{reverse('vendor_settlements')}?format=csv")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("Vendor,Orders,Sales,Profit,Expenses,Payout", response.content.decode())
 
     def test_inactive_membership_does_not_grant_access(self):
         TenantMembership.objects.create(
