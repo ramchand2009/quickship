@@ -57,6 +57,7 @@
             <div>
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'woocommerce_sync_status' %}">Woo Sync Status</a>
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'tenant_mapping_health' %}">Mapping Health</a>
+                <a class="btn btn-sm btn-outline-secondary" href="#profit-incomplete-orders">Affected Orders</a>
             </div>
         </div>
     </div>
@@ -128,6 +129,42 @@
         {% else %}
             <div class="text-muted">All active products have actual price.</div>
         {% endif %}
+    </div>
+</div>
+
+<div class="card ops-admin-card mt-3" id="profit-incomplete-orders">
+    <div class="card-header">
+        <h5 class="mb-0">Orders Affected By Missing Cost</h5>
+    </div>
+    <div class="card-block missing-cost-table-wrap">
+        <table class="table table-sm table-hover missing-cost-table mb-0">
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Vendor</th>
+                    <th>Customer</th>
+                    <th>Missing Cost Products</th>
+                    <th>Sales</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in profit_incomplete_order_rows %}
+                    <tr>
+                        <td><a href="{% url 'order_detail' row.order.pk %}">{{ row.order.shiprocket_order_id }}</a></td>
+                        <td>{{ row.order.tenant.name }}</td>
+                        <td>{{ row.order.customer_name|default:"-" }}</td>
+                        <td>
+                            {% for item in row.missing_actual_price_items %}
+                                <div>{{ item.name }}{% if item.sku %} <span class="text-muted">({{ item.sku }})</span>{% endif %} x {{ item.quantity }}</div>
+                            {% endfor %}
+                        </td>
+                        <td>Rs {{ row.profit_summary.revenue_total|floatformat:2 }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-muted">No orders are waiting for actual price.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

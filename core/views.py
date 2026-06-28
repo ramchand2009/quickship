@@ -4947,6 +4947,30 @@ def _parse_actual_price_input(value):
     return price.quantize(Decimal("0.01"))
 
 
+def _profit_incomplete_order_rows(*, limit=None):
+    rows = []
+    queryset = ShiprocketOrder.objects.select_related("tenant").defer("raw_payload").order_by(
+        "-order_date", "-updated_at", "-created_at"
+    )
+    for order in queryset:
+        profit_summary = summarize_order_profit(order)
+        if profit_summary.get("is_complete"):
+            continue
+        missing_actual_price_items = profit_summary.get("missing_actual_price_items") or []
+        if not missing_actual_price_items:
+            continue
+        rows.append(
+            {
+                "order": order,
+                "profit_summary": profit_summary,
+                "missing_actual_price_items": missing_actual_price_items,
+            }
+        )
+        if limit and len(rows) >= limit:
+            break
+    return rows
+
+
 def _missing_cost_products_context(selected_category_id="", price_errors=None, posted_values=None):
     selected_category_id = str(selected_category_id or "").strip()
     products = list(
@@ -4975,6 +4999,7 @@ def _missing_cost_products_context(selected_category_id="", price_errors=None, p
         "total_missing_cost_count": len(products),
         "categories": categories,
         "selected_category_id": selected_category_id,
+        "profit_incomplete_order_rows": _profit_incomplete_order_rows(limit=25),
         "price_errors": price_errors or {},
         "posted_values": posted_values or {},
     }
@@ -4990,6 +5015,7 @@ def missing_cost_products(request):
     posted_values = {}
     selected_category_id = str(request.GET.get("category") or request.POST.get("category") or "").strip()
     if request.method == "POST":
+        incomplete_before = {row["order"].pk for row in _profit_incomplete_order_rows()}
         product_ids = [value for value in request.POST.getlist("product_id") if str(value or "").isdigit()]
         products_by_id = Product.objects.filter(pk__in=product_ids, actual_price__isnull=True).in_bulk()
         updated_count = 0
@@ -5014,7 +5040,18 @@ def missing_cost_products(request):
         if price_errors:
             messages.error(request, "Some actual prices were not saved. Check the highlighted rows.")
         elif updated_count:
-            messages.success(request, f"Updated actual price for {updated_count} product(s).")
+            incomplete_after = {row["order"].pk for row in _profit_incomplete_order_rows()}
+            completed_count = len(incomplete_before - incomplete_after)
+            if completed_count:
+                messages.success(
+                    request,
+                    (
+                        f"Updated actual price for {updated_count} product(s). "
+                        f"{completed_count} order(s) now have complete profit."
+                    ),
+                )
+            else:
+                messages.success(request, f"Updated actual price for {updated_count} product(s).")
             if selected_category_id.isdigit():
                 return redirect(f"{reverse('missing_cost_products')}?{urlencode({'category': selected_category_id})}")
             return redirect("missing_cost_products")
@@ -5137,6 +5174,7 @@ def tenant_mapping_health(request):
         for rule in active_rules
         if rule.match_type in {TenantWooCommerceMappingRule.MATCH_CATEGORY, TenantWooCommerceMappingRule.MATCH_TAG}
     ]
+    profit_incomplete_order_rows = _profit_incomplete_order_rows(limit=25)
     totals = {
         "tenant_count": len(tenants),
         "active_rule_count": len(active_rules),
@@ -5145,6 +5183,7 @@ def tenant_mapping_health(request):
         "unmapped_product_count": len(unmapped_products),
         "multi_rule_product_count": len(multi_rule_products),
         "missing_cost_product_count": total_missing_cost,
+        "profit_incomplete_order_count": len(profit_incomplete_order_rows),
         "orders_with_missing_mapping_count": len(orders_with_missing_mapping),
     }
     return render(
@@ -5156,6 +5195,7 @@ def tenant_mapping_health(request):
             "unmapped_products": unmapped_products[:25],
             "multi_rule_products": multi_rule_products[:25],
             "orders_with_missing_mapping": orders_with_missing_mapping,
+            "profit_incomplete_order_rows": profit_incomplete_order_rows,
             "category_or_tag_rules": category_or_tag_rules,
         },
     )

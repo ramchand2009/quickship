@@ -774,6 +774,9 @@ class SuperAdminTenantViewTests(TestCase):
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
             customer_name="Tenant Customer",
             total="450.00",
+            order_items=[
+                {"name": "Tenant Product", "sku": "TENANT-ADMIN-1", "quantity": 1, "price": "450.00"},
+            ],
         )
         ShiprocketOrder.objects.create(
             tenant=self.other_tenant,
@@ -848,6 +851,8 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "TENANT-")
         self.assertContains(response, "Products Missing Actual Price")
         self.assertContains(response, "Tenant Product")
+        self.assertContains(response, "Profit Incomplete Orders")
+        self.assertContains(response, "SR-TENANT-ADMIN-1")
         self.assertContains(response, "Unmapped Products")
         self.assertContains(response, "Unmapped Product")
         self.assertContains(response, "Orders Missing Product Mapping")
@@ -868,6 +873,8 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Other Product")
         self.assertNotContains(response, "Unmapped Product")
         self.assertContains(response, "Save Actual Prices")
+        self.assertContains(response, "Orders Affected By Missing Cost")
+        self.assertContains(response, "SR-TENANT-ADMIN-1")
         self.assertContains(response, "All categories")
         self.assertContains(response, "Soap")
 
@@ -906,6 +913,7 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertIsNone(other_product.actual_price)
         self.assertEqual(str(priced_product.actual_price), "20.00")
         self.assertContains(response, "Updated actual price for 1 product(s).")
+        self.assertContains(response, "1 order(s) now have complete profit.")
 
     def test_missing_cost_products_preserves_category_filter_after_save(self):
         tenant_product = Product.objects.get(sku="TENANT-ADMIN-1")
