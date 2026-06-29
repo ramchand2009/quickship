@@ -10,7 +10,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 {% include "core/_ops_mobile_topbar_styles.html" %}
 .ops-stock-shell { min-height:100vh; padding:0 0 6rem; background:#fff; color:#1f2933; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 .ops-stock-topbar-actions { display:flex; align-items:center; gap:.55rem; }
-.ops-stock-profile-dot { width:36px; height:36px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#0f766e; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,.16); }
+.ops-stock-profile-dot { position:relative; width:36px; height:36px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#0f766e; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,.16); }
 .ops-stock-dashboard { display:grid; gap:0; padding-top:0; }
 .ops-stock-products-toolbar { padding:1.25rem 1rem .95rem; border-bottom:1px solid #eef0f3; background:#fff; }
 .ops-stock-products-titlebar { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
@@ -136,6 +136,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                 </form>
                 <a href="{% url 'my_product_change_requests' %}" class="ops-stock-profile-dot" aria-label="My product requests">
                     <i class="fas fa-clipboard-check"></i>
+                    {% if pending_product_change_notification_count %}
+                        <span class="ops-mobile-notification-badge">{{ pending_product_change_notification_count }}</span>
+                    {% endif %}
                 </a>
             </div>
         </div>

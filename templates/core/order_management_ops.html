@@ -1136,7 +1136,7 @@
                         <button type="submit" class="ops-mobile-topbar-control" aria-label="Sync orders"><i class="fas fa-sync-alt"></i></button>
                     </form>
                 {% else %}
-                    <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+                    {% include "core/_ops_mobile_notification_bell.html" %}
                 {% endif %}
             </div>
             <div class="ops-mobile-toolbar">

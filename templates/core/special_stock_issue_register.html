@@ -42,7 +42,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         <div class="ops-mobile-topbar-row">
             <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
             <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
-            <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+            {% include "core/_ops_mobile_notification_bell.html" %}
         </div>
     </div>
 

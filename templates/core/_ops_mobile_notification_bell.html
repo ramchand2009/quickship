@@ -1,0 +1,15 @@
+{% if pending_product_change_notification_count %}
+    {% if is_super_admin %}
+        <a href="{% url 'product_change_requests' %}" class="ops-mobile-topbar-control" aria-label="{{ pending_product_change_notification_count }} pending product approval notifications">
+            <i class="fas fa-bell"></i>
+            <span class="ops-mobile-notification-badge">{{ pending_product_change_notification_count }}</span>
+        </a>
+    {% else %}
+        <a href="{% url 'my_product_change_requests' %}" class="ops-mobile-topbar-control" aria-label="{{ pending_product_change_notification_count }} pending product request notifications">
+            <i class="fas fa-bell"></i>
+            <span class="ops-mobile-notification-badge">{{ pending_product_change_notification_count }}</span>
+        </a>
+    {% endif %}
+{% else %}
+    <span class="ops-mobile-topbar-control"><i class="fas fa-bell"></i></span>
+{% endif %}
