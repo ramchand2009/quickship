@@ -4448,14 +4448,7 @@ def stock_product_detail(request, pk):
     if request.method == "POST":
         if form.is_valid():
             if is_vendor_user(request.user):
-                change_request = _create_product_change_request(request, product, form)
-                if change_request:
-                    messages.success(
-                        request,
-                        f"Submitted product change request #{change_request.pk} for super admin approval.",
-                    )
-                else:
-                    messages.info(request, "No product changes detected.")
+                _handle_vendor_product_change_submission(request, product, form)
                 return redirect("stock_product_detail", pk=product.pk)
             product = form.save()
             extra_fields = {
@@ -4614,6 +4607,31 @@ def _create_product_change_request(request, product, form):
     )
 
 
+def _handle_vendor_product_change_submission(request, product, form):
+    change_request = _create_product_change_request(request, product, form)
+    if not change_request:
+        messages.info(request, "No product changes detected.")
+        return
+    if not getattr(product.tenant, "auto_approve_product_changes", False):
+        messages.success(
+            request,
+            f"Submitted product change request #{change_request.pk} for super admin approval.",
+        )
+        return
+
+    change_request.reviewed_by = "Auto approval"
+    change_request.reviewed_at = timezone.now()
+    change_request.review_note = "Auto approved for this vendor."
+    try:
+        _apply_product_change_request(change_request)
+    except WooCommerceAPIError as exc:
+        messages.warning(request, f"Auto-approved locally, but WooCommerce update failed: {exc}")
+    else:
+        messages.success(request, f"Auto-approved product changes for {change_request.product.name}.")
+    change_request.status = ProductChangeRequest.STATUS_APPROVED
+    change_request.save(update_fields=["status", "review_note", "reviewed_by", "reviewed_at", "updated_at"])
+
+
 def _apply_product_change_request(change_request):
     product = change_request.product
     for field_name, value in change_request.new_values.items():
@@ -4706,14 +4724,7 @@ def stock_product_section(request, pk, section):
     if request.method == "POST":
         if form.is_valid():
             if is_vendor_user(request.user):
-                change_request = _create_product_change_request(request, product, form)
-                if change_request:
-                    messages.success(
-                        request,
-                        f"Submitted product change request #{change_request.pk} for super admin approval.",
-                    )
-                else:
-                    messages.info(request, "No product changes detected.")
+                _handle_vendor_product_change_submission(request, product, form)
                 return redirect("stock_product_section", pk=product.pk, section=section)
             product = form.save()
             extra_fields = {
@@ -6299,6 +6310,12 @@ def tenant_detail(request, pk):
             pk=mapping_rule_id,
             tenant=tenant,
         )
+
+    if request.method == "POST" and request.POST.get("action") == "save_operations_settings":
+        tenant.auto_approve_product_changes = request.POST.get("auto_approve_product_changes") == "on"
+        tenant.save(update_fields=["auto_approve_product_changes", "updated_at"])
+        messages.success(request, "Vendor operations settings saved.")
+        return redirect("tenant_detail", pk=tenant.pk)
 
     if request.method == "POST" and request.POST.get("action") == "save_mapping_rule":
         mapping_form = TenantWooCommerceMappingRuleForm(

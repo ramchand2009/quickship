@@ -11,6 +11,7 @@ from .models import (
     SenderAddress,
     ShiprocketOrder,
     StockMovement,
+    Tenant,
     TenantWooCommerceMappingRule,
     WhatsAppNotificationLog,
     WhatsAppNotificationQueue,
@@ -19,6 +20,14 @@ from .models import (
     WhatsAppTemplate,
     WooCommerceSettings,
 )
+
+
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "is_active", "auto_approve_product_changes", "contact_email", "updated_at")
+    list_filter = ("is_active", "auto_approve_product_changes")
+    search_fields = ("name", "slug", "contact_name", "contact_email", "contact_phone")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(ExpensePerson)

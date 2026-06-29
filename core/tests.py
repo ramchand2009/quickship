@@ -1082,6 +1082,25 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Vendor user active")
         self.assertContains(response, "Sender address complete")
         self.assertContains(response, "SKU mapping configured")
+        self.assertContains(response, "Auto approve product changes")
+
+    def test_super_admin_can_enable_vendor_auto_product_approval_from_tenant_detail(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("tenant_detail", args=[self.tenant.pk]),
+            {
+                "action": "save_operations_settings",
+                "auto_approve_product_changes": "on",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("tenant_detail", args=[self.tenant.pk]))
+        self.tenant.refresh_from_db()
+        self.assertTrue(self.tenant.auto_approve_product_changes)
+        self.assertContains(response, "Vendor operations settings saved.")
+        self.assertContains(response, "id_auto_approve_product_changes")
 
     def test_super_admin_can_view_tenant_mapping_health(self):
         self.client.force_login(self.super_user)
@@ -8381,6 +8400,47 @@ class RoleAccessTests(TestCase):
         self.assertEqual(change_request.new_values["description"], "New vendor description.")
         mock_update_product.assert_not_called()
         self.assertContains(response, "Submitted product change request")
+
+    @patch("core.views.update_woocommerce_product")
+    def test_vendor_product_section_edit_auto_approves_for_enabled_vendor(self, mock_update_product):
+        tenant = Tenant.objects.create(
+            name="Auto Approval Vendor",
+            slug="auto-approval-vendor",
+            auto_approve_product_changes=True,
+        )
+        vendor = get_user_model().objects.create_user(username="autoapprovalvendor", password="testpass123")
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=vendor,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        product = Product.objects.create(
+            tenant=tenant,
+            name="Auto Approval Serum",
+            sku="AUTO-APPROVAL-1",
+            description="Old description",
+            regular_price="300.00",
+            sale_price="240.00",
+            is_active=True,
+        )
+        self.client.force_login(vendor)
+
+        response = self.client.post(
+            reverse("stock_product_section", args=[product.pk, "description"]),
+            {"description": "Auto-approved vendor description."},
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        change_request = ProductChangeRequest.objects.get(product=product)
+        self.assertEqual(product.description, "Auto-approved vendor description.")
+        self.assertEqual(change_request.status, ProductChangeRequest.STATUS_APPROVED)
+        self.assertEqual(change_request.reviewed_by, "Auto approval")
+        self.assertEqual(change_request.review_note, "Auto approved for this vendor.")
+        self.assertEqual(change_request.old_values["description"], "Old description")
+        self.assertEqual(change_request.new_values["description"], "Auto-approved vendor description.")
+        mock_update_product.assert_called_once()
+        self.assertContains(response, "Auto-approved product changes for Auto Approval Serum.")
 
     @patch("core.views.update_woocommerce_product")
     def test_super_admin_approves_product_change_request_and_syncs_woocommerce(self, mock_update_product):

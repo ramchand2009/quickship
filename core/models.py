@@ -45,11 +45,10 @@ def first_present(*values):
 
 
 def get_default_tenant():
-    tenant, _created = Tenant.objects.get_or_create(
-        slug=DEFAULT_TENANT_SLUG,
-        defaults={"name": DEFAULT_TENANT_NAME},
-    )
-    return tenant
+    try:
+        return Tenant.objects.only("pk").get(slug=DEFAULT_TENANT_SLUG)
+    except Tenant.DoesNotExist:
+        return Tenant.objects.create(slug=DEFAULT_TENANT_SLUG, name=DEFAULT_TENANT_NAME)
 
 
 def get_default_tenant_pk():
@@ -60,6 +59,7 @@ class Tenant(models.Model):
     name = models.CharField(max_length=160)
     slug = models.SlugField(max_length=80, unique=True)
     is_active = models.BooleanField(default=True)
+    auto_approve_product_changes = models.BooleanField(default=False)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
