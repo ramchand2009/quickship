@@ -8195,6 +8195,66 @@ class RoleAccessTests(TestCase):
         mock_update_product.assert_called_once()
         self.assertContains(response, "Approved product changes")
 
+    def test_vendor_can_view_only_their_product_change_requests(self):
+        tenant = Tenant.objects.create(name="Request Vendor", slug="request-vendor")
+        other_tenant = Tenant.objects.create(name="Other Request Vendor", slug="other-request-vendor")
+        vendor = get_user_model().objects.create_user(username="requestvendor", password="testpass123")
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=vendor,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        product = Product.objects.create(tenant=tenant, name="Vendor Request Product", sku="REQ-1")
+        other_product = Product.objects.create(tenant=other_tenant, name="Other Request Product", sku="REQ-2")
+        ProductChangeRequest.objects.create(
+            tenant=tenant,
+            product=product,
+            requested_by="requestvendor",
+            old_values={"description": "Old"},
+            new_values={"description": "New"},
+        )
+        ProductChangeRequest.objects.create(
+            tenant=other_tenant,
+            product=other_product,
+            requested_by="other",
+            old_values={"description": "Other Old"},
+            new_values={"description": "Other New"},
+        )
+        self.client.force_login(vendor)
+
+        response = self.client.get(reverse("my_product_change_requests"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendor Request Product")
+        self.assertContains(response, "Pending")
+        self.assertContains(response, "Old")
+        self.assertContains(response, "New")
+        self.assertNotContains(response, "Other Request Product")
+
+    def test_vendor_product_detail_links_to_my_product_requests_when_pending_exists(self):
+        tenant = Tenant.objects.create(name="Request Link Vendor", slug="request-link-vendor")
+        vendor = get_user_model().objects.create_user(username="requestlinkvendor", password="testpass123")
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=vendor,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        product = Product.objects.create(tenant=tenant, name="Request Link Product", sku="REQ-LINK-1")
+        ProductChangeRequest.objects.create(
+            tenant=tenant,
+            product=product,
+            requested_by="requestlinkvendor",
+            old_values={"description": "Old"},
+            new_values={"description": "New"},
+        )
+        self.client.force_login(vendor)
+
+        response = self.client.get(reverse("stock_product_detail", args=[product.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("my_product_change_requests"))
+        self.assertContains(response, "1 change request(s) waiting for super admin approval.")
+
     @patch("core.views.update_woocommerce_product")
     def test_ops_viewer_can_upload_product_image_from_device(self, mock_update_product):
         product = Product.objects.create(

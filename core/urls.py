@@ -14,6 +14,7 @@ from .views import (
     home,
     metrics,
     missing_cost_products,
+    my_product_change_requests,
     order_management_export_csv,
     order_management,
     order_management_delete_view,
@@ -142,6 +143,7 @@ urlpatterns = [
     path("stock-issues/", special_stock_issue_register, name="special_stock_issue_register"),
     path("product-categories/", product_categories, name="product_categories"),
     path("products/change-requests/", product_change_requests, name="product_change_requests"),
+    path("products/my-change-requests/", my_product_change_requests, name="my_product_change_requests"),
     path(
         "products/change-requests/<int:pk>/review/",
         product_change_request_review,

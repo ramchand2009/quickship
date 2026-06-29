@@ -3991,6 +3991,65 @@ def product_change_requests(request):
 
 
 @login_required
+def my_product_change_requests(request):
+    if not is_vendor_user(request.user):
+        messages.error(request, "Your role cannot access vendor product requests.")
+        return redirect("order_management")
+    tenant = get_active_tenant(request)
+    if tenant is None:
+        messages.error(request, "No vendor workspace is assigned to your account.")
+        return redirect("order_management")
+    status_filter = str(request.GET.get("status") or ProductChangeRequest.STATUS_PENDING).strip().lower()
+    if status_filter not in {
+        ProductChangeRequest.STATUS_PENDING,
+        ProductChangeRequest.STATUS_APPROVED,
+        ProductChangeRequest.STATUS_REJECTED,
+        "all",
+    }:
+        status_filter = ProductChangeRequest.STATUS_PENDING
+    requests_query = ProductChangeRequest.objects.select_related("tenant", "product").filter(tenant=tenant)
+    if status_filter != "all":
+        requests_query = requests_query.filter(status=status_filter)
+    change_requests = []
+    for change_request in requests_query.order_by("-created_at")[:100]:
+        rows = []
+        for field_name, new_value in change_request.new_values.items():
+            rows.append(
+                {
+                    "field": field_name,
+                    "label": PRODUCT_CHANGE_REQUEST_LABELS.get(field_name, field_name.replace("_", " ").title()),
+                    "old": change_request.old_values.get(field_name, ""),
+                    "new": new_value,
+                }
+            )
+        change_requests.append({"request": change_request, "rows": rows})
+    counts = {
+        status_key: ProductChangeRequest.objects.filter(tenant=tenant, status=status_key).count()
+        for status_key in [
+            ProductChangeRequest.STATUS_PENDING,
+            ProductChangeRequest.STATUS_APPROVED,
+            ProductChangeRequest.STATUS_REJECTED,
+        ]
+    }
+    return render(
+        request,
+        "core/my_product_change_requests.html",
+        {
+            "change_requests": change_requests,
+            "status_filter": status_filter,
+            "status_choices": [
+                ProductChangeRequest.STATUS_PENDING,
+                ProductChangeRequest.STATUS_APPROVED,
+                ProductChangeRequest.STATUS_REJECTED,
+                "all",
+            ],
+            "counts": counts,
+            "ops_mobile_mode": _is_ops_viewer(request.user),
+        },
+    )
+
+
+@login_required
 @require_POST
 def product_change_request_review(request, pk):
     if not is_super_admin(request.user):

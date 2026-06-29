@@ -66,7 +66,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
             <div class="ops-section-alert">Unable to save. Check the highlighted fields and try again.</div>
         {% endif %}
         {% if pending_change_count %}
-            <div class="ops-section-approval-note">{{ pending_change_count }} change request(s) waiting for super admin approval.</div>
+            <a href="{% url 'my_product_change_requests' %}" class="ops-section-approval-note d-block text-decoration-none">{{ pending_change_count }} change request(s) waiting for super admin approval.</a>
         {% endif %}
         {% if section == "description" %}
             <div class="ops-section-field">

@@ -140,6 +140,12 @@
                                 </li>
                             {% endif %}
                             {% if is_vendor_user %}
+                                <li class="nav-item {% if current == 'my_product_change_requests' %}active{% endif %}">
+                                    <a href="{% url 'my_product_change_requests' %}" class="nav-link">
+                                        <span class="pcoded-micon"><i class="feather icon-check-square"></i></span>
+                                        <span class="pcoded-mtext">My Product Requests</span>
+                                    </a>
+                                </li>
                                 <li class="nav-item {% if current == 'vendor_settlements' %}active{% endif %}">
                                     <a href="{% url 'vendor_settlements' %}" class="nav-link">
                                         <span class="pcoded-micon"><i class="feather icon-credit-card"></i></span>

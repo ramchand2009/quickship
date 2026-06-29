@@ -61,7 +61,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
     <div class="ops-product-name-block">
         <h2>{{ product.name }}</h2>
         {% if pending_change_count %}
-            <div class="ops-product-approval-note">{{ pending_change_count }} change request(s) waiting for super admin approval.</div>
+            <a href="{% url 'my_product_change_requests' %}" class="ops-product-approval-note d-block text-decoration-none">{{ pending_change_count }} change request(s) waiting for super admin approval.</a>
         {% endif %}
     </div>
 

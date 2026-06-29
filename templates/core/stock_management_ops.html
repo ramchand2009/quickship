@@ -134,7 +134,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </form>
-                <span class="ops-stock-profile-dot"><i class="fas fa-user-friends"></i></span>
+                <a href="{% url 'my_product_change_requests' %}" class="ops-stock-profile-dot" aria-label="My product requests">
+                    <i class="fas fa-clipboard-check"></i>
+                </a>
             </div>
         </div>
     </div>

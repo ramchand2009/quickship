@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}My Product Requests | Mathukai{% endblock %}
+
+{% block extrastyle %}
+{% if ops_mobile_mode %}
+<style>
+body.ops-mobile-layout .pcoded-header, body.ops-mobile-layout .pcoded-navbar { display:none !important; }
+body.ops-mobile-layout .pcoded-main-container { margin-left:0; padding-top:0; }
+body.ops-mobile-layout .pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-content, body.ops-mobile-layout .main-body, body.ops-mobile-layout .pcoded-content, body.ops-mobile-layout .page-wrapper { margin-top:0; padding:0; }
+{% include "core/_ops_mobile_topbar_styles.html" %}
+{% include "core/_ops_mobile_bottomnav_styles.html" %}
+
+.request-shell {
+    min-height: 100vh;
+    padding: 0 0 6rem;
+    background: #faf8ff;
+    color: #1a1b21;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.request-content { display:grid; gap:1rem; padding:1rem; }
+.request-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.45rem; }
+.request-tabs a { min-width:0; padding:.7rem .25rem; border:1px solid #d8dae5; border-radius:.45rem; background:#fff; color:#444651; font-size:.78rem; font-weight:800; text-align:center; text-decoration:none; }
+.request-tabs a.is-active { background:#1e3a8a; border-color:#1e3a8a; color:#fff; }
+.request-card { background:#fff; border:1px solid #d8dae5; border-radius:.5rem; padding:1rem; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.request-card h2 { margin:0; color:#00164e; font-size:1.05rem; font-weight:850; line-height:1.3; overflow-wrap:anywhere; }
+.request-meta { margin-top:.25rem; color:#555866; font-size:.85rem; line-height:1.35; }
+.request-status { display:inline-flex; margin-top:.75rem; padding:.25rem .65rem; border-radius:999px; background:#fff7d6; color:#7a5a00; font-size:.82rem; font-weight:850; }
+.request-status.is-approved { background:#dcfce7; color:#166534; }
+.request-status.is-rejected { background:#fee2e2; color:#991b1b; }
+.request-change { margin-top:.9rem; padding-top:.75rem; border-top:1px solid #ececf2; }
+.request-change strong { display:block; color:#00164e; font-size:.85rem; }
+.request-change span { display:block; margin-top:.2rem; color:#555866; font-size:.86rem; line-height:1.35; white-space:pre-wrap; overflow-wrap:anywhere; }
+.request-empty { padding:2rem 1rem; border:1px dashed #d8dae5; border-radius:.5rem; background:#fff; color:#555866; text-align:center; font-weight:700; }
+</style>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if ops_mobile_mode %}
+<div class="request-shell">
+    <div class="ops-mobile-topbar">
+        <div class="ops-mobile-topbar-row">
+            <a href="{% url 'stock_management' %}" class="ops-mobile-topbar-control" aria-label="Back to stock">&#8592;</a>
+            <h1>My Requests</h1>
+            <span class="ops-mobile-topbar-control is-hidden"><i class="fas fa-list"></i></span>
+        </div>
+    </div>
+    <div class="request-content">
+        <div class="request-tabs">
+            {% for choice in status_choices %}
+                <a href="{% url 'my_product_change_requests' %}?status={{ choice }}" class="{% if status_filter == choice %}is-active{% endif %}">
+                    {{ choice|title }}
+                </a>
+            {% endfor %}
+        </div>
+        {% for item in change_requests %}
+            {% with change=item.request %}
+                <div class="request-card">
+                    <h2>{{ change.product.name }}</h2>
+                    <div class="request-meta">
+                        SKU {{ change.product.sku }} | Requested {{ change.created_at|date:"d M Y H:i" }}
+                    </div>
+                    <span class="request-status {% if change.status == 'approved' %}is-approved{% elif change.status == 'rejected' %}is-rejected{% endif %}">
+                        {{ change.get_status_display }}
+                    </span>
+                    {% if change.review_note %}
+                        <div class="request-meta">Note: {{ change.review_note }}</div>
+                    {% endif %}
+                    {% if change.reviewed_at %}
+                        <div class="request-meta">Reviewed {{ change.reviewed_at|date:"d M Y H:i" }}</div>
+                    {% endif %}
+                    {% for row in item.rows %}
+                        <div class="request-change">
+                            <strong>{{ row.label }}</strong>
+                            <span>Old: {{ row.old|default:"-" }}</span>
+                            <span>New: {{ row.new|default:"-" }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endwith %}
+        {% empty %}
+            <div class="request-empty">No product requests found.</div>
+        {% endfor %}
+    </div>
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="stock" %}
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="mb-1">My Product Requests</h5>
+                    <div class="text-muted small">
+                        Pending {{ counts.pending }} | Approved {{ counts.approved }} | Rejected {{ counts.rejected }}
+                    </div>
+                </div>
+                <form method="get" class="d-flex align-items-center gap-2">
+                    <select name="status" class="form-select form-select-sm">
+                        {% for choice in status_choices %}
+                            <option value="{{ choice }}" {% if status_filter == choice %}selected{% endif %}>{{ choice|title }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
+                </form>
+            </div>
+            <div class="card-block">
+                {% for item in change_requests %}
+                    {% with change=item.request %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                                <div>
+                                    <h6 class="mb-1">{{ change.product.name }}</h6>
+                                    <div class="text-muted small">SKU {{ change.product.sku }} | Requested {{ change.created_at|date:"d M Y H:i" }}</div>
+                                </div>
+                                <span class="badge {% if change.status == 'pending' %}bg-warning text-dark{% elif change.status == 'approved' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {{ change.get_status_display }}
+                                </span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead><tr><th>Field</th><th>Old</th><th>New</th></tr></thead>
+                                    <tbody>
+                                        {% for row in item.rows %}
+                                            <tr>
+                                                <td class="fw-semibold">{{ row.label }}</td>
+                                                <td style="white-space:pre-wrap;">{{ row.old|default:"-" }}</td>
+                                                <td style="white-space:pre-wrap;">{{ row.new|default:"-" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% if change.review_note or change.reviewed_at %}
+                                <div class="text-muted small">
+                                    {% if change.reviewed_at %}Reviewed {{ change.reviewed_at|date:"d M Y H:i" }}{% endif %}
+                                    {% if change.review_note %} | {{ change.review_note }}{% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endwith %}
+                {% empty %}
+                    <div class="text-center text-muted py-4">No product requests found.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
