@@ -17,9 +17,15 @@
 .tenant-status-value { font-weight:700; color:#253142; }
 .tenant-mapping-form { display:grid; grid-template-columns:180px minmax(220px,1fr) 88px auto; gap:.75rem; align-items:end; }
 .tenant-mapping-form .form-check { min-height:38px; display:flex; align-items:center; gap:.45rem; margin-bottom:0; }
+.tenant-onboarding-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; }
+.tenant-onboarding-item { border:1px solid #e5e9f2; border-radius:6px; padding:.75rem; background:#fff; }
+.tenant-onboarding-item strong { display:block; color:#253142; }
+.tenant-onboarding-item span { display:block; margin-top:.15rem; color:#6c757d; font-size:.82rem; }
+.tenant-onboarding-progress { height:8px; border-radius:999px; background:#edf2f7; overflow:hidden; margin-top:.65rem; }
+.tenant-onboarding-progress span { display:block; height:100%; background:#16a34a; }
 @media (max-width: 1199px) { .tenant-status-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width: 991px) { .tenant-detail-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width: 767px) { .tenant-mapping-form { grid-template-columns:1fr; } }
+@media (max-width: 767px) { .tenant-mapping-form, .tenant-onboarding-list { grid-template-columns:1fr; } }
 @media (max-width: 575px) { .tenant-detail-metrics, .tenant-status-grid { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
@@ -113,6 +119,36 @@
                 <div class="small text-muted">Operational counts are scoped to this tenant.</div>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mt-3">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h5 class="mb-0">Vendor Onboarding Checklist</h5>
+            <div class="small text-muted">{{ onboarding.completed_count }} / {{ onboarding.total_count }} complete ({{ onboarding.percent }}%)</div>
+        </div>
+        {% if onboarding.is_complete %}
+            <span class="badge bg-light-success">Ready</span>
+        {% else %}
+            <span class="badge bg-light-warning">Setup Pending</span>
+        {% endif %}
+    </div>
+    <div class="card-block">
+        <div class="tenant-onboarding-list">
+            {% for check in onboarding.checks %}
+                <div class="tenant-onboarding-item">
+                    {% if check.complete %}
+                        <span class="badge bg-light-success mb-2">Done</span>
+                    {% else %}
+                        <span class="badge bg-light-warning mb-2">Open</span>
+                    {% endif %}
+                    <strong>{{ check.label }}</strong>
+                    <span>{{ check.detail }}</span>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="tenant-onboarding-progress"><span style="width: {{ onboarding.percent }}%;"></span></div>
     </div>
 </div>
 

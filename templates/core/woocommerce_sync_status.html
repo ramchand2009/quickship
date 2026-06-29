@@ -25,9 +25,16 @@
 .woo-sync-health-card.is-danger { border-left-color:#dc2626; }
 .woo-sync-health-value { display:block; color:#1f2937; font-size:1.1rem; font-weight:800; }
 .woo-sync-health-detail { margin-top:.35rem; color:#6c757d; font-size:.82rem; word-break:break-word; }
+.woo-setup-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; }
+.woo-setup-item { display:flex; gap:.6rem; align-items:flex-start; border:1px solid #e5e9f2; border-radius:6px; background:#fff; padding:.75rem; }
+.woo-setup-icon { width:24px; height:24px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; font-size:.75rem; font-weight:900; }
+.woo-setup-icon.is-complete { background:#dcfce7; color:#166534; }
+.woo-setup-icon.is-open { background:#fef3c7; color:#92400e; }
+.woo-setup-item strong { display:block; color:#1f2937; }
+.woo-setup-item span { display:block; margin-top:.15rem; color:#6c757d; font-size:.82rem; overflow-wrap:anywhere; }
 @media (max-width: 991px) { .woo-sync-metrics, .woo-sync-run-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width: 991px) { .woo-sync-health-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width: 767px) { .woo-sync-metrics, .woo-sync-run-grid, .woo-sync-health-grid { grid-template-columns:1fr; } }
+@media (max-width: 767px) { .woo-sync-metrics, .woo-sync-run-grid, .woo-sync-health-grid, .woo-setup-list { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -71,6 +78,35 @@
             <div class="woo-sync-health-detail">{{ card.detail|default:"-" }}</div>
         </div>
     {% endfor %}
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h5 class="mb-0">WooCommerce Setup Checker</h5>
+            <div class="small text-muted">{{ setup_checks.complete_count }} / {{ setup_checks.total_count }} complete ({{ setup_checks.percent }}%)</div>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="check_connection">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Check API Connection</button>
+        </form>
+    </div>
+    <div class="card-block">
+        <div class="woo-setup-list">
+            {% for check in setup_checks.checks %}
+                <div class="woo-setup-item">
+                    <span class="woo-setup-icon {% if check.complete %}is-complete{% else %}is-open{% endif %}">
+                        {% if check.complete %}OK{% else %}!{% endif %}
+                    </span>
+                    <div>
+                        <strong>{{ check.label }}</strong>
+                        <span>{{ check.detail }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 
 <div class="card ops-admin-card mb-3">

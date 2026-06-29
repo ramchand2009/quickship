@@ -4,7 +4,7 @@
 
 {% block extrastyle %}
 <style>
-.tenant-metric-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.tenant-metric-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
 .tenant-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
 .tenant-metric-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
 .tenant-metric-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
@@ -13,6 +13,8 @@
 .tenant-table td { vertical-align:middle; }
 .tenant-name { min-width:180px; }
 .tenant-count-cell { min-width:92px; }
+.tenant-onboarding-bar { width:100%; min-width:120px; height:8px; border-radius:999px; background:#edf2f7; overflow:hidden; margin-top:.35rem; }
+.tenant-onboarding-fill { height:100%; background:#16a34a; }
 @media (max-width: 991px) { .tenant-metric-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width: 575px) { .tenant-metric-row { grid-template-columns:1fr; } }
 </style>
@@ -48,6 +50,10 @@
         <div class="tenant-metric-label">Products</div>
         <div class="tenant-metric-value">{{ totals.product_count }}</div>
     </div>
+    <div class="tenant-metric">
+        <div class="tenant-metric-label">Onboarded</div>
+        <div class="tenant-metric-value">{{ totals.onboarding_complete_count }} / {{ totals.tenant_count }}</div>
+    </div>
 </div>
 
 <div class="card ops-admin-card">
@@ -66,6 +72,7 @@
                         <th>Users</th>
                         <th>Orders</th>
                         <th>Products</th>
+                        <th>Onboarding</th>
                         <th>WooCommerce</th>
                         <th>WhatsApp</th>
                     </tr>
@@ -99,6 +106,17 @@
                             <td class="tenant-count-cell">{{ row.order_count }} <span class="small text-muted">({{ row.open_order_count }} open)</span></td>
                             <td class="tenant-count-cell">{{ row.product_count }}</td>
                             <td>
+                                {% if row.onboarding.is_complete %}
+                                    <span class="badge bg-light-success">Ready</span>
+                                {% else %}
+                                    <span class="badge bg-light-warning">Setup</span>
+                                {% endif %}
+                                <div class="small text-muted">{{ row.onboarding.completed_count }} / {{ row.onboarding.total_count }} complete</div>
+                                <div class="tenant-onboarding-bar">
+                                    <div class="tenant-onboarding-fill" style="width: {{ row.onboarding.percent }}%;"></div>
+                                </div>
+                            </td>
+                            <td>
                                 {% if row.woocommerce.configured %}
                                     <span class="badge bg-light-success">Mapped</span>
                                 {% else %}
@@ -116,7 +134,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="9" class="text-muted">No tenants found.</td>
+                            <td colspan="10" class="text-muted">No tenants found.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

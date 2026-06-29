@@ -1059,6 +1059,8 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "vendor-workspace")
         self.assertContains(response, "Mapped")
         self.assertContains(response, "Shared")
+        self.assertContains(response, "Onboarding")
+        self.assertContains(response, "Setup")
         self.assertContains(response, reverse("tenant_detail", args=[self.tenant.pk]))
 
     def test_super_admin_can_view_tenant_detail(self):
@@ -1076,6 +1078,10 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "SKU Prefix")
         self.assertContains(response, "TENANT-")
         self.assertContains(response, "WhatsApp")
+        self.assertContains(response, "Vendor Onboarding Checklist")
+        self.assertContains(response, "Vendor user active")
+        self.assertContains(response, "Sender address complete")
+        self.assertContains(response, "SKU mapping configured")
 
     def test_super_admin_can_view_tenant_mapping_health(self):
         self.client.force_login(self.super_user)
@@ -1308,8 +1314,27 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Order Sync Health")
         self.assertContains(response, "Recent Failures")
         self.assertContains(response, "Sync Freshness")
+        self.assertContains(response, "WooCommerce Setup Checker")
+        self.assertContains(response, "Store URL")
+        self.assertContains(response, "API credentials")
+        self.assertContains(response, "Webhook delivery URL")
         self.assertContains(response, reverse("tenant_mapping_health"))
         self.assertContains(response, reverse("missing_cost_products"))
+
+    @patch("core.views.check_woocommerce_connection")
+    def test_super_admin_can_run_woocommerce_setup_connection_check(self, mock_check_connection):
+        mock_check_connection.return_value = {"ok": True, "sample_count": 1}
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("woocommerce_sync_status"),
+            {"action": "check_connection"},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("woocommerce_sync_status"))
+        self.assertContains(response, "WooCommerce API connection OK")
+        mock_check_connection.assert_called_once_with()
 
     def test_super_admin_can_view_activity_history(self):
         OrderActivityLog.objects.create(

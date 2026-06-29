@@ -5386,8 +5386,89 @@ def _tenant_integration_status(tenant):
     }
 
 
+def _sender_address_is_complete(sender):
+    return bool(
+        sender
+        and str(sender.name or "").strip()
+        and str(sender.phone or "").strip()
+        and str(sender.address_1 or "").strip()
+        and str(sender.city or "").strip()
+        and str(sender.state or "").strip()
+        and str(sender.pincode or "").strip()
+    )
+
+
+def _tenant_onboarding_checklist(tenant):
+    memberships = tenant.memberships.filter(is_active=True)
+    mapping_rules = tenant.woocommerce_mapping_rules.filter(is_active=True)
+    products = tenant.products.filter(is_active=True)
+    sender = tenant.sender_addresses.order_by("-updated_at", "-created_at").first()
+    products_with_cost_count = products.filter(actual_price__isnull=False).count()
+    mapped_order_count = 0
+    unmapped_order_count = 0
+    for order in tenant.orders.exclude(local_status=ShiprocketOrder.STATUS_CANCELLED).order_by("-order_date", "-updated_at")[:50]:
+        profit_summary = summarize_order_profit(order)
+        if profit_summary.get("missing_identifiers"):
+            unmapped_order_count += 1
+        elif profit_summary.get("matched_item_count"):
+            mapped_order_count += 1
+    checks = [
+        {
+            "key": "active_user",
+            "label": "Vendor user active",
+            "complete": memberships.exists(),
+            "detail": f"{memberships.count()} active user(s)",
+            "action_url": reverse("tenant_detail", args=[tenant.pk]),
+        },
+        {
+            "key": "sender_address",
+            "label": "Sender address complete",
+            "complete": _sender_address_is_complete(sender),
+            "detail": "Ready for labels" if _sender_address_is_complete(sender) else "Add name, phone, address, city, state, and pincode",
+            "action_url": reverse("sender_address"),
+        },
+        {
+            "key": "sku_mapping",
+            "label": "SKU mapping configured",
+            "complete": mapping_rules.exists(),
+            "detail": f"{mapping_rules.count()} active rule(s)",
+            "action_url": reverse("tenant_detail", args=[tenant.pk]),
+        },
+        {
+            "key": "products_synced",
+            "label": "Woo products synced",
+            "complete": products.exists(),
+            "detail": f"{products.count()} active product(s)",
+            "action_url": reverse("stock_management"),
+        },
+        {
+            "key": "actual_costs",
+            "label": "Actual costs added",
+            "complete": products.exists() and products_with_cost_count == products.count(),
+            "detail": f"{products_with_cost_count}/{products.count()} products have actual cost",
+            "action_url": reverse("missing_cost_products"),
+        },
+        {
+            "key": "first_mapped_order",
+            "label": "First mapped order received",
+            "complete": mapped_order_count > 0 and unmapped_order_count == 0,
+            "detail": f"{mapped_order_count} mapped / {unmapped_order_count} with SKU issues",
+            "action_url": reverse("tenant_mapping_health"),
+        },
+    ]
+    completed_count = sum(1 for check in checks if check["complete"])
+    return {
+        "checks": checks,
+        "completed_count": completed_count,
+        "total_count": len(checks),
+        "percent": round((completed_count / len(checks)) * 100) if checks else 0,
+        "is_complete": completed_count == len(checks),
+    }
+
+
 def _tenant_summary_row(tenant):
     integration_status = _tenant_integration_status(tenant)
+    onboarding = _tenant_onboarding_checklist(tenant)
     return {
         "tenant": tenant,
         "member_count": tenant.memberships.count(),
@@ -5402,6 +5483,7 @@ def _tenant_summary_row(tenant):
         ).count(),
         "woocommerce": integration_status["woocommerce"],
         "whatsapp": integration_status["whatsapp"],
+        "onboarding": onboarding,
     }
 
 
@@ -5510,7 +5592,77 @@ def _run_recorded_woocommerce_order_sync(request):
     messages.success(request, f"WooCommerce order sync completed: {synced_count} order(s) imported or updated.")
 
 
-def _woocommerce_sync_status_context():
+def _woocommerce_setup_check_context(request=None):
+    settings_row = WooCommerceSettings.get_default()
+    store_url = str(getattr(settings_row, "store_url", "") or "").strip()
+    consumer_key = str(getattr(settings_row, "consumer_key", "") or "").strip()
+    consumer_secret = str(getattr(settings_row, "consumer_secret", "") or "").strip()
+    webhook_secret = str(getattr(settings_row, "webhook_secret", "") or "").strip()
+    webhook_delivery_url = reverse("woocommerce_webhook")
+    if request is not None:
+        webhook_delivery_url = request.build_absolute_uri(webhook_delivery_url)
+    latest_woocommerce_webhook = (
+        OrderActivityLog.objects.filter(metadata__source="woocommerce_webhook")
+        .order_by("-created_at")
+        .first()
+    )
+    active_rule_count = TenantWooCommerceMappingRule.objects.filter(is_active=True).count()
+    product_run = _latest_woocommerce_sync_run(WooCommerceSyncRun.RUN_PRODUCT_SYNC)
+    order_run = _latest_woocommerce_sync_run(WooCommerceSyncRun.RUN_ORDER_SYNC)
+    checks = [
+        {
+            "label": "Store URL",
+            "complete": bool(store_url),
+            "detail": store_url or "Add the shared WooCommerce Store URL.",
+        },
+        {
+            "label": "API credentials",
+            "complete": bool(consumer_key and consumer_secret),
+            "detail": "Consumer key and secret are saved." if consumer_key and consumer_secret else "Add Consumer Key and Consumer Secret.",
+        },
+        {
+            "label": "Webhook secret",
+            "complete": bool(webhook_secret),
+            "detail": "Secret is configured." if webhook_secret else "Set the same secret in WooCommerce webhook settings.",
+        },
+        {
+            "label": "Webhook delivery URL",
+            "complete": bool(webhook_delivery_url),
+            "detail": webhook_delivery_url,
+        },
+        {
+            "label": "Vendor SKU rules",
+            "complete": active_rule_count > 0,
+            "detail": f"{active_rule_count} active mapping rule(s).",
+        },
+        {
+            "label": "Product sync recorded",
+            "complete": bool(product_run and product_run.status == WooCommerceSyncRun.STATUS_SUCCESS),
+            "detail": product_run.finished_at.strftime("%Y-%m-%d %H:%M") if product_run else "No successful product sync yet.",
+        },
+        {
+            "label": "Order sync recorded",
+            "complete": bool(order_run and order_run.status == WooCommerceSyncRun.STATUS_SUCCESS),
+            "detail": order_run.finished_at.strftime("%Y-%m-%d %H:%M") if order_run else "No successful order sync yet.",
+        },
+        {
+            "label": "Webhook callback received",
+            "complete": bool(latest_woocommerce_webhook),
+            "detail": latest_woocommerce_webhook.created_at.strftime("%Y-%m-%d %H:%M") if latest_woocommerce_webhook else "No WooCommerce webhook callback recorded yet.",
+        },
+    ]
+    complete_count = sum(1 for check in checks if check["complete"])
+    return {
+        "checks": checks,
+        "complete_count": complete_count,
+        "total_count": len(checks),
+        "percent": round((complete_count / len(checks)) * 100) if checks else 0,
+        "is_complete": complete_count == len(checks),
+        "webhook_delivery_url": webhook_delivery_url,
+    }
+
+
+def _woocommerce_sync_status_context(request=None):
     missing_cost_count = Product.objects.filter(actual_price__isnull=True).count()
     unmapped_order_count = 0
     for order in ShiprocketOrder.objects.select_related("tenant").defer("raw_payload").order_by("-order_date", "-updated_at", "-created_at")[:100]:
@@ -5573,6 +5725,7 @@ def _woocommerce_sync_status_context():
         "recent_runs": recent_runs,
         "failed_runs": failed_runs,
         "sync_health_cards": sync_health_cards,
+        "setup_checks": _woocommerce_setup_check_context(request),
         "settings_configured": settings_configured,
         "settings_row": settings_row,
         "mapping_rule_count": TenantWooCommerceMappingRule.objects.filter(is_active=True).count(),
@@ -5948,10 +6101,21 @@ def woocommerce_sync_status(request):
         if action == "sync_orders":
             _run_recorded_woocommerce_order_sync(request)
             return redirect("woocommerce_sync_status")
+        if action == "check_connection":
+            try:
+                result = check_woocommerce_connection()
+            except WooCommerceAPIError as exc:
+                messages.error(request, f"WooCommerce API connection failed: {exc}")
+            else:
+                messages.success(
+                    request,
+                    f"WooCommerce API connection OK. Sample orders returned: {result.get('sample_count', 0)}.",
+                )
+            return redirect("woocommerce_sync_status")
         messages.error(request, "Unknown WooCommerce sync action.")
         return redirect("woocommerce_sync_status")
 
-    return render(request, "core/woocommerce_sync_status.html", _woocommerce_sync_status_context())
+    return render(request, "core/woocommerce_sync_status.html", _woocommerce_sync_status_context(request))
 
 
 @login_required
@@ -6108,6 +6272,7 @@ def tenant_list(request):
         "product_count": sum(row["product_count"] for row in tenant_rows),
         "woocommerce_configured_count": sum(1 for row in tenant_rows if row["woocommerce"]["configured"]),
         "whatsapp_configured_count": sum(1 for row in tenant_rows if row["whatsapp"]["configured"]),
+        "onboarding_complete_count": sum(1 for row in tenant_rows if row["onboarding"]["is_complete"]),
     }
     return render(
         request,
@@ -6183,6 +6348,7 @@ def tenant_detail(request, pk):
         "whatsapp_log_count": tenant.whatsapp_notification_logs.count(),
         "expense_count": tenant.business_expenses.count(),
     }
+    onboarding = _tenant_onboarding_checklist(tenant)
     return render(
         request,
         "core/tenant_detail.html",
@@ -6195,6 +6361,7 @@ def tenant_detail(request, pk):
             "recent_activity": recent_activity,
             "woocommerce": integration_status["woocommerce"],
             "whatsapp": integration_status["whatsapp"],
+            "onboarding": onboarding,
             "mapping_rules": mapping_rules,
             "mapping_form": mapping_form,
             "editing_mapping_rule": editing_mapping_rule,
