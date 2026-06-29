@@ -18,8 +18,16 @@
 .woo-sync-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem; }
 .woo-sync-summary-item { background:#f7f9fc; border-radius:4px; padding:.55rem .65rem; }
 .woo-sync-error { color:#9f1d20; word-break:break-word; }
+.woo-sync-health-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.woo-sync-health-card { border:1px solid #e5e9f2; border-left:4px solid #64748b; background:#fff; border-radius:6px; padding:.85rem 1rem; min-height:104px; }
+.woo-sync-health-card.is-success { border-left-color:#16a34a; }
+.woo-sync-health-card.is-warning { border-left-color:#d97706; }
+.woo-sync-health-card.is-danger { border-left-color:#dc2626; }
+.woo-sync-health-value { display:block; color:#1f2937; font-size:1.1rem; font-weight:800; }
+.woo-sync-health-detail { margin-top:.35rem; color:#6c757d; font-size:.82rem; word-break:break-word; }
 @media (max-width: 991px) { .woo-sync-metrics, .woo-sync-run-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width: 767px) { .woo-sync-metrics, .woo-sync-run-grid { grid-template-columns:1fr; } }
+@media (max-width: 991px) { .woo-sync-health-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 767px) { .woo-sync-metrics, .woo-sync-run-grid, .woo-sync-health-grid { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -53,6 +61,16 @@
         <div class="woo-sync-label">Woo Orders</div>
         <div class="woo-sync-value">{{ order_count }}</div>
     </div>
+</div>
+
+<div class="woo-sync-health-grid">
+    {% for card in sync_health_cards %}
+        <div class="woo-sync-health-card is-{{ card.tone }}">
+            <div class="woo-sync-label">{{ card.label }}</div>
+            <span class="woo-sync-health-value">{{ card.value }}</span>
+            <div class="woo-sync-health-detail">{{ card.detail|default:"-" }}</div>
+        </div>
+    {% endfor %}
 </div>
 
 <div class="card ops-admin-card mb-3">

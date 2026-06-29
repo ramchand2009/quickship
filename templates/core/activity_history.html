@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Activity History | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.activity-history-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.activity-history-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
+.activity-history-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
+.activity-history-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
+.activity-history-table-wrap { overflow-x:auto; }
+.activity-history-table th { white-space:nowrap; font-size:.78rem; text-transform:uppercase; letter-spacing:0; color:#5d6675; }
+.activity-history-table td { vertical-align:top; }
+.activity-history-description { min-width:260px; max-width:480px; white-space:normal; }
+.activity-history-meta { max-width:320px; word-break:break-word; font-size:.78rem; color:#6c757d; }
+@media (max-width: 767px) { .activity-history-metrics { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Activity History</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item">Activity History</li>
+        </ul>
+    </div>
+</div>
+
+<div class="activity-history-metrics">
+    <div class="activity-history-metric">
+        <div class="activity-history-label">Total Activity Logs</div>
+        <div class="activity-history-value">{{ total_log_count }}</div>
+    </div>
+    <div class="activity-history-metric">
+        <div class="activity-history-label">Failed Activity Logs</div>
+        <div class="activity-history-value">{{ failed_log_count }}</div>
+    </div>
+</div>
+
+<div class="card ops-admin-card">
+    <div class="card-header">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="text" name="q" value="{{ search_query }}" class="form-control form-control-sm" placeholder="Search order, title, actor" style="min-width:220px;">
+            <select name="tenant" class="form-select form-select-sm">
+                <option value="">All vendors</option>
+                {% for tenant in tenant_choices %}
+                    <option value="{{ tenant.pk }}" {% if tenant_filter == tenant.pk|stringformat:"s" %}selected{% endif %}>{{ tenant.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="event" class="form-select form-select-sm">
+                <option value="">All events</option>
+                {% for value,label in event_choices %}
+                    <option value="{{ value }}" {% if event_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="result" class="form-select form-select-sm">
+                <option value="">All results</option>
+                <option value="success" {% if result_filter == "success" %}selected{% endif %}>Success</option>
+                <option value="failed" {% if result_filter == "failed" %}selected{% endif %}>Failed</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
+            <a href="{% url 'activity_history' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+        </form>
+    </div>
+    <div class="card-block activity-history-table-wrap">
+        <table class="table table-hover activity-history-table mb-0">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Vendor</th>
+                    <th>Event</th>
+                    <th>Order</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Actor</th>
+                    <th>Result</th>
+                    <th>Metadata</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in activity_logs %}
+                    <tr>
+                        <td>{{ log.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ log.tenant.name|default:"-" }}</td>
+                        <td>{{ log.get_event_type_display }}</td>
+                        <td>
+                            {% if log.order_id %}
+                                <a href="{% url 'order_detail' log.order_id %}">{{ log.shiprocket_order_id|default:log.order.shiprocket_order_id }}</a>
+                            {% else %}
+                                {{ log.shiprocket_order_id|default:"-" }}
+                            {% endif %}
+                        </td>
+                        <td>{{ log.title|default:"-" }}</td>
+                        <td class="activity-history-description">{{ log.description|default:"-" }}</td>
+                        <td>{{ log.triggered_by|default:"system" }}</td>
+                        <td>
+                            {% if log.is_success %}
+                                <span class="badge bg-light-success">Success</span>
+                            {% else %}
+                                <span class="badge bg-light-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td class="activity-history-meta">{{ log.metadata|default:"{}" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="9" class="text-muted">No activity logs found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

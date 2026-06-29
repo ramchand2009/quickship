@@ -4,7 +4,7 @@
 
 {% block extrastyle %}
 <style>
-.mapping-health-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.mapping-health-metrics { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
 .mapping-health-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
 .mapping-health-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
 .mapping-health-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
@@ -57,6 +57,12 @@
         <div class="mapping-health-label">Profit Incomplete Orders</div>
         <div class="mapping-health-value">
             <a href="{% url 'missing_cost_products' %}#profit-incomplete-orders">{{ totals.profit_incomplete_order_count }}</a>
+        </div>
+    </div>
+    <div class="mapping-health-metric">
+        <div class="mapping-health-label">SKU Audit Issues</div>
+        <div class="mapping-health-value">
+            {{ totals.sku_prefix_overlap_count|add:totals.sku_prefix_empty_match_count|add:totals.tenant_without_sku_prefix_count }}
         </div>
     </div>
 </div>
@@ -113,6 +119,68 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header">
+        <h5 class="mb-0">Vendor SKU Mapping Audit</h5>
+    </div>
+    <div class="card-block mapping-health-table-wrap">
+        <table class="table table-hover mapping-health-table mb-0">
+            <thead>
+                <tr>
+                    <th>Vendor</th>
+                    <th>SKU Prefix</th>
+                    <th>Matched Products</th>
+                    <th>Overlap</th>
+                    <th>Sample Products</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in sku_prefix_audit.rows %}
+                    <tr>
+                        <td>{{ row.rule.tenant.name }}</td>
+                        <td><span class="mapping-health-rule">{{ row.prefix|default:"-" }}</span></td>
+                        <td>{{ row.matched_product_count }}</td>
+                        <td>
+                            {% if row.overlaps %}
+                                {% for rule in row.overlaps %}
+                                    <div class="mapping-health-warning">{{ rule.tenant.name }}: {{ rule.match_value }}</div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">No overlap</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for product in row.sample_products %}
+                                <div>{{ product.name }} <span class="text-muted">({{ product.sku }})</span></div>
+                            {% empty %}
+                                <span class="text-muted">No products matched</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if row.has_issue %}
+                                <span class="badge bg-light-warning text-dark">Review</span>
+                            {% else %}
+                                <span class="badge bg-light-success">OK</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-muted">No active SKU prefix rules found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if sku_prefix_audit.tenants_without_prefix %}
+            <div class="alert alert-warning mt-3 mb-0">
+                Vendors without an active SKU prefix:
+                {% for tenant in sku_prefix_audit.tenants_without_prefix %}
+                    {{ tenant.name }}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
     </div>
 </div>
 

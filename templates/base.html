@@ -115,6 +115,12 @@
                                         <span class="pcoded-mtext">Product Approvals</span>
                                     </a>
                                 </li>
+                                <li class="nav-item {% if current == 'activity_history' %}active{% endif %}">
+                                    <a href="{% url 'activity_history' %}" class="nav-link">
+                                        <span class="pcoded-micon"><i class="feather icon-clock"></i></span>
+                                        <span class="pcoded-mtext">Activity History</span>
+                                    </a>
+                                </li>
                                 <li class="nav-item {% if current == 'vendor_settlements' %}active{% endif %}">
                                     <a href="{% url 'vendor_settlements' %}" class="nav-link">
                                         <span class="pcoded-micon"><i class="feather icon-credit-card"></i></span>

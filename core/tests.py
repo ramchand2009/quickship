@@ -1097,6 +1097,23 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "SR-TENANT-MISSING-MAP-1")
         self.assertContains(response, "UNKNOWN-1")
         self.assertContains(response, reverse("missing_cost_products"))
+        self.assertContains(response, "Vendor SKU Mapping Audit")
+        self.assertContains(response, "TENANT-")
+
+    def test_super_admin_mapping_health_flags_sku_prefix_overlap(self):
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.other_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="TENANT-ADMIN-",
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("tenant_mapping_health"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendor SKU Mapping Audit")
+        self.assertContains(response, "Other Workspace: TENANT-ADMIN-")
+        self.assertContains(response, "Review")
 
     def test_super_admin_can_view_vendor_issue_alerts(self):
         product = Product.objects.get(sku="TENANT-ADMIN-1")
@@ -1122,6 +1139,59 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "UNKNOWN-1")
         self.assertContains(response, reverse("missing_cost_products"))
         self.assertContains(response, reverse("tenant_mapping_health"))
+
+    def test_super_admin_product_approval_inbox_filters_and_logs_review_activity(self):
+        product = Product.objects.get(sku="TENANT-ADMIN-1")
+        change_request = ProductChangeRequest.objects.create(
+            tenant=self.tenant,
+            product=product,
+            requested_by="vendoruser",
+            old_values={"description": "Old"},
+            new_values={"description": "New"},
+        )
+        ProductChangeRequest.objects.create(
+            tenant=self.other_tenant,
+            product=Product.objects.get(sku="TENANT-ADMIN-2"),
+            requested_by="other",
+            old_values={"sale_price": ""},
+            new_values={"sale_price": "50.00"},
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(
+            reverse("product_change_requests"),
+            {
+                "tenant": self.tenant.pk,
+                "field": "description",
+                "q": "Tenant Product",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Product Approval Inbox")
+        self.assertContains(response, "All request types")
+        self.assertContains(response, "Tenant Product")
+        self.assertNotContains(response, "Other Product")
+
+        review_response = self.client.post(
+            reverse("product_change_request_review", args=[change_request.pk]),
+            {
+                "action": "reject",
+                "review_note": "Needs better content",
+                "return_query": "status=pending",
+            },
+        )
+
+        self.assertEqual(review_response.status_code, 302)
+        self.assertIn("status=pending", review_response.url)
+        self.assertTrue(
+            OrderActivityLog.objects.filter(
+                tenant=self.tenant,
+                event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                title="Product change request rejected",
+                metadata__change_request_id=change_request.pk,
+            ).exists()
+        )
 
     def test_super_admin_can_view_missing_cost_products(self):
         self.client.force_login(self.super_user)
@@ -1234,8 +1304,31 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Run Order Sync")
         self.assertContains(response, "Last Product Sync")
         self.assertContains(response, "Mapping Attention")
+        self.assertContains(response, "Product Sync Health")
+        self.assertContains(response, "Order Sync Health")
+        self.assertContains(response, "Recent Failures")
+        self.assertContains(response, "Sync Freshness")
         self.assertContains(response, reverse("tenant_mapping_health"))
         self.assertContains(response, reverse("missing_cost_products"))
+
+    def test_super_admin_can_view_activity_history(self):
+        OrderActivityLog.objects.create(
+            tenant=self.tenant,
+            shiprocket_order_id="SR-ACTIVITY-HISTORY-1",
+            event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+            title="Manual product review",
+            description="Reviewed product request",
+            triggered_by="platform",
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("activity_history"), {"q": "product review"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Activity History")
+        self.assertContains(response, "Manual product review")
+        self.assertContains(response, "Vendor Workspace")
+        self.assertContains(response, "Total Activity Logs")
 
     @patch("core.views.sync_woocommerce_products")
     def test_super_admin_product_sync_action_records_success(self, mock_sync_products):
@@ -1385,6 +1478,7 @@ class SuperAdminTenantViewTests(TestCase):
         detail_response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
         mapping_health_response = self.client.get(reverse("tenant_mapping_health"))
         vendor_alerts_response = self.client.get(reverse("vendor_issue_alerts"))
+        activity_history_response = self.client.get(reverse("activity_history"))
         sync_status_response = self.client.get(reverse("woocommerce_sync_status"))
         missing_cost_response = self.client.get(reverse("missing_cost_products"))
 
@@ -1396,6 +1490,8 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertIn(reverse("order_management"), mapping_health_response.url)
         self.assertEqual(vendor_alerts_response.status_code, 302)
         self.assertIn(reverse("order_management"), vendor_alerts_response.url)
+        self.assertEqual(activity_history_response.status_code, 302)
+        self.assertIn(reverse("order_management"), activity_history_response.url)
         self.assertEqual(sync_status_response.status_code, 302)
         self.assertIn(reverse("order_management"), sync_status_response.url)
         self.assertEqual(missing_cost_response.status_code, 302)
@@ -1407,11 +1503,13 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(super_response, reverse("tenant_list"))
         self.assertContains(super_response, reverse("tenant_mapping_health"))
         self.assertContains(super_response, reverse("vendor_issue_alerts"))
+        self.assertContains(super_response, reverse("activity_history"))
         self.assertContains(super_response, reverse("woocommerce_sync_status"))
         self.assertContains(super_response, reverse("missing_cost_products"))
         self.assertContains(super_response, "Tenants")
         self.assertContains(super_response, "Mapping Health")
         self.assertContains(super_response, "Vendor Alerts")
+        self.assertContains(super_response, "Activity History")
         self.assertContains(super_response, "Woo Sync Status")
         self.assertContains(super_response, "Missing Costs")
 
@@ -1420,6 +1518,7 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertNotContains(vendor_response, reverse("tenant_list"))
         self.assertNotContains(vendor_response, reverse("tenant_mapping_health"))
         self.assertNotContains(vendor_response, reverse("vendor_issue_alerts"))
+        self.assertNotContains(vendor_response, reverse("activity_history"))
         self.assertNotContains(vendor_response, reverse("woocommerce_sync_status"))
         self.assertNotContains(vendor_response, reverse("missing_cost_products"))
 

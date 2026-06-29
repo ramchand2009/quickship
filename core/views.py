@@ -3960,10 +3960,28 @@ def product_change_requests(request):
         "all",
     }:
         status_filter = ProductChangeRequest.STATUS_PENDING
+    tenant_filter = str(request.GET.get("tenant") or "").strip()
+    field_filter = str(request.GET.get("field") or "").strip()
+    search_query = str(request.GET.get("q") or "").strip()
     requests_query = ProductChangeRequest.objects.select_related("tenant", "product")
     if status_filter != "all":
         requests_query = requests_query.filter(status=status_filter)
+    if tenant_filter.isdigit():
+        requests_query = requests_query.filter(tenant_id=int(tenant_filter))
+    if field_filter:
+        requests_query = requests_query.filter(new_values__has_key=field_filter)
+    if search_query:
+        requests_query = requests_query.filter(
+            Q(product__name__icontains=search_query)
+            | Q(product__sku__icontains=search_query)
+            | Q(tenant__name__icontains=search_query)
+            | Q(requested_by__icontains=search_query)
+        )
     change_requests = []
+    field_choices = set()
+    for field_name in ProductChangeRequest.objects.values_list("new_values", flat=True):
+        if isinstance(field_name, dict):
+            field_choices.update(field_name.keys())
     for change_request in requests_query.order_by("-created_at")[:100]:
         rows = []
         for field_name, new_value in change_request.new_values.items():
@@ -3976,18 +3994,36 @@ def product_change_requests(request):
                 }
             )
         change_requests.append({"request": change_request, "rows": rows})
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+    return_query = query_params.urlencode()
+    status_counts = {
+        status_key: ProductChangeRequest.objects.filter(status=status_key).count()
+        for status_key in [
+            ProductChangeRequest.STATUS_PENDING,
+            ProductChangeRequest.STATUS_APPROVED,
+            ProductChangeRequest.STATUS_REJECTED,
+        ]
+    }
     return render(
         request,
         "core/product_change_requests.html",
         {
             "change_requests": change_requests,
             "status_filter": status_filter,
+            "tenant_filter": tenant_filter,
+            "field_filter": field_filter,
+            "search_query": search_query,
+            "return_query": return_query,
             "status_choices": [
                 ProductChangeRequest.STATUS_PENDING,
                 ProductChangeRequest.STATUS_APPROVED,
                 ProductChangeRequest.STATUS_REJECTED,
                 "all",
             ],
+            "field_choices": sorted(field_choices),
+            "tenant_choices": Tenant.objects.order_by("name", "slug"),
+            "status_counts": status_counts,
             "pending_count": ProductChangeRequest.objects.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
         },
     )
@@ -4081,7 +4117,30 @@ def product_change_request_review(request, pk):
         messages.error(request, "Choose approve or reject.")
         return redirect("product_change_requests")
     change_request.save(update_fields=["status", "review_note", "reviewed_by", "reviewed_at", "updated_at"])
-    return redirect("product_change_requests")
+    OrderActivityLog.objects.create(
+        tenant=change_request.tenant,
+        event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+        title=f"Product change request {change_request.status}",
+        description=(
+            f"{change_request.product.name} ({change_request.product.sku}) "
+            f"was {change_request.status} by {change_request.reviewed_by or '-'}."
+        ),
+        metadata={
+            "change_request_id": change_request.pk,
+            "product_id": change_request.product_id,
+            "product_sku": change_request.product.sku,
+            "status": change_request.status,
+            "changed_fields": list(change_request.new_values.keys()),
+            "review_note": change_request.review_note,
+        },
+        is_success=True,
+        triggered_by=change_request.reviewed_by,
+    )
+    return_query = str(request.POST.get("return_query") or "").strip()
+    redirect_url = reverse("product_change_requests")
+    if return_query:
+        redirect_url = f"{redirect_url}?{return_query}"
+    return redirect(redirect_url)
 
 
 @login_required
@@ -5461,6 +5520,46 @@ def _woocommerce_sync_status_context():
 
     product_run = _latest_woocommerce_sync_run(WooCommerceSyncRun.RUN_PRODUCT_SYNC)
     order_run = _latest_woocommerce_sync_run(WooCommerceSyncRun.RUN_ORDER_SYNC)
+    recent_runs = list(WooCommerceSyncRun.objects.order_by("-finished_at", "-started_at")[:20])
+    failed_runs = [run for run in recent_runs if run.status == WooCommerceSyncRun.STATUS_FAILED]
+    now = timezone.now()
+    stale_after_hours = 24
+    product_run_age_hours = (
+        (now - product_run.finished_at).total_seconds() / 3600 if product_run and product_run.finished_at else None
+    )
+    order_run_age_hours = (
+        (now - order_run.finished_at).total_seconds() / 3600 if order_run and order_run.finished_at else None
+    )
+    sync_health_cards = [
+        {
+            "label": "Product Sync Health",
+            "value": "Failed" if product_run and product_run.status == WooCommerceSyncRun.STATUS_FAILED else "Ready" if product_run else "Waiting",
+            "tone": "danger" if product_run and product_run.status == WooCommerceSyncRun.STATUS_FAILED else "success" if product_run else "warning",
+            "detail": product_run.error_message if product_run and product_run.error_message else "Last product sync completed." if product_run else "No product sync recorded.",
+        },
+        {
+            "label": "Order Sync Health",
+            "value": "Failed" if order_run and order_run.status == WooCommerceSyncRun.STATUS_FAILED else "Ready" if order_run else "Waiting",
+            "tone": "danger" if order_run and order_run.status == WooCommerceSyncRun.STATUS_FAILED else "success" if order_run else "warning",
+            "detail": order_run.error_message if order_run and order_run.error_message else "Last order sync completed." if order_run else "No order sync recorded.",
+        },
+        {
+            "label": "Recent Failures",
+            "value": len(failed_runs),
+            "tone": "danger" if failed_runs else "success",
+            "detail": failed_runs[0].error_message if failed_runs else "No recent sync failures.",
+        },
+        {
+            "label": "Sync Freshness",
+            "value": "Stale"
+            if (product_run_age_hours is None or product_run_age_hours > stale_after_hours or order_run_age_hours is None or order_run_age_hours > stale_after_hours)
+            else "Fresh",
+            "tone": "warning"
+            if (product_run_age_hours is None or product_run_age_hours > stale_after_hours or order_run_age_hours is None or order_run_age_hours > stale_after_hours)
+            else "success",
+            "detail": f"Expected at least one product and order sync within {stale_after_hours} hours.",
+        },
+    ]
     settings_row = WooCommerceSettings.get_default()
     settings_configured = bool(
         settings_row
@@ -5471,7 +5570,9 @@ def _woocommerce_sync_status_context():
     return {
         "product_run": product_run,
         "order_run": order_run,
-        "recent_runs": WooCommerceSyncRun.objects.order_by("-finished_at", "-started_at")[:10],
+        "recent_runs": recent_runs,
+        "failed_runs": failed_runs,
+        "sync_health_cards": sync_health_cards,
         "settings_configured": settings_configured,
         "settings_row": settings_row,
         "mapping_rule_count": TenantWooCommerceMappingRule.objects.filter(is_active=True).count(),
@@ -5479,6 +5580,52 @@ def _woocommerce_sync_status_context():
         "order_count": ShiprocketOrder.objects.filter(source=ShiprocketOrder.SOURCE_WOOCOMMERCE).count(),
         "missing_cost_count": missing_cost_count,
         "unmapped_order_count": unmapped_order_count,
+    }
+
+
+def _sku_prefix_audit(active_rules, products):
+    sku_prefix_rules = [
+        rule
+        for rule in active_rules
+        if rule.match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX
+    ]
+    audit_rows = []
+    for rule in sku_prefix_rules:
+        prefix = str(rule.match_value or "").upper()
+        matched_products = [
+            product
+            for product in products
+            if str(product.sku or "").upper().startswith(prefix)
+        ]
+        overlaps = []
+        for other_rule in sku_prefix_rules:
+            if other_rule.pk == rule.pk:
+                continue
+            other_prefix = str(other_rule.match_value or "").upper()
+            if prefix.startswith(other_prefix) or other_prefix.startswith(prefix):
+                overlaps.append(other_rule)
+        audit_rows.append(
+            {
+                "rule": rule,
+                "prefix": prefix,
+                "matched_product_count": len(matched_products),
+                "sample_products": matched_products[:5],
+                "overlaps": overlaps,
+                "has_issue": not prefix or not matched_products or bool(overlaps),
+            }
+        )
+    tenants_with_prefix = {rule.tenant_id for rule in sku_prefix_rules}
+    tenants_without_prefix = [
+        tenant
+        for tenant in Tenant.objects.filter(is_active=True).order_by("name", "slug")
+        if tenant.pk not in tenants_with_prefix
+    ]
+    return {
+        "rows": audit_rows,
+        "tenants_without_prefix": tenants_without_prefix,
+        "overlap_count": sum(1 for row in audit_rows if row["overlaps"]),
+        "empty_match_count": sum(1 for row in audit_rows if row["prefix"] and not row["matched_product_count"]),
+        "missing_prefix_tenant_count": len(tenants_without_prefix),
     }
 
 
@@ -5892,6 +6039,7 @@ def tenant_mapping_health(request):
         for rule in active_rules
         if rule.match_type in {TenantWooCommerceMappingRule.MATCH_CATEGORY, TenantWooCommerceMappingRule.MATCH_TAG}
     ]
+    sku_prefix_audit = _sku_prefix_audit(active_rules, products)
     profit_incomplete_order_rows = _profit_incomplete_order_rows(limit=25)
     totals = {
         "tenant_count": len(tenants),
@@ -5903,6 +6051,9 @@ def tenant_mapping_health(request):
         "missing_cost_product_count": total_missing_cost,
         "profit_incomplete_order_count": len(profit_incomplete_order_rows),
         "orders_with_missing_mapping_count": len(orders_with_missing_mapping),
+        "sku_prefix_overlap_count": sku_prefix_audit["overlap_count"],
+        "sku_prefix_empty_match_count": sku_prefix_audit["empty_match_count"],
+        "tenant_without_sku_prefix_count": sku_prefix_audit["missing_prefix_tenant_count"],
     }
     return render(
         request,
@@ -5915,6 +6066,7 @@ def tenant_mapping_health(request):
             "orders_with_missing_mapping": orders_with_missing_mapping,
             "profit_incomplete_order_rows": profit_incomplete_order_rows,
             "category_or_tag_rules": category_or_tag_rules,
+            "sku_prefix_audit": sku_prefix_audit,
         },
     )
 
@@ -6180,6 +6332,52 @@ def admin_utilities(request):
             "expense_people": ExpensePerson.objects.all(),
             "expense_person_form": expense_person_form,
             "editing_expense_person": edit_expense_person,
+        },
+    )
+
+
+@login_required
+def activity_history(request):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    tenant_filter = str(request.GET.get("tenant") or "").strip()
+    event_filter = str(request.GET.get("event") or "").strip()
+    result_filter = str(request.GET.get("result") or "").strip()
+    search_query = str(request.GET.get("q") or "").strip()
+    logs = OrderActivityLog.objects.select_related("tenant", "order").order_by("-created_at")
+    if tenant_filter.isdigit():
+        logs = logs.filter(tenant_id=int(tenant_filter))
+    valid_events = {value for value, _ in OrderActivityLog.EVENT_CHOICES}
+    if event_filter in valid_events:
+        logs = logs.filter(event_type=event_filter)
+    if result_filter == "success":
+        logs = logs.filter(is_success=True)
+    elif result_filter == "failed":
+        logs = logs.filter(is_success=False)
+    if search_query:
+        logs = logs.filter(
+            Q(shiprocket_order_id__icontains=search_query)
+            | Q(title__icontains=search_query)
+            | Q(description__icontains=search_query)
+            | Q(triggered_by__icontains=search_query)
+            | Q(tenant__name__icontains=search_query)
+            | Q(order__customer_name__icontains=search_query)
+        )
+    return render(
+        request,
+        "core/activity_history.html",
+        {
+            "activity_logs": logs[:200],
+            "tenant_filter": tenant_filter,
+            "event_filter": event_filter,
+            "result_filter": result_filter,
+            "search_query": search_query,
+            "tenant_choices": Tenant.objects.order_by("name", "slug"),
+            "event_choices": OrderActivityLog.EVENT_CHOICES,
+            "total_log_count": OrderActivityLog.objects.count(),
+            "failed_log_count": OrderActivityLog.objects.filter(is_success=False).count(),
         },
     )
 
