@@ -300,6 +300,65 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     text-decoration: none;
 }
 
+.ops-home-alert-panel {
+    margin: 0 1rem 1rem;
+    padding: 0.85rem;
+    border: 1px solid #f2d4a5;
+    border-radius: 8px;
+    background: #fff8ed;
+}
+
+.ops-home-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.75rem;
+    color: #7a4300;
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.ops-home-alert-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.ops-home-alert-card {
+    display: block;
+    min-height: 78px;
+    padding: 0.7rem;
+    border: 1px solid #f0dfc6;
+    border-radius: 6px;
+    background: #fff;
+    color: #171923;
+    text-decoration: none;
+}
+
+.ops-home-alert-count {
+    display: block;
+    margin-bottom: 0.18rem;
+    color: #9a3412;
+    font-size: 1.25rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.ops-home-alert-label {
+    display: block;
+    color: #1f2937;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ops-home-alert-detail {
+    display: block;
+    margin-top: 0.15rem;
+    color: #64748b;
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
 @media (max-width: 767px) {
     .ops-home-shell { padding: 0 0 6rem; }
     .ops-home-card-link { padding: 0.9rem 0.9rem 0.85rem; }
@@ -360,6 +419,26 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         <span class="ops-home-sales-meta">Sales, profit payout, and internal expense tracking for your vendor account.</span>
         <a href="{% url 'vendor_settlements' %}" class="btn btn-light btn-sm mt-3 w-100">Open Settlement Report</a>
     </div>
+
+    {% if vendor_issue_alerts.has_issues %}
+        <div class="ops-home-alert-panel">
+            <div class="ops-home-alert-title">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Needs Attention</span>
+            </div>
+            <div class="ops-home-alert-grid">
+                {% for card in vendor_issue_alerts.cards %}
+                    {% if card.count %}
+                        <a href="{{ card.url }}" class="ops-home-alert-card">
+                            <span class="ops-home-alert-count">{{ card.count }}</span>
+                            <span class="ops-home-alert-label">{{ card.label }}</span>
+                            <span class="ops-home-alert-detail">{{ card.detail }}</span>
+                        </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
 
     <div class="ops-home-section-head">
         <h3>Low Stock Alerts</h3>

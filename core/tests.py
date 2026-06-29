@@ -516,6 +516,76 @@ class TenantFoundationTests(TestCase):
             self.assertEqual(response.status_code, 200, url_name)
             self.assertContains(response, "Blue Lotus Vendor")
 
+    def test_vendor_home_shows_only_active_tenant_issue_alerts(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        Product.objects.create(
+            tenant=self.mathukai,
+            name="Own Missing Cost Product",
+            sku="OWN-COST-1",
+            stock_quantity=3,
+            reorder_level=5,
+            is_active=True,
+        )
+        approved_product = Product.objects.create(
+            tenant=self.mathukai,
+            name="Own Pending Approval Product",
+            sku="OWN-APPROVAL-1",
+            actual_price="25.00",
+            stock_quantity=0,
+            is_active=True,
+        )
+        ProductChangeRequest.objects.create(
+            tenant=self.mathukai,
+            product=approved_product,
+            requested_by="vendor",
+            old_values={"description": "Old"},
+            new_values={"description": "New"},
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="OWN-MAPPING-ISSUE-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            order_items=[
+                {"name": "Unknown Vendor Item", "sku": "OWN-MISSING-SKU", "quantity": 1, "price": "99.00"},
+            ],
+        )
+        Product.objects.create(
+            tenant=self.other_tenant,
+            name="Other Missing Cost Product",
+            sku="OTHER-COST-1",
+            is_active=True,
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="OTHER-MAPPING-ISSUE-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            order_items=[
+                {"name": "Other Unknown Item", "sku": "OTHER-MISSING-SKU", "quantity": 1, "price": "99.00"},
+            ],
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("home"))
+
+        alerts = response.context["vendor_issue_alerts"]
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Needs Attention")
+        self.assertContains(response, "Missing Costs")
+        self.assertContains(response, "Mapping Issues")
+        self.assertContains(response, "Profit Gaps")
+        self.assertContains(response, "Pending Approvals")
+        self.assertEqual(alerts["missing_cost_product_count"], 1)
+        self.assertEqual(alerts["mapping_issue_order_count"], 1)
+        self.assertEqual(alerts["pending_approval_count"], 1)
+        self.assertEqual(alerts["low_stock_count"], 1)
+        self.assertEqual(alerts["no_stock_count"], 1)
+        self.assertIn("OWN-MISSING-SKU", alerts["missing_identifiers"])
+        self.assertNotIn("OTHER-MISSING-SKU", alerts["missing_identifiers"])
+
     def test_vendor_mobile_bottom_nav_shows_logout_action(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
@@ -1025,6 +1095,31 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "UNKNOWN-1")
         self.assertContains(response, reverse("missing_cost_products"))
 
+    def test_super_admin_can_view_vendor_issue_alerts(self):
+        product = Product.objects.get(sku="TENANT-ADMIN-1")
+        ProductChangeRequest.objects.create(
+            tenant=self.tenant,
+            product=product,
+            requested_by="vendoruser",
+            old_values={"description": "Old"},
+            new_values={"description": "New"},
+        )
+        self.client.force_login(self.super_user)
+
+        response = self.client.get(reverse("vendor_issue_alerts"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendor Issue Alerts")
+        self.assertContains(response, "Vendor Alert Summary")
+        self.assertContains(response, "Vendor Workspace")
+        self.assertContains(response, "Missing Cost Products")
+        self.assertContains(response, "Mapping Issue Orders")
+        self.assertContains(response, "Profit Gap Orders")
+        self.assertContains(response, "Tenant Product")
+        self.assertContains(response, "UNKNOWN-1")
+        self.assertContains(response, reverse("missing_cost_products"))
+        self.assertContains(response, reverse("tenant_mapping_health"))
+
     def test_super_admin_can_view_missing_cost_products(self):
         self.client.force_login(self.super_user)
 
@@ -1286,6 +1381,7 @@ class SuperAdminTenantViewTests(TestCase):
         list_response = self.client.get(reverse("tenant_list"))
         detail_response = self.client.get(reverse("tenant_detail", args=[self.tenant.pk]))
         mapping_health_response = self.client.get(reverse("tenant_mapping_health"))
+        vendor_alerts_response = self.client.get(reverse("vendor_issue_alerts"))
         sync_status_response = self.client.get(reverse("woocommerce_sync_status"))
         missing_cost_response = self.client.get(reverse("missing_cost_products"))
 
@@ -1295,6 +1391,8 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertIn(reverse("order_management"), detail_response.url)
         self.assertEqual(mapping_health_response.status_code, 302)
         self.assertIn(reverse("order_management"), mapping_health_response.url)
+        self.assertEqual(vendor_alerts_response.status_code, 302)
+        self.assertIn(reverse("order_management"), vendor_alerts_response.url)
         self.assertEqual(sync_status_response.status_code, 302)
         self.assertIn(reverse("order_management"), sync_status_response.url)
         self.assertEqual(missing_cost_response.status_code, 302)
@@ -1305,10 +1403,12 @@ class SuperAdminTenantViewTests(TestCase):
         super_response = self.client.get(reverse("home"))
         self.assertContains(super_response, reverse("tenant_list"))
         self.assertContains(super_response, reverse("tenant_mapping_health"))
+        self.assertContains(super_response, reverse("vendor_issue_alerts"))
         self.assertContains(super_response, reverse("woocommerce_sync_status"))
         self.assertContains(super_response, reverse("missing_cost_products"))
         self.assertContains(super_response, "Tenants")
         self.assertContains(super_response, "Mapping Health")
+        self.assertContains(super_response, "Vendor Alerts")
         self.assertContains(super_response, "Woo Sync Status")
         self.assertContains(super_response, "Missing Costs")
 
@@ -1316,6 +1416,7 @@ class SuperAdminTenantViewTests(TestCase):
         vendor_response = self.client.get(reverse("order_management"))
         self.assertNotContains(vendor_response, reverse("tenant_list"))
         self.assertNotContains(vendor_response, reverse("tenant_mapping_health"))
+        self.assertNotContains(vendor_response, reverse("vendor_issue_alerts"))
         self.assertNotContains(vendor_response, reverse("woocommerce_sync_status"))
         self.assertNotContains(vendor_response, reverse("missing_cost_products"))
 

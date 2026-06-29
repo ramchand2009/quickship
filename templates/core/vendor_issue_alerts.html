@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Vendor Alerts | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.vendor-alert-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+.vendor-alert-metric { border:1px solid #e5e9f2; background:#fff; padding:.9rem 1rem; border-radius:6px; min-height:82px; }
+.vendor-alert-label { color:#6c757d; font-size:.78rem; text-transform:uppercase; letter-spacing:0; margin-bottom:.35rem; }
+.vendor-alert-value { color:#253142; font-size:1.45rem; font-weight:700; line-height:1.1; }
+.vendor-alert-table-wrap { overflow-x:auto; }
+.vendor-alert-table th { white-space:nowrap; font-size:.78rem; text-transform:uppercase; letter-spacing:0; color:#5d6675; }
+.vendor-alert-table td { vertical-align:top; }
+.vendor-alert-name { min-width:190px; }
+.vendor-alert-warning { color:#a15c00; font-weight:700; }
+.vendor-alert-danger { color:#b42318; font-weight:700; }
+.vendor-alert-muted-list { margin:.25rem 0 0; padding-left:1rem; color:#6c757d; font-size:.82rem; }
+@media (max-width: 991px) { .vendor-alert-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 575px) { .vendor-alert-metrics { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Vendor Issue Alerts</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tenant_list' %}">Tenants</a></li>
+            <li class="breadcrumb-item">Vendor Alerts</li>
+        </ul>
+    </div>
+</div>
+
+<div class="vendor-alert-metrics">
+    <div class="vendor-alert-metric">
+        <div class="vendor-alert-label">Vendors With Issues</div>
+        <div class="vendor-alert-value">{{ totals.tenant_with_issue_count }} / {{ totals.tenant_count }}</div>
+    </div>
+    <div class="vendor-alert-metric">
+        <div class="vendor-alert-label">Missing Cost Products</div>
+        <div class="vendor-alert-value">
+            <a href="{% url 'missing_cost_products' %}">{{ totals.missing_cost_product_count }}</a>
+        </div>
+    </div>
+    <div class="vendor-alert-metric">
+        <div class="vendor-alert-label">Mapping Issue Orders</div>
+        <div class="vendor-alert-value">
+            <a href="{% url 'tenant_mapping_health' %}">{{ totals.mapping_issue_order_count }}</a>
+        </div>
+    </div>
+    <div class="vendor-alert-metric">
+        <div class="vendor-alert-label">Profit Gap Orders</div>
+        <div class="vendor-alert-value">
+            <a href="{% url 'missing_cost_products' %}#profit-incomplete-orders">{{ totals.profit_incomplete_order_count }}</a>
+        </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header">
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+            <h5 class="mb-0">Vendor Alert Summary</h5>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'missing_cost_products' %}">Update Costs</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'tenant_mapping_health' %}">Mapping Health</a>
+            </div>
+        </div>
+    </div>
+    <div class="card-block vendor-alert-table-wrap">
+        <table class="table table-hover vendor-alert-table mb-0">
+            <thead>
+                <tr>
+                    <th>Vendor</th>
+                    <th>Missing Cost</th>
+                    <th>Mapping Issues</th>
+                    <th>Profit Gaps</th>
+                    <th>Approvals</th>
+                    <th>Stock</th>
+                    <th>Samples</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in tenant_rows %}
+                    <tr>
+                        <td class="vendor-alert-name">
+                            <a href="{% url 'tenant_detail' row.tenant.pk %}" class="fw-semibold">{{ row.tenant.name }}</a>
+                            <div class="small text-muted">{{ row.tenant.slug }}</div>
+                        </td>
+                        <td>
+                            {% if row.alerts.missing_cost_product_count %}
+                                <a class="vendor-alert-danger" href="{% url 'missing_cost_products' %}">{{ row.alerts.missing_cost_product_count }}</a>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.alerts.mapping_issue_order_count %}
+                                <a class="vendor-alert-danger" href="{% url 'tenant_mapping_health' %}">{{ row.alerts.mapping_issue_order_count }}</a>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.alerts.profit_incomplete_order_count %}
+                                <a class="vendor-alert-warning" href="{% url 'missing_cost_products' %}#profit-incomplete-orders">{{ row.alerts.profit_incomplete_order_count }}</a>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.alerts.pending_approval_count %}
+                                <a class="vendor-alert-warning" href="{% url 'product_change_requests' %}">{{ row.alerts.pending_approval_count }}</a>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td>{{ row.alerts.low_stock_count }} low / {{ row.alerts.no_stock_count }} none</td>
+                        <td>
+                            {% if row.alerts.missing_cost_products %}
+                                <div class="small fw-semibold">Costs</div>
+                                <ul class="vendor-alert-muted-list">
+                                    {% for product in row.alerts.missing_cost_products|slice:":3" %}
+                                        <li>{{ product.name }} ({{ product.sku|default:"-" }})</li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                            {% if row.alerts.missing_identifiers %}
+                                <div class="small fw-semibold mt-1">Missing SKU</div>
+                                <ul class="vendor-alert-muted-list">
+                                    {% for identifier in row.alerts.missing_identifiers|slice:":3" %}
+                                        <li>{{ identifier }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                            {% if not row.alerts.missing_cost_products and not row.alerts.missing_identifiers %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="{% url 'tenant_detail' row.tenant.pk %}">Open</a></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8" class="text-muted">No active vendors found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

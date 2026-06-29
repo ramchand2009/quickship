@@ -1916,6 +1916,7 @@ def _get_order_management_undo_context(request):
 def _build_orders_dashboard_context(request):
     can_edit_operations = _can_edit_operations(getattr(request, "user", None))
     ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    active_tenant = get_active_tenant(request)
     project_queryset = _scope_queryset_to_active_tenant(request, Project.objects.all())
     contact_queryset = _scope_queryset_to_active_tenant(request, ContactMessage.objects.all())
     order_queryset = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all())
@@ -2289,6 +2290,7 @@ def _build_orders_dashboard_context(request):
             "url": reverse("stock_management"),
         },
     ]
+    vendor_issue_alerts = _vendor_issue_alerts_for_tenant(active_tenant) if active_tenant else None
 
     context = {
         "projects": projects,
@@ -2344,6 +2346,7 @@ def _build_orders_dashboard_context(request):
         "mobile_dashboard_cards": mobile_order_dashboard_cards + mobile_stock_dashboard_cards,
         "mobile_order_dashboard_cards": mobile_order_dashboard_cards,
         "mobile_stock_dashboard_cards": mobile_stock_dashboard_cards,
+        "vendor_issue_alerts": vendor_issue_alerts,
         "mobile_quick_actions": [
             {
                 "label": "My Orders",
@@ -5518,6 +5521,174 @@ def _profit_incomplete_order_rows(*, limit=None):
     return rows
 
 
+VENDOR_ISSUE_ALERT_STATUSES = [
+    ShiprocketOrder.STATUS_NEW,
+    ShiprocketOrder.STATUS_ACCEPTED,
+    ShiprocketOrder.STATUS_PACKED,
+    ShiprocketOrder.STATUS_SHIPPED,
+    ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+    ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+    ShiprocketOrder.STATUS_DELIVERED,
+]
+
+
+def _vendor_issue_alerts_for_tenant(tenant, *, sample_limit=5):
+    if tenant is None:
+        return {
+            "tenant": None,
+            "has_issues": False,
+            "cards": [],
+            "missing_cost_products": [],
+            "mapping_issue_orders": [],
+            "missing_cost_order_rows": [],
+        }
+
+    product_queryset = Product.objects.filter(tenant=tenant, is_active=True)
+    missing_cost_queryset = product_queryset.filter(actual_price__isnull=True)
+    missing_cost_product_count = missing_cost_queryset.count()
+    missing_cost_products = list(missing_cost_queryset.order_by("name", "sku")[:sample_limit])
+    low_stock_count = product_queryset.filter(
+        stock_quantity__gt=0,
+        stock_quantity__lte=F("reorder_level"),
+    ).count()
+    no_stock_count = product_queryset.filter(stock_quantity__lte=0).count()
+    pending_approval_count = ProductChangeRequest.objects.filter(
+        tenant=tenant,
+        status=ProductChangeRequest.STATUS_PENDING,
+    ).count()
+
+    mapping_issue_orders = []
+    missing_cost_order_rows = []
+    mapping_issue_order_count = 0
+    profit_incomplete_order_count = 0
+    missing_cost_order_count = 0
+    missing_identifiers = []
+    order_queryset = (
+        ShiprocketOrder.objects.select_related("tenant")
+        .defer("raw_payload")
+        .filter(tenant=tenant, local_status__in=VENDOR_ISSUE_ALERT_STATUSES)
+        .order_by("-order_date", "-updated_at", "-created_at")
+    )
+    for order in order_queryset:
+        profit_summary = summarize_order_profit(order)
+        order_missing_identifiers = profit_summary.get("missing_identifiers") or []
+        order_missing_cost_items = profit_summary.get("missing_actual_price_items") or []
+        if order_missing_identifiers:
+            mapping_issue_order_count += 1
+            for identifier in order_missing_identifiers:
+                if identifier not in missing_identifiers:
+                    missing_identifiers.append(identifier)
+            if len(mapping_issue_orders) < sample_limit:
+                mapping_issue_orders.append(
+                    {
+                        "order": order,
+                        "missing_identifiers": order_missing_identifiers,
+                    }
+                )
+        if order_missing_cost_items:
+            missing_cost_order_count += 1
+            if len(missing_cost_order_rows) < sample_limit:
+                missing_cost_order_rows.append(
+                    {
+                        "order": order,
+                        "missing_actual_price_items": order_missing_cost_items,
+                    }
+                )
+        if not profit_summary.get("is_complete"):
+            profit_incomplete_order_count += 1
+
+    cards = [
+        {
+            "label": "Missing Costs",
+            "count": missing_cost_product_count,
+            "detail": "Products missing actual price",
+            "tone": "danger" if missing_cost_products else "success",
+            "url": reverse("stock_management"),
+        },
+        {
+            "label": "Mapping Issues",
+            "count": mapping_issue_order_count,
+            "detail": "Orders with unmapped SKUs",
+            "tone": "danger" if mapping_issue_order_count else "success",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "label": "Profit Gaps",
+            "count": profit_incomplete_order_count,
+            "detail": "Orders needing cost or mapping",
+            "tone": "warning" if profit_incomplete_order_count else "success",
+            "url": f"{reverse('order_management')}?tab=all",
+        },
+        {
+            "label": "Pending Approvals",
+            "count": pending_approval_count,
+            "detail": "Product edits waiting",
+            "tone": "warning" if pending_approval_count else "success",
+            "url": reverse("my_product_change_requests"),
+        },
+        {
+            "label": "Low Stock",
+            "count": low_stock_count,
+            "detail": "Products below reorder level",
+            "tone": "warning" if low_stock_count else "success",
+            "url": f"{reverse('stock_management')}?view=more",
+        },
+        {
+            "label": "No Stock",
+            "count": no_stock_count,
+            "detail": "Products with zero stock",
+            "tone": "danger" if no_stock_count else "success",
+            "url": f"{reverse('stock_management')}?view=more",
+        },
+    ]
+    return {
+        "tenant": tenant,
+        "has_issues": any(card["count"] for card in cards),
+        "cards": cards,
+        "missing_cost_products": missing_cost_products,
+        "missing_cost_product_count": missing_cost_product_count,
+        "mapping_issue_orders": mapping_issue_orders,
+        "mapping_issue_order_count": mapping_issue_order_count,
+        "missing_identifiers": missing_identifiers,
+        "missing_cost_order_rows": missing_cost_order_rows,
+        "missing_cost_order_count": missing_cost_order_count,
+        "profit_incomplete_order_count": profit_incomplete_order_count,
+        "pending_approval_count": pending_approval_count,
+        "low_stock_count": low_stock_count,
+        "no_stock_count": no_stock_count,
+    }
+
+
+def _vendor_issue_alert_rows():
+    rows = []
+    totals = {
+        "tenant_count": 0,
+        "tenant_with_issue_count": 0,
+        "missing_cost_product_count": 0,
+        "mapping_issue_order_count": 0,
+        "profit_incomplete_order_count": 0,
+        "pending_approval_count": 0,
+        "low_stock_count": 0,
+        "no_stock_count": 0,
+    }
+    for tenant in Tenant.objects.filter(is_active=True).order_by("name", "slug"):
+        alerts = _vendor_issue_alerts_for_tenant(tenant)
+        rows.append({"tenant": tenant, "alerts": alerts})
+        totals["tenant_count"] += 1
+        if alerts["has_issues"]:
+            totals["tenant_with_issue_count"] += 1
+        for key in [
+            "missing_cost_product_count",
+            "mapping_issue_order_count",
+            "profit_incomplete_order_count",
+            "pending_approval_count",
+            "low_stock_count",
+            "no_stock_count",
+        ]:
+            totals[key] += alerts[key]
+    return rows, totals
+
+
 def _missing_cost_products_context(selected_category_id="", price_errors=None, posted_values=None):
     selected_category_id = str(selected_category_id or "").strip()
     products = list(
@@ -5744,6 +5915,23 @@ def tenant_mapping_health(request):
             "orders_with_missing_mapping": orders_with_missing_mapping,
             "profit_incomplete_order_rows": profit_incomplete_order_rows,
             "category_or_tag_rules": category_or_tag_rules,
+        },
+    )
+
+
+@login_required
+def vendor_issue_alerts(request):
+    restricted_response = _require_super_admin(request)
+    if restricted_response:
+        return restricted_response
+
+    tenant_rows, totals = _vendor_issue_alert_rows()
+    return render(
+        request,
+        "core/vendor_issue_alerts.html",
+        {
+            "tenant_rows": tenant_rows,
+            "totals": totals,
         },
     )
 
