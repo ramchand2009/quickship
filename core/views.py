@@ -126,6 +126,7 @@ from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_noti
 from .woocommerce import (
     WooCommerceAPIError,
     check_connection as check_woocommerce_connection,
+    deactivate_product_from_payload as deactivate_woocommerce_product_from_payload,
     get_settings_for_webhook_secret as get_woocommerce_settings_for_webhook_secret,
     import_order_payload as import_woocommerce_order_payload,
     refresh_product_from_woocommerce,
@@ -4346,7 +4347,7 @@ def stock_management(request):
             messages.error(request, "Invalid stock action.")
             return redirect(redirect_url)
 
-    products = _scope_queryset_to_active_tenant(request, Product.objects.all()).annotate(
+    products = _scope_queryset_to_active_tenant(request, Product.objects.filter(is_active=True)).annotate(
         sort_category=Coalesce("category_master__name", "category"),
     ).order_by("sort_category", "name", "sku")
     if search_query:
@@ -7199,6 +7200,33 @@ def woocommerce_webhook(request):
 
     if not isinstance(payload, dict):
         return JsonResponse({"ok": False, "error": "Payload must be a JSON object."}, status=400)
+
+    webhook_topic = str(request.headers.get("X-WC-Webhook-Topic") or "").strip().lower()
+    webhook_resource = str(request.headers.get("X-WC-Webhook-Resource") or "").strip().lower()
+    webhook_event = str(request.headers.get("X-WC-Webhook-Event") or "").strip().lower()
+    product_status = str(payload.get("status") or "").strip().lower()
+    is_product_webhook = webhook_resource == "product" or webhook_topic.startswith("product.")
+    is_product_delete = (
+        is_product_webhook
+        and (
+            webhook_event == "deleted"
+            or webhook_topic.endswith(".deleted")
+            or product_status in {"trash", "deleted"}
+        )
+    )
+    if is_product_delete:
+        result = deactivate_woocommerce_product_from_payload(payload)
+        return JsonResponse(
+            {
+                "ok": True,
+                "product_deleted": True,
+                "matched": result["matched"],
+                "updated": result["updated"],
+                "woocommerce_product_id": result["woocommerce_product_id"],
+                "auth_mode": auth_mode,
+                "settings_tenant_id": settings_tenant.pk,
+            }
+        )
 
     order, created = import_woocommerce_order_payload(payload)
     if not order:

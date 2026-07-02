@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from urllib import error, parse, request
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -799,6 +800,33 @@ def _sync_product_row(row, tenant=None):
     if _apply_product_row(product, row):
         return "updated"
     return "unchanged"
+
+
+def deactivate_product_from_payload(payload):
+    if not isinstance(payload, dict):
+        return {"matched": 0, "updated": 0, "woocommerce_product_id": ""}
+
+    product_id = str(payload.get("id") or "").strip()
+    parent_id = str(payload.get("parent_id") or payload.get("parent") or "").strip()
+    if not product_id:
+        return {"matched": 0, "updated": 0, "woocommerce_product_id": ""}
+
+    query = (
+        Q(smartbiz_product_id__iexact=product_id)
+        | Q(woocommerce_product_id__iexact=product_id)
+        | Q(woocommerce_variation_id__iexact=product_id)
+    )
+    if parent_id:
+        query |= Q(woocommerce_product_id__iexact=parent_id, woocommerce_variation_id__iexact=product_id)
+
+    products = Product.objects.filter(query)
+    matched = products.count()
+    updated = products.filter(is_active=True).update(is_active=False, updated_at=timezone.now())
+    return {
+        "matched": matched,
+        "updated": updated,
+        "woocommerce_product_id": product_id,
+    }
 
 
 def _fetch_paginated(path, params=None, *, per_page=100, tenant=None):

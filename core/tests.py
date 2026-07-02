@@ -2614,6 +2614,64 @@ class WooCommerceSyncTests(TestCase):
         self.assertFalse(ShiprocketOrder.objects.filter(shiprocket_order_id="WC-778").exists())
 
     @patch("core.views.sync_woocommerce_orders")
+    def test_woocommerce_webhook_deactivates_deleted_product(self, mock_sync_orders):
+        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        product = Product.objects.create(
+            name="Deleted Woo Product",
+            sku="WOO-DELETE-1",
+            smartbiz_product_id="901",
+            woocommerce_product_id="901",
+            is_active=True,
+        )
+        raw_body = json.dumps({"id": 901}).encode("utf-8")
+
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="product.deleted",
+            HTTP_X_WC_WEBHOOK_RESOURCE="product",
+            HTTP_X_WC_WEBHOOK_EVENT="deleted",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["product_deleted"], True)
+        self.assertEqual(response.json()["matched"], 1)
+        self.assertEqual(response.json()["updated"], 1)
+        mock_sync_orders.assert_not_called()
+        product.refresh_from_db()
+        self.assertFalse(product.is_active)
+
+    @patch("core.views.sync_woocommerce_orders")
+    def test_woocommerce_webhook_deactivates_trashed_product_status(self, mock_sync_orders):
+        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        product = Product.objects.create(
+            name="Trashed Woo Product",
+            sku="WOO-TRASH-1",
+            smartbiz_product_id="902",
+            woocommerce_product_id="902",
+            is_active=True,
+        )
+        raw_body = json.dumps({"id": 902, "status": "trash"}).encode("utf-8")
+
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="product.updated",
+            HTTP_X_WC_WEBHOOK_RESOURCE="product",
+            HTTP_X_WC_WEBHOOK_EVENT="updated",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["product_deleted"], True)
+        mock_sync_orders.assert_not_called()
+        product.refresh_from_db()
+        self.assertFalse(product.is_active)
+
+    @patch("core.views.sync_woocommerce_orders")
     def test_woocommerce_webhook_accepts_signed_validation_without_order_id(self, mock_sync_orders):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")
         mock_sync_orders.return_value = 1
