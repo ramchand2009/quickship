@@ -6303,6 +6303,8 @@ def tenant_detail(request, pk):
         return restricted_response
 
     tenant = get_object_or_404(Tenant.objects.select_related("owner"), pk=pk)
+    sender = _sender_address_for_tenant(tenant)
+    sender_form = SenderAddressForm(instance=sender)
     editing_mapping_rule = None
     mapping_rule_id = request.POST.get("mapping_rule_id") or request.GET.get("mapping_rule")
     if mapping_rule_id:
@@ -6317,6 +6319,16 @@ def tenant_detail(request, pk):
         tenant.save(update_fields=["auto_approve_product_changes", "updated_at"])
         messages.success(request, "Vendor operations settings saved.")
         return redirect("tenant_detail", pk=tenant.pk)
+
+    if request.method == "POST" and request.POST.get("action") == "save_sender":
+        sender_form = SenderAddressForm(request.POST, instance=sender)
+        if sender_form.is_valid():
+            sender = sender_form.save(commit=False)
+            sender.tenant = tenant
+            sender.save()
+            messages.success(request, "Vendor sender address saved.")
+            return redirect("tenant_detail", pk=tenant.pk)
+        messages.error(request, "Unable to save sender address. Check the form fields.")
 
     if request.method == "POST" and request.POST.get("action") == "save_mapping_rule":
         mapping_form = TenantWooCommerceMappingRuleForm(
@@ -6383,6 +6395,7 @@ def tenant_detail(request, pk):
             "mapping_rules": mapping_rules,
             "mapping_form": mapping_form,
             "editing_mapping_rule": editing_mapping_rule,
+            "sender_form": sender_form,
         },
     )
 

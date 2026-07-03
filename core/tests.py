@@ -1081,8 +1081,38 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Vendor Onboarding Checklist")
         self.assertContains(response, "Vendor user active")
         self.assertContains(response, "Sender address complete")
+        self.assertContains(response, "Sender Address")
+        self.assertContains(response, "id_name")
+        self.assertContains(response, "Save Sender Address")
         self.assertContains(response, "SKU mapping configured")
         self.assertContains(response, "Auto approve product changes")
+
+    def test_super_admin_can_update_vendor_sender_address_from_tenant_detail(self):
+        self.client.force_login(self.super_user)
+
+        response = self.client.post(
+            reverse("tenant_detail", args=[self.tenant.pk]),
+            {
+                "action": "save_sender",
+                "name": "Vendor Dispatch Desk",
+                "email": "dispatch@example.com",
+                "phone": "9876543210",
+                "address_1": "12 Warehouse Road",
+                "address_2": "Bay 4",
+                "city": "Chennai",
+                "state": "Tamil Nadu",
+                "country": "India",
+                "pincode": "600001",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("tenant_detail", args=[self.tenant.pk]))
+        sender = SenderAddress.objects.get(tenant=self.tenant)
+        self.assertEqual(sender.name, "Vendor Dispatch Desk")
+        self.assertEqual(sender.phone, "9876543210")
+        self.assertEqual(sender.address_1, "12 Warehouse Road")
+        self.assertContains(response, "Vendor sender address saved.")
 
     def test_super_admin_can_enable_vendor_auto_product_approval_from_tenant_detail(self):
         self.client.force_login(self.super_user)

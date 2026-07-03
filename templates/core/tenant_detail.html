@@ -147,6 +147,32 @@
 </div>
 
 <div class="card ops-admin-card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0">Sender Address</h5>
+        <div class="small text-muted">Printed as the sender address on this vendor's shipping labels.</div>
+    </div>
+    <div class="card-block">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_sender">
+            <div class="row">
+                {% for field in sender_form %}
+                    <div class="col-md-6 col-xl-4 mb-3">
+                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            {% for error in sender_form.non_field_errors %}<div class="text-danger small mb-2">{{ error }}</div>{% endfor %}
+            <button type="submit" class="btn btn-primary">Save Sender Address</button>
+        </form>
+    </div>
+</div>
+
+<div class="card ops-admin-card mt-3">
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
             <h5 class="mb-0">Vendor Onboarding Checklist</h5>
