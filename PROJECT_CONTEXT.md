@@ -64,6 +64,7 @@ This file is the working memory for future Codex sessions. Read it before planni
 - `a1526be` Add vendor product routing health card
 - `ae4bc84` Add shared store routing diagnostics
 - `b12cfe3` Add vendor product routing detail panel
+- `b316567` Add vendor WhatsApp delivery health card
 
 ## Latest Implemented Slice
 
@@ -101,6 +102,17 @@ It shows:
 
 It also added tests proving vendors see only their own product routing details and cannot open another tenant's product detail.
 
+Commit `b316567` added a mobile vendor WhatsApp delivery health card to `order_management_ops.html`.
+
+It shows:
+- shared WhatsApp sender status as platform-managed
+- failed WhatsApp queue count
+- pending WhatsApp queue count
+- retrying WhatsApp queue count
+- safe vendor wording that hides payloads and API credentials
+
+It also added tests proving vendors see only their own tenant's WhatsApp queue counts and do not see raw errors, payloads, API keys, or admin log links.
+
 ## Roadmap Direction
 
 Near-term priorities:
@@ -111,7 +123,6 @@ Near-term priorities:
 - Keep tenant isolation and idempotency as highest-risk areas.
 
 Likely next safe slices:
-- Add safe notification failure visibility for vendors without exposing platform credentials.
 - Add tests for shared WooCommerce product-to-vendor routing edge cases.
 - Start API design only after current production UI flow is stable.
 
