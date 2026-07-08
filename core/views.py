@@ -5633,6 +5633,94 @@ def _matching_mapping_rules_for_product(product, active_rules):
     return [rule for rule in active_rules if _product_mapping_rule_matches(product, rule)]
 
 
+def _product_channel_identifier_label(product):
+    identifiers = [
+        ("Woo variation", product.woocommerce_variation_id),
+        ("Woo product", product.woocommerce_product_id),
+        ("Product ID", product.smartbiz_product_id),
+    ]
+    for label, value in identifiers:
+        normalized = str(value or "").strip()
+        if normalized:
+            return f"{label}: {normalized}"
+    return "-"
+
+
+def _shared_store_routing_diagnostics(tenants, products, active_rules):
+    tenant_rows = {}
+    for tenant in tenants:
+        tenant_rows[tenant.pk] = {
+            "tenant": tenant,
+            "product_count": 0,
+            "channel_product_count": 0,
+            "rule_count": sum(1 for rule in active_rules if rule.tenant_id == tenant.pk),
+            "no_route_count": 0,
+            "wrong_vendor_count": 0,
+            "ambiguous_count": 0,
+        }
+
+    no_route_products = []
+    wrong_vendor_products = []
+    ambiguous_products = []
+    for product in products:
+        row = tenant_rows.get(product.tenant_id)
+        if row is not None:
+            row["product_count"] += 1
+            if _product_channel_identifier_label(product) != "-":
+                row["channel_product_count"] += 1
+
+        matches = _matching_mapping_rules_for_product(product, active_rules)
+        matched_tenant_ids = {rule.tenant_id for rule in matches}
+        rule_labels = [_tenant_mapping_rule_label(rule) for rule in matches]
+        item = {
+            "product": product,
+            "channel_identifier": _product_channel_identifier_label(product),
+            "rule_labels": rule_labels,
+            "matched_tenants": [rule.tenant.name for rule in matches],
+        }
+
+        if not matches:
+            no_route_products.append(item)
+            if row is not None:
+                row["no_route_count"] += 1
+            continue
+
+        if len(matched_tenant_ids) > 1:
+            ambiguous_products.append(item)
+            if row is not None:
+                row["ambiguous_count"] += 1
+
+        if product.tenant_id not in matched_tenant_ids:
+            wrong_vendor_products.append(item)
+            if row is not None:
+                row["wrong_vendor_count"] += 1
+
+    rows = []
+    for row in tenant_rows.values():
+        risk_count = row["no_route_count"] + row["wrong_vendor_count"] + row["ambiguous_count"]
+        row["risk_count"] = risk_count
+        if row["wrong_vendor_count"] or row["ambiguous_count"]:
+            row["risk_level"] = "High"
+        elif row["no_route_count"] or row["rule_count"] == 0:
+            row["risk_level"] = "Review"
+        else:
+            row["risk_level"] = "OK"
+        rows.append(row)
+
+    rows.sort(key=lambda item: (-item["risk_count"], item["tenant"].name.lower()))
+    return {
+        "rows": rows,
+        "no_route_products": no_route_products[:25],
+        "wrong_vendor_products": wrong_vendor_products[:25],
+        "ambiguous_products": ambiguous_products[:25],
+        "no_route_product_count": len(no_route_products),
+        "wrong_vendor_product_count": len(wrong_vendor_products),
+        "ambiguous_product_count": len(ambiguous_products),
+        "high_risk_tenant_count": sum(1 for row in rows if row["risk_level"] == "High"),
+        "review_tenant_count": sum(1 for row in rows if row["risk_level"] == "Review"),
+    }
+
+
 def _latest_woocommerce_sync_run(run_type):
     return WooCommerceSyncRun.objects.filter(run_type=run_type).order_by("-finished_at", "-started_at").first()
 
@@ -6319,6 +6407,7 @@ def tenant_mapping_health(request):
         if rule.match_type in {TenantWooCommerceMappingRule.MATCH_CATEGORY, TenantWooCommerceMappingRule.MATCH_TAG}
     ]
     sku_prefix_audit = _sku_prefix_audit(active_rules, products)
+    routing_diagnostics = _shared_store_routing_diagnostics(tenants, products, active_rules)
     profit_incomplete_order_rows = _profit_incomplete_order_rows(limit=25)
     totals = {
         "tenant_count": len(tenants),
@@ -6330,6 +6419,10 @@ def tenant_mapping_health(request):
         "missing_cost_product_count": total_missing_cost,
         "profit_incomplete_order_count": len(profit_incomplete_order_rows),
         "orders_with_missing_mapping_count": len(orders_with_missing_mapping),
+        "routing_no_route_product_count": routing_diagnostics["no_route_product_count"],
+        "routing_wrong_vendor_product_count": routing_diagnostics["wrong_vendor_product_count"],
+        "routing_ambiguous_product_count": routing_diagnostics["ambiguous_product_count"],
+        "routing_high_risk_tenant_count": routing_diagnostics["high_risk_tenant_count"],
         "sku_prefix_overlap_count": sku_prefix_audit["overlap_count"],
         "sku_prefix_empty_match_count": sku_prefix_audit["empty_match_count"],
         "tenant_without_sku_prefix_count": sku_prefix_audit["missing_prefix_tenant_count"],
@@ -6346,6 +6439,7 @@ def tenant_mapping_health(request):
             "profit_incomplete_order_rows": profit_incomplete_order_rows,
             "category_or_tag_rules": category_or_tag_rules,
             "sku_prefix_audit": sku_prefix_audit,
+            "routing_diagnostics": routing_diagnostics,
         },
     )
 

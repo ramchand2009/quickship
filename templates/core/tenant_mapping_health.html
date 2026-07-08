@@ -15,7 +15,22 @@
 .mapping-health-rule-list { display:flex; flex-wrap:wrap; gap:.35rem; }
 .mapping-health-rule { display:inline-flex; align-items:center; min-height:24px; padding:.15rem .45rem; border-radius:4px; background:#eef4ff; color:#23476f; font-size:.8rem; }
 .mapping-health-warning { color:#a15c00; }
+.mapping-risk-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
+.mapping-risk-card { border:1px solid #e5e9f2; border-radius:6px; background:#fff; overflow:hidden; }
+.mapping-risk-card-header { padding:.85rem 1rem; border-bottom:1px solid #eef1f6; display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+.mapping-risk-card-header h5 { margin:0; font-size:.98rem; }
+.mapping-risk-card-body { padding:0; max-height:360px; overflow:auto; }
+.mapping-risk-list { display:grid; gap:0; }
+.mapping-risk-item { padding:.85rem 1rem; border-bottom:1px solid #f0f2f6; }
+.mapping-risk-item:last-child { border-bottom:0; }
+.mapping-risk-title { color:#253142; font-weight:700; overflow-wrap:anywhere; }
+.mapping-risk-meta { margin-top:.2rem; color:#6c757d; font-size:.82rem; overflow-wrap:anywhere; }
+.mapping-risk-badge { display:inline-flex; align-items:center; min-height:24px; padding:.15rem .5rem; border-radius:999px; font-size:.74rem; font-weight:700; text-transform:uppercase; }
+.mapping-risk-badge.is-high { background:#fde8e8; color:#9b1c1c; }
+.mapping-risk-badge.is-review { background:#fff7db; color:#8a5a00; }
+.mapping-risk-badge.is-ok { background:#e7f7ec; color:#176336; }
 @media (max-width: 991px) { .mapping-health-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 1199px) { .mapping-risk-grid { grid-template-columns:1fr; } }
 @media (max-width: 575px) { .mapping-health-metrics { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
@@ -63,6 +78,142 @@
         <div class="mapping-health-label">SKU Audit Issues</div>
         <div class="mapping-health-value">
             {{ totals.sku_prefix_overlap_count|add:totals.sku_prefix_empty_match_count|add:totals.tenant_without_sku_prefix_count }}
+        </div>
+    </div>
+</div>
+
+<div class="card ops-admin-card mb-3">
+    <div class="card-header">
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+            <div>
+                <h5 class="mb-0">Shared Store Routing Control Room</h5>
+                <div class="small text-muted mt-1">One WooCommerce store feeds all vendors, so these issues can route orders to the wrong workspace.</div>
+            </div>
+            <span class="mapping-risk-badge {% if totals.routing_high_risk_tenant_count %}is-high{% elif totals.routing_no_route_product_count %}is-review{% else %}is-ok{% endif %}">
+                {{ totals.routing_high_risk_tenant_count }} high risk vendor{{ totals.routing_high_risk_tenant_count|pluralize }}
+            </span>
+        </div>
+    </div>
+    <div class="card-block">
+        <div class="mapping-health-metrics">
+            <div class="mapping-health-metric">
+                <div class="mapping-health-label">No Route Products</div>
+                <div class="mapping-health-value">{{ totals.routing_no_route_product_count }}</div>
+            </div>
+            <div class="mapping-health-metric">
+                <div class="mapping-health-label">Wrong Vendor Route</div>
+                <div class="mapping-health-value">{{ totals.routing_wrong_vendor_product_count }}</div>
+            </div>
+            <div class="mapping-health-metric">
+                <div class="mapping-health-label">Ambiguous Route</div>
+                <div class="mapping-health-value">{{ totals.routing_ambiguous_product_count }}</div>
+            </div>
+            <div class="mapping-health-metric">
+                <div class="mapping-health-label">Missing Order IDs</div>
+                <div class="mapping-health-value">{{ totals.orders_with_missing_mapping_count }}</div>
+            </div>
+            <div class="mapping-health-metric">
+                <div class="mapping-health-label">High Risk Vendors</div>
+                <div class="mapping-health-value">{{ totals.routing_high_risk_tenant_count }}</div>
+            </div>
+            <div class="mapping-health-metric">
+                <div class="mapping-health-label">Review Vendors</div>
+                <div class="mapping-health-value">{{ routing_diagnostics.review_tenant_count }}</div>
+            </div>
+        </div>
+        <div class="mapping-health-table-wrap mb-3">
+            <table class="table table-sm mapping-health-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Vendor</th>
+                        <th>Products</th>
+                        <th>Woo Linked</th>
+                        <th>Rules</th>
+                        <th>No Route</th>
+                        <th>Wrong Vendor</th>
+                        <th>Ambiguous</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in routing_diagnostics.rows %}
+                        <tr>
+                            <td><a href="{% url 'tenant_detail' row.tenant.pk %}">{{ row.tenant.name }}</a></td>
+                            <td>{{ row.product_count }}</td>
+                            <td>{{ row.channel_product_count }}</td>
+                            <td>{{ row.rule_count }}</td>
+                            <td>{{ row.no_route_count }}</td>
+                            <td>{{ row.wrong_vendor_count }}</td>
+                            <td>{{ row.ambiguous_count }}</td>
+                            <td>
+                                <span class="mapping-risk-badge {% if row.risk_level == 'High' %}is-high{% elif row.risk_level == 'Review' %}is-review{% else %}is-ok{% endif %}">
+                                    {{ row.risk_level }}
+                                </span>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="8" class="text-muted">No vendor routing data found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mapping-risk-grid">
+            <div class="mapping-risk-card">
+                <div class="mapping-risk-card-header">
+                    <h5>No Route Products</h5>
+                    <span class="mapping-risk-badge {% if totals.routing_no_route_product_count %}is-review{% else %}is-ok{% endif %}">{{ totals.routing_no_route_product_count }}</span>
+                </div>
+                <div class="mapping-risk-card-body">
+                    <div class="mapping-risk-list">
+                        {% for item in routing_diagnostics.no_route_products %}
+                            <div class="mapping-risk-item">
+                                <div class="mapping-risk-title">{{ item.product.name }}</div>
+                                <div class="mapping-risk-meta">{{ item.product.tenant.name }} | {{ item.product.sku|default:"No SKU" }} | {{ item.channel_identifier }}</div>
+                            </div>
+                        {% empty %}
+                            <div class="mapping-risk-item text-muted">All products match at least one active routing rule.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="mapping-risk-card">
+                <div class="mapping-risk-card-header">
+                    <h5>Wrong Vendor Route</h5>
+                    <span class="mapping-risk-badge {% if totals.routing_wrong_vendor_product_count %}is-high{% else %}is-ok{% endif %}">{{ totals.routing_wrong_vendor_product_count }}</span>
+                </div>
+                <div class="mapping-risk-card-body">
+                    <div class="mapping-risk-list">
+                        {% for item in routing_diagnostics.wrong_vendor_products %}
+                            <div class="mapping-risk-item">
+                                <div class="mapping-risk-title">{{ item.product.name }}</div>
+                                <div class="mapping-risk-meta">Owner: {{ item.product.tenant.name }} | Matches: {{ item.matched_tenants|join:", " }}</div>
+                                <div class="mapping-risk-meta">{{ item.product.sku|default:"No SKU" }} | {{ item.channel_identifier }}</div>
+                            </div>
+                        {% empty %}
+                            <div class="mapping-risk-item text-muted">No products currently match another vendor's route.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="mapping-risk-card">
+                <div class="mapping-risk-card-header">
+                    <h5>Ambiguous Route</h5>
+                    <span class="mapping-risk-badge {% if totals.routing_ambiguous_product_count %}is-high{% else %}is-ok{% endif %}">{{ totals.routing_ambiguous_product_count }}</span>
+                </div>
+                <div class="mapping-risk-card-body">
+                    <div class="mapping-risk-list">
+                        {% for item in routing_diagnostics.ambiguous_products %}
+                            <div class="mapping-risk-item">
+                                <div class="mapping-risk-title">{{ item.product.name }}</div>
+                                <div class="mapping-risk-meta">{{ item.product.tenant.name }} | {{ item.product.sku|default:"No SKU" }}</div>
+                                <div class="mapping-risk-meta">Rules: {{ item.rule_labels|join:", " }}</div>
+                            </div>
+                        {% empty %}
+                            <div class="mapping-risk-item text-muted">No product matches multiple vendor routes.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

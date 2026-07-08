@@ -1461,6 +1461,16 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, reverse("missing_cost_products"))
         self.assertContains(response, "Vendor SKU Mapping Audit")
         self.assertContains(response, "TENANT-")
+        self.assertContains(response, "Shared Store Routing Control Room")
+        self.assertContains(response, "No Route Products")
+        self.assertContains(response, "Wrong Vendor Route")
+        self.assertContains(response, "Ambiguous Route")
+        self.assertContains(response, "Unmapped Product")
+        self.assertContains(response, "Woo product: 900")
+        self.assertContains(response, "Other Product")
+        self.assertContains(response, "Owner: Other Workspace")
+        self.assertContains(response, "Matches: Vendor Workspace")
+        self.assertContains(response, "1 high risk vendor")
 
     def test_super_admin_mapping_health_flags_sku_prefix_overlap(self):
         TenantWooCommerceMappingRule.objects.create(
@@ -1476,6 +1486,10 @@ class SuperAdminTenantViewTests(TestCase):
         self.assertContains(response, "Vendor SKU Mapping Audit")
         self.assertContains(response, "Other Workspace: TENANT-ADMIN-")
         self.assertContains(response, "Review")
+        self.assertContains(response, "Ambiguous Route")
+        self.assertContains(response, "Tenant Product")
+        self.assertContains(response, "SKU Prefix: TENANT-")
+        self.assertContains(response, "SKU Prefix: TENANT-ADMIN-")
 
     def test_super_admin_can_view_vendor_issue_alerts(self):
         product = Product.objects.get(sku="TENANT-ADMIN-1")
