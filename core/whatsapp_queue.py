@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -136,23 +136,55 @@ def enqueue_whatsapp_notification(
             )
             return {"queued": False, "reason": "already_sent", "job": None, "plan": plan}
 
-    job = WhatsAppNotificationQueue.objects.create(
-        tenant=order.tenant,
-        order=order,
-        shiprocket_order_id=str(order.shiprocket_order_id or "").strip(),
-        trigger=trigger,
-        previous_status=str(previous_status or "").strip(),
-        current_status=current_status_value,
-        phone_number=phone_number,
-        mode=mode,
-        template_name=template_name,
-        template_id=template_id,
-        idempotency_key=idempotency_key,
-        payload=_as_json_payload(payload),
-        status=WhatsAppNotificationQueue.STATUS_PENDING,
-        max_attempts=max(1, int(max_attempts or 3)),
-        initiated_by=str(initiated_by or "").strip(),
-    )
+    try:
+        with transaction.atomic():
+            job = WhatsAppNotificationQueue.objects.create(
+                tenant=order.tenant,
+                order=order,
+                shiprocket_order_id=str(order.shiprocket_order_id or "").strip(),
+                trigger=trigger,
+                previous_status=str(previous_status or "").strip(),
+                current_status=current_status_value,
+                phone_number=phone_number,
+                mode=mode,
+                template_name=template_name,
+                template_id=template_id,
+                idempotency_key=idempotency_key,
+                payload=_as_json_payload(payload),
+                status=WhatsAppNotificationQueue.STATUS_PENDING,
+                max_attempts=max(1, int(max_attempts or 3)),
+                initiated_by=str(initiated_by or "").strip(),
+            )
+    except IntegrityError:
+        if not idempotency_key:
+            raise
+        existing_job = (
+            WhatsAppNotificationQueue.objects.filter(
+                tenant=order.tenant,
+                idempotency_key=idempotency_key,
+                status__in=[
+                    WhatsAppNotificationQueue.STATUS_PENDING,
+                    WhatsAppNotificationQueue.STATUS_RETRYING,
+                    WhatsAppNotificationQueue.STATUS_PROCESSING,
+                ],
+            )
+            .order_by("created_at")
+            .first()
+        )
+        if not existing_job:
+            raise
+        log_order_activity(
+            order=order,
+            event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_SKIPPED,
+            title="WhatsApp queue skipped",
+            description=f"Similar notification is already queued as Job #{existing_job.pk}.",
+            previous_status=previous_status,
+            current_status=current_status_value,
+            metadata={"reason": "duplicate_pending", "existing_job_id": existing_job.pk, "trigger": trigger},
+            is_success=False,
+            triggered_by=initiated_by,
+        )
+        return {"queued": False, "reason": "duplicate_pending", "job": existing_job, "plan": plan}
     log_order_activity(
         order=order,
         event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUED,

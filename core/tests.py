@@ -7065,6 +7065,127 @@ class WhatsAppQueueProcessingTests(TestCase):
         self.assertFalse(second["queued"])
         self.assertEqual(second["reason"], "duplicate_pending")
 
+    def test_active_queue_idempotency_is_enforced_in_database(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-QUEUE-DB-DUP-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543214",
+            shipping_address={"phone": "9876543214"},
+        )
+        first = enqueue_whatsapp_notification(
+            order=order,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )
+        self.assertTrue(first["queued"])
+        job = first["job"]
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                WhatsAppNotificationQueue.objects.create(
+                    tenant=order.tenant,
+                    order=order,
+                    shiprocket_order_id=order.shiprocket_order_id,
+                    trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+                    previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+                    current_status=ShiprocketOrder.STATUS_ACCEPTED,
+                    phone_number=job.phone_number,
+                    mode=job.mode,
+                    template_name=job.template_name,
+                    template_id=job.template_id,
+                    idempotency_key=job.idempotency_key,
+                    status=WhatsAppNotificationQueue.STATUS_PENDING,
+                )
+
+    def test_failed_queue_job_can_be_requeued_with_same_idempotency_key(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-QUEUE-FAILED-REQUEUE-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543215",
+            shipping_address={"phone": "9876543215"},
+        )
+        first = enqueue_whatsapp_notification(
+            order=order,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )
+        self.assertTrue(first["queued"])
+        failed_job = first["job"]
+        failed_job.status = WhatsAppNotificationQueue.STATUS_FAILED
+        failed_job.save(update_fields=["status"])
+
+        second = enqueue_whatsapp_notification(
+            order=order,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )
+
+        self.assertTrue(second["queued"])
+        self.assertNotEqual(second["job"].pk, failed_job.pk)
+        self.assertEqual(second["job"].idempotency_key, failed_job.idempotency_key)
+
+    def test_active_queue_idempotency_is_tenant_scoped(self):
+        tenant_a = Tenant.objects.create(name="Queue Tenant A", slug="queue-tenant-a")
+        tenant_b = Tenant.objects.create(name="Queue Tenant B", slug="queue-tenant-b")
+        WhatsAppSettings.objects.create(
+            tenant=tenant_a,
+            enabled=True,
+            api_base_url="https://tenant-a.example",
+            api_key="tenant-a-token",
+        )
+        WhatsAppSettings.objects.create(
+            tenant=tenant_b,
+            enabled=True,
+            api_base_url="https://tenant-b.example",
+            api_key="tenant-b-token",
+        )
+        order_a = ShiprocketOrder.objects.create(
+            tenant=tenant_a,
+            shiprocket_order_id="SR-QUEUE-TENANT-A",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543216",
+            shipping_address={"phone": "9876543216"},
+        )
+        order_b = ShiprocketOrder.objects.create(
+            tenant=tenant_b,
+            shiprocket_order_id="SR-QUEUE-TENANT-B",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543216",
+            shipping_address={"phone": "9876543216"},
+        )
+        first = enqueue_whatsapp_notification(
+            order=order_a,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )
+        self.assertTrue(first["queued"])
+
+        second_job = WhatsAppNotificationQueue.objects.create(
+            tenant=tenant_b,
+            order=order_b,
+            shiprocket_order_id=order_b.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            phone_number=first["job"].phone_number,
+            mode=first["job"].mode,
+            template_name=first["job"].template_name,
+            template_id=first["job"].template_id,
+            idempotency_key=first["job"].idempotency_key,
+            status=WhatsAppNotificationQueue.STATUS_PENDING,
+        )
+
+        self.assertEqual(second_job.tenant, tenant_b)
+        self.assertEqual(WhatsAppNotificationQueue.objects.filter(idempotency_key=first["job"].idempotency_key).count(), 2)
+
     def test_enqueue_skips_when_same_notification_already_sent(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-QUEUE-SENT-1",
@@ -7107,6 +7228,53 @@ class WhatsAppQueueProcessingTests(TestCase):
         )
         self.assertFalse(second["queued"])
         self.assertEqual(second["reason"], "already_sent")
+
+    @patch("core.whatsapp_queue.send_order_status_update")
+    def test_worker_does_not_send_when_success_log_already_exists(self, mock_send_order_status_update):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-QUEUE-WORKER-DUP-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_phone="9876543217",
+            shipping_address={"phone": "9876543217"},
+        )
+        first = enqueue_whatsapp_notification(
+            order=order,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            initiated_by="tester",
+        )
+        self.assertTrue(first["queued"])
+        job = first["job"]
+        WhatsAppNotificationLog.objects.create(
+            tenant=order.tenant,
+            order=order,
+            shiprocket_order_id=order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            phone_number=job.phone_number,
+            mode=job.mode,
+            template_name=job.template_name,
+            template_id=job.template_id,
+            idempotency_key=job.idempotency_key,
+            is_success=True,
+        )
+
+        summary = process_whatsapp_notification_queue(limit=5, worker_name="duplicate-worker")
+
+        job.refresh_from_db()
+        self.assertEqual(summary["success"], 1)
+        self.assertEqual(job.status, WhatsAppNotificationQueue.STATUS_SUCCESS)
+        mock_send_order_status_update.assert_not_called()
+        self.assertTrue(
+            OrderActivityLog.objects.filter(
+                order=order,
+                event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_SKIPPED,
+                title=f"WhatsApp duplicate skipped for Job #{job.pk}",
+                is_success=True,
+            ).exists()
+        )
 
 
 class WhatsAppTenantIsolationTests(TestCase):

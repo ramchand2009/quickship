@@ -1233,6 +1233,16 @@ class WhatsAppNotificationQueue(models.Model):
 
     class Meta:
         ordering = ["status", "next_retry_at", "created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "idempotency_key"],
+                condition=(
+                    models.Q(status__in=["pending", "retrying", "processing"])
+                    & ~models.Q(idempotency_key="")
+                ),
+                name="uniq_active_whatsapp_queue_idempotency",
+            )
+        ]
 
     def __str__(self):
         order_id = self.shiprocket_order_id or "NoOrder"
