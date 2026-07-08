@@ -921,6 +921,82 @@ class TenantFoundationTests(TestCase):
         self.assertNotContains(response, "Connect WooCommerce")
         self.assertNotContains(response, "consumer_key")
 
+    def test_vendor_order_management_shows_safe_whatsapp_delivery_health(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        own_order = ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="TENANT-A-WA-ORDER",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        other_order = ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="TENANT-B-WA-ORDER",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        WhatsAppNotificationQueue.objects.create(
+            tenant=self.mathukai,
+            order=own_order,
+            shiprocket_order_id=own_order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_STATUS_CHANGE,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            phone_number="919876543210",
+            status=WhatsAppNotificationQueue.STATUS_FAILED,
+            last_error="provider secret failure with api_key=hidden",
+            payload={"api_key": "should-not-render"},
+        )
+        WhatsAppNotificationQueue.objects.create(
+            tenant=self.mathukai,
+            order=own_order,
+            shiprocket_order_id=own_order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            phone_number="919876543210",
+            status=WhatsAppNotificationQueue.STATUS_PENDING,
+        )
+        WhatsAppNotificationQueue.objects.create(
+            tenant=self.mathukai,
+            order=own_order,
+            shiprocket_order_id=own_order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_RESEND,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            phone_number="919876543210",
+            status=WhatsAppNotificationQueue.STATUS_RETRYING,
+        )
+        WhatsAppNotificationQueue.objects.create(
+            tenant=self.other_tenant,
+            order=other_order,
+            shiprocket_order_id=other_order.shiprocket_order_id,
+            trigger=WhatsAppNotificationLog.TRIGGER_STATUS_CHANGE,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            phone_number="919111111111",
+            status=WhatsAppNotificationQueue.STATUS_FAILED,
+            last_error="other tenant failure",
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "WhatsApp updates")
+        self.assertContains(response, "Shared WhatsApp sender")
+        self.assertContains(response, "Managed by platform")
+        self.assertContains(response, "Message payloads and API credentials are hidden")
+        self.assertContains(response, "Attention")
+        self.assertContains(response, "<span>Failed</span>", html=True)
+        self.assertContains(response, "<strong>1</strong>", html=True)
+        self.assertContains(response, "<span>Pending</span>", html=True)
+        self.assertContains(response, "<span>Retrying</span>", html=True)
+        self.assertContains(response, own_order.shiprocket_order_id)
+        self.assertNotContains(response, other_order.shiprocket_order_id)
+        self.assertNotContains(response, "provider secret failure")
+        self.assertNotContains(response, "should-not-render")
+        self.assertNotContains(response, "api_key")
+        self.assertNotContains(response, "Open WhatsApp Logs")
+
     def test_vendor_cannot_open_or_update_other_tenant_order(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,

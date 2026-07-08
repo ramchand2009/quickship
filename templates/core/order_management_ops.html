@@ -692,6 +692,97 @@
         line-height: 1.25;
     }
 
+    .ops-whatsapp-health {
+        margin: 0.75rem 1rem 0.15rem;
+        padding: 0.9rem;
+        border: 1px solid rgba(197, 197, 211, 0.78);
+        border-radius: 0.75rem;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .ops-whatsapp-health-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .ops-whatsapp-health-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        color: #0f766e;
+        font-size: 0.68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ops-whatsapp-health h2 {
+        margin: 0.18rem 0 0;
+        color: #111827;
+        font-size: 1.02rem;
+        line-height: 1.22;
+        font-weight: 850;
+    }
+
+    .ops-whatsapp-health p {
+        margin: 0.25rem 0 0;
+        color: #52606d;
+        font-size: 0.78rem;
+        line-height: 1.35;
+    }
+
+    .ops-whatsapp-status {
+        flex: 0 0 auto;
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0.18rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .ops-whatsapp-status.is-success { background: #dcfce7; color: #166534; }
+    .ops-whatsapp-status.is-warning { background: #fef3c7; color: #92400e; }
+    .ops-whatsapp-status.is-danger { background: #fee2e2; color: #991b1b; }
+
+    .ops-whatsapp-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+        margin-top: 0.75rem;
+    }
+
+    .ops-whatsapp-metric {
+        min-height: 4.2rem;
+        padding: 0.65rem;
+        border: 1px solid #e1e6ed;
+        border-radius: 0.5rem;
+        background: #fbfcfd;
+    }
+
+    .ops-whatsapp-metric span {
+        display: block;
+        color: #697586;
+        font-size: 0.62rem;
+        line-height: 1.05;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ops-whatsapp-metric strong {
+        display: block;
+        margin-top: 0.25rem;
+        color: #111827;
+        font-size: 1.18rem;
+        line-height: 1.1;
+        font-weight: 900;
+    }
+
     .ops-mobile-tab {
         flex: 0 0 auto;
         min-width: 5.2rem;
@@ -1354,6 +1445,33 @@
                             </div>
                         {% endif %}
                     {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if vendor_whatsapp_delivery_health %}
+            <section class="ops-whatsapp-health" aria-label="WhatsApp delivery health">
+                <div class="ops-whatsapp-health-head">
+                    <div>
+                        <div class="ops-whatsapp-health-kicker"><i class="fab fa-whatsapp"></i> WhatsApp updates</div>
+                        <h2>{{ vendor_whatsapp_delivery_health.shared_sender_label }}</h2>
+                        <p>{{ vendor_whatsapp_delivery_health.shared_sender_detail }}</p>
+                    </div>
+                    <span class="ops-whatsapp-status is-{{ vendor_whatsapp_delivery_health.status_tone }}">{{ vendor_whatsapp_delivery_health.status_label }}</span>
+                </div>
+                <div class="ops-whatsapp-metrics">
+                    <div class="ops-whatsapp-metric">
+                        <span>Failed</span>
+                        <strong>{{ vendor_whatsapp_delivery_health.failed_count }}</strong>
+                    </div>
+                    <div class="ops-whatsapp-metric">
+                        <span>Pending</span>
+                        <strong>{{ vendor_whatsapp_delivery_health.pending_count }}</strong>
+                    </div>
+                    <div class="ops-whatsapp-metric">
+                        <span>Retrying</span>
+                        <strong>{{ vendor_whatsapp_delivery_health.retrying_count }}</strong>
+                    </div>
                 </div>
             </section>
         {% endif %}

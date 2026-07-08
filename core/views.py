@@ -2534,6 +2534,7 @@ def order_management(request):
         "activity_by_order_id": activity_by_order_id,
         "saved_view_rows": saved_view_rows,
         "vendor_product_routing_health": _vendor_product_routing_health(get_active_tenant(request)) if ops_mobile_mode else None,
+        "vendor_whatsapp_delivery_health": _vendor_whatsapp_delivery_health(get_active_tenant(request)) if ops_mobile_mode else None,
         "undo_context": _get_order_management_undo_context(request),
         "advanced_filters_active": bool(
             filters.get("order_id")
@@ -5499,6 +5500,32 @@ def _vendor_product_routing_health(tenant):
         "mapping_rule_count": mapping_rule_count,
         "recent_routed_order_count": recent_routed_orders.count(),
         "failed_whatsapp_count": failed_whatsapp_jobs.count(),
+    }
+
+
+def _vendor_whatsapp_delivery_health(tenant):
+    if tenant is None:
+        return None
+
+    jobs = WhatsAppNotificationQueue.objects.filter(tenant=tenant)
+    failed_count = jobs.filter(status=WhatsAppNotificationQueue.STATUS_FAILED).count()
+    pending_count = jobs.filter(status=WhatsAppNotificationQueue.STATUS_PENDING).count()
+    retrying_count = jobs.filter(status=WhatsAppNotificationQueue.STATUS_RETRYING).count()
+    processing_count = jobs.filter(status=WhatsAppNotificationQueue.STATUS_PROCESSING).count()
+    open_count = pending_count + retrying_count + processing_count
+    status_label = "Attention" if failed_count else "In progress" if open_count else "Healthy"
+    status_tone = "danger" if failed_count else "warning" if open_count else "success"
+    return {
+        "failed_count": failed_count,
+        "pending_count": pending_count,
+        "retrying_count": retrying_count,
+        "processing_count": processing_count,
+        "open_count": open_count,
+        "status_label": status_label,
+        "status_tone": status_tone,
+        "has_attention": bool(failed_count or open_count),
+        "shared_sender_label": "Shared WhatsApp sender",
+        "shared_sender_detail": "Managed by platform. Message payloads and API credentials are hidden from vendor users.",
     }
 
 
