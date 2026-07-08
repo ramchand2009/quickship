@@ -65,6 +65,7 @@ This file is the working memory for future Codex sessions. Read it before planni
 - `ae4bc84` Add shared store routing diagnostics
 - `b12cfe3` Add vendor product routing detail panel
 - `b316567` Add vendor WhatsApp delivery health card
+- `e392c71` Harden shared WooCommerce order routing
 
 ## Latest Implemented Slice
 
@@ -113,6 +114,15 @@ It shows:
 
 It also added tests proving vendors see only their own tenant's WhatsApp queue counts and do not see raw errors, payloads, API keys, or admin log links.
 
+Commit `e392c71` hardened shared WooCommerce order routing.
+
+It changed:
+- mixed-vendor WooCommerce orders are no longer silently assigned to the first matching vendor
+- existing product lookup now checks WooCommerce product ID and variation ID, not only legacy product ID/SKU
+- variation line items can route by mapped variation ID
+
+It also added regression tests for mixed-vendor order skip, variation-ID routing, and existing product Woo ID routing.
+
 ## Roadmap Direction
 
 Near-term priorities:
@@ -123,7 +133,6 @@ Near-term priorities:
 - Keep tenant isolation and idempotency as highest-risk areas.
 
 Likely next safe slices:
-- Add tests for shared WooCommerce product-to-vendor routing edge cases.
 - Start API design only after current production UI flow is stable.
 
 ## How To Continue
