@@ -4383,6 +4383,42 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
 
     @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
+    def test_status_update_queues_whatsapp_without_inline_send_by_default(
+        self,
+        mock_enqueue_whatsapp_notification,
+        mock_attempt_inline_queue_send,
+    ):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": True,
+            "reason": "queued",
+            "job": type("Job", (), {"pk": 110})(),
+        }
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-WA-FAST-STATUS-1",
+            local_status=ShiprocketOrder.STATUS_NEW,
+            shipping_address={"name": "Receiver Name", "phone": "9000012345"},
+        )
+
+        response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+                "active_tab": ShiprocketOrder.STATUS_NEW,
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertRedirects(response, f"{reverse('home')}?tab={ShiprocketOrder.STATUS_NEW}")
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+        mock_enqueue_whatsapp_notification.assert_called_once()
+        mock_attempt_inline_queue_send.assert_not_called()
+        self.assertContains(response, "WhatsApp update queued")
+
+    @override_settings(WHATSAPP_INLINE_STATUS_SEND_ENABLED=True)
+    @patch("core.views._attempt_inline_queue_send")
+    @patch("core.views.enqueue_whatsapp_notification")
     def test_accept_status_sends_whatsapp_inline_when_job_succeeds(
         self,
         mock_enqueue_whatsapp_notification,
@@ -4419,6 +4455,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         mock_attempt_inline_queue_send.assert_called_once()
         self.assertContains(response, "WhatsApp update sent successfully")
 
+    @override_settings(WHATSAPP_INLINE_STATUS_SEND_ENABLED=True)
     @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
     def test_accept_status_shows_warning_when_inline_whatsapp_send_fails(

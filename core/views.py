@@ -903,6 +903,10 @@ def _attempt_inline_queue_send(queue_job, *, actor="", source="ui"):
     return WhatsAppNotificationQueue.objects.filter(pk=job_id).first()
 
 
+def _should_send_status_whatsapp_inline():
+    return bool(getattr(settings, "WHATSAPP_INLINE_STATUS_SEND_ENABLED", False))
+
+
 def _process_queue_once(*, limit, worker_name, include_not_due=False, tenant=None):
     summary = process_whatsapp_notification_queue(
         limit=max(1, int(limit or 20)),
@@ -8045,7 +8049,9 @@ def update_shiprocket_order_status(request, pk):
             else:
                 if enqueue_result.get("queued"):
                     queue_job = enqueue_result.get("job")
-                    processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="status_change")
+                    processed_job = None
+                    if _should_send_status_whatsapp_inline():
+                        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="status_change")
                     if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
                         success_message = (
                             f"Order moved to the selected tab. WhatsApp update sent successfully (Job #{processed_job.pk})."
@@ -8067,7 +8073,13 @@ def update_shiprocket_order_status(request, pk):
                     reason = str(enqueue_result.get("reason") or "").strip()
                     queue_job = enqueue_result.get("job")
                     if reason == "duplicate_pending" and queue_job:
-                        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="status_change_duplicate")
+                        processed_job = None
+                        if _should_send_status_whatsapp_inline():
+                            processed_job = _attempt_inline_queue_send(
+                                queue_job,
+                                actor=actor,
+                                source="status_change_duplicate",
+                            )
                         if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
                             success_message = (
                                 "Order moved to the selected tab. "

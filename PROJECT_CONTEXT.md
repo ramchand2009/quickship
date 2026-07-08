@@ -66,6 +66,7 @@ This file is the working memory for future Codex sessions. Read it before planni
 - `b12cfe3` Add vendor product routing detail panel
 - `b316567` Add vendor WhatsApp delivery health card
 - `e392c71` Harden shared WooCommerce order routing
+- Pending/current: make order status updates queue WhatsApp without inline sending by default
 
 ## Latest Implemented Slice
 
@@ -123,11 +124,21 @@ It changed:
 
 It also added regression tests for mixed-vendor order skip, variation-ID routing, and existing product Woo ID routing.
 
+Current implementation slice: status-change WhatsApp delivery is being made queue-first for faster mobile UI.
+
+Design:
+- all order status updates should still save the local status immediately
+- stock sync remains in the request
+- WhatsApp notification queue creation remains in the request
+- inline WhatsApp sending for status changes is disabled by default
+- the old inline status-send behavior is available only with `WHATSAPP_INLINE_STATUS_SEND_ENABLED=True`
+
 ## Roadmap Direction
 
 Near-term priorities:
 - Continue mobile vendor UI hardening.
 - Keep shared WooCommerce/shared WhatsApp model clear in UI.
+- Keep status-update UI fast by queueing external notifications instead of waiting on WhatsApp sends.
 - Keep improving product routing visibility and admin mapping diagnostics.
 - Add Android-ready REST API later as RC3, not before the current UI/production hardening is stable.
 - Keep tenant isolation and idempotency as highest-risk areas.
