@@ -4501,6 +4501,7 @@ def stock_product_detail(request, pk):
             "form": form,
             "product": product,
             "pending_change_count": product.change_requests.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
+            "product_routing_detail": _vendor_product_routing_detail(product),
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": ops_mobile_mode,
         },
@@ -5498,6 +5499,52 @@ def _vendor_product_routing_health(tenant):
         "mapping_rule_count": mapping_rule_count,
         "recent_routed_order_count": recent_routed_orders.count(),
         "failed_whatsapp_count": failed_whatsapp_jobs.count(),
+    }
+
+
+def _vendor_product_routing_detail(product):
+    tenant = getattr(product, "tenant", None)
+    if tenant is None:
+        return None
+
+    mapping_rules = list(
+        TenantWooCommerceMappingRule.objects.filter(tenant=tenant, is_active=True).order_by("match_type", "match_value")
+    )
+    matching_rules = _matching_mapping_rules_for_product(product, mapping_rules)
+    identifiers = [
+        {
+            "label": "WooCommerce Product ID",
+            "value": str(product.woocommerce_product_id or "").strip(),
+        },
+        {
+            "label": "WooCommerce Variation ID",
+            "value": str(product.woocommerce_variation_id or "").strip(),
+        },
+        {
+            "label": "WooCommerce Product/Variation ID",
+            "value": str(product.smartbiz_product_id or "").strip(),
+        },
+        {
+            "label": "SKU",
+            "value": str(product.sku or "").strip(),
+        },
+    ]
+    has_channel_identifier = any(item["value"] for item in identifiers[:3])
+    is_route_ready = has_channel_identifier or bool(matching_rules)
+    return {
+        "is_route_ready": is_route_ready,
+        "status_label": "Route-ready" if is_route_ready else "Needs routing",
+        "status_tone": "success" if is_route_ready else "warning",
+        "identifiers": identifiers,
+        "matching_rule_labels": [_tenant_mapping_rule_label(rule) for rule in matching_rules],
+        "mapping_rule_count": len(mapping_rules),
+        "shared_store_label": "Shared WooCommerce store",
+        "shared_store_detail": "Managed by platform",
+        "routing_basis": (
+            "Product IDs or vendor mapping can route orders to this vendor."
+            if is_route_ready
+            else "Add WooCommerce product IDs or ask super admin to add a vendor route."
+        ),
     }
 
 

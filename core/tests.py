@@ -1143,6 +1143,57 @@ class TenantFoundationTests(TestCase):
         self.assertEqual(own_product.stock_quantity, 7)
         self.assertTrue(StockMovement.objects.filter(product=own_product, tenant=self.mathukai).exists())
 
+    def test_vendor_product_detail_shows_tenant_scoped_routing_status(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        own_product = Product.objects.create(
+            tenant=self.mathukai,
+            name="Tenant A Route Detail Product",
+            sku="TENANT-A-ROUTE-DETAIL-1",
+            stock_quantity=5,
+            smartbiz_product_id="701",
+            woocommerce_product_id="700",
+        )
+        other_product = Product.objects.create(
+            tenant=self.other_tenant,
+            name="Tenant B Route Detail Product",
+            sku="TENANT-B-ROUTE-DETAIL-1",
+            stock_quantity=7,
+            smartbiz_product_id="801",
+            woocommerce_product_id="800",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.mathukai,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="TENANT-A-",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.other_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="TENANT-B-",
+        )
+        self.client.force_login(self.vendor_user)
+
+        detail_response = self.client.get(reverse("stock_product_detail", args=[own_product.pk]))
+        other_detail_response = self.client.get(reverse("stock_product_detail", args=[other_product.pk]))
+
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Product routing")
+        self.assertContains(detail_response, "Shared WooCommerce store")
+        self.assertContains(detail_response, "Managed by platform")
+        self.assertContains(detail_response, "Route-ready")
+        self.assertContains(detail_response, "WooCommerce Product ID")
+        self.assertContains(detail_response, "700")
+        self.assertContains(detail_response, "WooCommerce Product/Variation ID")
+        self.assertContains(detail_response, "701")
+        self.assertContains(detail_response, "SKU Prefix: TENANT-A-")
+        self.assertNotContains(detail_response, "Connect WooCommerce")
+        self.assertNotContains(detail_response, "Tenant B Route Detail Product")
+        self.assertEqual(other_detail_response.status_code, 404)
+
     @patch("core.views.update_woocommerce_product")
     def test_vendor_can_update_section_when_current_category_is_outside_tenant_choices(self, mock_update_product):
         self.mathukai.auto_approve_product_changes = True
@@ -9306,6 +9357,14 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Backorders: Do not allow")
         self.assertContains(response, "Categories")
         self.assertContains(response, "Serums")
+        self.assertContains(response, "Product routing")
+        self.assertContains(response, "Shared WooCommerce store")
+        self.assertContains(response, "Managed by platform")
+        self.assertContains(response, "Route-ready")
+        self.assertContains(response, "WooCommerce Product ID")
+        self.assertContains(response, "300")
+        self.assertContains(response, "WooCommerce Product/Variation ID")
+        self.assertContains(response, "101")
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "description"]))
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "images"]))
         self.assertContains(response, reverse("stock_product_section", args=[product.pk, "price"]))
@@ -9315,6 +9374,7 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, "Reviews")
         self.assertNotContains(response, "Product Type")
         self.assertNotContains(response, "Save and Update WooCommerce")
+        self.assertNotContains(response, "Connect WooCommerce")
 
     def test_ops_viewer_can_open_stock_product_section_screens(self):
         category = ProductCategory.objects.create(name="Serums")
