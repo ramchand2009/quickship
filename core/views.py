@@ -2533,6 +2533,7 @@ def order_management(request):
         "bulk_cancel_reason_choices": ShiprocketOrder.CANCELLATION_REASON_CHOICES,
         "activity_by_order_id": activity_by_order_id,
         "saved_view_rows": saved_view_rows,
+        "vendor_product_routing_health": _vendor_product_routing_health(get_active_tenant(request)) if ops_mobile_mode else None,
         "undo_context": _get_order_management_undo_context(request),
         "advanced_filters_active": bool(
             filters.get("order_id")
@@ -5421,6 +5422,82 @@ def _tenant_integration_status(tenant):
             "configured": whatsapp_configured,
             "label": "Shared" if whatsapp_configured else "Missing",
         },
+    }
+
+
+def _vendor_product_routing_health(tenant):
+    if tenant is None:
+        return None
+
+    products = Product.objects.filter(tenant=tenant, is_active=True)
+    route_ready_products = products.filter(
+        Q(smartbiz_product_id__isnull=False)
+        | Q(woocommerce_product_id__gt="")
+        | Q(woocommerce_variation_id__gt="")
+    )
+    mapping_rules = TenantWooCommerceMappingRule.objects.filter(tenant=tenant, is_active=True)
+    sender = _sender_address_for_tenant(tenant)
+    integration_status = _tenant_integration_status(tenant)
+    recent_order_cutoff = timezone.now() - timedelta(days=7)
+    recent_routed_orders = ShiprocketOrder.objects.filter(
+        tenant=tenant,
+        source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+        order_date__gte=recent_order_cutoff,
+    )
+    failed_whatsapp_jobs = WhatsAppNotificationQueue.objects.filter(
+        tenant=tenant,
+        status=WhatsAppNotificationQueue.STATUS_FAILED,
+    )
+
+    product_count = products.count()
+    route_ready_product_count = route_ready_products.count()
+    mapping_rule_count = mapping_rules.count()
+    has_routing_basis = route_ready_product_count > 0 or mapping_rule_count > 0
+    sender_complete = _sender_address_is_complete(sender)
+    checks = [
+        {
+            "label": "Products added",
+            "complete": product_count > 0,
+            "detail": f"{product_count} active product(s)",
+            "action_url": reverse("stock_management"),
+        },
+        {
+            "label": "Product routing ready",
+            "complete": has_routing_basis,
+            "detail": f"{route_ready_product_count} product ID(s), {mapping_rule_count} routing rule(s)",
+            "action_url": reverse("stock_management"),
+        },
+        {
+            "label": "Pickup address ready",
+            "complete": sender_complete,
+            "detail": "Ready for packing labels" if sender_complete else "Add vendor pickup address",
+            "action_url": reverse("sender_address"),
+        },
+        {
+            "label": "Shared WooCommerce store",
+            "complete": integration_status["woocommerce"]["shared_configured"],
+            "detail": "Managed by platform" if integration_status["woocommerce"]["shared_configured"] else "Platform setup pending",
+            "action_url": "",
+        },
+        {
+            "label": "Shared WhatsApp sender",
+            "complete": integration_status["whatsapp"]["configured"],
+            "detail": "Managed by platform" if integration_status["whatsapp"]["configured"] else "Platform setup pending",
+            "action_url": "",
+        },
+    ]
+    completed_count = sum(1 for check in checks if check["complete"])
+    return {
+        "checks": checks,
+        "completed_count": completed_count,
+        "total_count": len(checks),
+        "percent": round((completed_count / len(checks)) * 100) if checks else 0,
+        "is_ready": completed_count == len(checks),
+        "product_count": product_count,
+        "route_ready_product_count": route_ready_product_count,
+        "mapping_rule_count": mapping_rule_count,
+        "recent_routed_order_count": recent_routed_orders.count(),
+        "failed_whatsapp_count": failed_whatsapp_jobs.count(),
     }
 
 

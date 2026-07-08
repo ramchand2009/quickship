@@ -837,6 +837,90 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, own_order.shiprocket_order_id)
         self.assertNotContains(response, other_order.shiprocket_order_id)
 
+    def test_vendor_order_management_shows_tenant_scoped_product_routing_health(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        Product.objects.create(
+            tenant=self.mathukai,
+            name="Vendor Routed Product",
+            sku="VENDOR-ROUTE-1",
+            smartbiz_product_id="9001",
+            woocommerce_product_id="9001",
+        )
+        Product.objects.create(
+            tenant=self.other_tenant,
+            name="Other Vendor Routed Product",
+            sku="OTHER-ROUTE-1",
+            smartbiz_product_id="9002",
+            woocommerce_product_id="9002",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.mathukai,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="VENDOR-",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=self.other_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="OTHER-",
+        )
+        SenderAddress.objects.create(
+            tenant=self.mathukai,
+            name="Vendor Pickup",
+            phone="9876543210",
+            address_1="Warehouse Road",
+            city="Chennai",
+            state="Tamil Nadu",
+            pincode="600001",
+            country="India",
+        )
+        WooCommerceSettings.objects.create(
+            tenant=self.mathukai,
+            store_url="https://store.example.com",
+            consumer_key="ck_shared",
+            consumer_secret="cs_shared",
+        )
+        WhatsAppSettings.objects.create(
+            tenant=self.mathukai,
+            enabled=True,
+            api_base_url="https://whatsapp.example.com",
+            api_key="shared-api-key",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="TENANT-A-WOO-ROUTE",
+            woocommerce_order_id="501",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="TENANT-B-WOO-ROUTE",
+            woocommerce_order_id="502",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.get(reverse("order_management"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendor order routing health")
+        self.assertContains(response, "Orders route from the shared store to this vendor")
+        self.assertContains(response, "1 active product(s)")
+        self.assertContains(response, "1 product ID(s), 1 routing rule(s)")
+        self.assertContains(response, "Shared WooCommerce store")
+        self.assertContains(response, "Shared WhatsApp sender")
+        self.assertContains(response, "Managed by platform")
+        self.assertContains(response, "TENANT-A-WOO-ROUTE")
+        self.assertNotContains(response, "TENANT-B-WOO-ROUTE")
+        self.assertNotContains(response, "Other Vendor Routed Product")
+        self.assertNotContains(response, "Connect WooCommerce")
+        self.assertNotContains(response, "consumer_key")
+
     def test_vendor_cannot_open_or_update_other_tenant_order(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,

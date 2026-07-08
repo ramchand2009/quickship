@@ -534,6 +534,164 @@
         font-weight: 800;
     }
 
+    .ops-routing-health {
+        margin: 0.75rem 1rem 0.15rem;
+        padding: 0.9rem;
+        border: 1px solid rgba(197, 197, 211, 0.78);
+        border-radius: 0.75rem;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .ops-routing-health-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .ops-routing-health-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        color: #0f766e;
+        font-size: 0.68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ops-routing-health h2 {
+        margin: 0.18rem 0 0;
+        color: #111827;
+        font-size: 1.02rem;
+        line-height: 1.22;
+        font-weight: 850;
+    }
+
+    .ops-routing-health p {
+        margin: 0.25rem 0 0;
+        color: #52606d;
+        font-size: 0.78rem;
+        line-height: 1.35;
+    }
+
+    .ops-routing-score {
+        flex: 0 0 auto;
+        min-width: 3.4rem;
+        min-height: 3.4rem;
+        border-radius: 0.6rem;
+        background: #ecfdf5;
+        color: #166534;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+    }
+
+    .ops-routing-score span {
+        color: #047857;
+        font-size: 0.62rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ops-routing-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+        margin-top: 0.75rem;
+    }
+
+    .ops-routing-metric {
+        min-height: 4.2rem;
+        padding: 0.65rem;
+        border: 1px solid #e1e6ed;
+        border-radius: 0.5rem;
+        background: #fbfcfd;
+    }
+
+    .ops-routing-metric span {
+        display: block;
+        color: #697586;
+        font-size: 0.62rem;
+        line-height: 1.05;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ops-routing-metric strong {
+        display: block;
+        margin-top: 0.25rem;
+        color: #111827;
+        font-size: 1.18rem;
+        line-height: 1.1;
+        font-weight: 900;
+    }
+
+    .ops-routing-checks {
+        display: grid;
+        gap: 0.45rem;
+        margin-top: 0.75rem;
+    }
+
+    .ops-routing-check {
+        min-height: 2.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .ops-routing-check:hover,
+    .ops-routing-check:focus {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .ops-routing-check-icon {
+        flex: 0 0 auto;
+        width: 1.55rem;
+        height: 1.55rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #dcfce7;
+        color: #166534;
+        font-size: 0.72rem;
+    }
+
+    .ops-routing-check.is-pending .ops-routing-check-icon {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .ops-routing-check-text {
+        min-width: 0;
+    }
+
+    .ops-routing-check-text strong,
+    .ops-routing-check-text span {
+        display: block;
+        overflow-wrap: anywhere;
+    }
+
+    .ops-routing-check-text strong {
+        color: #263442;
+        font-size: 0.8rem;
+        line-height: 1.22;
+        font-weight: 850;
+    }
+
+    .ops-routing-check-text span {
+        margin-top: 0.12rem;
+        color: #697586;
+        font-size: 0.72rem;
+        line-height: 1.25;
+    }
+
     .ops-mobile-tab {
         flex: 0 0 auto;
         min-width: 5.2rem;
@@ -1148,6 +1306,57 @@
         </div>
 
         <div class="ops-mobile-active-tab-label">Selected: {{ active_tab_label|default:"All" }}</div>
+
+        {% if vendor_product_routing_health %}
+            <section class="ops-routing-health" aria-label="Product routing health">
+                <div class="ops-routing-health-head">
+                    <div>
+                        <div class="ops-routing-health-kicker"><i class="fas fa-route"></i> Product routing</div>
+                        <h2>Vendor order routing health</h2>
+                        <p>Orders route from the shared store to this vendor using product ownership and mapping.</p>
+                    </div>
+                    <div class="ops-routing-score">
+                        {{ vendor_product_routing_health.percent }}%
+                        <span>ready</span>
+                    </div>
+                </div>
+                <div class="ops-routing-metrics">
+                    <div class="ops-routing-metric">
+                        <span>Products</span>
+                        <strong>{{ vendor_product_routing_health.product_count }}</strong>
+                    </div>
+                    <div class="ops-routing-metric">
+                        <span>Ready IDs</span>
+                        <strong>{{ vendor_product_routing_health.route_ready_product_count }}</strong>
+                    </div>
+                    <div class="ops-routing-metric">
+                        <span>7 day orders</span>
+                        <strong>{{ vendor_product_routing_health.recent_routed_order_count }}</strong>
+                    </div>
+                </div>
+                <div class="ops-routing-checks">
+                    {% for check in vendor_product_routing_health.checks %}
+                        {% if check.action_url %}
+                            <a href="{{ check.action_url }}" class="ops-routing-check {% if not check.complete %}is-pending{% endif %}">
+                                <span class="ops-routing-check-icon"><i class="fas {% if check.complete %}fa-check{% else %}fa-exclamation{% endif %}"></i></span>
+                                <span class="ops-routing-check-text">
+                                    <strong>{{ check.label }}</strong>
+                                    <span>{{ check.detail }}</span>
+                                </span>
+                            </a>
+                        {% else %}
+                            <div class="ops-routing-check {% if not check.complete %}is-pending{% endif %}">
+                                <span class="ops-routing-check-icon"><i class="fas {% if check.complete %}fa-check{% else %}fa-exclamation{% endif %}"></i></span>
+                                <span class="ops-routing-check-text">
+                                    <strong>{{ check.label }}</strong>
+                                    <span>{{ check.detail }}</span>
+                                </span>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
 
         <div class="ops-mobile-tabs" data-ops-mobile-tabs>
             {% for tab in status_tabs %}
