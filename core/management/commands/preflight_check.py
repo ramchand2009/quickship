@@ -3,6 +3,11 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from core.management.commands.audit_rc2_migration_safety import (
+    find_duplicate_active_whatsapp_queue_jobs,
+    find_duplicate_woocommerce_orders,
+)
+
 
 class Command(BaseCommand):
     help = "Run startup preflight checks for env, folders, credentials, webhook token, and scheduler scripts."
@@ -79,6 +84,46 @@ class Command(BaseCommand):
                 successes.append(f"Script present: {script_path.name}")
             else:
                 failures.append(f"Script missing: {script_path}")
+
+        duplicate_orders = find_duplicate_woocommerce_orders()
+        duplicate_queue_jobs = find_duplicate_active_whatsapp_queue_jobs()
+        if duplicate_orders:
+            failures.append(
+                f"RC2 migration blocker: {len(duplicate_orders)} duplicate WooCommerce order group(s)."
+            )
+            for row in duplicate_orders[:5]:
+                failures.append(
+                    "Duplicate WooCommerce order group: tenant_id={tenant_id} tenant={tenant} "
+                    "woocommerce_order_id={woo_id} count={count} pk_range={first_pk}-{last_pk}".format(
+                        tenant_id=row["tenant_id"],
+                        tenant=row.get("tenant__name") or "",
+                        woo_id=row["woocommerce_order_id"],
+                        count=row["count"],
+                        first_pk=row["first_pk"],
+                        last_pk=row["last_pk"],
+                    )
+                )
+        else:
+            successes.append("RC2 WooCommerce order uniqueness audit passed.")
+
+        if duplicate_queue_jobs:
+            failures.append(
+                f"RC2 migration blocker: {len(duplicate_queue_jobs)} duplicate active WhatsApp queue group(s)."
+            )
+            for row in duplicate_queue_jobs[:5]:
+                failures.append(
+                    "Duplicate active WhatsApp queue group: tenant_id={tenant_id} tenant={tenant} "
+                    "idempotency_key={key} count={count} pk_range={first_pk}-{last_pk}".format(
+                        tenant_id=row["tenant_id"],
+                        tenant=row.get("tenant__name") or "",
+                        key=row["idempotency_key"],
+                        count=row["count"],
+                        first_pk=row["first_pk"],
+                        last_pk=row["last_pk"],
+                    )
+                )
+        else:
+            successes.append("RC2 WhatsApp queue idempotency audit passed.")
 
         for text in successes:
             self.stdout.write(self.style.SUCCESS(f"OK {text}"))

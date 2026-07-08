@@ -7761,7 +7761,10 @@ class PreflightCheckCommandTests(TestCase):
     def test_preflight_check_passes_with_valid_config(self):
         stdout = StringIO()
         call_command("preflight_check", stdout=stdout)
-        self.assertIn("Preflight passed", stdout.getvalue())
+        output = stdout.getvalue()
+        self.assertIn("RC2 WooCommerce order uniqueness audit passed", output)
+        self.assertIn("RC2 WhatsApp queue idempotency audit passed", output)
+        self.assertIn("Preflight passed", output)
 
     @override_settings(
         DEBUG=True,
@@ -7775,6 +7778,54 @@ class PreflightCheckCommandTests(TestCase):
     def test_preflight_check_strict_fails(self):
         with self.assertRaises(CommandError):
             call_command("preflight_check", "--strict")
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["ops.example.com"],
+        CSRF_TRUSTED_ORIGINS=["https://ops.example.com"],
+        SHIPROCKET_EMAIL="shiprocket@example.com",
+        SHIPROCKET_PASSWORD="secret",
+        WHATOMATE_API_KEY="whm_key",
+        WHATOMATE_ACCESS_TOKEN="",
+        WHATOMATE_WEBHOOK_TOKEN="token123",
+    )
+    @patch("core.management.commands.preflight_check.find_duplicate_active_whatsapp_queue_jobs")
+    @patch("core.management.commands.preflight_check.find_duplicate_woocommerce_orders")
+    def test_preflight_check_fails_when_rc2_audit_reports_duplicates(
+        self,
+        mock_find_duplicate_woocommerce_orders,
+        mock_find_duplicate_active_whatsapp_queue_jobs,
+    ):
+        mock_find_duplicate_woocommerce_orders.return_value = [
+            {
+                "tenant_id": 1,
+                "tenant__name": "Mathukai",
+                "woocommerce_order_id": "9001",
+                "count": 2,
+                "first_pk": 10,
+                "last_pk": 11,
+            }
+        ]
+        mock_find_duplicate_active_whatsapp_queue_jobs.return_value = [
+            {
+                "tenant_id": 1,
+                "tenant__name": "Mathukai",
+                "idempotency_key": "abc123",
+                "count": 2,
+                "first_pk": 20,
+                "last_pk": 21,
+            }
+        ]
+
+        stdout = StringIO()
+        with self.assertRaises(CommandError):
+            call_command("preflight_check", "--strict", stdout=stdout)
+
+        output = stdout.getvalue()
+        self.assertIn("RC2 migration blocker: 1 duplicate WooCommerce order group", output)
+        self.assertIn("woocommerce_order_id=9001", output)
+        self.assertIn("RC2 migration blocker: 1 duplicate active WhatsApp queue group", output)
+        self.assertIn("idempotency_key=abc123", output)
 
 
 class Rc2MigrationSafetyAuditCommandTests(TestCase):
