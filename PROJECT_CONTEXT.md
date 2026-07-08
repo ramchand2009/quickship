@@ -63,6 +63,7 @@ This file is the working memory for future Codex sessions. Read it before planni
 - `773242a` Add RC2 release validation checklist
 - `a1526be` Add vendor product routing health card
 - `ae4bc84` Add shared store routing diagnostics
+- `b12cfe3` Add vendor product routing detail panel
 
 ## Latest Implemented Slice
 
@@ -89,6 +90,17 @@ It shows:
 
 It also added tests proving the page flags no-route, wrong-vendor, and ambiguous-route cases.
 
+Commit `b12cfe3` added a mobile product routing detail panel to `stock_product_detail_ops.html`.
+
+It shows:
+- shared WooCommerce store status as platform-managed
+- route-ready status for the product
+- WooCommerce product/variation identifiers
+- matching vendor routing rules
+- tenant-scoped product detail access
+
+It also added tests proving vendors see only their own product routing details and cannot open another tenant's product detail.
+
 ## Roadmap Direction
 
 Near-term priorities:
@@ -99,7 +111,6 @@ Near-term priorities:
 - Keep tenant isolation and idempotency as highest-risk areas.
 
 Likely next safe slices:
-- Add a vendor mobile product routing/detail screen or link from stock management.
 - Add safe notification failure visibility for vendors without exposing platform credentials.
 - Add tests for shared WooCommerce product-to-vendor routing edge cases.
 - Start API design only after current production UI flow is stable.
