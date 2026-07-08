@@ -7777,6 +7777,56 @@ class PreflightCheckCommandTests(TestCase):
             call_command("preflight_check", "--strict")
 
 
+class Rc2MigrationSafetyAuditCommandTests(TestCase):
+    def test_audit_passes_with_clean_data(self):
+        stdout = StringIO()
+
+        call_command("audit_rc2_migration_safety", stdout=stdout)
+
+        output = stdout.getvalue()
+        self.assertIn("OK duplicate_woocommerce_orders=0", output)
+        self.assertIn("OK duplicate_active_whatsapp_queue_jobs=0", output)
+        self.assertIn("RC2 migration safety audit passed", output)
+
+    @patch("core.management.commands.audit_rc2_migration_safety.find_duplicate_active_whatsapp_queue_jobs")
+    @patch("core.management.commands.audit_rc2_migration_safety.find_duplicate_woocommerce_orders")
+    def test_audit_strict_fails_when_duplicates_are_reported(
+        self,
+        mock_find_duplicate_woocommerce_orders,
+        mock_find_duplicate_active_whatsapp_queue_jobs,
+    ):
+        mock_find_duplicate_woocommerce_orders.return_value = [
+            {
+                "tenant_id": 1,
+                "tenant__name": "Mathukai",
+                "woocommerce_order_id": "9001",
+                "count": 2,
+                "first_pk": 10,
+                "last_pk": 11,
+            }
+        ]
+        mock_find_duplicate_active_whatsapp_queue_jobs.return_value = [
+            {
+                "tenant_id": 1,
+                "tenant__name": "Mathukai",
+                "idempotency_key": "abc123",
+                "count": 2,
+                "first_pk": 20,
+                "last_pk": 21,
+            }
+        ]
+
+        stdout = StringIO()
+        with self.assertRaises(CommandError):
+            call_command("audit_rc2_migration_safety", "--strict", stdout=stdout)
+
+        output = stdout.getvalue()
+        self.assertIn("FAIL duplicate_woocommerce_orders=1", output)
+        self.assertIn("woocommerce_order_id=9001", output)
+        self.assertIn("FAIL duplicate_active_whatsapp_queue_jobs=1", output)
+        self.assertIn("idempotency_key=abc123", output)
+
+
 class WhatsAppStatusTemplateMappingTests(TestCase):
     def test_numeric_placeholders_use_configured_field_mapping(self):
         order = ShiprocketOrder.objects.create(
