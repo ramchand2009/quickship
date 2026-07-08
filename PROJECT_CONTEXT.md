@@ -1,0 +1,109 @@
+# Project Context
+
+This file is the working memory for future Codex sessions. Read it before planning or implementing changes so the project does not need to be explained again.
+
+## Product
+
+- Project: `Ram_codex1`
+- Main app: `core`
+- Stack: Django monolith, PostgreSQL, Docker deployment
+- Stage: code completed, deployed, production testing/hardening phase
+- Business: multi-vendor SaaS for WhatsApp-driven product ordering and vendor operations
+- Main users: platform superadmin, vendor owner, vendor operator, vendor viewer, warehouse/packing users
+- Vendor usage model: mobile-first; vendors should be able to handle daily work from phone screens
+
+## Operating Model
+
+- WooCommerce is platform-owned and shared across vendors.
+- WhatsApp/Whatomate sender is platform-owned and shared across vendors.
+- Vendors do not connect their own WooCommerce store.
+- Vendors do not connect their own WhatsApp number.
+- Vendors add/manage their products in the platform/shared catalog flow.
+- Orders from the shared WooCommerce store must be routed to the correct vendor by product ownership, WooCommerce product IDs, SKU/category/tag/product mapping rules, or equivalent routing metadata.
+- Vendor-facing UI should say product routing, product mapping, shared store, and shared sender. Avoid language like "connect your WooCommerce" or "connect your WhatsApp" for vendors.
+
+## Current Architecture
+
+- Django monolith with a large `core` app.
+- `core.views.py` is still large and should be changed carefully.
+- Tenant scoping is implemented through `Tenant`, `TenantMembership`, active tenant helpers, and tenant fields on main business models.
+- Core domains:
+  - Orders
+  - Inventory/products/stock
+  - Packing and shipping labels
+  - Vendors/tenants/RBAC
+  - WooCommerce sync and webhooks
+  - WhatsApp notifications and queue
+  - Shiprocket sync
+  - Audit logs/activity logs
+  - Expenses and vendor settlement
+  - Dashboard/reports
+  - Monitoring/preflight checks
+
+## Production Rules
+
+- Production is already deployed/testing. Do not rewrite broad workflows.
+- Prefer small, safe, reversible changes.
+- Preserve existing UI and current vendor workflow unless the change explicitly targets UI.
+- Before implementing, inspect and confirm what is already implemented.
+- Add focused tests for every risky fix.
+- Run relevant tests and `manage.py check`.
+- Commit each safe slice separately.
+- Do not commit unrelated files.
+- Existing untracked file `TODAY_SUMMARY_2026-06-23.md` has been left untouched.
+
+## Recent Completed Work
+
+- `3b4662a` Harden RC2 tenant and vendor operations
+- `b00b9a9` Harden WooCommerce webhook idempotency
+- `0cb9457` Harden stock movement idempotency
+- `ba0d471` Harden WhatsApp queue idempotency
+- `d71465a` Add RC2 migration safety audit
+- `4ed1f09` Gate preflight on RC2 migration audit
+- `773242a` Add RC2 release validation checklist
+- `a1526be` Add vendor product routing health card
+
+## Latest Implemented Slice
+
+Commit `a1526be` added a mobile vendor product routing health card to `order_management_ops.html`.
+
+It shows:
+- active products
+- route-ready product IDs
+- recent WooCommerce routed orders
+- pickup address readiness
+- shared WooCommerce store status
+- shared WhatsApp sender status
+
+It also added a tenant-scoping test so another vendor's products/orders/rules do not leak into the card.
+
+## Roadmap Direction
+
+Near-term priorities:
+- Continue mobile vendor UI hardening.
+- Keep shared WooCommerce/shared WhatsApp model clear in UI.
+- Improve product routing visibility and admin mapping diagnostics.
+- Add Android-ready REST API later as RC3, not before the current UI/production hardening is stable.
+- Keep tenant isolation and idempotency as highest-risk areas.
+
+Likely next safe slices:
+- Add a vendor mobile product routing/detail screen or link from stock management.
+- Add clearer superadmin view for unmapped WooCommerce products/orders.
+- Add safe notification failure visibility for vendors without exposing platform credentials.
+- Add tests for shared WooCommerce product-to-vendor routing edge cases.
+- Start API design only after current production UI flow is stable.
+
+## How To Continue
+
+When the user says "next":
+- Review this file.
+- Check `git status --short`.
+- Inspect the relevant current code before recommending or implementing.
+- Propose one small safe production slice.
+
+When the user says "ok implement":
+- Re-confirm what already exists in the code path.
+- Implement only the current slice.
+- Add focused tests.
+- Run checks/tests.
+- Commit separately with a clear message.
