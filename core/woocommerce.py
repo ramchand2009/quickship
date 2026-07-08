@@ -536,6 +536,9 @@ def _active_mapping_rules():
     )
 
 
+_AMBIGUOUS_TENANT = object()
+
+
 def _rule_value(rule):
     value = str(rule.match_value or "").strip()
     if rule.match_type == TenantWooCommerceMappingRule.MATCH_SKU_PREFIX:
@@ -585,11 +588,23 @@ def _tenant_for_product_payload(product, *, parent_product=None, fallback_tenant
 def _tenant_from_existing_product(line_item):
     if not isinstance(line_item, dict):
         return None
-    product_id = str(line_item.get("product_id") or line_item.get("channel_product_id") or "").strip()
+    product_ids = []
+    for value in [
+        line_item.get("variation_id"),
+        line_item.get("product_id"),
+        line_item.get("channel_product_id"),
+    ]:
+        normalized = str(value or "").strip()
+        if normalized and normalized not in product_ids:
+            product_ids.append(normalized)
     sku = normalize_sku(line_item.get("sku") or line_item.get("channel_sku"))
     product_qs = Product.objects.select_related("tenant")
-    if product_id:
-        product = product_qs.filter(smartbiz_product_id__iexact=product_id).first()
+    for product_id in product_ids:
+        product = product_qs.filter(
+            Q(smartbiz_product_id__iexact=product_id)
+            | Q(woocommerce_product_id__iexact=product_id)
+            | Q(woocommerce_variation_id__iexact=product_id)
+        ).first()
         if product:
             return product.tenant
     if sku:
@@ -605,6 +620,7 @@ def _tenant_for_order_payload(order_payload, *, fallback_tenant=None, product_pa
         line_items = []
     cache = product_payload_cache if isinstance(product_payload_cache, dict) else {}
 
+    matched_tenants = []
     for item in line_items:
         product_ids = [item.get("product_id"), item.get("variation_id")] if isinstance(item, dict) else []
         tenant = _tenant_from_mapping_values(
@@ -612,16 +628,24 @@ def _tenant_for_order_payload(order_payload, *, fallback_tenant=None, product_pa
             product_ids=product_ids,
         )
         if tenant:
-            return tenant
+            matched_tenants.append(tenant)
+            continue
         existing_tenant = _tenant_from_existing_product(item)
         if existing_tenant:
-            return existing_tenant
+            matched_tenants.append(existing_tenant)
+
+    matched_tenant_ids = {tenant.pk for tenant in matched_tenants if tenant is not None}
+    if len(matched_tenant_ids) > 1:
+        return _AMBIGUOUS_TENANT
+    if len(matched_tenant_ids) == 1:
+        return matched_tenants[0]
 
     has_term_rules = any(
         rule.match_type in {TenantWooCommerceMappingRule.MATCH_CATEGORY, TenantWooCommerceMappingRule.MATCH_TAG}
         for rule in _active_mapping_rules()
     )
     if has_term_rules:
+        term_matched_tenants = []
         for item in line_items:
             product_id = str(item.get("product_id") or "").strip() if isinstance(item, dict) else ""
             if not product_id:
@@ -640,7 +664,13 @@ def _tenant_for_order_payload(order_payload, *, fallback_tenant=None, product_pa
                 product_ids=[product_id],
             )
             if tenant:
-                return tenant
+                term_matched_tenants.append(tenant)
+
+        term_tenant_ids = {tenant.pk for tenant in term_matched_tenants if tenant is not None}
+        if len(term_tenant_ids) > 1:
+            return _AMBIGUOUS_TENANT
+        if len(term_tenant_ids) == 1:
+            return term_matched_tenants[0]
 
     return _default_import_tenant(fallback_tenant)
 
@@ -1132,6 +1162,8 @@ def import_order_payload(item, tenant=None):
     shipping = _compact_address(item.get("shipping") or {})
     has_billing_address = _has_delivery_address(billing)
     resolved_tenant = _tenant_for_order_payload(item, fallback_tenant=tenant)
+    if resolved_tenant is _AMBIGUOUS_TENANT:
+        return None, False
 
     order_number = str(item.get("number") or order_id)
     existing_queryset = ShiprocketOrder.objects.filter(

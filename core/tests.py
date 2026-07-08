@@ -2457,6 +2457,109 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(second_order.customer_name, "Updated Buyer")
         self.assertEqual(str(second_order.total), "599.00")
 
+    def test_shared_store_mixed_vendor_order_is_not_silently_assigned(self):
+        tenant_a = Tenant.objects.create(name="Mixed Vendor A", slug="mixed-vendor-a")
+        tenant_b = Tenant.objects.create(name="Mixed Vendor B", slug="mixed-vendor-b")
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=tenant_a,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="MIXA-",
+        )
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=tenant_b,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="MIXB-",
+        )
+
+        order, created = import_woocommerce_order_payload(
+            {
+                "id": 1907,
+                "number": "1907",
+                "status": "processing",
+                "billing": {
+                    "first_name": "Mixed",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Shared store street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [
+                    {"name": "Vendor A Item", "sku": "MIXA-100", "product_id": 100, "quantity": 1, "price": "100.00"},
+                    {"name": "Vendor B Item", "sku": "MIXB-200", "product_id": 200, "quantity": 1, "price": "200.00"},
+                ],
+            }
+        )
+
+        self.assertIsNone(order)
+        self.assertFalse(created)
+        self.assertFalse(ShiprocketOrder.objects.filter(woocommerce_order_id="1907").exists())
+
+    def test_shared_store_order_routes_by_variation_product_id_rule(self):
+        vendor_tenant = Tenant.objects.create(name="Variation Route Vendor", slug="variation-route-vendor")
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=vendor_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_PRODUCT_ID,
+            match_value="321",
+        )
+
+        order, created = import_woocommerce_order_payload(
+            {
+                "id": 1908,
+                "number": "1908",
+                "status": "processing",
+                "billing": {
+                    "first_name": "Variation",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Variation street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [
+                    {"name": "Variation Item", "sku": "UNKNOWN-VAR", "product_id": 320, "variation_id": 321, "quantity": 1, "price": "300.00"},
+                ],
+            }
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(order.tenant, vendor_tenant)
+        self.assertEqual(order.woocommerce_order_id, "1908")
+
+    def test_shared_store_order_routes_by_existing_product_woocommerce_ids(self):
+        vendor_tenant = Tenant.objects.create(name="Existing Woo Product Vendor", slug="existing-woo-product-vendor")
+        Product.objects.create(
+            tenant=vendor_tenant,
+            name="Existing Woo Variation",
+            sku="EXISTING-WOO-LOCAL",
+            smartbiz_product_id="999",
+            woocommerce_product_id="420",
+            woocommerce_variation_id="421",
+        )
+
+        order, created = import_woocommerce_order_payload(
+            {
+                "id": 1909,
+                "number": "1909",
+                "status": "processing",
+                "billing": {
+                    "first_name": "Existing",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Existing product street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [
+                    {"name": "Existing Woo Variation", "sku": "UNKNOWN-REMOTE", "product_id": 420, "variation_id": 421, "quantity": 1, "price": "399.00"},
+                ],
+            }
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(order.tenant, vendor_tenant)
+        self.assertEqual(order.woocommerce_order_id, "1909")
+
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
         WOOCOMMERCE_CONSUMER_KEY="ck_test",
