@@ -1,7 +1,7 @@
 from collections import Counter, defaultdict
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from .activity import log_order_activity
 from .models import (
@@ -705,33 +705,41 @@ def _create_stock_movement(
         return None, False
 
     reference_key = str(reference_key or "").strip() or None
-    with transaction.atomic():
-        if reference_key:
-            existing = StockMovement.objects.select_for_update().filter(reference_key=reference_key).first()
-            if existing:
-                return existing, False
+    try:
+        with transaction.atomic():
+            if reference_key:
+                existing = StockMovement.objects.select_for_update().filter(reference_key=reference_key).first()
+                if existing:
+                    return existing, False
 
-        locked_product = Product.objects.select_for_update().get(pk=product.pk)
-        quantity_before = int(locked_product.stock_quantity or 0)
-        quantity_after = quantity_before + quantity_delta
-        locked_product.stock_quantity = quantity_after
-        locked_product.save(update_fields=["stock_quantity", "updated_at"])
+            locked_product = Product.objects.select_for_update().get(pk=product.pk)
+            quantity_before = int(locked_product.stock_quantity or 0)
+            quantity_after = quantity_before + quantity_delta
+            locked_product.stock_quantity = quantity_after
+            locked_product.save(update_fields=["stock_quantity", "updated_at"])
 
-        movement = StockMovement.objects.create(
-            tenant=locked_product.tenant,
-            product=locked_product,
-            order=order,
-            shiprocket_order_id=str(getattr(order, "shiprocket_order_id", "") or "").strip(),
-            movement_type=movement_type,
-            quantity_delta=quantity_delta,
-            quantity_before=quantity_before,
-            quantity_after=quantity_after,
-            sku_snapshot=locked_product.sku,
-            barcode_snapshot=normalize_barcode(locked_product.barcode),
-            reference_key=reference_key,
-            issue_category=str(issue_category or "").strip(),
-            issue_recipient=str(issue_recipient or "").strip(),
-            notes=str(notes or "").strip(),
-            triggered_by=str(actor or "").strip(),
-        )
+            movement = StockMovement.objects.create(
+                tenant=locked_product.tenant,
+                product=locked_product,
+                order=order,
+                shiprocket_order_id=str(getattr(order, "shiprocket_order_id", "") or "").strip(),
+                movement_type=movement_type,
+                quantity_delta=quantity_delta,
+                quantity_before=quantity_before,
+                quantity_after=quantity_after,
+                sku_snapshot=locked_product.sku,
+                barcode_snapshot=normalize_barcode(locked_product.barcode),
+                reference_key=reference_key,
+                issue_category=str(issue_category or "").strip(),
+                issue_recipient=str(issue_recipient or "").strip(),
+                notes=str(notes or "").strip(),
+                triggered_by=str(actor or "").strip(),
+            )
+    except IntegrityError:
+        if not reference_key:
+            raise
+        existing = StockMovement.objects.filter(reference_key=reference_key).first()
+        if not existing:
+            raise
+        return existing, False
     return movement, True

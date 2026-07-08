@@ -60,7 +60,7 @@ from .access import (
 )
 from .activity import log_order_activity
 from .middleware import ActiveTenantMiddleware
-from .stock import summarize_order_profit
+from .stock import reconcile_missed_stock_deductions, summarize_order_profit, sync_stock_for_status_transition
 from .system_status import write_system_heartbeat
 from .whatomate import (
     WhatomateNotificationError,
@@ -3570,6 +3570,7 @@ class LoginRateLimitTests(TestCase):
 
 class ShiprocketOrderStatusUpdateViewTests(TestCase):
     def setUp(self):
+        cache.clear()
         user = get_user_model().objects.create_user(username="tester", password="testpass123")
         self.client.force_login(user)
 
@@ -3801,6 +3802,47 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertEqual(movement.quantity_delta, -5)
         self.assertContains(response, "stock deducted for 1 SKU")
 
+    def test_replayed_accept_stock_sync_deducts_only_once(self):
+        product = Product.objects.create(
+            name="Replay Accept Product",
+            sku="SKU-ACCEPT-REPLAY-1",
+            stock_quantity=12,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STOCK-ACCEPT-REPLAY-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            order_items=[{"sku": "SKU-ACCEPT-REPLAY-1", "quantity": 4}],
+        )
+
+        first_result = sync_stock_for_status_transition(
+            order=order,
+            previous_status=ShiprocketOrder.STATUS_NEW,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            actor="test",
+        )
+        second_result = sync_stock_for_status_transition(
+            order=order,
+            previous_status=ShiprocketOrder.STATUS_NEW,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            actor="test-replay",
+        )
+
+        product.refresh_from_db()
+        self.assertTrue(first_result["changed"])
+        self.assertEqual(first_result["movement_count"], 1)
+        self.assertFalse(second_result["changed"])
+        self.assertEqual(second_result["movement_count"], 0)
+        self.assertEqual(second_result["duplicate_refs"], ["SKU-ACCEPT-REPLAY-1"])
+        self.assertEqual(product.stock_quantity, 8)
+        self.assertEqual(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+            ).count(),
+            1,
+        )
+
     @patch("core.views.enqueue_whatsapp_notification")
     def test_accept_status_deducts_stock_by_matching_woocommerce_product_id(self, mock_enqueue_whatsapp_notification):
         mock_enqueue_whatsapp_notification.return_value = {
@@ -3898,6 +3940,53 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
             ).exists()
         )
         self.assertContains(response, "stock restored for 1 SKU")
+
+    def test_replayed_cancel_stock_sync_restores_only_once(self):
+        product = Product.objects.create(
+            name="Replay Cancel Product",
+            sku="SKU-CANCEL-REPLAY-1",
+            stock_quantity=20,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-STOCK-CANCEL-REPLAY-1",
+            local_status=ShiprocketOrder.STATUS_CANCELLED,
+            order_items=[{"sku": "SKU-CANCEL-REPLAY-1", "quantity": 4}],
+        )
+        sync_stock_for_status_transition(
+            order=order,
+            previous_status=ShiprocketOrder.STATUS_NEW,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            actor="test",
+        )
+
+        first_restore = sync_stock_for_status_transition(
+            order=order,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_CANCELLED,
+            actor="test",
+        )
+        second_restore = sync_stock_for_status_transition(
+            order=order,
+            previous_status=ShiprocketOrder.STATUS_ACCEPTED,
+            current_status=ShiprocketOrder.STATUS_CANCELLED,
+            actor="test-replay",
+        )
+
+        product.refresh_from_db()
+        self.assertTrue(first_restore["changed"])
+        self.assertEqual(first_restore["movement_count"], 1)
+        self.assertFalse(second_restore["changed"])
+        self.assertEqual(second_restore["movement_count"], 0)
+        self.assertEqual(second_restore["duplicate_refs"], ["SKU-CANCEL-REPLAY-1"])
+        self.assertEqual(product.stock_quantity, 20)
+        self.assertEqual(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_CANCELLED,
+            ).count(),
+            1,
+        )
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_cancel_from_new_order_does_not_restore_without_prior_accept(self, mock_enqueue_whatsapp_notification):
@@ -9666,6 +9755,36 @@ class StockManagementViewTests(TestCase):
             ).exists()
         )
         self.assertContains(response, "Reconciled missing stock deductions for 1 order(s).")
+
+    def test_reconcile_missing_stock_deduction_is_idempotent(self):
+        product = Product.objects.create(
+            name="Replay Reconcile Product",
+            sku="SKU-RECON-REPLAY-1",
+            stock_quantity=10,
+        )
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-RECON-REPLAY-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            order_items=[{"sku": "SKU-RECON-REPLAY-1", "quantity": 2}],
+        )
+
+        first_summary = reconcile_missed_stock_deductions(actor="test")
+        second_summary = reconcile_missed_stock_deductions(actor="test-replay")
+
+        product.refresh_from_db()
+        self.assertEqual(first_summary["orders_changed"], 1)
+        self.assertEqual(first_summary["movement_count"], 1)
+        self.assertEqual(second_summary["orders_changed"], 0)
+        self.assertEqual(second_summary["movement_count"], 0)
+        self.assertEqual(product.stock_quantity, 8)
+        self.assertEqual(
+            StockMovement.objects.filter(
+                order=order,
+                product=product,
+                movement_type=StockMovement.TYPE_ORDER_ACCEPTED,
+            ).count(),
+            1,
+        )
 
     def test_stock_management_add_remove_and_set_by_lookup(self):
         product = Product.objects.create(
