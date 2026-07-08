@@ -62,6 +62,7 @@ This file is the working memory for future Codex sessions. Read it before planni
 - `4ed1f09` Gate preflight on RC2 migration audit
 - `773242a` Add RC2 release validation checklist
 - `a1526be` Add vendor product routing health card
+- `ae4bc84` Add shared store routing diagnostics
 
 ## Latest Implemented Slice
 
@@ -77,18 +78,28 @@ It shows:
 
 It also added a tenant-scoping test so another vendor's products/orders/rules do not leak into the card.
 
+Commit `ae4bc84` added a superadmin Shared Store Routing Control Room to `tenant_mapping_health.html`.
+
+It shows:
+- products with no active route
+- products that match the wrong vendor route
+- products that match multiple vendor routes
+- vendor-level risk status for shared WooCommerce routing
+- missing order product identifiers in the existing mapping health workflow
+
+It also added tests proving the page flags no-route, wrong-vendor, and ambiguous-route cases.
+
 ## Roadmap Direction
 
 Near-term priorities:
 - Continue mobile vendor UI hardening.
 - Keep shared WooCommerce/shared WhatsApp model clear in UI.
-- Improve product routing visibility and admin mapping diagnostics.
+- Keep improving product routing visibility and admin mapping diagnostics.
 - Add Android-ready REST API later as RC3, not before the current UI/production hardening is stable.
 - Keep tenant isolation and idempotency as highest-risk areas.
 
 Likely next safe slices:
 - Add a vendor mobile product routing/detail screen or link from stock management.
-- Add clearer superadmin view for unmapped WooCommerce products/orders.
 - Add safe notification failure visibility for vendors without exposing platform credentials.
 - Add tests for shared WooCommerce product-to-vendor routing edge cases.
 - Start API design only after current production UI flow is stable.
