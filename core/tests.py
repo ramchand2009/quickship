@@ -47,6 +47,7 @@ from .models import (
 from .access import (
     TenantScopedQuerysetMixin,
     can_access_tenant,
+    can_manage_stock,
     can_manage_vendor_settings,
     can_operate_vendor_orders,
     can_update_order_status,
@@ -57,6 +58,7 @@ from .access import (
     is_super_admin,
     is_vendor_user,
 )
+from .activity import log_order_activity
 from .middleware import ActiveTenantMiddleware
 from .stock import summarize_order_profit
 from .system_status import write_system_heartbeat
@@ -112,6 +114,41 @@ class TenantFoundationTests(TestCase):
 
         self.assertEqual(order.tenant, self.mathukai)
         self.assertEqual(product.tenant, self.mathukai)
+
+    def test_order_activity_log_uses_related_order_tenant(self):
+        order = ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="TENANT-ACTIVITY-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+        )
+
+        activity = log_order_activity(
+            order=order,
+            event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
+            previous_status=ShiprocketOrder.STATUS_NEW,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            triggered_by="tester",
+        )
+
+        self.assertEqual(activity.tenant, self.other_tenant)
+        self.assertNotEqual(activity.tenant, self.mathukai)
+
+    def test_order_activity_log_resolved_by_order_id_uses_order_tenant(self):
+        order = ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="TENANT-ACTIVITY-2",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+        )
+
+        activity = log_order_activity(
+            shiprocket_order_id=order.shiprocket_order_id,
+            event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+            title="Manual update",
+            triggered_by="tester",
+        )
+
+        self.assertEqual(activity.order, order)
+        self.assertEqual(activity.tenant, self.other_tenant)
 
     def test_vendor_membership_grants_tenant_access(self):
         TenantMembership.objects.create(
@@ -827,6 +864,149 @@ class TenantFoundationTests(TestCase):
         self.assertEqual(update_response.status_code, 404)
         self.assertEqual(other_order.local_status, ShiprocketOrder.STATUS_NEW)
 
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_vendor_owner_can_update_order_status(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        order = ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="TENANT-OWNER-STATUS",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        self.client.force_login(self.vendor_user)
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertTrue(can_update_order_status(self.vendor_user))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+
+    @patch("core.views.enqueue_whatsapp_notification")
+    def test_vendor_operator_can_update_order_status(self, mock_enqueue_whatsapp_notification):
+        mock_enqueue_whatsapp_notification.return_value = {
+            "queued": False,
+            "reason": "disabled",
+            "job": None,
+        }
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        order = ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="TENANT-OPERATOR-STATUS",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        self.client.force_login(self.vendor_user)
+
+        self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertTrue(can_update_order_status(self.vendor_user))
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+
+    def test_vendor_viewer_can_view_orders_but_cannot_update_order_status(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_VIEWER,
+        )
+        order = ShiprocketOrder.objects.create(
+            tenant=self.mathukai,
+            shiprocket_order_id="TENANT-VIEWER-STATUS",
+            local_status=ShiprocketOrder.STATUS_NEW,
+        )
+        self.client.force_login(self.vendor_user)
+
+        list_response = self.client.get(reverse("order_management"))
+        detail_response = self.client.get(reverse("order_detail", args=[order.pk]))
+        update_response = self.client.post(
+            reverse("update_shiprocket_order_status", args=[order.pk]),
+            {
+                f"order-{order.pk}-local_status": ShiprocketOrder.STATUS_ACCEPTED,
+                f"order-{order.pk}-manual_customer_phone": "9876543210",
+            },
+            follow=True,
+        )
+
+        order.refresh_from_db()
+        self.assertTrue(is_vendor_user(self.vendor_user))
+        self.assertTrue(is_ops_viewer(self.vendor_user))
+        self.assertFalse(can_update_order_status(self.vendor_user))
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(list_response, order.shiprocket_order_id)
+        self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
+        self.assertContains(update_response, "Your role cannot move order status.")
+
+    def test_vendor_viewer_cannot_adjust_stock_or_create_expenses(self):
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_VIEWER,
+        )
+        product = Product.objects.create(
+            tenant=self.mathukai,
+            name="Viewer Read Only Product",
+            sku="VIEWER-READ-ONLY-1",
+            stock_quantity=5,
+        )
+        expense_person = ExpensePerson.objects.create(tenant=self.mathukai, name="Viewer Buyer")
+        self.client.force_login(self.vendor_user)
+
+        stock_response = self.client.post(
+            reverse("stock_management"),
+            {
+                "form_action": "adjust_stock",
+                "lookup_value": product.sku,
+                "action": StockAdjustmentForm.ACTION_ADD,
+                "quantity": 2,
+            },
+            follow=True,
+        )
+        expense_response = self.client.post(
+            reverse("expense_tracker"),
+            {
+                "expense_person": expense_person.pk,
+                "item_name": "Viewer Tape",
+                "quantity": 1,
+                "unit_price": "5.00",
+                "remark": "",
+            },
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        self.assertFalse(can_manage_stock(self.vendor_user))
+        self.assertEqual(product.stock_quantity, 5)
+        self.assertFalse(StockMovement.objects.filter(product=product).exists())
+        self.assertFalse(BusinessExpense.objects.filter(item_name="Viewer Tape").exists())
+        self.assertContains(stock_response, "Your role cannot access stock management.")
+        self.assertContains(expense_response, "Your role cannot access expense tracker.")
+
     def test_vendor_stock_management_lists_and_updates_only_active_tenant_products(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
@@ -881,6 +1061,8 @@ class TenantFoundationTests(TestCase):
 
     @patch("core.views.update_woocommerce_product")
     def test_vendor_can_update_section_when_current_category_is_outside_tenant_choices(self, mock_update_product):
+        self.mathukai.auto_approve_product_changes = True
+        self.mathukai.save(update_fields=["auto_approve_product_changes", "updated_at"])
         TenantMembership.objects.create(
             tenant=self.mathukai,
             user=self.vendor_user,
@@ -913,8 +1095,49 @@ class TenantFoundationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(product.description, "Updated vendor description.")
         self.assertEqual(product.category_master, imported_category)
-        self.assertContains(response, "Updated Mapped Woo Product locally and in WooCommerce.")
+        self.assertContains(response, "Auto-approved product changes for Mapped Woo Product.")
         mock_update_product.assert_called_once()
+
+    @patch("core.views.update_woocommerce_product")
+    def test_vendor_cannot_switch_product_to_other_tenant_category(self, mock_update_product):
+        self.mathukai.auto_approve_product_changes = True
+        self.mathukai.save(update_fields=["auto_approve_product_changes", "updated_at"])
+        TenantMembership.objects.create(
+            tenant=self.mathukai,
+            user=self.vendor_user,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        own_category = ProductCategory.objects.create(
+            tenant=self.mathukai,
+            name="Own Vendor Category",
+            is_active=True,
+        )
+        other_category = ProductCategory.objects.create(
+            tenant=self.other_tenant,
+            name="Other Vendor Category",
+            is_active=True,
+        )
+        product = Product.objects.create(
+            tenant=self.mathukai,
+            name="Tenant Category Guard Product",
+            sku="TENANT-CAT-GUARD-1",
+            category_master=own_category,
+            stock_quantity=4,
+            is_active=True,
+        )
+        self.client.force_login(self.vendor_user)
+
+        response = self.client.post(
+            reverse("stock_product_section", args=[product.pk, "categories"]),
+            {"category_master": str(other_category.pk)},
+            follow=True,
+        )
+
+        product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(product.category_master, own_category)
+        self.assertContains(response, "Unable to save product. Check the product fields.")
+        mock_update_product.assert_not_called()
 
     def test_vendor_expense_tracker_lists_and_creates_only_active_tenant_expenses(self):
         TenantMembership.objects.create(
@@ -1771,7 +1994,7 @@ class WooCommerceSyncTests(TestCase):
             }
         ]
 
-        synced = sync_woocommerce_orders()
+        synced = sync_woocommerce_orders(tenant=Tenant.get_default())
 
         self.assertEqual(synced, 1)
         mock_json_request.assert_called_once()
@@ -1815,6 +2038,125 @@ class WooCommerceSyncTests(TestCase):
         order = ShiprocketOrder.objects.get(woocommerce_order_id="901")
         self.assertEqual(order.tenant, vendor_tenant)
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
+
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_assigns_tenant_from_sku_mapping(self, mock_json_request):
+        vendor_tenant = Tenant.objects.create(name="Mapped Woo Vendor", slug="mapped-woo-vendor")
+        WooCommerceSettings.objects.create(store_url="https://shared.example.com", consumer_key="ck_shared", consumer_secret="cs_shared")
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=vendor_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="MAP-",
+        )
+        mock_json_request.return_value = [
+            {
+                "id": 902,
+                "number": "1902",
+                "customer_id": 44,
+                "status": "processing",
+                "total": "499.00",
+                "date_created": "2026-04-01T10:30:00",
+                "billing": {
+                    "first_name": "Mapped",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Mapped billing street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [
+                    {"name": "Mapped Product", "sku": "MAP-SOAP-1", "product_id": 1902, "quantity": 1, "price": "499.00"}
+                ],
+            }
+        ]
+
+        synced = sync_woocommerce_orders()
+
+        self.assertEqual(synced, 1)
+        order = ShiprocketOrder.objects.get(woocommerce_order_id="902")
+        self.assertEqual(order.tenant, vendor_tenant)
+        self.assertEqual(order.shiprocket_order_id, "WC-902")
+
+    @patch("core.woocommerce._json_request")
+    def test_sync_orders_skips_unmapped_order_when_mapping_rules_exist(self, mock_json_request):
+        default_tenant = Tenant.get_default()
+        vendor_tenant = Tenant.objects.create(name="Mapped Only Vendor", slug="mapped-only-vendor")
+        WooCommerceSettings.objects.create(store_url="https://shared.example.com", consumer_key="ck_shared", consumer_secret="cs_shared")
+        TenantWooCommerceMappingRule.objects.create(
+            tenant=vendor_tenant,
+            match_type=TenantWooCommerceMappingRule.MATCH_SKU_PREFIX,
+            match_value="MAP-",
+        )
+        mock_json_request.return_value = [
+            {
+                "id": 903,
+                "number": "1903",
+                "customer_id": 44,
+                "status": "processing",
+                "total": "499.00",
+                "date_created": "2026-04-01T10:30:00",
+                "billing": {
+                    "first_name": "Unmapped",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Unmapped billing street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [
+                    {"name": "Unmapped Product", "sku": "OTHER-SOAP-1", "product_id": 1903, "quantity": 1, "price": "499.00"}
+                ],
+            }
+        ]
+
+        synced = sync_woocommerce_orders()
+
+        self.assertEqual(synced, 0)
+        self.assertFalse(ShiprocketOrder.objects.filter(woocommerce_order_id="903").exists())
+        self.assertFalse(ShiprocketOrder.objects.filter(tenant=default_tenant, shiprocket_order_id="WC-903").exists())
+
+    def test_import_unmapped_order_does_not_pick_between_duplicate_existing_tenants(self):
+        tenant_a = Tenant.objects.create(name="Existing Woo A", slug="existing-woo-a")
+        tenant_b = Tenant.objects.create(name="Existing Woo B", slug="existing-woo-b")
+        ShiprocketOrder.objects.create(
+            tenant=tenant_a,
+            shiprocket_order_id="WC-904",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            woocommerce_order_id="904",
+            customer_name="Tenant A Customer",
+        )
+        ShiprocketOrder.objects.create(
+            tenant=tenant_b,
+            shiprocket_order_id="WC-2-904",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            woocommerce_order_id="904",
+            customer_name="Tenant B Customer",
+        )
+
+        order, created = import_woocommerce_order_payload(
+            {
+                "id": 904,
+                "number": "1904",
+                "customer_id": 44,
+                "status": "processing",
+                "billing": {
+                    "first_name": "Unmapped",
+                    "last_name": "Buyer",
+                    "phone": "9876543210",
+                    "address_1": "Unmapped billing street",
+                    "postcode": "600001",
+                },
+                "shipping": {},
+                "line_items": [],
+            }
+        )
+
+        self.assertIsNone(order)
+        self.assertFalse(created)
+        self.assertEqual(
+            set(ShiprocketOrder.objects.filter(woocommerce_order_id="904").values_list("customer_name", flat=True)),
+            {"Tenant A Customer", "Tenant B Customer"},
+        )
 
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
@@ -2200,7 +2542,7 @@ class WooCommerceSyncTests(TestCase):
             }
         ]
 
-        synced = sync_woocommerce_orders()
+        synced = sync_woocommerce_orders(tenant=Tenant.get_default())
 
         self.assertEqual(synced, 0)
         self.assertIn("whatsapp-draft", mock_json_request.call_args.kwargs["params"]["status"])
@@ -2232,7 +2574,7 @@ class WooCommerceSyncTests(TestCase):
             }
         ]
 
-        synced = sync_woocommerce_orders()
+        synced = sync_woocommerce_orders(tenant=Tenant.get_default())
 
         self.assertEqual(synced, 1)
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-503")
@@ -2273,7 +2615,8 @@ class WooCommerceSyncTests(TestCase):
                 },
                 "shipping": {},
                 "line_items": [],
-            }
+            },
+            tenant=Tenant.get_default(),
         )
 
         self.assertTrue(created)
@@ -2312,7 +2655,8 @@ class WooCommerceSyncTests(TestCase):
                 },
                 "shipping": {},
                 "line_items": [],
-            }
+            },
+            tenant=Tenant.get_default(),
         )
 
         self.assertTrue(created)
@@ -2383,7 +2727,8 @@ class WooCommerceSyncTests(TestCase):
                 "billing": {"first_name": "Ramachandran", "phone": "9876543210"},
                 "shipping": {},
                 "line_items": [],
-            }
+            },
+            tenant=Tenant.get_default(),
         )
 
         self.assertFalse(created)
@@ -2444,7 +2789,7 @@ class WooCommerceSyncTests(TestCase):
             }
         ]
 
-        sync_woocommerce_orders()
+        sync_woocommerce_orders(tenant=Tenant.get_default())
 
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-504")
         self.assertEqual(order.shipping_address["address_1"], "No 38 5th Street jeevan Adambakkam")
@@ -2572,14 +2917,15 @@ class WooCommerceSyncTests(TestCase):
             }
         ]
 
-        sync_woocommerce_orders()
+        sync_woocommerce_orders(tenant=Tenant.get_default())
 
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-502")
         local_order_time = timezone.localtime(order.order_date)
         self.assertEqual(local_order_time.strftime("%Y-%m-%d %H:%M"), "2026-04-01 16:00")
 
     def test_woocommerce_webhook_imports_order_with_valid_signature(self):
-        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        vendor_tenant = Tenant.objects.create(name="Webhook Direct Vendor", slug="webhook-direct-vendor")
+        WooCommerceSettings.objects.create(tenant=vendor_tenant, webhook_secret="woo-secret")
         payload = {
             "id": 777,
             "number": "1777",
@@ -2620,6 +2966,7 @@ class WooCommerceSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-777")
+        self.assertEqual(order.tenant, vendor_tenant)
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
         self.assertEqual(order.channel_order_id, "1777")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
@@ -2742,7 +3089,8 @@ class WooCommerceSyncTests(TestCase):
         self.assertFalse(ShiprocketOrder.objects.exists())
 
     def test_woocommerce_webhook_accepts_query_secret_fallback(self):
-        WooCommerceSettings.objects.create(webhook_secret="woo-secret")
+        vendor_tenant = Tenant.objects.create(name="Query Secret Vendor", slug="query-secret-vendor")
+        WooCommerceSettings.objects.create(tenant=vendor_tenant, webhook_secret="woo-secret")
         payload = {
             "id": 779,
             "number": "1779",
@@ -2764,6 +3112,7 @@ class WooCommerceSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         order = ShiprocketOrder.objects.get(shiprocket_order_id="WC-779")
+        self.assertEqual(order.tenant, vendor_tenant)
         self.assertEqual(order.source, ShiprocketOrder.SOURCE_WOOCOMMERCE)
 
     def test_woocommerce_webhook_assigns_tenant_from_sku_mapping(self):
@@ -6539,6 +6888,22 @@ class WhatsAppTenantIsolationTests(TestCase):
         settings_row.api_base_url = "https://wa-api.cloud"
         settings_row.api_key = "shared-token"
         settings_row.save(update_fields=["enabled", "api_base_url", "api_key", "updated_at"])
+        WhatsAppSettings.objects.update_or_create(
+            tenant=self.tenant_a,
+            defaults={
+                "enabled": True,
+                "api_base_url": "https://tenant-a.example",
+                "api_key": "tenant-a-token",
+            },
+        )
+        WhatsAppSettings.objects.update_or_create(
+            tenant=self.tenant_b,
+            defaults={
+                "enabled": True,
+                "api_base_url": "https://tenant-b.example",
+                "api_key": "tenant-b-token",
+            },
+        )
 
     def _order(self, tenant, order_id):
         return ShiprocketOrder.objects.create(
@@ -6585,14 +6950,25 @@ class WhatsAppTenantIsolationTests(TestCase):
         )
 
     @override_settings(WHATOMATE_ENABLED=True, WHATOMATE_BASE_URL="https://global.example", WHATOMATE_API_KEY="global")
-    def test_non_default_vendor_uses_shared_whatsapp_settings(self):
+    def test_non_default_vendor_uses_own_whatsapp_settings(self):
+        order = self._order(self.tenant_a, "SR-WA-TENANT-CONFIG")
+
+        plan = build_order_status_idempotency_payload(order)
+
+        self.assertTrue(plan["sendable"])
+        self.assertEqual(plan["config"]["base_url"], "https://tenant-a.example")
+        self.assertEqual(plan["config"]["api_key"], "tenant-a-token")
+        self.assertEqual(plan["config"]["tenant_id"], self.tenant_a.pk)
+
+    @override_settings(WHATOMATE_ENABLED=True, WHATOMATE_BASE_URL="https://global.example", WHATOMATE_API_KEY="global")
+    def test_disabled_vendor_whatsapp_settings_disable_vendor_notifications(self):
         WhatsAppSettings.objects.filter(tenant=self.tenant_a).update(enabled=False, api_base_url="", api_key="")
         order = self._order(self.tenant_a, "SR-WA-TENANT-DISABLED")
 
         plan = build_order_status_idempotency_payload(order)
 
-        self.assertTrue(plan["sendable"])
-        self.assertEqual(plan["config"]["api_key"], "shared-token")
+        self.assertFalse(plan["sendable"])
+        self.assertEqual(plan["reason"], "disabled")
 
     def test_enqueue_and_worker_logs_are_tenant_scoped(self):
         order = self._order(self.tenant_a, "SR-WA-TENANT-QUEUE")
@@ -7213,14 +7589,15 @@ class RoleAccessTests(TestCase):
         self.assertNotContains(response, reverse("print_queue"))
         self.assertNotContains(response, reverse("admin_utilities"))
 
-    def test_ops_viewer_mobile_orders_screen_shows_bulk_labels_pdf_link(self):
+    def test_ops_viewer_mobile_orders_screen_omits_bulk_labels_pdf_link(self):
         self.client.force_login(self.viewer)
 
         response = self.client.get(reverse("order_management"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Bulk Labels PDF")
-        self.assertContains(response, reverse("ops_print_queue"))
+        self.assertContains(response, "My Orders")
+        self.assertNotContains(response, "Bulk Labels PDF")
+        self.assertNotContains(response, reverse("ops_print_queue"))
 
     def test_ops_viewer_order_management_shows_tracking_number(self):
         Product.objects.create(
@@ -7525,6 +7902,28 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, reverse("ops_bulk_shipping_labels_pdf"))
         self.assertContains(response, reverse("ops_print_queue"))
 
+    def test_ops_viewer_can_open_ops_bulk_shipping_labels_without_sender(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-BULK-NO-SENDER-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            shipping_address={
+                "name": "Bulk No Sender Receiver",
+                "phone": "9876543211",
+                "address_1": "Bulk No Sender Street",
+                "city": "Erode",
+                "state": "TN",
+                "pincode": "638002",
+            },
+        )
+        self.client.force_login(self.viewer)
+
+        with patch("core.views._sender_address_for_request", return_value=None):
+            response = self.client.get(reverse("ops_bulk_shipping_labels_4x6"), {"order_id": [order.pk]})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.shiprocket_order_id)
+        self.assertContains(response, "Mathukai Organic")
+
     def test_ops_viewer_can_reopen_bulk_shipping_labels_for_printed_order(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-BULK-REOPEN-1",
@@ -7649,11 +8048,11 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "ops-detail-step")
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
-        self.assertContains(response, "Edit Delivery Details")
-        self.assertContains(response, "Order Date:")
-        self.assertContains(response, 'name="manual_customer_phone"', html=False)
-        self.assertContains(response, 'name="manual_shipping_address_1"', html=False)
-        self.assertContains(response, 'name="manual_shipping_pincode"', html=False)
+        self.assertContains(response, "Delivery Details")
+        self.assertContains(response, "Order Id:")
+        self.assertContains(response, f'name="order-{order.pk}-manual_customer_phone"', html=False)
+        self.assertContains(response, f'name="order-{order.pk}-local_status"', html=False)
+        self.assertContains(response, f'name="order-{order.pk}-tracking_number"', html=False)
 
     def test_ops_viewer_order_detail_shows_order_profit(self):
         Product.objects.create(
@@ -7847,7 +8246,7 @@ class RoleAccessTests(TestCase):
 
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
-        self.assertContains(response, "Invalid order status selected")
+        self.assertContains(response, "Select a valid choice. order_packed is not one of the available choices.")
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_ops_viewer_cannot_pack_with_mismatched_barcode(self, mock_enqueue_whatsapp_notification):
@@ -7890,7 +8289,7 @@ class RoleAccessTests(TestCase):
 
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
-        self.assertContains(response, "Invalid order status selected")
+        self.assertContains(response, "Select a valid choice. order_packed is not one of the available choices.")
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_ops_viewer_can_ship_accepted_order_after_printing_label_flow(self, mock_enqueue_whatsapp_notification):
@@ -8039,6 +8438,23 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Packing List")
         self.assertContains(response, order.shiprocket_order_id)
 
+    def test_ops_viewer_can_open_packing_list_without_sender(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-PACKING-NO-SENDER-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Packing No Sender Viewer",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Packing No Sender Viewer", "address_1": "Packing Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        with patch("core.views._sender_address_for_request", return_value=None):
+            response = self.client.get(reverse("packing_list", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Packing List")
+        self.assertContains(response, "Mathukai Organic")
+
     def test_ops_viewer_can_open_shipping_label(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-ROLE-VIEWER-SHIPPING-LABEL-1",
@@ -8062,6 +8478,23 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Shipping Label")
         self.assertContains(response, order.shiprocket_order_id)
+
+    def test_ops_viewer_can_open_shipping_label_without_sender(self):
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-ROLE-VIEWER-LABEL-NO-SENDER-1",
+            local_status=ShiprocketOrder.STATUS_PACKED,
+            customer_name="Label No Sender Viewer",
+            payment_method="Cash on Delivery",
+            shipping_address={"name": "Label No Sender Viewer", "address_1": "Label Street"},
+        )
+        self.client.force_login(self.viewer)
+
+        with patch("core.views._sender_address_for_request", return_value=None):
+            response = self.client.get(reverse("shipping_label_4x6", args=[order.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Shipping Label")
+        self.assertContains(response, "Mathukai Organic")
 
     def test_ops_viewer_can_access_stock_management_screen(self):
         self.client.force_login(self.viewer)
@@ -8111,7 +8544,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Free / Sample Issue Register")
         self.assertContains(response, "Given To")
         self.assertContains(response, reverse("special_stock_issue_register"))
-        self.assertContains(response, "Free Entry")
+        self.assertContains(response, "Save Issue Entry")
         self.assertContains(response, 'data-stock="14"', html=False)
         self.assertContains(response, "Available Stock")
 

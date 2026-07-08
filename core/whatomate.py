@@ -92,7 +92,7 @@ def _load_runtime_config(tenant=None):
     }
 
     try:
-        _apply_settings_row(config, _settings_row_for_tenant(None))
+        _apply_settings_row(config, _settings_row_for_tenant(tenant))
     except Exception:
         # Keep environment fallback if DB/table is unavailable.
         pass

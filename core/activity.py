@@ -41,7 +41,12 @@ def log_order_activity(
         curr_label = _status_label(current_status)
         title = f"Status changed from {prev_label or '-'} to {curr_label or '-'}"
 
+    create_kwargs = {}
+    if resolved_order is not None:
+        create_kwargs["tenant"] = resolved_order.tenant
+
     return OrderActivityLog.objects.create(
+        **create_kwargs,
         order=resolved_order,
         shiprocket_order_id=resolved_order_id,
         event_type=event_type,

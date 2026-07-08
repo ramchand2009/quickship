@@ -80,6 +80,23 @@ def is_vendor_viewer(user, tenant=None):
     return has_tenant_role(user, tenant, TenantMembership.ROLE_VENDOR_VIEWER)
 
 
+def can_operate_any_vendor(user):
+    from .models import TenantMembership
+
+    return any(
+        membership.role
+        in {
+            TenantMembership.ROLE_VENDOR_OWNER,
+            TenantMembership.ROLE_VENDOR_OPERATOR,
+        }
+        for membership in active_tenant_memberships(user)
+    )
+
+
+def is_legacy_ops_viewer(user):
+    return is_ops_viewer(user) and not is_vendor_user(user)
+
+
 def can_edit_operations(user):
     return is_ops_admin(user)
 
@@ -87,25 +104,25 @@ def can_edit_operations(user):
 def can_edit_manual_order_details(user):
     if not getattr(user, "is_authenticated", False):
         return False
-    return is_ops_admin(user) or is_ops_viewer(user)
+    return is_ops_admin(user) or is_legacy_ops_viewer(user) or can_operate_any_vendor(user)
 
 
 def can_sync_orders(user):
     if not getattr(user, "is_authenticated", False):
         return False
-    return is_ops_admin(user) or is_ops_viewer(user)
+    return is_ops_admin(user) or is_legacy_ops_viewer(user) or can_operate_any_vendor(user)
 
 
 def can_update_order_status(user):
     if not getattr(user, "is_authenticated", False):
         return False
-    return is_ops_admin(user) or is_ops_viewer(user)
+    return is_ops_admin(user) or is_legacy_ops_viewer(user) or can_operate_any_vendor(user)
 
 
 def can_manage_stock(user):
     if not getattr(user, "is_authenticated", False):
         return False
-    return is_ops_admin(user) or is_ops_viewer(user)
+    return is_ops_admin(user) or is_legacy_ops_viewer(user) or can_operate_any_vendor(user)
 
 
 def active_tenant_memberships(user):

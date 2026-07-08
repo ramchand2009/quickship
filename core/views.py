@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import re
 import csv
+from types import SimpleNamespace
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from urllib.parse import parse_qsl, urlencode
@@ -663,6 +664,31 @@ def _sender_address_for_request(request):
     if _should_scope_to_active_tenant(request):
         return _sender_address_for_tenant(get_active_tenant(request))
     return SenderAddress.get_default()
+
+
+def _fallback_sender_address(tenant=None):
+    return SimpleNamespace(
+        name=(getattr(tenant, "name", "") or "Mathukai Organic"),
+        email=(getattr(tenant, "contact_email", "") or ""),
+        phone=(getattr(tenant, "contact_phone", "") or ""),
+        address_1="",
+        address_2="",
+        city="",
+        state="",
+        country="India",
+        pincode="",
+    )
+
+
+def _safe_print_sender_address(sender, tenant=None):
+    if sender is not None:
+        return sender
+    return _fallback_sender_address(tenant)
+
+
+def _print_sender_address_for_request(request):
+    tenant = get_active_tenant(request) if _should_scope_to_active_tenant(request) else None
+    return _safe_print_sender_address(_sender_address_for_request(request), tenant)
 
 
 SETTLEMENT_VALUE_STATUSES = [
@@ -3022,7 +3048,7 @@ def packing_list(request, pk):
         messages.error(request, "Your role cannot access packing list.")
         return redirect("order_management")
     order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
-    sender = _sender_address_for_request(request)
+    sender = _print_sender_address_for_request(request)
     context = {
         "order": order,
         "sender": sender,
@@ -3073,7 +3099,7 @@ def bulk_packing_lists(request):
     restricted_response = _redirect_ops_viewer_to_order_management(request)
     if restricted_response:
         return restricted_response
-    sender = _sender_address_for_request(request)
+    sender = _print_sender_address_for_request(request)
     orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
         local_status=ShiprocketOrder.STATUS_ACCEPTED
     ).order_by(
@@ -3104,7 +3130,7 @@ def shipping_label_4x6(request, pk):
         messages.error(request, "Shipping label is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    sender = _sender_address_for_request(request)
+    sender = _print_sender_address_for_request(request)
     return render(
         request,
         "core/shipping_label_4x6.html",
@@ -3121,7 +3147,7 @@ def shipping_label_test_4x6(request):
     if restricted_response:
         return restricted_response
 
-    sender = SenderAddress.get_default()
+    sender = _safe_print_sender_address(SenderAddress.get_default(), Tenant.get_default())
     now = timezone.localtime()
     test_order = {
         "shiprocket_order_id": f"TEST-{now.strftime('%Y%m%d-%H%M')}",
@@ -3610,7 +3636,7 @@ def shipping_label_pdf(request, pk):
         messages.error(request, "Shipping label PDF is available only for accepted or packed orders.")
         return redirect("order_detail", pk=order.pk)
 
-    sender = _sender_address_for_request(request)
+    sender = _print_sender_address_for_request(request)
     order_reference = (
         str(order.channel_order_id or order.shiprocket_order_id or order.pk)
         .strip()
@@ -3625,7 +3651,7 @@ def shipping_label_pdf(request, pk):
 
 
 def _build_bulk_shipping_labels_context(request, *, back_url_name="home"):
-    sender = _sender_address_for_request(request)
+    sender = _print_sender_address_for_request(request)
     orders_query = _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()).filter(
         local_status=ShiprocketOrder.STATUS_PACKED,
     ).order_by(
@@ -7241,7 +7267,12 @@ def woocommerce_webhook(request):
             }
         )
 
-    order, created = import_woocommerce_order_payload(payload)
+    webhook_import_tenant = (
+        settings_tenant
+        if str(getattr(settings_tenant, "slug", "") or "").strip().lower() != DEFAULT_TENANT_SLUG
+        else None
+    )
+    order, created = import_woocommerce_order_payload(payload, tenant=webhook_import_tenant)
     if not order:
         return fallback_sync_response(
             "WooCommerce webhook did not include an order id; fallback sync attempted."

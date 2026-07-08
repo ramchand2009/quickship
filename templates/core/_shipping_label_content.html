@@ -45,7 +45,7 @@
 
     <div class="label-section return-address-section">
         <div class="section-title">From</div>
-        <div class="party-name return-name">{{ sender.name|default:active_tenant.name|default:"Mathukai Organic" }}</div>
+        <div class="party-name return-name">{{ sender.name|default:"Mathukai Organic" }}</div>
         <div class="postal-line">{{ sender.address_1|default:"-" }}</div>
         {% if sender.address_2 %}<div class="postal-line">{{ sender.address_2 }}</div>{% endif %}
         {% if sender.city or sender.state %}

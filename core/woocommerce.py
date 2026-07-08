@@ -562,7 +562,7 @@ def _tenant_from_mapping_values(*, categories=None, tags=None, sku="", product_i
 
 
 def _default_import_tenant(fallback_tenant=None):
-    return fallback_tenant or Tenant.get_default()
+    return fallback_tenant
 
 
 def _tenant_for_product_payload(product, *, parent_product=None, fallback_tenant=None):
@@ -1133,14 +1133,19 @@ def import_order_payload(item, tenant=None):
     resolved_tenant = _tenant_for_order_payload(item, fallback_tenant=tenant)
 
     order_number = str(item.get("number") or order_id)
-    source_order_id = _source_order_id_for_tenant(order_id, tenant=resolved_tenant)
     existing_queryset = ShiprocketOrder.objects.filter(
         source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
         woocommerce_order_id=str(order_id),
     )
     if resolved_tenant is not None:
         existing_queryset = existing_queryset.filter(tenant=resolved_tenant)
-    existing = existing_queryset.first()
+        existing = existing_queryset.first()
+    else:
+        existing_matches = list(existing_queryset[:2])
+        existing = existing_matches[0] if len(existing_matches) == 1 else None
+    if not existing and resolved_tenant is None:
+        return None, False
+    source_order_id = _source_order_id_for_tenant(order_id, tenant=resolved_tenant)
     if not existing:
         existing = ShiprocketOrder.objects.filter(shiprocket_order_id=source_order_id).first()
     if not existing and not has_billing_address:
