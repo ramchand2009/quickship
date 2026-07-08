@@ -2158,6 +2158,80 @@ class WooCommerceSyncTests(TestCase):
             {"Tenant A Customer", "Tenant B Customer"},
         )
 
+    def test_woocommerce_order_id_is_unique_only_within_same_tenant(self):
+        tenant_a = Tenant.objects.create(name="Unique Woo A", slug="unique-woo-a")
+        tenant_b = Tenant.objects.create(name="Unique Woo B", slug="unique-woo-b")
+        ShiprocketOrder.objects.create(
+            tenant=tenant_a,
+            shiprocket_order_id="WC-905",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            woocommerce_order_id="905",
+        )
+
+        ShiprocketOrder.objects.create(
+            tenant=tenant_b,
+            shiprocket_order_id="WC-2-905",
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            woocommerce_order_id="905",
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ShiprocketOrder.objects.create(
+                    tenant=tenant_a,
+                    shiprocket_order_id="WC-DUP-905",
+                    source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+                    woocommerce_order_id="905",
+                )
+
+    def test_import_replayed_order_updates_existing_tenant_order(self):
+        vendor_tenant = Tenant.objects.create(name="Replay Vendor", slug="replay-vendor")
+        first_payload = {
+            "id": 906,
+            "number": "1906",
+            "customer_id": 44,
+            "status": "processing",
+            "total": "499.00",
+            "billing": {
+                "first_name": "Replay",
+                "last_name": "Buyer",
+                "phone": "9876543210",
+                "address_1": "First billing street",
+                "postcode": "600001",
+            },
+            "shipping": {},
+            "line_items": [],
+        }
+        second_payload = {
+            **first_payload,
+            "number": "1906-B",
+            "total": "599.00",
+            "billing": {
+                **first_payload["billing"],
+                "first_name": "Updated",
+                "address_1": "Updated billing street",
+            },
+        }
+
+        first_order, first_created = import_woocommerce_order_payload(first_payload, tenant=vendor_tenant)
+        second_order, second_created = import_woocommerce_order_payload(second_payload, tenant=vendor_tenant)
+
+        self.assertTrue(first_created)
+        self.assertFalse(second_created)
+        self.assertEqual(first_order.pk, second_order.pk)
+        self.assertEqual(
+            ShiprocketOrder.objects.filter(
+                tenant=vendor_tenant,
+                source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+                woocommerce_order_id="906",
+            ).count(),
+            1,
+        )
+        second_order.refresh_from_db()
+        self.assertEqual(second_order.channel_order_id, "1906-B")
+        self.assertEqual(second_order.customer_name, "Updated Buyer")
+        self.assertEqual(str(second_order.total), "599.00")
+
     @override_settings(
         WOOCOMMERCE_STORE_URL="https://shop.example.com",
         WOOCOMMERCE_CONSUMER_KEY="ck_test",
@@ -2977,6 +3051,73 @@ class WooCommerceSyncTests(TestCase):
                 is_success=True,
             ).exists()
         )
+
+    def test_woocommerce_webhook_replay_updates_existing_order_without_duplicate(self):
+        vendor_tenant = Tenant.objects.create(name="Webhook Replay Vendor", slug="webhook-replay-vendor")
+        WooCommerceSettings.objects.create(tenant=vendor_tenant, webhook_secret="woo-secret")
+        payload = {
+            "id": 780,
+            "number": "1780",
+            "order_key": "wc_order_webhook_replay",
+            "status": "processing",
+            "payment_method_title": "COD",
+            "total": "399.00",
+            "billing": {
+                "first_name": "Replay",
+                "last_name": "Buyer",
+                "email": "replay@example.com",
+                "phone": "9876543210",
+                "address_1": "Replay billing road",
+                "postcode": "600001",
+            },
+            "shipping": {},
+            "line_items": [
+                {"name": "Replay Product", "sku": "REPLAY-SKU-1", "product_id": 780, "quantity": 1, "price": "399.00"}
+            ],
+        }
+
+        raw_body = json.dumps(payload).encode("utf-8")
+        first_response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="order.created",
+        )
+        replay_payload = {
+            **payload,
+            "number": "1780-B",
+            "total": "449.00",
+            "billing": {
+                **payload["billing"],
+                "first_name": "Updated",
+                "address_1": "Updated replay billing road",
+            },
+        }
+        replay_body = json.dumps(replay_payload).encode("utf-8")
+        second_response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=replay_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(replay_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="order.updated",
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(
+            ShiprocketOrder.objects.filter(
+                tenant=vendor_tenant,
+                source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+                woocommerce_order_id="780",
+            ).count(),
+            1,
+        )
+        order = ShiprocketOrder.objects.get(woocommerce_order_id="780")
+        self.assertEqual(order.shiprocket_order_id, "WC-780")
+        self.assertEqual(order.channel_order_id, "1780-B")
+        self.assertEqual(order.customer_name, "Updated Buyer")
+        self.assertEqual(str(order.total), "449.00")
 
     def test_woocommerce_webhook_rejects_invalid_signature(self):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")

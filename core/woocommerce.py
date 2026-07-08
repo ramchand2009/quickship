@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from urllib import error, parse, request
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -1188,7 +1189,24 @@ def import_order_payload(item, tenant=None):
             setattr(existing, field_name, value)
         existing.save()
         return existing, False
-    return ShiprocketOrder.objects.update_or_create(shiprocket_order_id=source_order_id, defaults=defaults)
+
+    lookup = {
+        "tenant": resolved_tenant,
+        "source": ShiprocketOrder.SOURCE_WOOCOMMERCE,
+        "woocommerce_order_id": str(order_id),
+    }
+    create_defaults = {**defaults, "shiprocket_order_id": source_order_id}
+    try:
+        with transaction.atomic():
+            return ShiprocketOrder.objects.update_or_create(defaults=create_defaults, **lookup)
+    except IntegrityError:
+        existing = ShiprocketOrder.objects.filter(**lookup).first()
+        if not existing:
+            raise
+        for field_name, value in defaults.items():
+            setattr(existing, field_name, value)
+        existing.save()
+        return existing, False
 
 
 def update_order_status(order):

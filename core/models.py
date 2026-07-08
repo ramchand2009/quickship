@@ -570,6 +570,13 @@ class ShiprocketOrder(models.Model):
 
     class Meta:
         ordering = ["-order_date", "-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "woocommerce_order_id"],
+                condition=models.Q(source="woocommerce") & ~models.Q(woocommerce_order_id=""),
+                name="uniq_tenant_woocommerce_order_id",
+            )
+        ]
 
     def __str__(self):
         return f"{self.shiprocket_order_id} - {self.customer_name or 'Unknown customer'}"
