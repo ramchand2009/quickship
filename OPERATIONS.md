@@ -20,7 +20,29 @@ Run one cycle only:
 .\.venv\Scripts\python.exe manage.py run_whatsapp_queue_worker --once --limit 50 --worker manual
 ```
 
-## 2) Scheduler Option (Windows Task Scheduler)
+## 2) Celery Foundation
+
+Redis/Celery is the next production background-job foundation. The current WhatsApp worker above remains the active fallback until WhatsApp processing is migrated to Celery.
+
+Run a Celery worker:
+
+```powershell
+.\.venv\Scripts\celery.exe -A Ram_codex1 worker --loglevel=INFO --queues=default,whatsapp
+```
+
+Run Celery Beat:
+
+```powershell
+.\.venv\Scripts\celery.exe -A Ram_codex1 beat --loglevel=INFO
+```
+
+Required broker settings:
+
+- `REDIS_URL=redis://redis:6379/0`
+- `CELERY_BROKER_URL=redis://redis:6379/0`
+- `CELERY_RESULT_BACKEND=redis://redis:6379/0`
+
+## 3) Scheduler Option (Windows Task Scheduler)
 
 If you prefer scheduler instead of a long-running process, create a task every 1 minute:
 
@@ -30,7 +52,7 @@ If you prefer scheduler instead of a long-running process, create a task every 1
 
 To disable alert checks on this one-off command, add `--no-alerts`.
 
-## 3) Required Environment Variables
+## 4) Required Environment Variables
 
 Set these in your deployment environment:
 
@@ -47,11 +69,14 @@ Set these in your deployment environment:
 - `WHATOMATE_BASE_URL`
 - `WHATOMATE_API_KEY` (or `WHATOMATE_ACCESS_TOKEN`)
 - `WHATOMATE_WEBHOOK_TOKEN` (recommended for securing webhook endpoint)
+- `REDIS_URL=redis://redis:6379/0`
+- `CELERY_BROKER_URL=redis://redis:6379/0`
+- `CELERY_RESULT_BACKEND=redis://redis:6379/0`
 - `LOGIN_LOCKOUT_ATTEMPTS=5`
 - `LOGIN_LOCKOUT_WINDOW_SECONDS=900`
 - `LOGIN_LOCKOUT_DURATION_SECONDS=900`
 
-## 4) Startup Preflight Check
+## 5) Startup Preflight Check
 
 Run before app start/deploy cutover:
 
@@ -65,7 +90,7 @@ Strict mode (warnings fail the command):
 .\.venv\Scripts\python.exe manage.py preflight_check --strict
 ```
 
-## 5) Role Bootstrap
+## 6) Role Bootstrap
 
 Create default role groups:
 
@@ -78,7 +103,7 @@ Role behavior:
 - `admin`: can edit statuses/settings and view raw payload details.
 - `ops_viewer`: read-only operational access.
 
-## 6) Integration Smoke Check
+## 7) Integration Smoke Check
 
 Run service wiring checks:
 
@@ -96,13 +121,13 @@ Checks:
 - Whatomate API connectivity
 - Webhook route and optional HTTP probe
 
-## 7) Health Endpoint
+## 8) Health Endpoint
 
 Application health endpoint:
 
 - `/healthz/`
 
-## 8) Retry Failed Queue
+## 9) Retry Failed Queue
 
 Use the dashboard button:
 
@@ -114,7 +139,7 @@ Or run manually:
 .\.venv\Scripts\python.exe manage.py process_whatsapp_queue --limit 50 --worker manual
 ```
 
-## 9) Nightly Backups (SQLite + Logs)
+## 10) Nightly Backups (SQLite + Logs)
 
 One-off backup:
 
@@ -146,7 +171,7 @@ Nightly script also runs runtime cleanup:
 .\.venv\Scripts\python.exe manage.py cleanup_runtime_files --heartbeat-days 30 --log-days 30
 ```
 
-## 10) Delivery Log CSV Export
+## 11) Delivery Log CSV Export
 
 Use the export button on:
 
@@ -154,7 +179,7 @@ Use the export button on:
 
 Filters are preserved in the exported file.
 
-## 11) Failed Queue Alerts (Email + WhatsApp)
+## 12) Failed Queue Alerts (Email + WhatsApp)
 
 Configure in `.env`:
 
@@ -176,7 +201,7 @@ UI test button:
 
 `run_whatsapp_queue_worker` and `process_whatsapp_queue` now run alert checks automatically by default.
 
-## 12) Dashboard System Status Card
+## 13) Dashboard System Status Card
 
 Home dashboard now shows:
 
@@ -191,7 +216,7 @@ These values come from heartbeat files under `logs/heartbeats/` and are updated 
 - `check_whatsapp_queue_alerts`
 - `backup_local_data`
 
-## 13) Audit Export CSV
+## 14) Audit Export CSV
 
 Use dashboard action:
 
@@ -207,7 +232,7 @@ Includes:
 - manual edits (`OrderActivityLog`)
 - WhatsApp resends (`WhatsAppNotificationLog`)
 
-## 14) Restore Dry-Run From Dashboard
+## 15) Restore Dry-Run From Dashboard
 
 Use dashboard action:
 
@@ -215,7 +240,7 @@ Use dashboard action:
 
 This checks the latest `backups/local_backup_*.zip` archive using `restore_local_data --dry-run`.
 
-## 15) Metrics Endpoint
+## 16) Metrics Endpoint
 
 Prometheus-style metrics endpoint:
 
@@ -228,7 +253,7 @@ Optional protection:
   - `Authorization: Bearer <token>`, or
   - `?token=<token>` query param.
 
-## 16) Error Digest
+## 17) Error Digest
 
 Console summary (last 24h):
 
@@ -242,7 +267,7 @@ Send digest email:
 .\.venv\Scripts\python.exe manage.py send_error_digest --hours 24 --send-email --email-to ops@example.com
 ```
 
-## 17) Incident Snapshot JSON
+## 18) Incident Snapshot JSON
 
 Export one JSON file with health + recent queue/log/activity:
 
@@ -256,7 +281,7 @@ Optional file target:
 .\.venv\Scripts\python.exe manage.py export_incident_snapshot --out-file c:\Ramc_Project\Codex_Project1\logs\incidents\manual_snapshot.json
 ```
 
-## 18) Webhook Stale Admin Banner
+## 19) Webhook Stale Admin Banner
 
 Dashboard shows warning banner for admin users when last webhook callback is older than:
 

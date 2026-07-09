@@ -3,8 +3,11 @@
 This project can now run on a Hostinger VPS with:
 
 - `web`: Django + Gunicorn
-- `worker`: WhatsApp queue worker
 - `db`: PostgreSQL 16
+- `redis`: Redis broker for Celery
+- `celery_worker`: Celery worker foundation
+- `celery_beat`: Celery Beat scheduler foundation
+- `worker`: existing WhatsApp queue worker fallback
 - `app_media`: persistent uploaded product images
 
 ## 1. Prepare the VPS
@@ -40,6 +43,9 @@ POSTGRES_PASSWORD=replace-with-a-strong-password
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 POSTGRES_CONN_MAX_AGE=60
+REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
 ```
 
 Also fill in your existing app settings such as:
@@ -66,11 +72,20 @@ This does the following automatically for the `web` container:
 
 Uploaded product images are stored in the Docker volume `app_media` and served from `/media/product-images/...`.
 
-The worker container starts:
+The existing WhatsApp fallback worker container starts:
 
 ```bash
 python manage.py run_whatsapp_queue_worker --interval 60 --limit 50 --worker docker
 ```
+
+The Celery foundation services also start:
+
+```bash
+celery -A Ram_codex1 worker --loglevel=INFO --queues=default,whatsapp
+celery -A Ram_codex1 beat --loglevel=INFO --schedule=/app/logs/celerybeat-schedule
+```
+
+At this stage, Celery Beat runs a safe healthcheck heartbeat. WhatsApp queue processing still uses the existing Django management-command worker until the next migration slice moves that workload to Celery.
 
 ## 4. Migrate existing SQLite data to Postgres
 

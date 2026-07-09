@@ -67,6 +67,7 @@ This file is the working memory for future Codex sessions. Read it before planni
 - `b316567` Add vendor WhatsApp delivery health card
 - `e392c71` Harden shared WooCommerce order routing
 - Pending/current: make order status updates queue WhatsApp without inline sending by default
+- Pending/current: add Redis/Celery foundation while keeping the WhatsApp management-command worker fallback
 
 ## Latest Implemented Slice
 
@@ -133,12 +134,21 @@ Design:
 - inline WhatsApp sending for status changes is disabled by default
 - the old inline status-send behavior is available only with `WHATSAPP_INLINE_STATUS_SEND_ENABLED=True`
 
+Current infrastructure slice: Redis/Celery foundation is being added without moving WhatsApp business logic yet.
+
+Design:
+- `redis` is the Celery broker/result backend in Docker
+- `celery_worker` and `celery_beat` are added as separate services
+- `core.tasks.celery_healthcheck` provides a safe scheduled heartbeat task
+- existing `run_whatsapp_queue_worker` remains the active WhatsApp queue worker fallback until a later migration slice
+
 ## Roadmap Direction
 
 Near-term priorities:
 - Continue mobile vendor UI hardening.
 - Keep shared WooCommerce/shared WhatsApp model clear in UI.
 - Keep status-update UI fast by queueing external notifications instead of waiting on WhatsApp sends.
+- Move background work to Celery gradually; do not remove the existing WhatsApp management-command worker until Celery processing is proven in production.
 - Keep improving product routing visibility and admin mapping diagnostics.
 - Add Android-ready REST API later as RC3, not before the current UI/production hardening is stable.
 - Keep tenant isolation and idempotency as highest-risk areas.

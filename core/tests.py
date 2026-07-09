@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.cache import cache
@@ -10597,6 +10598,22 @@ class StatusUpdateSoftLockTests(TestCase):
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertTrue(mock_cache_add.called)
         self.assertContains(response, "Duplicate status update blocked")
+
+
+class CeleryFoundationTests(TestCase):
+    def test_celery_app_uses_configured_broker_and_beat_schedule(self):
+        from Ram_codex1.celery import app as celery_app
+
+        self.assertEqual(celery_app.main, "Ram_codex1")
+        self.assertEqual(celery_app.conf.broker_url, settings.CELERY_BROKER_URL)
+        self.assertIn("celery-healthcheck-every-5-minutes", settings.CELERY_BEAT_SCHEDULE)
+
+    def test_celery_healthcheck_task_runs_without_external_services(self):
+        from core.tasks import celery_healthcheck
+
+        result = celery_healthcheck()
+
+        self.assertEqual(result, {"ok": True})
 
 
 class HealthEndpointTests(TestCase):

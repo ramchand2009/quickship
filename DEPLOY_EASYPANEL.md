@@ -1,10 +1,13 @@
 # Easypanel Deployment
 
-Use Easypanel with three services in the same project:
+Use Easypanel with these services in the same project:
 
 - `postgres`: Postgres service
+- `redis`: Redis service for Celery
 - `web`: App service for Django + Gunicorn
-- `worker`: App service for the WhatsApp queue worker
+- `celery-worker`: App service for Celery background tasks
+- `celery-beat`: App service for scheduled Celery tasks
+- `worker`: existing App service for the WhatsApp queue worker fallback
 
 You do not need to run the local `docker-compose.yml` inside Easypanel. Easypanel can build the app directly from this repository's `Dockerfile`.
 
@@ -21,7 +24,17 @@ Official docs:
 
 - https://easypanel.io/docs/services/postgres
 
-## 2. Create the `web` app service
+## 2. Create the Redis service
+
+In Easypanel, add a `Redis` service. Copy the internal Redis connection URL for the app services.
+
+Recommended environment value:
+
+```env
+REDIS_URL=redis://your_redis_host_from_easypanel:6379/0
+```
+
+## 3. Create the `web` app service
 
 Add an `App` service and connect it to your GitHub repo.
 
@@ -52,7 +65,27 @@ Official docs:
 - https://easypanel.io/docs/services/app
 - https://easypanel.io/docs/quickstarts/django
 
-## 3. Create the `worker` app service
+## 4. Create the Celery app services
+
+Add one `App` service for the Celery worker.
+
+Set the start command to:
+
+```bash
+celery -A Ram_codex1 worker --loglevel=INFO --queues=default,whatsapp
+```
+
+Add another `App` service for Celery Beat.
+
+Set the start command to:
+
+```bash
+celery -A Ram_codex1 beat --loglevel=INFO
+```
+
+These services do not need public domains.
+
+## 5. Create the `worker` fallback app service
 
 Add a second `App` service from the same repository.
 
@@ -69,9 +102,11 @@ python manage.py run_whatsapp_queue_worker --interval 60 --limit 50 --worker eas
 
 This service does not need a public domain.
 
-## 4. Environment variables
+This is still the active WhatsApp queue processor until a later migration slice moves WhatsApp processing to Celery.
 
-Add the same environment variables to both `web` and `worker`.
+## 6. Environment variables
+
+Add the same environment variables to `web`, `worker`, `celery-worker`, and `celery-beat`.
 
 Minimum recommended values:
 
@@ -91,6 +126,10 @@ POSTGRES_PASSWORD=your_db_password
 POSTGRES_HOST=your_postgres_host_from_easypanel
 POSTGRES_PORT=5432
 POSTGRES_CONN_MAX_AGE=60
+
+REDIS_URL=redis://your_redis_host_from_easypanel:6379/0
+CELERY_BROKER_URL=redis://your_redis_host_from_easypanel:6379/0
+CELERY_RESULT_BACKEND=redis://your_redis_host_from_easypanel:6379/0
 ```
 
 Also add your existing app variables:
@@ -107,7 +146,7 @@ Note:
 - Easypanel makes environment variables available at build time and runtime.
 - If you ever see stale database connection errors after the app sits idle, try `POSTGRES_CONN_MAX_AGE=0`. This is a Django-side adjustment based on Easypanel's container idle-connection behavior.
 
-## 5. Migrations and static files
+## 7. Migrations and static files
 
 Before the first public release, open the Easypanel terminal for the `web` service and run:
 
@@ -124,7 +163,7 @@ python manage.py check
 python manage.py preflight_check
 ```
 
-## 6. Move existing SQLite data into Postgres
+## 8. Move existing SQLite data into Postgres
 
 From your current project copy, export data:
 
@@ -146,7 +185,7 @@ Recommended order:
 4. Load `data.json`.
 5. Start `worker`.
 
-## 7. Domain and SSL
+## 9. Domain and SSL
 
 Attach your domain to the `web` service in Easypanel and enable SSL there.
 
@@ -157,7 +196,7 @@ DJANGO_SECURE_SSL_REDIRECT=true
 DJANGO_USE_X_FORWARDED_PROTO=true
 ```
 
-## 8. Notes for this repo
+## 10. Notes for this repo
 
 Relevant files already prepared for this deployment:
 

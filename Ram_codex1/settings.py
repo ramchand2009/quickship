@@ -279,6 +279,23 @@ LOGIN_LOCKOUT_DURATION_SECONDS = int(os.environ.get("LOGIN_LOCKOUT_DURATION_SECO
 WEBHOOK_STALE_MINUTES = int(os.environ.get("WEBHOOK_STALE_MINUTES", "30") or 30)
 METRICS_TOKEN = os.environ.get("METRICS_TOKEN", "")
 
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", REDIS_URL)
+CELERY_TASK_DEFAULT_QUEUE = os.environ.get("CELERY_TASK_DEFAULT_QUEUE", "default")
+CELERY_TASK_TIME_LIMIT = int(os.environ.get("CELERY_TASK_TIME_LIMIT", "300") or 300)
+CELERY_TASK_SOFT_TIME_LIMIT = int(os.environ.get("CELERY_TASK_SOFT_TIME_LIMIT", "240") or 240)
+CELERY_WORKER_PREFETCH_MULTIPLIER = int(os.environ.get("CELERY_WORKER_PREFETCH_MULTIPLIER", "1") or 1)
+CELERY_TASK_ACKS_LATE = _env_bool("CELERY_TASK_ACKS_LATE", True)
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    "celery-healthcheck-every-5-minutes": {
+        "task": "core.tasks.celery_healthcheck",
+        "schedule": int(os.environ.get("CELERY_HEALTHCHECK_INTERVAL_SECONDS", "300") or 300),
+    },
+}
+
 LOG_DIR = BASE_DIR / "logs"
 try:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
