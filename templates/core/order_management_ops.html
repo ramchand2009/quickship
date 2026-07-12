@@ -1388,12 +1388,6 @@
                     {% include "core/_ops_mobile_notification_bell.html" %}
                 {% endif %}
             </div>
-            <div class="ops-mobile-toolbar">
-                <form method="get" action="{% url 'order_management' %}" class="flex-grow-1">
-                    <input type="hidden" name="tab" value="{{ active_tab }}">
-                    <input type="text" name="q" value="{{ filters.q }}" class="ops-mobile-search" placeholder="Search by Order # or Customer">
-                </form>
-            </div>
         </div>
 
         <div class="ops-mobile-active-tab-label">Selected: {{ active_tab_label|default:"All" }}</div>

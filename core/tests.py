@@ -911,6 +911,7 @@ class TenantFoundationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Vendor order routing health")
         self.assertNotContains(response, "Product routing")
+        self.assertNotContains(response, "Search by Order # or Customer")
         self.assertContains(response, "TENANT-A-WOO-ROUTE")
         self.assertNotContains(response, "TENANT-B-WOO-ROUTE")
         self.assertNotContains(response, "Other Vendor Routed Product")
