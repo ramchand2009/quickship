@@ -838,7 +838,7 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, own_order.shiprocket_order_id)
         self.assertNotContains(response, other_order.shiprocket_order_id)
 
-    def test_vendor_order_management_shows_tenant_scoped_product_routing_health(self):
+    def test_vendor_order_management_hides_product_routing_diagnostics(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
             user=self.vendor_user,
@@ -909,20 +909,15 @@ class TenantFoundationTests(TestCase):
         response = self.client.get(reverse("order_management"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Vendor order routing health")
-        self.assertContains(response, "Orders route from the shared store to this vendor")
-        self.assertContains(response, "1 active product(s)")
-        self.assertContains(response, "1 product ID(s), 1 routing rule(s)")
-        self.assertContains(response, "Shared WooCommerce store")
-        self.assertContains(response, "Shared WhatsApp sender")
-        self.assertContains(response, "Managed by platform")
+        self.assertNotContains(response, "Vendor order routing health")
+        self.assertNotContains(response, "Product routing")
         self.assertContains(response, "TENANT-A-WOO-ROUTE")
         self.assertNotContains(response, "TENANT-B-WOO-ROUTE")
         self.assertNotContains(response, "Other Vendor Routed Product")
         self.assertNotContains(response, "Connect WooCommerce")
         self.assertNotContains(response, "consumer_key")
 
-    def test_vendor_order_management_shows_safe_whatsapp_delivery_health(self):
+    def test_vendor_order_management_hides_whatsapp_delivery_health(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
             user=self.vendor_user,
@@ -982,15 +977,9 @@ class TenantFoundationTests(TestCase):
         response = self.client.get(reverse("order_management"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "WhatsApp updates")
-        self.assertContains(response, "Shared WhatsApp sender")
-        self.assertContains(response, "Managed by platform")
-        self.assertContains(response, "Message payloads and API credentials are hidden")
-        self.assertContains(response, "Attention")
-        self.assertContains(response, "<span>Failed</span>", html=True)
-        self.assertContains(response, "<strong>1</strong>", html=True)
-        self.assertContains(response, "<span>Pending</span>", html=True)
-        self.assertContains(response, "<span>Retrying</span>", html=True)
+        self.assertNotContains(response, "WhatsApp updates")
+        self.assertNotContains(response, "Shared WhatsApp sender")
+        self.assertNotContains(response, "Message payloads and API credentials are hidden")
         self.assertContains(response, own_order.shiprocket_order_id)
         self.assertNotContains(response, other_order.shiprocket_order_id)
         self.assertNotContains(response, "provider secret failure")

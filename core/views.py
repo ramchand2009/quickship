@@ -2537,8 +2537,6 @@ def order_management(request):
         "bulk_cancel_reason_choices": ShiprocketOrder.CANCELLATION_REASON_CHOICES,
         "activity_by_order_id": activity_by_order_id,
         "saved_view_rows": saved_view_rows,
-        "vendor_product_routing_health": _vendor_product_routing_health(get_active_tenant(request)) if ops_mobile_mode else None,
-        "vendor_whatsapp_delivery_health": _vendor_whatsapp_delivery_health(get_active_tenant(request)) if ops_mobile_mode else None,
         "undo_context": _get_order_management_undo_context(request),
         "advanced_filters_active": bool(
             filters.get("order_id")
