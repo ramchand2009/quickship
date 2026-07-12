@@ -514,36 +514,6 @@
 
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
-    .ops-mobile-shell .ops-mobile-topbar {
-        min-height: 56px;
-        padding: 0.45rem 1rem;
-    }
-
-    .ops-mobile-shell .ops-mobile-topbar-row {
-        grid-template-columns: minmax(0, 1fr) 40px;
-        gap: 0.65rem;
-    }
-
-    .ops-mobile-shell .ops-mobile-topbar h1 {
-        font-size: 1.2rem;
-        line-height: 1.5rem;
-    }
-
-    .ops-mobile-shell .ops-mobile-topbar-control {
-        width: 40px;
-        height: 40px;
-    }
-
-    .ops-mobile-shell .ops-mobile-topbar-control svg {
-        width: 21px;
-        height: 21px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
     .ops-mobile-tabs {
         display: flex;
         gap: 0.5rem;
@@ -1395,6 +1365,7 @@
     <section class="ops-mobile-shell">
         <div class="ops-mobile-topbar">
             <div class="ops-mobile-topbar-row">
+                <span class="ops-mobile-topbar-control is-hidden" aria-hidden="true"></span>
                 <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
                 {% if can_sync_orders %}
                     <form method="post" action="{% url 'sync_orders' %}">

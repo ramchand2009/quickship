@@ -19,7 +19,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-header {
-    padding: 1rem 1rem 1.25rem;
+    padding: 0.85rem 1rem 0.9rem;
 }
 
 .ops-home-eyebrow {
@@ -34,13 +34,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-title {
     margin: 0.1rem 0 0;
     color: #1a1b21;
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.75rem;
+    font-size: 1.18rem;
+    font-weight: 750;
+    line-height: 1.5rem;
 }
 
 .ops-home-header p {
-    margin: 0.25rem 0 0;
+    margin: 0.18rem 0 0;
     color: #444651;
     line-height: 1.5;
 }
@@ -52,13 +52,13 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-sales-card {
-    margin: 0 1rem 0.75rem;
-    padding: 1rem;
+    margin: 0 1rem 0.65rem;
+    padding: 0.95rem 1rem;
     border: 1px solid #1e3a8a;
-    border-radius: 0.5rem;
+    border-radius: 0.85rem;
     background: #1e3a8a;
     color: #ffffff;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    box-shadow: 0 8px 20px rgba(30, 58, 138, 0.16);
 }
 
 .ops-home-sales-label {
@@ -72,7 +72,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-sales-value {
     display: block;
     margin-top: 0.35rem;
-    font-size: 1.7rem;
+    font-size: clamp(1.35rem, 6vw, 1.7rem);
     font-weight: 800;
     line-height: 1.1;
 }
@@ -98,13 +98,14 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-bottom: 1.75rem;
+    gap: 0.6rem;
+    margin-bottom: 1.1rem;
 }
 
 .ops-home-card {
     background: #ffffff;
     border: 1px solid #c5c5d3;
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     box-shadow: 0 1px 3px rgba(0,0,0,.05);
     overflow: hidden;
 }
@@ -128,10 +129,10 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-card-link {
     display: flex;
-    min-height: 110px;
+    min-height: 88px;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1rem;
+    padding: 0.8rem 0.85rem;
     color: inherit;
 }
 
@@ -147,7 +148,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     display: block;
     margin-top: 0.25rem;
     color: #1a1b21;
-    font-size: 1.55rem;
+    font-size: 1.4rem;
     font-weight: 800;
     line-height: 1;
 }
@@ -219,9 +220,41 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-stock-card {
     background: #ffffff;
     border: 1px solid #c5c5d3;
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     box-shadow: 0 1px 3px rgba(0,0,0,.05);
     padding: 0.9rem 1rem;
+}
+
+.ops-home-settlement-card {
+    margin: 0 1rem 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #d8dbe5;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.ops-home-settlement-card strong {
+    display: block;
+    color: #111827;
+    font-size: 0.9rem;
+}
+
+.ops-home-settlement-card span {
+    display: block;
+    margin-top: 0.2rem;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.ops-home-settlement-card a {
+    display: inline-flex;
+    margin-top: 0.65rem;
+    color: #00236f;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-decoration: none;
 }
 
 .ops-home-stock-row {
@@ -373,9 +406,9 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
             {% if can_manage_current_vendor_settings %}
-                <a href="{% url 'vendor_profile' %}" class="ops-mobile-topbar-control" aria-label="Vendor profile"><i class="fas fa-user-cog"></i></a>
+                <a href="{% url 'vendor_profile' %}" class="ops-mobile-topbar-control" aria-label="Vendor profile"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/><path d="m18 8 .8.8 1.2-.2.4 1.2-1 .7.1 1.2-1.2.4-.7 1-.8-.8-1.2.2-.4-1.2 1-.7-.1-1.2 1.2-.4.7-1Z"/></svg></a>
             {% else %}
-                <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
+                <span class="ops-mobile-topbar-control is-hidden" aria-hidden="true"></span>
             {% endif %}
             <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
             {% include "core/_ops_mobile_notification_bell.html" %}
@@ -414,10 +447,10 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         {% endfor %}
     </div>
 
-    <div class="ops-home-sales-card">
-        <span class="ops-home-sales-label">Settlement</span>
-        <span class="ops-home-sales-meta">Sales, profit payout, and internal expense tracking for your vendor account.</span>
-        <a href="{% url 'vendor_settlements' %}" class="btn btn-light btn-sm mt-3 w-100">Open Settlement Report</a>
+    <div class="ops-home-settlement-card">
+        <strong>Settlement report</strong>
+        <span>Review sales, profit payout, and internal expenses.</span>
+        <a href="{% url 'vendor_settlements' %}">Open report &rarr;</a>
     </div>
 
     {% if vendor_issue_alerts.has_issues %}
