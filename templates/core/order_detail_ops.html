@@ -38,8 +38,8 @@
     .ops-detail-stepper {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.5rem;
-        padding: 1rem 1rem 0.4rem;
+        gap: 0.35rem;
+        padding: 0.75rem 0.85rem 0.25rem;
     }
 
     .ops-detail-step {
@@ -47,9 +47,9 @@
         text-align: center;
         background: #e9e7ef;
         color: #444651;
-        font-size: 0.72rem;
+        font-size: 0.66rem;
         font-weight: 700;
-        padding: 0.55rem 0.25rem;
+        padding: 0.42rem 0.18rem;
         border-radius: 999px;
     }
 
@@ -60,17 +60,25 @@
     }
 
     .ops-detail-body {
-        padding: 0.75rem 1rem 1rem;
+        padding: 0.6rem 0.85rem 1rem;
         display: grid;
-        gap: 0.75rem;
+        gap: 0.65rem;
     }
 
     .ops-detail-card {
         background: #fff;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border: 1px solid #c5c5d3;
+        border-radius: 0.85rem;
+        padding: 0.9rem;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        border: 1px solid #d8dbe5;
+    }
+
+    .ops-detail-actions-card {
+        order: 2;
+    }
+
+    .ops-detail-products-card {
+        order: 3;
     }
 
     .ops-detail-headline {
@@ -78,7 +86,8 @@
         justify-content: space-between;
         gap: 1rem;
         color: #444651;
-        font-size: 0.82rem;
+        font-size: 0.74rem;
+        font-weight: 650;
     }
 
     .ops-detail-order-row {
@@ -86,14 +95,14 @@
         justify-content: space-between;
         gap: 1rem;
         align-items: center;
-        margin-top: 0.9rem;
-        padding-bottom: 1rem;
+        margin-top: 0.55rem;
+        padding-bottom: 0.7rem;
         border-bottom: 1px solid #c5c5d3;
     }
 
     .ops-detail-order-row h2 {
         margin: 0;
-        font-size: 1rem;
+        font-size: 1.05rem;
         color: #1a1b21;
         font-weight: 700;
     }
@@ -113,34 +122,52 @@
     }
 
     .ops-detail-section-title {
-        margin: 1.05rem 0 0.8rem;
-        font-size: 1.05rem;
+        margin: 0.78rem 0 0.5rem;
+        font-size: 0.82rem;
         font-weight: 800;
         color: #00236f;
     }
 
     .ops-detail-address {
         color: #444651;
-        font-size: 1rem;
-        line-height: 1.55;
+        font-size: 0.88rem;
+        line-height: 1.45;
     }
 
     .ops-detail-contact-actions {
         display: flex;
-        gap: 0.7rem;
-        margin-top: 1rem;
+        gap: 0.55rem;
+        margin-top: 0.7rem;
     }
 
     .ops-detail-contact-actions a {
-        width: 52px;
-        height: 52px;
+        width: 44px;
+        height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 0.5rem;
         text-decoration: none;
-        font-size: 1.3rem;
+        font-size: 1.1rem;
         font-weight: 700;
+    }
+
+    .ops-detail-contact-actions svg,
+    .ops-detail-topbar-icon {
+        width: 21px;
+        height: 21px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .ops-detail-payment-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        margin-top: 0.75rem;
     }
 
     .ops-detail-contact-actions .is-whatsapp {
@@ -154,21 +181,39 @@
     }
 
     .ops-detail-inline-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: center;
-        padding: 1rem 0;
-        border-top: 1px solid rgba(148, 163, 184, 0.25);
+        display: block;
+        min-width: 0;
+        padding: 0.7rem;
+        border: 1px solid #e2e4eb;
+        border-radius: 0.65rem;
+        background: #f8f9fc;
     }
 
     .ops-detail-pill {
         display: inline-flex;
-        padding: 0.5rem 0.85rem;
-        border-radius: 0.5rem;
-        background: #dce1ff;
+        margin-top: 0.3rem;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
         color: #00236f;
         font-weight: 700;
+    }
+
+    .ops-detail-financial-details {
+        margin-top: 0.65rem;
+        border-top: 1px solid #e2e4eb;
+    }
+
+    .ops-detail-financial-details summary {
+        padding: 0.7rem 0 0.05rem;
+        color: #00236f;
+        font-size: 0.8rem;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .ops-detail-financial-details .ops-detail-inline-row {
+        margin-top: 0.55rem;
     }
 
     .ops-detail-edit-note {
@@ -248,15 +293,15 @@
 
     .ops-detail-item {
         display: grid;
-        grid-template-columns: 88px minmax(0, 1fr) auto;
-        gap: 0.9rem;
+        grid-template-columns: 64px minmax(0, 1fr) auto;
+        gap: 0.7rem;
         align-items: start;
-        padding: 1rem 0 0;
+        padding: 0.75rem 0 0;
     }
 
     .ops-detail-thumb {
-        width: 88px;
-        height: 88px;
+        width: 64px;
+        height: 64px;
         border-radius: 0.5rem;
         background: #1e3a8a;
         color: #fff;
@@ -264,7 +309,7 @@
         align-items: center;
         justify-content: center;
         font-weight: 700;
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         overflow: hidden;
     }
 
@@ -275,28 +320,28 @@
     }
 
     .ops-detail-item-name {
-        font-size: 1.05rem;
+        font-size: 0.92rem;
         font-weight: 700;
         color: #1a1b21;
-        margin-bottom: 0.45rem;
+        margin-bottom: 0.2rem;
     }
 
     .ops-detail-item-variant {
         color: #444651;
-        font-size: 0.98rem;
+        font-size: 0.78rem;
     }
 
     .ops-detail-item-price {
         text-align: right;
         color: #1f2933;
         font-weight: 700;
-        font-size: 1rem;
+        font-size: 0.86rem;
     }
 
     .ops-detail-item-qty {
         display: inline-flex;
-        margin-top: 0.75rem;
-        padding: 0.4rem 0.7rem;
+        margin-top: 0.4rem;
+        padding: 0.25rem 0.5rem;
         border-radius: 0.5rem;
         background: #e9e7ef;
         color: #444651;
@@ -769,8 +814,8 @@
     .ops-detail-action-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.8rem;
-        margin-top: 1rem;
+        gap: 0.6rem;
+        margin-top: 0.7rem;
     }
 
     .ops-detail-action-grid form {
@@ -779,9 +824,9 @@
 
     .ops-detail-action-btn {
         border: 0;
-        border-radius: 0.5rem;
-        padding: 0.95rem 0.8rem;
-        font-size: 1rem;
+        border-radius: 0.65rem;
+        padding: 0.82rem 0.7rem;
+        font-size: 0.88rem;
         font-weight: 700;
         width: 100%;
     }
@@ -794,6 +839,12 @@
     .ops-detail-action-btn.is-secondary {
         background: #e9e7ef;
         color: #444651;
+    }
+
+    .ops-detail-action-btn.is-danger {
+        border: 1px solid #fecaca;
+        background: #fff7f7;
+        color: #b42318;
     }
 
     .ops-detail-empty-actions {
@@ -822,10 +873,10 @@
 <div class="ops-detail-shell">
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
-            <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-mobile-topbar-control" aria-label="Back to orders">&#8592;</a>
+            <a href="{% url 'order_management' %}{% if return_tab %}?tab={{ return_tab }}{% endif %}" class="ops-mobile-topbar-control" aria-label="Back to orders"><svg class="ops-detail-topbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
             <h1>#{{ order.channel_order_id|default:order.shiprocket_order_id }}</h1>
             <a href="{% url 'stock_management' %}" class="ops-mobile-topbar-control" aria-label="Open stock">
-                <i class="fas fa-boxes"></i>
+                <svg class="ops-detail-topbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h8v7H3zM13 4h8v7h-8zM3 13h8v7H3zM13 13h8v7h-8z"/></svg>
             </a>
         </div>
     </div>
@@ -840,15 +891,14 @@
     <div class="ops-detail-body">
         <div class="ops-detail-card">
             <div class="ops-detail-headline">
-                <span>{{ order.order_date|date:"d-m-Y g:i a" }}</span>
-                <span>{{ order.channel_order_id|default:"" }}</span>
+                <span>Placed {{ order.order_date|date:"d M Y, g:i a" }}</span>
             </div>
             <div class="ops-detail-order-row">
-                <h2>Order Id: {{ order.channel_order_id|default:order.shiprocket_order_id }}</h2>
+                <h2>{{ order.display_shipping_address.name|default:order.customer_name|default:"Customer" }}</h2>
                 <div class="ops-detail-status-badge">{{ order.get_local_status_display }}</div>
             </div>
 
-            <div class="ops-detail-section-title">Delivery Details</div>
+            <div class="ops-detail-section-title">Customer &amp; delivery</div>
             <div class="ops-detail-address">
                 <div>{{ order.display_shipping_address.name|default:"-" }}</div>
                 <div>{{ order.display_shipping_address.phone|default:"-" }}</div>
@@ -864,11 +914,12 @@
 
             <div class="ops-detail-contact-actions">
                 {% if order.display_shipping_address.phone %}
-                    <a href="https://wa.me/{{ order.display_shipping_address.phone|cut:'+' }}" target="_blank" rel="noopener" class="is-whatsapp" aria-label="WhatsApp customer"><i class="fab fa-whatsapp"></i></a>
-                    <a href="tel:{{ order.display_shipping_address.phone }}" class="is-phone" aria-label="Call customer"><i class="fas fa-phone"></i></a>
+                    <a href="https://wa.me/{{ order.display_shipping_address.phone|cut:'+' }}" target="_blank" rel="noopener" class="is-whatsapp" aria-label="WhatsApp customer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4A8 8 0 1 1 20 11.5Z"/><path d="M9 8.5c.5 2.5 2 4 4.5 5l1.5-1 2 1.5c-.5 2-2 2.5-4 2-3.5-1-6-3.5-7-7-.5-2 .5-3.5 2-4l1.5 2-1 1.5Z"/></svg></a>
+                    <a href="tel:{{ order.display_shipping_address.phone }}" class="is-phone" aria-label="Call customer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3h3l1.5 5-2 1.5a15 15 0 0 0 5.5 5.5l1.5-2 5 1.5v3A3.5 3.5 0 0 1 17.5 21C9.5 20.5 3.5 14.5 3 6.5A3.5 3.5 0 0 1 6.5 3Z"/></svg></a>
                 {% endif %}
             </div>
 
+            <div class="ops-detail-payment-grid">
             <div class="ops-detail-inline-row">
                 <div>
                     <div class="fw-semibold">Payment Method</div>
@@ -887,6 +938,9 @@
                     {% endif %}
                 </div>
             </div>
+            </div>
+            <details class="ops-detail-financial-details">
+                <summary>Financial details</summary>
             <div class="ops-detail-inline-row">
                 <div>
                     <div class="fw-semibold">Shipping Total</div>
@@ -908,11 +962,12 @@
                 </div>
                 <div class="ops-detail-pill">Rs {{ profit_summary.profit_amount|floatformat:2 }}</div>
             </div>
+            </details>
         </div>
 
-        <div class="ops-detail-card">
+        <div class="ops-detail-card ops-detail-products-card">
             <div class="ops-detail-items-head">
-                <h5 class="mb-0">Order Details</h5>
+                <h5 class="mb-0">Products</h5>
                 <span>{{ order.order_items|length }} Items</span>
             </div>
 
@@ -953,7 +1008,7 @@
         </div>
 
         <div class="ops-detail-card ops-detail-actions-card">
-            <h5 class="mb-0">Order Actions</h5>
+            <h5 class="mb-0">Next actions</h5>
             {% if can_update_order_status and not order.payment_received_at and order.local_status == 'order_accepted' or can_update_order_status and not order.payment_received_at and order.local_status == 'order_packed' %}
                 <div class="ops-detail-action-grid">
                     <form method="post" action="{% url 'send_order_payment_reminder' order.pk %}">
