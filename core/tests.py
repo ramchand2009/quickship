@@ -8504,11 +8504,12 @@ class RoleAccessTests(TestCase):
         response = self.client.get(reverse("order_management"), {"tab": "cancelled"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Selected: Cancelled")
+        self.assertNotContains(response, "Selected: Cancelled")
         self.assertContains(response, "Cancelled Tab Customer")
         self.assertNotContains(response, "Pending Tab Customer")
         self.assertContains(response, 'class="ops-mobile-tab is-active"', html=False)
         self.assertContains(response, "<strong>Cancelled</strong>", html=False)
+        self.assertNotContains(response, "View Details")
 
     def test_ops_viewer_order_management_shows_grouped_tab_counts(self):
         ShiprocketOrder.objects.create(
