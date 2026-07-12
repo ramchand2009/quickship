@@ -289,10 +289,20 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = int(os.environ.get("CELERY_WORKER_PREFETCH_M
 CELERY_TASK_ACKS_LATE = _env_bool("CELERY_TASK_ACKS_LATE", True)
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_WHATSAPP_QUEUE_ENABLED = _env_bool("CELERY_WHATSAPP_QUEUE_ENABLED", False)
+CELERY_WHATSAPP_QUEUE_INTERVAL_SECONDS = int(
+    os.environ.get("CELERY_WHATSAPP_QUEUE_INTERVAL_SECONDS", "60") or 60
+)
+CELERY_WHATSAPP_QUEUE_LIMIT = int(os.environ.get("CELERY_WHATSAPP_QUEUE_LIMIT", "50") or 50)
 CELERY_BEAT_SCHEDULE = {
     "celery-healthcheck-every-5-minutes": {
         "task": "core.tasks.celery_healthcheck",
         "schedule": int(os.environ.get("CELERY_HEALTHCHECK_INTERVAL_SECONDS", "300") or 300),
+    },
+    "process-whatsapp-queue": {
+        "task": "core.tasks.process_whatsapp_queue",
+        "schedule": CELERY_WHATSAPP_QUEUE_INTERVAL_SECONDS,
+        "options": {"queue": "whatsapp"},
     },
 }
 

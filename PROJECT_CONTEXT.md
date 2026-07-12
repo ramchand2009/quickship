@@ -141,6 +141,7 @@ Design:
 - `celery_worker` and `celery_beat` are added as separate services
 - `core.tasks.celery_healthcheck` provides a safe scheduled heartbeat task
 - existing `run_whatsapp_queue_worker` remains the active WhatsApp queue worker fallback until a later migration slice
+- `core.tasks.process_whatsapp_queue` reuses the existing locked/idempotent database queue processor and is feature-gated by `CELERY_WHATSAPP_QUEUE_ENABLED`; enable it only when stopping the fallback worker
 
 ## Roadmap Direction
 

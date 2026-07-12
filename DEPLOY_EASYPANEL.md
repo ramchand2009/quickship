@@ -102,7 +102,7 @@ python manage.py run_whatsapp_queue_worker --interval 60 --limit 50 --worker eas
 
 This service does not need a public domain.
 
-This is still the active WhatsApp queue processor until a later migration slice moves WhatsApp processing to Celery.
+Keep this service running while `CELERY_WHATSAPP_QUEUE_ENABLED=false`. After the Celery worker and Beat health checks are proven, set `CELERY_WHATSAPP_QUEUE_ENABLED=true` on all app services, redeploy them, and stop (do not immediately delete) this fallback service. Do not run both processors intentionally.
 
 ## 6. Environment variables
 
@@ -130,6 +130,9 @@ POSTGRES_CONN_MAX_AGE=60
 REDIS_URL=redis://your_redis_host_from_easypanel:6379/0
 CELERY_BROKER_URL=redis://your_redis_host_from_easypanel:6379/0
 CELERY_RESULT_BACKEND=redis://your_redis_host_from_easypanel:6379/0
+CELERY_WHATSAPP_QUEUE_ENABLED=false
+CELERY_WHATSAPP_QUEUE_INTERVAL_SECONDS=60
+CELERY_WHATSAPP_QUEUE_LIMIT=50
 ```
 
 Also add your existing app variables:

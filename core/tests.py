@@ -10607,6 +10607,9 @@ class CeleryFoundationTests(TestCase):
         self.assertEqual(celery_app.main, "Ram_codex1")
         self.assertEqual(celery_app.conf.broker_url, settings.CELERY_BROKER_URL)
         self.assertIn("celery-healthcheck-every-5-minutes", settings.CELERY_BEAT_SCHEDULE)
+        whatsapp_schedule = settings.CELERY_BEAT_SCHEDULE["process-whatsapp-queue"]
+        self.assertEqual(whatsapp_schedule["task"], "core.tasks.process_whatsapp_queue")
+        self.assertEqual(whatsapp_schedule["options"]["queue"], "whatsapp")
 
     def test_celery_healthcheck_task_runs_without_external_services(self):
         from core.tasks import celery_healthcheck
@@ -10614,6 +10617,52 @@ class CeleryFoundationTests(TestCase):
         result = celery_healthcheck()
 
         self.assertEqual(result, {"ok": True})
+
+    @override_settings(CELERY_WHATSAPP_QUEUE_ENABLED=False)
+    @patch("core.tasks.process_whatsapp_notification_queue")
+    def test_whatsapp_task_is_safe_noop_until_enabled(self, mock_process):
+        from core.tasks import process_whatsapp_queue
+
+        result = process_whatsapp_queue()
+
+        self.assertEqual(result, {"enabled": False, "processed": 0})
+        mock_process.assert_not_called()
+
+    @override_settings(CELERY_WHATSAPP_QUEUE_ENABLED=True, CELERY_WHATSAPP_QUEUE_LIMIT=25)
+    @patch("core.tasks.write_system_heartbeat")
+    @patch("core.tasks.check_and_send_failed_queue_alert")
+    @patch("core.tasks.process_whatsapp_notification_queue")
+    def test_whatsapp_task_processes_existing_queue_and_alerts(
+        self,
+        mock_process,
+        mock_alert,
+        mock_heartbeat,
+    ):
+        from core.tasks import process_whatsapp_queue
+
+        mock_process.return_value = {
+            "picked": 1,
+            "processed": 1,
+            "success": 1,
+            "retried": 0,
+            "failed": 0,
+            "worker": "celery",
+            "specific_job_id": None,
+        }
+        mock_alert.return_value = {
+            "status": "below_threshold",
+            "failed_count": 0,
+            "email_sent": 0,
+            "whatsapp_sent": 0,
+        }
+
+        result = process_whatsapp_queue()
+
+        mock_process.assert_called_once_with(limit=25, worker_name="celery")
+        mock_alert.assert_called_once_with(worker_name="celery")
+        self.assertEqual(mock_heartbeat.call_count, 2)
+        self.assertTrue(result["enabled"])
+        self.assertEqual(result["success"], 1)
 
 
 class HealthEndpointTests(TestCase):
