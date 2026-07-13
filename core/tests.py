@@ -9176,8 +9176,12 @@ class RoleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Ship Order")
+        self.assertContains(response, "Ship order")
         self.assertContains(response, "Tracking ID / AWB Number")
         self.assertContains(response, "Enter tracking ID manually")
+        self.assertContains(response, "Save &amp; Ship Order")
+        self.assertContains(response, "height: 100dvh")
+        self.assertContains(response, "max-width: 560px")
         self.assertNotContains(response, "Scan Barcode")
         self.assertNotContains(response, "opsScannerPanel")
         self.assertNotContains(response, "Courier Partner")

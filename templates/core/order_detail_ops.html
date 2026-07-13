@@ -373,13 +373,27 @@
     .ops-tracking-screen {
         position: fixed;
         inset: 0;
-        z-index: 100;
+        z-index: 20000;
         display: none;
+        width: 100%;
+        max-width: 100vw;
+        height: 100dvh;
         min-height: 100vh;
         overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
         background: #faf8ff;
         color: #1a1b21;
-        padding-bottom: 5rem;
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+
+    .ops-tracking-screen,
+    .ops-tracking-screen * {
+        box-sizing: border-box;
+    }
+
+    body.ops-tracking-open {
+        overflow: hidden;
     }
 
     .ops-tracking-screen.is-open {
@@ -390,44 +404,62 @@
         position: sticky;
         top: 0;
         z-index: 2;
-        min-height: 64px;
+        min-height: 56px;
         display: flex;
         align-items: center;
-        gap: 0.85rem;
-        padding: 0.75rem 1rem;
+        gap: 0.65rem;
+        padding: 0.4rem 0.75rem;
         border-bottom: 1px solid #c5c5d3;
-        background: #faf8ff;
+        background: rgba(250, 248, 255, 0.96);
+        backdrop-filter: blur(12px);
     }
 
     .ops-tracking-back {
+        flex: 0 0 44px;
         width: 44px;
         height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         border: 0;
+        border-radius: 999px;
         background: transparent;
         color: #00236f;
-        font-size: 1.9rem;
-        line-height: 1;
+    }
+
+    .ops-tracking-back svg {
+        width: 23px;
+        height: 23px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
     }
 
     .ops-tracking-header h2 {
         margin: 0;
         color: #00236f;
-        font-size: 1.2rem;
+        min-width: 0;
+        font-size: 1.08rem;
         font-weight: 800;
         line-height: 1.35;
     }
 
     .ops-tracking-content {
         display: grid;
-        gap: 1.45rem;
-        padding: 1.25rem 1rem 1rem;
+        gap: 1rem;
+        width: 100%;
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 1rem 0.9rem max(1rem, env(safe-area-inset-bottom));
     }
 
     .ops-tracking-order-card {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 1rem;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+        padding: 0.85rem;
         border: 1px solid #c5c5d3;
         border-radius: 0.5rem;
         background: #fff;
@@ -454,13 +486,16 @@
     .ops-tracking-order-card strong {
         display: block;
         color: #00236f;
-        font-size: 1.3rem;
-        line-height: 1.55rem;
+        font-size: 1.05rem;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
     }
 
     .ops-tracking-customer {
         text-align: right;
         font-weight: 700;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
     }
 
     .ops-courier-grid {
@@ -502,12 +537,13 @@
 
     .ops-tracking-input {
         width: 100%;
-        min-height: 56px;
+        max-width: 100%;
+        min-height: 52px;
         border: 1px solid #c5c5d3;
         border-radius: 0.5rem;
         background: #fff;
         color: #1a1b21;
-        font-size: 1.05rem;
+        font-size: 1rem;
         font-weight: 700;
         letter-spacing: 0.04em;
         padding: 0.9rem 3.4rem 0.9rem 1rem;
@@ -578,9 +614,13 @@
     }
 
     .ops-tracking-actions {
+        position: sticky;
+        bottom: 0;
         display: grid;
-        gap: 0.75rem;
-        padding-top: 0.4rem;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.65rem;
+        padding: 0.7rem 0 max(0.25rem, env(safe-area-inset-bottom));
+        background: linear-gradient(to bottom, rgba(250, 248, 255, 0), #faf8ff 22%);
     }
 
     .ops-tracking-save,
@@ -595,12 +635,47 @@
         border: 0;
         background: #00236f;
         color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding-inline: 1rem;
+    }
+
+    .ops-tracking-save svg {
+        width: 19px;
+        height: 19px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
     }
 
     .ops-tracking-cancel {
         border: 1px solid #006a61;
         background: transparent;
         color: #006a61;
+        min-width: 92px;
+        padding-inline: 1rem;
+    }
+
+    @media (max-width: 360px) {
+        .ops-tracking-order-card {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .ops-tracking-customer {
+            text-align: left;
+        }
+
+        .ops-tracking-actions {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .ops-tracking-cancel {
+            min-width: 0;
+        }
     }
 
     .ops-detail-tracking-wrap {
@@ -1077,8 +1152,8 @@
 
     <div class="ops-tracking-screen" id="opsTrackingScreen" aria-hidden="true">
         <div class="ops-tracking-header">
-            <button type="button" class="ops-tracking-back" id="opsTrackingBackButton" aria-label="Back to order details">&#8592;</button>
-            <h2>Update Tracking Information</h2>
+            <button type="button" class="ops-tracking-back" id="opsTrackingBackButton" aria-label="Back to order details"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+            <h2>Ship order</h2>
         </div>
         <div class="ops-tracking-content">
             <section class="ops-tracking-order-card">
@@ -1110,7 +1185,7 @@
             </section>
 
             <div class="ops-tracking-actions">
-                <button type="button" class="ops-tracking-save" id="opsTrackingSaveButton"><i class="far fa-save me-2"></i>Save &amp; Update Status</button>
+                <button type="button" class="ops-tracking-save" id="opsTrackingSaveButton"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7 10 17l-5-5"/></svg><span>Save &amp; Ship Order</span></button>
                 <button type="button" class="ops-tracking-cancel" id="opsTrackingCancelButton">Cancel</button>
             </div>
         </div>
@@ -1222,6 +1297,7 @@ document.addEventListener("DOMContentLoaded", function () {
             trackingScreen.classList.add("is-open");
             trackingScreen.setAttribute("aria-hidden", "false");
         }
+        document.body.classList.add("ops-tracking-open");
         if (trackingScreenInput) {
             window.setTimeout(function () {
                 trackingScreenInput.focus();
@@ -1234,6 +1310,7 @@ document.addEventListener("DOMContentLoaded", function () {
             trackingScreen.classList.remove("is-open");
             trackingScreen.setAttribute("aria-hidden", "true");
         }
+        document.body.classList.remove("ops-tracking-open");
         pendingShipButton = null;
         setTrackingScreenError("");
     };
@@ -1692,6 +1769,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         if (shippingBaseInput) {
             shippingBaseInput.value = shippingBaseValue.toFixed(2);
+        }
+        if (trackingSaveButton) {
+            trackingSaveButton.disabled = true;
+            trackingSaveButton.setAttribute("aria-busy", "true");
+            trackingSaveButton.classList.add("is-submitting", "is-submitting-primary");
+            trackingSaveButton.textContent = "Updating shipment…";
         }
         if (pendingShipButton) {
             pendingShipButton.setAttribute("data-tracking-confirmed", "true");
