@@ -1,20 +1,20 @@
 .ops-mobile-bottomnav {
     position: fixed;
-    left: 0.75rem;
-    right: 0.75rem;
-    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 95;
-    min-height: 68px;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(203, 213, 225, 0.92);
-    border-radius: 1.35rem;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+    min-height: 64px;
+    background: #ffffff;
+    border-top: 1px solid #dbe3ef;
+    border-radius: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.05);
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0.18rem;
-    padding: 0.3rem 0.32rem calc(0.32rem + env(safe-area-inset-bottom));
+    padding: 0.22rem 0.4rem calc(0.22rem + env(safe-area-inset-bottom));
 }
 
 .ops-mobile-bottomnav a,
@@ -31,13 +31,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 1rem;
-    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    border-radius: 0.9rem;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
 
 .ops-mobile-bottomnav a:hover,
 .ops-mobile-bottomnav button:hover {
-    background: rgba(226, 232, 240, 0.72);
+    background: rgba(226, 232, 240, 0.56);
 }
 
 .ops-mobile-bottomnav a:active,
@@ -45,15 +45,20 @@
     transform: scale(0.95);
 }
 
+.ops-mobile-bottomnav a.is-loading,
+.ops-mobile-bottomnav button.is-loading {
+    opacity: 0.65;
+}
+
 .ops-mobile-bottomnav form {
     margin: 0;
 }
 
 .ops-mobile-bottomnav .is-active {
-    background: linear-gradient(180deg, #e9f0ff 0%, #eef4ff 100%);
+    background: #eef4ff;
     color: #0b2f6b;
     font-weight: 700;
-    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.72);
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.62);
 }
 
 .ops-mobile-bottomnav button:disabled {
@@ -94,11 +99,6 @@
 }
 
 @media (max-width: 420px) {
-    .ops-mobile-bottomnav {
-        left: 0.55rem;
-        right: 0.55rem;
-    }
-
     .ops-mobile-bottomnav-label {
         font-size: 0.64rem;
     }

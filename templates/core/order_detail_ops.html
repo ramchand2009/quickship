@@ -396,16 +396,18 @@
 
     .ops-detail-item {
         display: grid;
-        grid-template-columns: 72px minmax(0, 1fr) auto;
+        grid-template-columns: 84px minmax(0, 1fr);
         gap: 0.85rem;
         align-items: start;
-        padding: 0.95rem 0;
+        padding: 1rem 0;
         border-bottom: 1px solid #e5e7eb;
+        content-visibility: auto;
+        contain-intrinsic-size: 116px;
     }
 
     .ops-detail-thumb {
-        width: 72px;
-        height: 72px;
+        width: 84px;
+        height: 84px;
         border-radius: 0.7rem;
         background: #e5e7eb;
         color: #fff;
@@ -423,6 +425,18 @@
         object-fit: cover;
     }
 
+    .ops-detail-item-body {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.8rem;
+        align-items: start;
+    }
+
+    .ops-detail-item-copy {
+        min-width: 0;
+    }
+
     .ops-detail-item-name {
         font-size: 0.98rem;
         font-weight: 700;
@@ -433,27 +447,42 @@
 
     .ops-detail-item-variant {
         color: #64748b;
-        font-size: 0.78rem;
+        font-size: 0.82rem;
         overflow-wrap: anywhere;
+        line-height: 1.35;
+    }
+
+    .ops-detail-item-meta {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.55rem;
     }
 
     .ops-detail-item-price {
         text-align: right;
         color: #111827;
-        font-weight: 500;
-        font-size: 0.96rem;
+        font-weight: 600;
+        font-size: 1rem;
+        line-height: 1.15;
     }
 
     .ops-detail-item-qty {
         display: inline-flex;
-        margin-top: 0.4rem;
         padding: 0.32rem 0.58rem;
         border-radius: 0.45rem;
         background: #f3f4f6;
         border: 0;
         color: #475569;
         font-size: 0.82rem;
-        font-weight: 500;
+        font-weight: 600;
+    }
+
+    .ops-detail-item-body > .ops-detail-item-qty {
+        grid-column: 2;
+        justify-self: end;
+        margin-top: -0.15rem;
     }
 
     .ops-detail-stock-alert {
@@ -1126,6 +1155,20 @@
             align-items: stretch;
         }
 
+        .ops-detail-item-body {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .ops-detail-item-meta {
+            align-items: flex-start;
+        }
+
+        .ops-detail-item-body > .ops-detail-item-qty {
+            grid-column: 1;
+            justify-self: start;
+            margin-top: 0;
+        }
+
         .ops-detail-payment-grid,
         .ops-detail-action-grid {
             grid-template-columns: 1fr;
@@ -1270,13 +1313,24 @@
                             {{ item.name|default:"P"|slice:":1"|upper }}
                         {% endif %}
                     </div>
-                    <div>
-                        <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
-                        <div class="ops-detail-item-variant">{{ item.sku|default:"" }}</div>
-                        <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
-                    </div>
-                    <div class="ops-detail-item-price">
+                    <div class="ops-detail-item-body">
+                        <div class="ops-detail-item-copy">
+                            <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
+                            <div class="ops-detail-item-variant">
+                            {% if item.sku %}{{ item.sku }}{% endif %}
+                            {% if item.variation_name %}
+                                {% if item.sku %}<br>{% endif %}
+                                {{ item.variation_name }}
+                            {% endif %}
+                            </div>
+                        </div>
+                        <div class="ops-detail-item-meta">
+                            <div class="ops-detail-item-price">
                         ₹{{ item.price|floatformat:0|default:"0" }}
+                    </div>
+                </div>
+                            <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
+                        </div>
                     </div>
                 </div>
             {% empty %}

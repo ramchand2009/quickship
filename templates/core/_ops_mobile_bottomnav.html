@@ -1,21 +1,21 @@
 <div class="ops-mobile-bottomnav">
-    <a href="{% url 'home' %}" class="{% if ops_mobile_nav_active == 'home' %}is-active{% endif %}">
+    <a href="{% url 'home' %}" data-ops-nav-link class="{% if ops_mobile_nav_active == 'home' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/><path d="M9.5 21v-7h5v7"/></svg></span>
         <span class="ops-mobile-bottomnav-label">Home</span>
     </a>
-    <a href="{% url 'order_management' %}?tab=all" class="{% if ops_mobile_nav_active == 'orders' %}is-active{% endif %}">
+    <a href="{% url 'order_management' %}?tab=all" data-ops-nav-link class="{% if ops_mobile_nav_active == 'orders' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 4-4h10l4 4-3 4H6L3 7Z"/><path d="M6 11v9h12v-9"/><path d="M9 7h6"/></svg></span>
         <span class="ops-mobile-bottomnav-label">Orders</span>
     </a>
-    <a href="{% url 'stock_management' %}" class="{% if ops_mobile_nav_active == 'stock' %}is-active{% endif %}">
+    <a href="{% url 'stock_management' %}" data-ops-nav-link class="{% if ops_mobile_nav_active == 'stock' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h8v7H3zM13 4h8v7h-8zM3 13h8v7H3zM13 13h8v7h-8z"/></svg></span>
         <span class="ops-mobile-bottomnav-label">Stock</span>
     </a>
-    <a href="{% url 'special_stock_issue_register' %}" class="{% if ops_mobile_nav_active == 'issue' %}is-active{% endif %}">
+    <a href="{% url 'special_stock_issue_register' %}" data-ops-nav-link class="{% if ops_mobile_nav_active == 'issue' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18v12H3zM2 5h20v4H2zM12 5v16"/><path d="M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/></svg></span>
         <span class="ops-mobile-bottomnav-label">Entry</span>
     </a>
-    <a href="{% url 'expense_tracker' %}" class="{% if ops_mobile_nav_active == 'expenses' %}is-active{% endif %}">
+    <a href="{% url 'expense_tracker' %}" data-ops-nav-link class="{% if ops_mobile_nav_active == 'expenses' %}is-active{% endif %}">
         <span class="ops-mobile-bottomnav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H19v16H5.5A2.5 2.5 0 0 1 3 17.5v-11Z"/><path d="M3 7h16M15 11h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M17.5 13.5h.01"/></svg></span>
         <span class="ops-mobile-bottomnav-label">Expenses</span>
     </a>
@@ -34,3 +34,19 @@
         </a>
     {% endif %}
 </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var navLinks = document.querySelectorAll("[data-ops-nav-link]");
+    if (!navLinks.length) {
+        return;
+    }
+    navLinks.forEach(function (link) {
+        link.addEventListener("click", function () {
+            navLinks.forEach(function (item) {
+                item.classList.remove("is-loading");
+            });
+            link.classList.add("is-loading");
+        });
+    });
+});
+</script>
