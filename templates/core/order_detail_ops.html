@@ -1383,8 +1383,8 @@
                                 {% endif %}
                             </div>
                             <div class="ops-detail-item-body">
-                        <div class="ops-detail-item-copy">
-                            <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
+                                <div class="ops-detail-item-copy">
+                                    <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
                                     <div class="ops-detail-item-variant">
                                         {% if item.sku %}{{ item.sku }}{% endif %}
                                         {% if item.variation_name %}
@@ -1392,16 +1392,16 @@
                                             {{ item.variation_name }}
                                         {% endif %}
                                     </div>
+                                </div>
+                                <div class="ops-detail-item-meta">
+                                    <div class="ops-detail-item-price">&#8377;{{ item.price|floatformat:0|default:"0" }}</div>
+                                    <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="ops-detail-item-meta">
-                            <div class="ops-detail-item-price">&#8377;{{ item.price|floatformat:0|default:"0" }}</div>
-                            <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
-                        </div>
-                    </div>
-                </div>
                     {% endif %}
-            {% empty %}
-                <p class="mb-0 mt-3 text-muted">No order items available.</p>
+                {% empty %}
+                    <p class="mb-0 mt-3 text-muted">No order items available.</p>
                 {% endfor %}
             {% endwith %}
 
