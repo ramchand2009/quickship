@@ -1129,6 +1129,7 @@ class WhatsAppNotificationLog(models.Model):
     TRIGGER_PAYMENT_REMINDER = "payment_reminder"
     TRIGGER_TEST_MESSAGE = "test_message"
     TRIGGER_TEST_TEMPLATE = "test_template"
+    TRIGGER_QUEUE_ALERT = "queue_alert"
     TRIGGER_WEBHOOK_STATUS = "webhook_status"
     TRIGGER_WEBHOOK_INCOMING = "webhook_incoming"
     TRIGGER_CHOICES = [
@@ -1137,6 +1138,7 @@ class WhatsAppNotificationLog(models.Model):
         (TRIGGER_PAYMENT_REMINDER, "Payment Reminder"),
         (TRIGGER_TEST_MESSAGE, "Test Message"),
         (TRIGGER_TEST_TEMPLATE, "Test Template"),
+        (TRIGGER_QUEUE_ALERT, "Queue Alert"),
         (TRIGGER_WEBHOOK_STATUS, "Webhook Status"),
         (TRIGGER_WEBHOOK_INCOMING, "Webhook Incoming"),
     ]

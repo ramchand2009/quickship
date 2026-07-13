@@ -123,7 +123,10 @@ from .queue_alerts import send_queue_alert_test
 from .push_notifications import send_new_order_push_notification, web_push_is_configured
 from .product_text import clean_product_description
 from .system_status import get_dashboard_system_status, write_system_heartbeat
-from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
+from .whatsapp_queue import (
+    enqueue_generic_whatsapp_notification,
+    enqueue_whatsapp_notification,
+)
 from .woocommerce import (
     WooCommerceAPIError,
     check_connection as check_woocommerce_connection,
@@ -142,10 +145,6 @@ from .whatomate import (
     build_order_template_context,
     check_api_connection,
     resolve_phone_number_from_contact_id,
-    send_no_order_found_reply,
-    send_order_enquiry_reply,
-    send_test_template_message,
-    send_test_whatsapp_message,
     sync_templates_from_api,
 )
 
@@ -879,53 +878,18 @@ def _status_update_soft_lock_key(*, order_id, actor, target_status, session_key=
     return f"status-update-lock:{order_id}:{actor_key}:{session_text}:{status_key}"
 
 
-def _attempt_inline_queue_send(queue_job, *, actor="", source="ui"):
-    job_id = getattr(queue_job, "pk", None)
-    if not job_id:
-        return None
+def _request_celery_whatsapp_run(*, limit, worker_name, include_not_due=False, tenant=None):
+    from .tasks import process_whatsapp_queue
 
-    actor_text = str(actor or "").strip()
-    worker_name = f"inline_{source}"
-    if actor_text:
-        worker_name = f"{worker_name}:{actor_text}"
-
-    try:
-        process_whatsapp_notification_queue(
-            limit=1,
-            worker_name=worker_name,
-            specific_job_id=job_id,
-            include_not_due=True,
-            tenant=getattr(queue_job, "tenant", None),
-        )
-    except Exception:
-        return None
-
-    return WhatsAppNotificationQueue.objects.filter(pk=job_id).first()
-
-
-def _should_send_status_whatsapp_inline():
-    return bool(getattr(settings, "WHATSAPP_INLINE_STATUS_SEND_ENABLED", False))
-
-
-def _process_queue_once(*, limit, worker_name, include_not_due=False, tenant=None):
-    summary = process_whatsapp_notification_queue(
-        limit=max(1, int(limit or 20)),
-        worker_name=str(worker_name or "manual").strip() or "manual",
-        include_not_due=bool(include_not_due),
-        tenant=tenant,
-    )
-    write_system_heartbeat(
-        "queue_worker",
-        metadata={
-            "worker": summary["worker"],
-            "picked": int(summary.get("picked", 0)),
-            "processed": int(summary.get("processed", 0)),
-            "success": int(summary.get("success", 0)),
-            "retried": int(summary.get("retried", 0)),
-            "failed": int(summary.get("failed", 0)),
+    return process_whatsapp_queue.apply_async(
+        kwargs={
+            "limit": max(1, int(limit or 20)),
+            "worker_name": str(worker_name or "celery_manual").strip() or "celery_manual",
+            "include_not_due": bool(include_not_due),
+            "tenant_id": getattr(tenant, "pk", None),
         },
+        queue="whatsapp",
     )
-    return summary
 
 
 def _dashboard_status_url(status_key):
@@ -5082,6 +5046,7 @@ def whatsapp_settings(request):
                     "status": str(result.get("status") or ""),
                     "email_sent": int(result.get("email_sent") or 0),
                     "whatsapp_sent": int(result.get("whatsapp_sent") or 0),
+                    "whatsapp_queued": int(result.get("whatsapp_queued") or 0),
                 },
             )
             if result.get("status") == "sent":
@@ -5090,7 +5055,7 @@ def whatsapp_settings(request):
                     (
                         "Queue alert test sent. "
                         f"Email: {int(result.get('email_sent') or 0)} "
-                        f"WhatsApp: {int(result.get('whatsapp_sent') or 0)}."
+                        f"WhatsApp queued: {int(result.get('whatsapp_queued') or 0)}."
                     ),
                 )
             elif result.get("status") == "no_targets":
@@ -5100,29 +5065,15 @@ def whatsapp_settings(request):
             return redirect("whatsapp_settings")
 
         if action == "process_queue_once":
-            summary = process_whatsapp_notification_queue(
+            celery_result = _request_celery_whatsapp_run(
                 limit=max(1, int(request.POST.get("limit") or 20)),
                 worker_name=f"ui_settings:{_request_actor(request) or 'manual'}",
                 include_not_due=bool(_is_truthy(request.POST.get("include_not_due"))),
                 tenant=active_tenant,
             )
-            write_system_heartbeat(
-                "queue_worker",
-                metadata={
-                    "worker": summary["worker"],
-                    "picked": int(summary.get("picked", 0)),
-                    "processed": int(summary.get("processed", 0)),
-                    "success": int(summary.get("success", 0)),
-                    "retried": int(summary.get("retried", 0)),
-                    "failed": int(summary.get("failed", 0)),
-                },
-            )
             messages.success(
                 request,
-                (
-                    f"Queue processed. picked={summary['picked']} processed={summary['processed']} "
-                    f"success={summary['success']} retried={summary['retried']} failed={summary['failed']}."
-                ),
+                f"WhatsApp queue processing assigned to Celery (Task {celery_result.id}).",
             )
             return redirect("whatsapp_settings")
 
@@ -5248,31 +5199,21 @@ def whatsapp_settings(request):
                     test_phone = (saved_settings.test_phone_number or "").strip()
                     test_message = (saved_settings.test_message_text or "").strip()
                     try:
-                        send_result = send_test_whatsapp_message(
+                        enqueue_result = enqueue_generic_whatsapp_notification(
+                            trigger=WhatsAppNotificationLog.TRIGGER_TEST_MESSAGE,
                             phone_number=test_phone,
-                            message_text=test_message,
-                            config_overrides=overrides,
+                            payload={"kind": "test_message", "message_text": test_message},
                             tenant=whats_app_tenant,
+                            initiated_by=_request_actor(request),
+                            idempotency_key=f"test-message:{uuid4().hex}",
                         )
-                    except WhatomateNotificationError as exc:
-                        _create_whatsapp_log(
-                            trigger=WhatsAppNotificationLog.TRIGGER_TEST_MESSAGE,
-                            request=request,
-                            result={"phone_number": test_phone, "mode": "text"},
-                            is_success=False,
-                            error_message=str(exc),
-                        )
-                        messages.error(request, f"Test message failed: {exc}")
+                    except Exception as exc:
+                        messages.error(request, f"Test message could not be queued: {exc}")
                     else:
-                        _create_whatsapp_log(
-                            trigger=WhatsAppNotificationLog.TRIGGER_TEST_MESSAGE,
-                            request=request,
-                            result=send_result,
-                            is_success=True,
-                        )
+                        queue_job = enqueue_result.get("job")
                         messages.success(
                             request,
-                            f"Test message sent to {send_result.get('phone_number', test_phone)}.",
+                            f"Test message queued for {test_phone} (Job #{queue_job.pk}).",
                         )
                     return redirect("whatsapp_settings")
 
@@ -5281,39 +5222,25 @@ def whatsapp_settings(request):
                     template_name = (saved_settings.test_template_name or "").strip()
                     template_params = (saved_settings.test_template_params or "").strip()
                     try:
-                        send_result = send_test_template_message(
+                        enqueue_result = enqueue_generic_whatsapp_notification(
+                            trigger=WhatsAppNotificationLog.TRIGGER_TEST_TEMPLATE,
                             phone_number=test_phone,
+                            payload={"kind": "test_template", "template_params": template_params},
                             template_name=template_name,
-                            template_params=template_params,
-                            config_overrides=overrides,
                             tenant=whats_app_tenant,
+                            initiated_by=_request_actor(request),
+                            idempotency_key=f"test-template:{uuid4().hex}",
+                            mode="template",
                         )
-                    except WhatomateNotificationError as exc:
-                        _create_whatsapp_log(
-                            trigger=WhatsAppNotificationLog.TRIGGER_TEST_TEMPLATE,
-                            request=request,
-                            result={
-                                "phone_number": test_phone,
-                                "mode": "template",
-                                "template_name": template_name,
-                            },
-                            is_success=False,
-                            error_message=str(exc),
-                        )
-                        messages.error(request, f"Template test failed: {exc}")
+                    except Exception as exc:
+                        messages.error(request, f"Template test could not be queued: {exc}")
                     else:
-                        _create_whatsapp_log(
-                            trigger=WhatsAppNotificationLog.TRIGGER_TEST_TEMPLATE,
-                            request=request,
-                            result=send_result,
-                            is_success=True,
-                        )
+                        queue_job = enqueue_result.get("job")
                         messages.success(
                             request,
                             (
-                                "Template test message sent to "
-                                f"{send_result.get('phone_number', test_phone)} "
-                                f"using {send_result.get('template_name', template_name)}."
+                                "Template test message queued for "
+                                f"{test_phone} using {template_name} (Job #{queue_job.pk})."
                             ),
                         )
                     return redirect("whatsapp_settings")
@@ -6693,28 +6620,14 @@ def admin_utilities(request):
         actor = _request_actor(request) or "manual"
 
         if action == "process_queue_once":
-            summary = process_whatsapp_notification_queue(
+            celery_result = _request_celery_whatsapp_run(
                 limit=max(1, int(request.POST.get("limit") or 20)),
                 worker_name=f"admin_utilities:{actor}",
                 include_not_due=bool(_is_truthy(request.POST.get("include_not_due"))),
             )
-            write_system_heartbeat(
-                "queue_worker",
-                metadata={
-                    "worker": summary["worker"],
-                    "picked": int(summary.get("picked", 0)),
-                    "processed": int(summary.get("processed", 0)),
-                    "success": int(summary.get("success", 0)),
-                    "retried": int(summary.get("retried", 0)),
-                    "failed": int(summary.get("failed", 0)),
-                },
-            )
             messages.success(
                 request,
-                (
-                    f"Queue processed. picked={summary['picked']} processed={summary['processed']} "
-                    f"success={summary['success']} retried={summary['retried']} failed={summary['failed']}."
-                ),
+                f"WhatsApp queue processing assigned to Celery (Task {celery_result.id}).",
             )
             return redirect("admin_utilities")
 
@@ -7292,55 +7205,43 @@ def whatomate_webhook(request):
 
     order = _resolve_order_for_webhook(order_id_text, normalized_phone, idempotency_key)
     if is_incoming_message_event:
-        enquiry_success = False
-        enquiry_result = {
-            "phone_number": normalized_phone,
-            "incoming_message_text": incoming_message_text,
-            "webhook_event_id": webhook_event_id,
-            "idempotency_key": idempotency_key,
-            "response_payload": payload,
-        }
+        enquiry_queued = False
+        queue_job = None
         enquiry_error = ""
 
         try:
-            if order:
-                reply_result = send_order_enquiry_reply(
-                    order,
-                    incoming_phone_number=normalized_phone,
-                    inbound_message_text=incoming_message_text,
-                )
-            else:
-                reply_result = send_no_order_found_reply(
-                    normalized_phone,
-                    inbound_message_text=incoming_message_text,
-                )
-                enquiry_result["lookup_result"] = "no_order_found"
-            enquiry_success = bool(reply_result.get("sent"))
-            enquiry_result.update(reply_result)
+            message_kind = "order_enquiry_reply" if order else "no_order_found_reply"
+            queue_result = enqueue_generic_whatsapp_notification(
+                trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
+                phone_number=normalized_phone,
+                payload={
+                    "kind": message_kind,
+                    "incoming_message_text": incoming_message_text,
+                    "webhook_event_id": webhook_event_id,
+                    "lookup_result": "order_found" if order else "no_order_found",
+                },
+                tenant=getattr(order, "tenant", None),
+                order=order,
+                initiated_by="whatomate_webhook",
+                idempotency_key=(
+                    f"webhook-reply:{webhook_event_id or idempotency_key}"
+                    if (webhook_event_id or idempotency_key)
+                    else ""
+                ),
+            )
+            queue_job = queue_result.get("job")
+            enquiry_queued = bool(queue_result.get("queued") or queue_result.get("reason") == "duplicate_pending")
         except Exception as exc:
             enquiry_error = str(exc)
-            if not order and "lookup_result" not in enquiry_result:
-                enquiry_result["lookup_result"] = "no_order_found"
-
-        _create_whatsapp_log(
-            trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
-            request=request,
-            order=order,
-            previous_status=order.local_status if order else "",
-            current_status=order.local_status if order else "",
-            result=enquiry_result,
-            is_success=enquiry_success,
-            error_message=enquiry_error,
-        )
         log_order_activity(
             order=order,
             shiprocket_order_id=order.shiprocket_order_id if order else order_id_text,
             event_type=OrderActivityLog.EVENT_WHATSAPP_WEBHOOK,
             title="WhatsApp customer enquiry received",
             description=(
-                "Auto-reply sent with latest order update."
-                if enquiry_success
-                else enquiry_error or "Customer enquiry received but auto-reply was not sent."
+                f"Auto-reply queued for Celery delivery (Job #{queue_job.pk})."
+                if enquiry_queued and queue_job
+                else enquiry_error or "Customer enquiry received but auto-reply could not be queued."
             ),
             previous_status=order.local_status if order else "",
             current_status=order.local_status if order else "",
@@ -7348,8 +7249,9 @@ def whatomate_webhook(request):
                 "webhook_event_id": webhook_event_id,
                 "incoming_message_text": incoming_message_text,
                 "phone_number": normalized_phone,
+                "queue_job_id": getattr(queue_job, "pk", None),
             },
-            is_success=enquiry_success,
+            is_success=enquiry_queued,
             triggered_by="whatomate_webhook",
         )
         return JsonResponse(
@@ -7359,7 +7261,9 @@ def whatomate_webhook(request):
                 "event_type": normalized_event_type,
                 "phone_number": normalized_phone,
                 "webhook_event_id": webhook_event_id,
-                "replied": enquiry_success,
+                "replied": False,
+                "reply_queued": enquiry_queued,
+                "queue_job_id": getattr(queue_job, "pk", None),
                 "error": enquiry_error,
             }
         )
@@ -8047,58 +7951,16 @@ def update_shiprocket_order_status(request, pk):
             else:
                 if enqueue_result.get("queued"):
                     queue_job = enqueue_result.get("job")
-                    processed_job = None
-                    if _should_send_status_whatsapp_inline():
-                        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="status_change")
-                    if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
-                        success_message = (
-                            f"Order moved to the selected tab. WhatsApp update sent successfully (Job #{processed_job.pk})."
-                        )
-                    elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
-                        error_text = str(processed_job.last_error or "Unknown error").strip()
-                        messages.warning(
-                            request,
-                            f"Order moved, but WhatsApp send failed for Job #{processed_job.pk}: {error_text}",
-                        )
-                    elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
-                        messages.warning(
-                            request,
-                            f"Order moved, but WhatsApp send failed for Job #{processed_job.pk}. Retry is scheduled.",
-                        )
-                    elif queue_job:
+                    if queue_job:
                         success_message = f"Order moved to the selected tab. WhatsApp update queued (Job #{queue_job.pk})."
                 else:
                     reason = str(enqueue_result.get("reason") or "").strip()
                     queue_job = enqueue_result.get("job")
                     if reason == "duplicate_pending" and queue_job:
-                        processed_job = None
-                        if _should_send_status_whatsapp_inline():
-                            processed_job = _attempt_inline_queue_send(
-                                queue_job,
-                                actor=actor,
-                                source="status_change_duplicate",
-                            )
-                        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
-                            success_message = (
-                                "Order moved to the selected tab. "
-                                f"Queued WhatsApp update sent successfully (Job #{processed_job.pk})."
-                            )
-                        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
-                            error_text = str(processed_job.last_error or "Unknown error").strip()
-                            messages.warning(
-                                request,
-                                f"Order moved, but queued WhatsApp send failed for Job #{processed_job.pk}: {error_text}",
-                            )
-                        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
-                            messages.warning(
-                                request,
-                                f"Order moved, but matching WhatsApp update is still retrying (Job #{processed_job.pk}).",
-                            )
-                        else:
-                            success_message = (
-                                "Order moved to the selected tab. "
-                                f"Matching WhatsApp update is already queued (Job #{queue_job.pk})."
-                            )
+                        success_message = (
+                            "Order moved to the selected tab. "
+                            f"Matching WhatsApp update is already queued (Job #{queue_job.pk})."
+                        )
                     elif reason == "already_sent":
                         success_message = "Order moved to the selected tab. Duplicate WhatsApp update was skipped."
                     elif reason not in {"not_configured", "disabled"} and reason:
@@ -8165,23 +8027,6 @@ def resend_shiprocket_order_whatsapp(request, pk):
 
     if enqueue_result.get("queued"):
         queue_job = enqueue_result.get("job")
-        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="resend")
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
-            messages.success(request, f"WhatsApp resend sent successfully (Job #{processed_job.pk}).")
-            return redirect(redirect_url)
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
-            error_text = str(processed_job.last_error or "Unknown error").strip()
-            messages.warning(
-                request,
-                f"WhatsApp resend failed for Job #{processed_job.pk}: {error_text}",
-            )
-            return redirect(redirect_url)
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
-            messages.warning(
-                request,
-                f"WhatsApp resend queued (Job #{processed_job.pk}) but send failed. Retry is scheduled.",
-            )
-            return redirect(redirect_url)
         if queue_job:
             messages.success(request, f"WhatsApp resend queued (Job #{queue_job.pk}).")
         else:
@@ -8191,22 +8036,7 @@ def resend_shiprocket_order_whatsapp(request, pk):
     reason = str(enqueue_result.get("reason") or "").strip()
     queue_job = enqueue_result.get("job")
     if reason == "duplicate_pending" and queue_job:
-        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="resend_duplicate")
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
-            messages.success(request, f"Queued WhatsApp resend sent successfully (Job #{processed_job.pk}).")
-        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
-            error_text = str(processed_job.last_error or "Unknown error").strip()
-            messages.warning(
-                request,
-                f"Queued WhatsApp resend failed for Job #{processed_job.pk}: {error_text}",
-            )
-        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
-            messages.warning(
-                request,
-                f"Matching WhatsApp resend is still retrying (Job #{processed_job.pk}).",
-            )
-        else:
-            messages.warning(request, f"Matching WhatsApp resend is already queued (Job #{queue_job.pk}).")
+        messages.warning(request, f"Matching WhatsApp resend is already queued (Job #{queue_job.pk}).")
     elif reason == "already_sent":
         messages.info(request, "Same status notification was already sent. Duplicate resend skipped.")
     elif reason == "not_configured":
@@ -8265,16 +8095,7 @@ def send_order_payment_reminder(request, pk):
 
     queue_job = enqueue_result.get("job")
     if enqueue_result.get("queued") and queue_job:
-        processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="payment_reminder")
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
-            messages.success(request, f"Payment reminder sent successfully (Job #{processed_job.pk}).")
-        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
-            error_text = str(processed_job.last_error or "Unknown error").strip()
-            messages.warning(request, f"Payment reminder failed for Job #{processed_job.pk}: {error_text}")
-        elif processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
-            messages.warning(request, f"Payment reminder queued (Job #{processed_job.pk}); retry is scheduled.")
-        else:
-            messages.success(request, f"Payment reminder queued (Job #{queue_job.pk}).")
+        messages.success(request, f"Payment reminder queued (Job #{queue_job.pk}).")
         return redirect(redirect_url)
 
     reason = str(enqueue_result.get("reason") or "").strip()
@@ -8352,8 +8173,6 @@ def bulk_resend_shiprocket_order_whatsapp(request):
         return redirect(redirect_url)
 
     queued_count = 0
-    sent_count = 0
-    retrying_count = 0
     failed_count = 0
     skipped_count = 0
     examples = []
@@ -8384,27 +8203,6 @@ def bulk_resend_shiprocket_order_whatsapp(request):
             )
             continue
 
-        queue_job = enqueue_result.get("job")
-        processed_job = None
-        if queue_job:
-            processed_job = _attempt_inline_queue_send(queue_job, actor=actor, source="bulk_resend")
-
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_SUCCESS:
-            sent_count += 1
-            if len(examples) < 5:
-                examples.append(f"{order.shiprocket_order_id}: sent")
-            continue
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_RETRYING:
-            retrying_count += 1
-            if len(examples) < 5:
-                examples.append(f"{order.shiprocket_order_id}: retry scheduled")
-            continue
-        if processed_job and processed_job.status == WhatsAppNotificationQueue.STATUS_FAILED:
-            failed_count += 1
-            if len(examples) < 5:
-                examples.append(f"{order.shiprocket_order_id}: {processed_job.last_error or 'failed'}")
-            continue
-
         if enqueue_result.get("queued"):
             queued_count += 1
             if len(examples) < 5:
@@ -8417,7 +8215,7 @@ def bulk_resend_shiprocket_order_whatsapp(request):
             if len(examples) < 5:
                 examples.append(f"{order.shiprocket_order_id}: already sent")
         elif reason == "duplicate_pending":
-            retrying_count += 1
+            skipped_count += 1
             if len(examples) < 5:
                 examples.append(f"{order.shiprocket_order_id}: already queued")
         else:
@@ -8426,8 +8224,7 @@ def bulk_resend_shiprocket_order_whatsapp(request):
                 examples.append(f"{order.shiprocket_order_id}: {reason or 'skipped'}")
 
     summary = (
-        f"Bulk resend done. Sent={sent_count} queued={queued_count} retrying={retrying_count} "
-        f"failed={failed_count} skipped={skipped_count}."
+        f"Bulk resend queued. queued={queued_count} failed={failed_count} skipped={skipped_count}."
     )
     if examples:
         summary = f"{summary} Examples: {' | '.join(examples)}"
@@ -8452,7 +8249,7 @@ def process_whatsapp_queue_now(request):
         return redirect(redirect_url)
 
     actor = _request_actor(request) or "manual"
-    summary = _process_queue_once(
+    celery_result = _request_celery_whatsapp_run(
         limit=request.POST.get("limit") or 20,
         worker_name=f"ui_queue_now:{actor}",
         include_not_due=_is_truthy(request.POST.get("include_not_due")),
@@ -8460,10 +8257,7 @@ def process_whatsapp_queue_now(request):
     )
     messages.success(
         request,
-        (
-            f"Queue processed. picked={summary['picked']} processed={summary['processed']} "
-            f"success={summary['success']} retried={summary['retried']} failed={summary['failed']}."
-        ),
+        f"WhatsApp queue processing assigned to Celery (Task {celery_result.id}).",
     )
     return redirect(redirect_url)
 
@@ -8495,18 +8289,17 @@ def retry_failed_whatsapp_queue(request):
         last_error="",
         result_payload={},
     )
-    process_limit = max(1, int(request.POST.get("limit") or 50))
-    summary = process_whatsapp_notification_queue(
-        limit=process_limit,
+    celery_result = _request_celery_whatsapp_run(
+        limit=max(1, int(request.POST.get("limit") or 50)),
         worker_name=f"retry_failed:{actor or 'manual'}",
+        include_not_due=True,
         tenant=_active_whatsapp_tenant(request),
     )
     messages.success(
         request,
         (
-            f"Retried failed WhatsApp jobs: reset={failed_count} "
-            f"processed={summary['processed']} success={summary['success']} "
-            f"retried={summary['retried']} failed={summary['failed']}."
+            f"Reset {failed_count} failed WhatsApp jobs and assigned processing "
+            f"to Celery (Task {celery_result.id})."
         ),
     )
     return redirect(redirect_url)

@@ -6,8 +6,6 @@ from django.core.mail import send_mail
 from django.utils import timezone
 
 from .models import WhatsAppNotificationQueue
-from .whatomate import WhatomateNotificationError, send_test_whatsapp_message
-
 logger = logging.getLogger(__name__)
 
 _ALERT_CACHE_KEY = "whatsapp_queue_failed_alert_last_sent"
@@ -52,7 +50,7 @@ def _build_alert_test_message(worker_name):
 
 def _dispatch_alert(subject, message_text, email_targets, whatsapp_targets, from_email):
     email_sent = 0
-    whatsapp_sent = 0
+    whatsapp_queued = 0
     for recipient in email_targets:
         try:
             send_mail(
@@ -68,13 +66,20 @@ def _dispatch_alert(subject, message_text, email_targets, whatsapp_targets, from
 
     for phone_number in whatsapp_targets:
         try:
-            send_test_whatsapp_message(phone_number=phone_number, message_text=message_text)
-            whatsapp_sent += 1
-        except WhatomateNotificationError as exc:
-            logger.warning("Queue alert WhatsApp failed for %s: %s", phone_number, exc)
+            from .whatsapp_queue import enqueue_generic_whatsapp_notification
+
+            queue_result = enqueue_generic_whatsapp_notification(
+                trigger="queue_alert",
+                phone_number=phone_number,
+                payload={"kind": "queue_alert", "message_text": message_text, "subject": subject},
+                initiated_by="queue_alerts",
+                max_attempts=3,
+            )
+            if queue_result.get("queued") or queue_result.get("reason") == "duplicate_pending":
+                whatsapp_queued += 1
         except Exception as exc:
-            logger.warning("Queue alert WhatsApp failed for %s: %s", phone_number, exc)
-    return email_sent, whatsapp_sent
+            logger.warning("Queue alert WhatsApp queueing failed for %s: %s", phone_number, exc)
+    return email_sent, whatsapp_queued
 
 
 def check_and_send_failed_queue_alert(worker_name="", force=False):
@@ -90,6 +95,7 @@ def check_and_send_failed_queue_alert(worker_name="", force=False):
         "cooldown_minutes": cooldown_minutes,
         "email_sent": 0,
         "whatsapp_sent": 0,
+        "whatsapp_queued": 0,
         "status": "ok",
         "message": "",
     }
@@ -122,7 +128,7 @@ def check_and_send_failed_queue_alert(worker_name="", force=False):
         result["message"] = "No alert targets configured."
         return result
 
-    email_sent, whatsapp_sent = _dispatch_alert(
+    email_sent, whatsapp_queued = _dispatch_alert(
         subject=subject,
         message_text=alert_body,
         email_targets=email_targets,
@@ -130,9 +136,9 @@ def check_and_send_failed_queue_alert(worker_name="", force=False):
         from_email=from_email,
     )
     result["email_sent"] = int(email_sent)
-    result["whatsapp_sent"] = int(whatsapp_sent)
+    result["whatsapp_queued"] = int(whatsapp_queued)
 
-    if result["email_sent"] or result["whatsapp_sent"]:
+    if result["email_sent"] or result["whatsapp_queued"]:
         cache.set(cooldown_key, timezone.localtime(timezone.now()).isoformat(), timeout=cooldown_minutes * 60)
         result["status"] = "sent"
         result["message"] = "Queue alert sent."
@@ -152,6 +158,7 @@ def send_queue_alert_test(worker_name=""):
         "enabled": enabled,
         "email_sent": 0,
         "whatsapp_sent": 0,
+        "whatsapp_queued": 0,
         "status": "ok",
         "message": "",
     }
@@ -162,7 +169,7 @@ def send_queue_alert_test(worker_name=""):
 
     alert_body = _build_alert_test_message(worker_name=worker_name)
     subject = "[Mathukai] WhatsApp queue alert test"
-    email_sent, whatsapp_sent = _dispatch_alert(
+    email_sent, whatsapp_queued = _dispatch_alert(
         subject=subject,
         message_text=alert_body,
         email_targets=email_targets,
@@ -170,8 +177,8 @@ def send_queue_alert_test(worker_name=""):
         from_email=from_email,
     )
     result["email_sent"] = int(email_sent)
-    result["whatsapp_sent"] = int(whatsapp_sent)
-    if email_sent or whatsapp_sent:
+    result["whatsapp_queued"] = int(whatsapp_queued)
+    if email_sent or whatsapp_queued:
         result["status"] = "sent"
         result["message"] = "Queue alert test sent."
         return result

@@ -30,7 +30,7 @@
                 <form method="post" class="ops-admin-action-group">
                     {% csrf_token %}
                     <input type="hidden" name="limit" value="25">
-                    <button type="submit" name="action" value="process_queue_once" class="btn btn-outline-primary">Process Queue Once</button>
+                    <button type="submit" name="action" value="process_queue_once" class="btn btn-outline-primary">Run Queue via Celery</button>
                     <a href="{% url 'whatsapp_settings' %}" class="btn btn-outline-secondary">Open WhatsApp Settings</a>
                     <a href="{% url 'whatsapp_delivery_logs' %}" class="btn btn-outline-dark">Open Delivery Logs</a>
                 </form>

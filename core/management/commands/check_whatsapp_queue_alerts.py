@@ -32,6 +32,7 @@ class Command(BaseCommand):
                 "failed_count": int(result.get("failed_count") or 0),
                 "email_sent": int(result.get("email_sent") or 0),
                 "whatsapp_sent": int(result.get("whatsapp_sent") or 0),
+                "whatsapp_queued": int(result.get("whatsapp_queued") or 0),
             },
         )
         self.stdout.write(
@@ -39,7 +40,7 @@ class Command(BaseCommand):
                 (
                     f"Queue alert check | status={result.get('status')} failed={result.get('failed_count')} "
                     f"threshold={result.get('threshold')} email_sent={result.get('email_sent')} "
-                    f"whatsapp_sent={result.get('whatsapp_sent')} message={result.get('message')}"
+                    f"whatsapp_queued={result.get('whatsapp_queued')} message={result.get('message')}"
                 )
             )
         )

@@ -1,17 +1,29 @@
 from datetime import timedelta
+import hashlib
+import json
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from .activity import log_order_activity
-from .models import OrderActivityLog, ShiprocketOrder, WhatsAppNotificationLog, WhatsAppNotificationQueue
+from .models import (
+    OrderActivityLog,
+    ShiprocketOrder,
+    WhatsAppNotificationLog,
+    WhatsAppNotificationQueue,
+    WhatsAppSettings,
+)
 from .whatomate import (
     WhatomateNotificationError,
     build_order_payment_reminder_idempotency_payload,
     build_order_status_idempotency_payload,
     send_order_payment_reminder,
     send_order_status_update,
+    send_no_order_found_reply,
+    send_order_enquiry_reply,
+    send_test_template_message,
+    send_test_whatsapp_message,
 )
 
 
@@ -207,6 +219,115 @@ def enqueue_whatsapp_notification(
     return {"queued": True, "reason": "queued", "job": job, "plan": plan}
 
 
+def enqueue_generic_whatsapp_notification(
+    *,
+    trigger,
+    phone_number,
+    payload,
+    tenant=None,
+    order=None,
+    initiated_by="",
+    idempotency_key="",
+    mode="text",
+    template_name="",
+    template_id="",
+    max_attempts=3,
+):
+    """Queue a non-status WhatsApp message for delivery by the Celery worker."""
+    resolved_tenant = tenant or getattr(order, "tenant", None)
+    if resolved_tenant is None:
+        resolved_tenant = WhatsAppSettings.get_default().tenant
+
+    payload_value = _as_json_payload(payload)
+    key = str(idempotency_key or "").strip()
+    if not key:
+        fingerprint = json.dumps(
+            {
+                "tenant": getattr(resolved_tenant, "pk", None),
+                "trigger": trigger,
+                "phone_number": str(phone_number or "").strip(),
+                "payload": payload_value,
+            },
+            sort_keys=True,
+            default=str,
+        )
+        key = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+
+    existing_job = (
+        WhatsAppNotificationQueue.objects.filter(
+            tenant=resolved_tenant,
+            idempotency_key=key,
+            status__in=[
+                WhatsAppNotificationQueue.STATUS_PENDING,
+                WhatsAppNotificationQueue.STATUS_RETRYING,
+                WhatsAppNotificationQueue.STATUS_PROCESSING,
+            ],
+        )
+        .order_by("created_at")
+        .first()
+    )
+    if existing_job:
+        return {"queued": False, "reason": "duplicate_pending", "job": existing_job}
+
+    if WhatsAppNotificationLog.objects.filter(
+        tenant=resolved_tenant,
+        idempotency_key=key,
+        is_success=True,
+    ).exists():
+        return {"queued": False, "reason": "already_sent", "job": None}
+
+    try:
+        with transaction.atomic():
+            job = WhatsAppNotificationQueue.objects.create(
+                tenant=resolved_tenant,
+                order=order,
+                shiprocket_order_id=str(getattr(order, "shiprocket_order_id", "") or "").strip(),
+                trigger=trigger,
+                previous_status=str(getattr(order, "local_status", "") or "").strip(),
+                current_status=str(getattr(order, "local_status", "") or "").strip(),
+                phone_number=str(phone_number or "").strip(),
+                mode=str(mode or "text").strip(),
+                template_name=str(template_name or "").strip(),
+                template_id=str(template_id or "").strip(),
+                idempotency_key=key,
+                payload=payload_value,
+                status=WhatsAppNotificationQueue.STATUS_PENDING,
+                max_attempts=max(1, int(max_attempts or 3)),
+                initiated_by=str(initiated_by or "").strip(),
+            )
+    except IntegrityError:
+        existing_job = (
+            WhatsAppNotificationQueue.objects.filter(
+                tenant=resolved_tenant,
+                idempotency_key=key,
+                status__in=[
+                    WhatsAppNotificationQueue.STATUS_PENDING,
+                    WhatsAppNotificationQueue.STATUS_RETRYING,
+                    WhatsAppNotificationQueue.STATUS_PROCESSING,
+                ],
+            )
+            .order_by("created_at")
+            .first()
+        )
+        if not existing_job:
+            raise
+        return {"queued": False, "reason": "duplicate_pending", "job": existing_job}
+
+    log_order_activity(
+        order=order,
+        shiprocket_order_id=job.shiprocket_order_id,
+        event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUED,
+        title=f"WhatsApp notification queued (Job #{job.pk})",
+        description=f"Trigger: {trigger}",
+        previous_status=job.previous_status,
+        current_status=job.current_status,
+        metadata={"job_id": job.pk, "trigger": trigger, "phone_number": job.phone_number, "mode": job.mode},
+        is_success=True,
+        triggered_by=job.initiated_by,
+    )
+    return {"queued": True, "reason": "queued", "job": job}
+
+
 def _build_failure_log_message(exc):
     return str(exc or "Unknown WhatsApp queue failure").strip()
 
@@ -264,9 +385,6 @@ def _execute_job(job):
             shiprocket_order_id=job.shiprocket_order_id,
         ).first()
 
-    if not order:
-        raise WhatomateNotificationError("Order not found while processing WhatsApp queue job.")
-
     if job.idempotency_key and WhatsAppNotificationLog.objects.filter(
         tenant=job.tenant,
         idempotency_key=job.idempotency_key,
@@ -282,7 +400,39 @@ def _execute_job(job):
             "response_payload": {"status": "duplicate_skipped"},
         }
 
-    if job.trigger == WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER:
+    payload = job.payload if isinstance(job.payload, dict) else {}
+    message_kind = str(payload.get("kind") or "").strip()
+
+    if message_kind == "test_message" or message_kind == "queue_alert":
+        result = send_test_whatsapp_message(
+            phone_number=job.phone_number,
+            message_text=str(payload.get("message_text") or ""),
+            tenant=job.tenant,
+        )
+    elif message_kind == "test_template":
+        result = send_test_template_message(
+            phone_number=job.phone_number,
+            template_name=job.template_name,
+            template_params=payload.get("template_params") or {},
+            tenant=job.tenant,
+        )
+    elif message_kind == "order_enquiry_reply":
+        if not order:
+            raise WhatomateNotificationError("Order not found while processing WhatsApp enquiry reply.")
+        result = send_order_enquiry_reply(
+            order,
+            incoming_phone_number=job.phone_number,
+            inbound_message_text=str(payload.get("incoming_message_text") or ""),
+        )
+    elif message_kind == "no_order_found_reply":
+        result = send_no_order_found_reply(
+            job.phone_number,
+            inbound_message_text=str(payload.get("incoming_message_text") or ""),
+            tenant=job.tenant,
+        )
+    elif not order:
+        raise WhatomateNotificationError("Order not found while processing WhatsApp queue job.")
+    elif job.trigger == WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER:
         result = send_order_payment_reminder(order)
     else:
         result = send_order_status_update(order, previous_status=job.previous_status or order.local_status)
@@ -297,6 +447,8 @@ def _execute_job(job):
         result["template_name"] = job.template_name
     if not result.get("template_id"):
         result["template_id"] = job.template_id
+    if payload.get("webhook_event_id") and not result.get("webhook_event_id"):
+        result["webhook_event_id"] = str(payload.get("webhook_event_id") or "").strip()
     return order, result
 
 

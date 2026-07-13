@@ -209,7 +209,7 @@
                 <form method="post" class="ops-admin-action-group mb-0">
                     {% csrf_token %}
                     <input type="hidden" name="limit" value="20">
-                    <button type="submit" name="action" value="process_queue_once" class="btn btn-sm btn-outline-primary">Process Queue Once</button>
+                    <button type="submit" name="action" value="process_queue_once" class="btn btn-sm btn-outline-primary">Run Queue via Celery</button>
                     <button type="submit" name="action" value="export_incident_snapshot" class="btn btn-sm btn-outline-secondary">Export Incident Snapshot</button>
                 </form>
                 {% endif %}

@@ -78,7 +78,11 @@ from .whatomate import (
     sync_templates_from_api,
 )
 from .views import _build_webhook_test_payload, _build_woocommerce_webhook_signature, _send_internal_webhook_test
-from .whatsapp_queue import enqueue_whatsapp_notification, process_whatsapp_notification_queue
+from .whatsapp_queue import (
+    enqueue_generic_whatsapp_notification,
+    enqueue_whatsapp_notification,
+    process_whatsapp_notification_queue,
+)
 from .shiprocket import sync_orders
 from .woocommerce import WooCommerceAPIError
 from .woocommerce import WOOCOMMERCE_USER_AGENT, _json_request
@@ -4372,12 +4376,10 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         mock_enqueue_whatsapp_notification.assert_called_once()
         self.assertContains(response, "WhatsApp update queued")
 
-    @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
     def test_status_update_queues_whatsapp_without_inline_send_by_default(
         self,
         mock_enqueue_whatsapp_notification,
-        mock_attempt_inline_queue_send,
     ):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": True,
@@ -4404,27 +4406,19 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertRedirects(response, f"{reverse('home')}?tab={ShiprocketOrder.STATUS_NEW}")
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
         mock_enqueue_whatsapp_notification.assert_called_once()
-        mock_attempt_inline_queue_send.assert_not_called()
         self.assertContains(response, "WhatsApp update queued")
 
     @override_settings(WHATSAPP_INLINE_STATUS_SEND_ENABLED=True)
-    @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
-    def test_accept_status_sends_whatsapp_inline_when_job_succeeds(
+    def test_accept_status_still_queues_when_legacy_inline_setting_is_enabled(
         self,
         mock_enqueue_whatsapp_notification,
-        mock_attempt_inline_queue_send,
     ):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": True,
             "reason": "queued",
             "job": type("Job", (), {"pk": 111})(),
         }
-        mock_attempt_inline_queue_send.return_value = type(
-            "ProcessedJob",
-            (),
-            {"pk": 111, "status": WhatsAppNotificationQueue.STATUS_SUCCESS, "last_error": ""},
-        )()
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-WA-INLINE-1",
             local_status=ShiprocketOrder.STATUS_NEW,
@@ -4443,31 +4437,19 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertRedirects(response, reverse("home"))
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
         mock_enqueue_whatsapp_notification.assert_called_once()
-        mock_attempt_inline_queue_send.assert_called_once()
-        self.assertContains(response, "WhatsApp update sent successfully")
+        self.assertContains(response, "WhatsApp update queued")
 
     @override_settings(WHATSAPP_INLINE_STATUS_SEND_ENABLED=True)
-    @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
-    def test_accept_status_shows_warning_when_inline_whatsapp_send_fails(
+    def test_accept_status_does_not_send_inline_with_legacy_setting(
         self,
         mock_enqueue_whatsapp_notification,
-        mock_attempt_inline_queue_send,
     ):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": True,
             "reason": "queued",
             "job": type("Job", (), {"pk": 112})(),
         }
-        mock_attempt_inline_queue_send.return_value = type(
-            "ProcessedJob",
-            (),
-            {
-                "pk": 112,
-                "status": WhatsAppNotificationQueue.STATUS_FAILED,
-                "last_error": "network timeout",
-            },
-        )()
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-WA-INLINE-FAIL-1",
             local_status=ShiprocketOrder.STATUS_NEW,
@@ -4486,9 +4468,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertRedirects(response, reverse("home"))
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
         mock_enqueue_whatsapp_notification.assert_called_once()
-        mock_attempt_inline_queue_send.assert_called_once()
-        self.assertContains(response, "Order moved, but WhatsApp send failed")
-        self.assertContains(response, "network timeout")
+        self.assertContains(response, "WhatsApp update queued")
 
     @patch("core.views.enqueue_whatsapp_notification")
     def test_non_accept_transition_queues_whatsapp_status_update(self, mock_enqueue_whatsapp_notification):
@@ -4598,23 +4578,16 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         mock_enqueue_whatsapp_notification.assert_called_once()
         self.assertContains(response, "WhatsApp resend queueing failed")
 
-    @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
     def test_accepted_order_payment_reminder_queues_template_message(
         self,
         mock_enqueue_whatsapp_notification,
-        mock_attempt_inline_queue_send,
     ):
         mock_enqueue_whatsapp_notification.return_value = {
             "queued": True,
             "reason": "queued",
             "job": type("Job", (), {"pk": 401})(),
         }
-        mock_attempt_inline_queue_send.return_value = type(
-            "ProcessedJob",
-            (),
-            {"pk": 401, "status": WhatsAppNotificationQueue.STATUS_SUCCESS, "last_error": ""},
-        )()
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-PAY-REMINDER-1",
             local_status=ShiprocketOrder.STATUS_ACCEPTED,
@@ -4632,8 +4605,7 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         mock_enqueue_whatsapp_notification.assert_called_once()
         _, kwargs = mock_enqueue_whatsapp_notification.call_args
         self.assertEqual(kwargs["trigger"], WhatsAppNotificationLog.TRIGGER_PAYMENT_REMINDER)
-        mock_attempt_inline_queue_send.assert_called_once()
-        self.assertContains(response, "Payment reminder sent successfully")
+        self.assertContains(response, "Payment reminder queued")
 
     def test_mark_payment_received_sets_timestamp_and_logs_activity(self):
         order = ShiprocketOrder.objects.create(
@@ -4682,12 +4654,10 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
         self.assertEqual(plan["template_params"], {"1": "WC-1001", "2": "1250.00"})
         self.assertEqual(plan["phone_number"], "919876543210")
 
-    @patch("core.views._attempt_inline_queue_send")
     @patch("core.views.enqueue_whatsapp_notification")
     def test_bulk_resend_whatsapp_for_selected_orders(
         self,
         mock_enqueue_whatsapp_notification,
-        mock_attempt_inline_queue_send,
     ):
         first_order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-BULK-RESEND-1",
@@ -4703,11 +4673,6 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
             {"queued": True, "reason": "queued", "job": type("Job", (), {"pk": 301})()},
             {"queued": True, "reason": "queued", "job": type("Job", (), {"pk": 302})()},
         ]
-        mock_attempt_inline_queue_send.side_effect = [
-            type("ProcessedJob", (), {"pk": 301, "status": WhatsAppNotificationQueue.STATUS_SUCCESS, "last_error": ""})(),
-            type("ProcessedJob", (), {"pk": 302, "status": WhatsAppNotificationQueue.STATUS_RETRYING, "last_error": ""})(),
-        ]
-
         response = self.client.post(
             reverse("bulk_resend_shiprocket_order_whatsapp"),
             {
@@ -4719,10 +4684,8 @@ class ShiprocketOrderStatusUpdateViewTests(TestCase):
 
         self.assertRedirects(response, f"{reverse('home')}?tab={ShiprocketOrder.STATUS_ACCEPTED}")
         self.assertEqual(mock_enqueue_whatsapp_notification.call_count, 2)
-        self.assertEqual(mock_attempt_inline_queue_send.call_count, 2)
-        self.assertContains(response, "Bulk resend done.")
-        self.assertContains(response, "Sent=1")
-        self.assertContains(response, "retrying=1")
+        self.assertContains(response, "Bulk resend queued.")
+        self.assertContains(response, "queued=2")
 
     def test_completed_order_cannot_be_updated(self):
         order = ShiprocketOrder.objects.create(
@@ -5577,18 +5540,11 @@ class BulkShippingLabelsViewTests(TestCase):
         self.assertContains(response, "Top Failure Reasons (24h)")
         self.assertContains(response, "(2) Connection failed")
 
-    @patch("core.views.process_whatsapp_notification_queue")
-    def test_process_whatsapp_queue_now_action_from_home(self, mock_process_queue):
+    @patch("core.views._request_celery_whatsapp_run")
+    def test_process_whatsapp_queue_now_action_from_home(self, mock_request_worker):
         user = get_user_model().objects.create_user(username="homeops", password="testpass123")
         self.client.force_login(user)
-        mock_process_queue.return_value = {
-            "picked": 3,
-            "processed": 3,
-            "success": 2,
-            "retried": 1,
-            "failed": 0,
-            "worker": "ui_queue_now:homeops",
-        }
+        mock_request_worker.return_value = SimpleNamespace(id="celery-home-123")
 
         response = self.client.post(
             reverse("process_whatsapp_queue_now"),
@@ -5597,12 +5553,13 @@ class BulkShippingLabelsViewTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("home"))
-        mock_process_queue.assert_called_once_with(
+        mock_request_worker.assert_called_once_with(
             limit=20,
             worker_name="ui_queue_now:homeops",
             include_not_due=False,
+            tenant=None,
         )
-        self.assertContains(response, "Queue processed. picked=3 processed=3 success=2 retried=1 failed=0.")
+        self.assertContains(response, "assigned to Celery")
 
 
 class OrderManagementViewTests(TestCase):
@@ -6081,10 +6038,7 @@ class WhatsAppSettingsViewTests(TestCase):
         mock_sync_templates_from_api.assert_called_once()
         self.assertContains(response, "Templates synced: 5")
 
-    @patch("core.views.send_test_whatsapp_message")
-    def test_whatsapp_send_test_action_calls_service(self, mock_send_test_whatsapp_message):
-        mock_send_test_whatsapp_message.return_value = {"sent": True, "phone_number": "919876543210"}
-
+    def test_whatsapp_send_test_action_queues_worker_job(self):
         response = self.client.post(
             reverse("whatsapp_settings"),
             {
@@ -6098,16 +6052,12 @@ class WhatsAppSettingsViewTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("whatsapp_settings"))
-        mock_send_test_whatsapp_message.assert_called_once()
-        self.assertContains(response, "Test message sent to 919876543210")
+        job = WhatsAppNotificationQueue.objects.get(trigger=WhatsAppNotificationLog.TRIGGER_TEST_MESSAGE)
+        self.assertEqual(job.phone_number, "919876543210")
+        self.assertEqual(job.payload["kind"], "test_message")
+        self.assertContains(response, "Test message queued for 919876543210")
 
-    @patch("core.views.send_test_template_message")
-    def test_whatsapp_send_template_test_action_calls_service(self, mock_send_test_template_message):
-        mock_send_test_template_message.return_value = {
-            "sent": True,
-            "phone_number": "919876543210",
-            "template_name": "order_accepted_template",
-        }
+    def test_whatsapp_send_template_test_action_queues_worker_job(self):
         WhatsAppTemplate.objects.create(name="order_accepted_template", language="en")
 
         response = self.client.post(
@@ -6123,8 +6073,10 @@ class WhatsAppSettingsViewTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("whatsapp_settings"))
-        mock_send_test_template_message.assert_called_once()
-        self.assertContains(response, "Template test message sent")
+        job = WhatsAppNotificationQueue.objects.get(trigger=WhatsAppNotificationLog.TRIGGER_TEST_TEMPLATE)
+        self.assertEqual(job.mode, "template")
+        self.assertEqual(job.template_name, "order_accepted_template")
+        self.assertContains(response, "Template test message queued")
 
     @override_settings(ALLOWED_HOSTS=["testserver"])
     def test_send_webhook_test_action_returns_success_message(self):
@@ -6164,7 +6116,8 @@ class WhatsAppSettingsViewTests(TestCase):
         mock_send_alert_test.return_value = {
             "status": "sent",
             "email_sent": 1,
-            "whatsapp_sent": 1,
+            "whatsapp_sent": 0,
+            "whatsapp_queued": 1,
             "message": "Queue alert test sent.",
         }
         response = self.client.post(
@@ -6178,16 +6131,9 @@ class WhatsAppSettingsViewTests(TestCase):
         mock_send_alert_test.assert_called_once()
         self.assertContains(response, "Queue alert test sent")
 
-    @patch("core.views.process_whatsapp_notification_queue")
-    def test_whatsapp_process_queue_once_action(self, mock_process_queue):
-        mock_process_queue.return_value = {
-            "picked": 2,
-            "processed": 2,
-            "success": 1,
-            "retried": 1,
-            "failed": 0,
-            "worker": "ui_settings:test",
-        }
+    @patch("core.views._request_celery_whatsapp_run")
+    def test_whatsapp_process_queue_once_action(self, mock_request_worker):
+        mock_request_worker.return_value = SimpleNamespace(id="celery-task-123")
         response = self.client.post(
             reverse("whatsapp_settings"),
             {"action": "process_queue_once", "limit": "10"},
@@ -6195,8 +6141,8 @@ class WhatsAppSettingsViewTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("whatsapp_settings"))
-        mock_process_queue.assert_called_once()
-        self.assertContains(response, "Queue processed")
+        mock_request_worker.assert_called_once()
+        self.assertContains(response, "assigned to Celery")
 
     def test_whatsapp_settings_shows_diagnostics_section(self):
         WhatsAppNotificationQueue.objects.create(
@@ -6212,7 +6158,7 @@ class WhatsAppSettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "WhatsApp Diagnostics")
         self.assertContains(response, "Last API Error")
-        self.assertContains(response, "Process Queue Once")
+        self.assertContains(response, "Run Queue via Celery")
         self.assertContains(response, "ops-settings-action-row")
         self.assertContains(response, "ops-admin-table")
 
@@ -6898,15 +6844,7 @@ class WhatsAppWebhookSyncTests(TestCase):
         )
         self.assertContains(second, '"duplicate": true', status_code=200)
 
-    @patch("core.views.send_order_enquiry_reply")
-    def test_incoming_message_webhook_sends_order_reply(self, mock_send_order_enquiry_reply):
-        mock_send_order_enquiry_reply.return_value = {
-            "sent": True,
-            "phone_number": "919876543210",
-            "mode": "text",
-            "message_text": "Order update message",
-            "external_message_id": "reply_001",
-        }
+    def test_incoming_message_webhook_queues_order_reply(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-WEBHOOK-INCOMING-1",
             local_status=ShiprocketOrder.STATUS_SHIPPED,
@@ -6930,15 +6868,15 @@ class WhatsAppWebhookSyncTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_send_order_enquiry_reply.assert_called_once()
-        log = WhatsAppNotificationLog.objects.filter(
+        job = WhatsAppNotificationQueue.objects.filter(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
             shiprocket_order_id=order.shiprocket_order_id,
         ).first()
-        self.assertIsNotNone(log)
-        self.assertTrue(log.is_success)
-        self.assertEqual(log.webhook_event_id, "evt_incoming_001")
-        self.assertEqual(log.phone_number, "919876543210")
+        self.assertIsNotNone(job)
+        self.assertEqual(job.status, WhatsAppNotificationQueue.STATUS_PENDING)
+        self.assertEqual(job.payload["kind"], "order_enquiry_reply")
+        self.assertEqual(job.payload["webhook_event_id"], "evt_incoming_001")
+        self.assertEqual(job.phone_number, "919876543210")
         self.assertTrue(
             OrderActivityLog.objects.filter(
                 order=order,
@@ -6947,17 +6885,9 @@ class WhatsAppWebhookSyncTests(TestCase):
                 is_success=True,
             ).exists()
         )
-        self.assertContains(response, '"replied": true', status_code=200)
+        self.assertContains(response, '"reply_queued": true', status_code=200)
 
-    @patch("core.views.send_order_enquiry_reply")
-    def test_incoming_message_webhook_reads_phone_from_contact_mobile(self, mock_send_order_enquiry_reply):
-        mock_send_order_enquiry_reply.return_value = {
-            "sent": True,
-            "phone_number": "919876543210",
-            "mode": "text",
-            "message_text": "Order update message",
-            "external_message_id": "reply_003",
-        }
+    def test_incoming_message_webhook_reads_phone_from_contact_mobile(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-WEBHOOK-INCOMING-2",
             local_status=ShiprocketOrder.STATUS_SHIPPED,
@@ -6983,25 +6913,15 @@ class WhatsAppWebhookSyncTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_send_order_enquiry_reply.assert_called_once()
-        log = WhatsAppNotificationLog.objects.filter(
+        job = WhatsAppNotificationQueue.objects.filter(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
             shiprocket_order_id=order.shiprocket_order_id,
         ).first()
-        self.assertIsNotNone(log)
-        self.assertTrue(log.is_success)
-        self.assertEqual(log.phone_number, "919876543210")
-        self.assertContains(response, '"replied": true', status_code=200)
+        self.assertIsNotNone(job)
+        self.assertEqual(job.phone_number, "919876543210")
+        self.assertContains(response, '"reply_queued": true', status_code=200)
 
-    @patch("core.views.send_order_enquiry_reply")
-    def test_incoming_message_webhook_reads_meta_style_nested_payload(self, mock_send_order_enquiry_reply):
-        mock_send_order_enquiry_reply.return_value = {
-            "sent": True,
-            "phone_number": "919876543210",
-            "mode": "text",
-            "message_text": "Order update message",
-            "external_message_id": "reply_004",
-        }
+    def test_incoming_message_webhook_reads_meta_style_nested_payload(self):
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-WEBHOOK-INCOMING-3",
             local_status=ShiprocketOrder.STATUS_SHIPPED,
@@ -7046,31 +6966,20 @@ class WhatsAppWebhookSyncTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_send_order_enquiry_reply.assert_called_once()
-        log = WhatsAppNotificationLog.objects.filter(
+        job = WhatsAppNotificationQueue.objects.filter(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
             shiprocket_order_id=order.shiprocket_order_id,
         ).first()
-        self.assertIsNotNone(log)
-        self.assertTrue(log.is_success)
-        self.assertEqual(log.phone_number, "919876543210")
-        self.assertContains(response, '"replied": true', status_code=200)
+        self.assertIsNotNone(job)
+        self.assertEqual(job.phone_number, "919876543210")
+        self.assertContains(response, '"reply_queued": true', status_code=200)
 
     @patch("core.views.resolve_phone_number_from_contact_id")
-    @patch("core.views.send_order_enquiry_reply")
     def test_incoming_message_webhook_reads_message_new_payload_via_contact_id(
         self,
-        mock_send_order_enquiry_reply,
         mock_resolve_phone_number_from_contact_id,
     ):
         mock_resolve_phone_number_from_contact_id.return_value = "919876543210"
-        mock_send_order_enquiry_reply.return_value = {
-            "sent": True,
-            "phone_number": "919876543210",
-            "mode": "text",
-            "message_text": "Order update message",
-            "external_message_id": "reply_005",
-        }
         order = ShiprocketOrder.objects.create(
             shiprocket_order_id="SR-WEBHOOK-INCOMING-4",
             local_status=ShiprocketOrder.STATUS_SHIPPED,
@@ -7098,30 +7007,15 @@ class WhatsAppWebhookSyncTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_resolve_phone_number_from_contact_id.assert_called_once_with("contact_123")
-        mock_send_order_enquiry_reply.assert_called_once()
-        log = WhatsAppNotificationLog.objects.filter(
+        job = WhatsAppNotificationQueue.objects.filter(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
             shiprocket_order_id=order.shiprocket_order_id,
         ).first()
-        self.assertIsNotNone(log)
-        self.assertTrue(log.is_success)
-        self.assertEqual(log.phone_number, "919876543210")
-        self.assertContains(response, '"replied": true', status_code=200)
+        self.assertIsNotNone(job)
+        self.assertEqual(job.phone_number, "919876543210")
+        self.assertContains(response, '"reply_queued": true', status_code=200)
 
-    @patch("core.views.send_no_order_found_reply")
-    @patch("core.views.send_order_enquiry_reply")
-    def test_incoming_message_webhook_without_matching_order_sends_no_order_reply(
-        self,
-        mock_send_order_enquiry_reply,
-        mock_send_no_order_found_reply,
-    ):
-        mock_send_no_order_found_reply.return_value = {
-            "sent": True,
-            "phone_number": "919000000000",
-            "mode": "text",
-            "message_text": "No order found message",
-            "external_message_id": "reply_002",
-        }
+    def test_incoming_message_webhook_without_matching_order_queues_no_order_reply(self):
         payload = {
             "event_id": "evt_incoming_002",
             "event_type": "message_incoming",
@@ -7138,16 +7032,14 @@ class WhatsAppWebhookSyncTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_send_order_enquiry_reply.assert_not_called()
-        mock_send_no_order_found_reply.assert_called_once()
-        log = WhatsAppNotificationLog.objects.filter(
+        job = WhatsAppNotificationQueue.objects.filter(
             trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
-            webhook_event_id="evt_incoming_002",
         ).first()
-        self.assertIsNotNone(log)
-        self.assertTrue(log.is_success)
-        self.assertEqual(log.phone_number, "919000000000")
-        self.assertContains(response, '"replied": true', status_code=200)
+        self.assertIsNotNone(job)
+        self.assertEqual(job.payload["kind"], "no_order_found_reply")
+        self.assertEqual(job.payload["webhook_event_id"], "evt_incoming_002")
+        self.assertEqual(job.phone_number, "919000000000")
+        self.assertContains(response, '"reply_queued": true', status_code=200)
 
     def test_order_detail_shows_whatsapp_timeline(self):
         order = ShiprocketOrder.objects.create(
@@ -7261,16 +7153,9 @@ class AdminUtilitiesViewTests(TestCase):
         self.assertContains(response, "Expense People")
         self.assertContains(response, "ops-admin-action-group")
 
-    @patch("core.views.process_whatsapp_notification_queue")
-    def test_admin_utilities_process_queue_action(self, mock_process_queue):
-        mock_process_queue.return_value = {
-            "picked": 1,
-            "processed": 1,
-            "success": 1,
-            "retried": 0,
-            "failed": 0,
-            "worker": "admin_utilities:test",
-        }
+    @patch("core.views._request_celery_whatsapp_run")
+    def test_admin_utilities_process_queue_action(self, mock_request_worker):
+        mock_request_worker.return_value = SimpleNamespace(id="celery-admin-123")
 
         response = self.client.post(
             reverse("admin_utilities"),
@@ -7279,8 +7164,8 @@ class AdminUtilitiesViewTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("admin_utilities"))
-        mock_process_queue.assert_called_once()
-        self.assertContains(response, "Queue processed")
+        mock_request_worker.assert_called_once()
+        self.assertContains(response, "assigned to Celery")
 
     def test_admin_utilities_clear_demo_data_action(self):
         ShiprocketOrder.objects.create(shiprocket_order_id="DEMO-UTIL-1", local_status=ShiprocketOrder.STATUS_NEW)
@@ -7311,6 +7196,68 @@ class WhatsAppQueueProcessingTests(TestCase):
         settings_row = WhatsAppSettings.get_default()
         settings_row.enabled = True
         settings_row.save(update_fields=["enabled", "updated_at"])
+
+    @patch("core.whatsapp_queue.send_no_order_found_reply")
+    @patch("core.whatsapp_queue.send_order_enquiry_reply")
+    @patch("core.whatsapp_queue.send_test_template_message")
+    @patch("core.whatsapp_queue.send_test_whatsapp_message")
+    def test_worker_delivers_every_generic_whatsapp_message_kind(
+        self,
+        mock_send_text,
+        mock_send_template,
+        mock_send_enquiry,
+        mock_send_no_order,
+    ):
+        send_result = {"sent": True, "phone_number": "919876543210", "mode": "text"}
+        mock_send_text.return_value = dict(send_result)
+        mock_send_template.return_value = {**send_result, "mode": "template", "template_name": "test_template"}
+        mock_send_enquiry.return_value = dict(send_result)
+        mock_send_no_order.return_value = dict(send_result)
+        order = ShiprocketOrder.objects.create(
+            shiprocket_order_id="SR-GENERIC-WA-1",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            shipping_address={"phone": "9876543210"},
+        )
+
+        enqueue_generic_whatsapp_notification(
+            trigger=WhatsAppNotificationLog.TRIGGER_TEST_MESSAGE,
+            phone_number="919876543210",
+            payload={"kind": "test_message", "message_text": "Ping"},
+            idempotency_key="generic-test-text",
+        )
+        enqueue_generic_whatsapp_notification(
+            trigger=WhatsAppNotificationLog.TRIGGER_TEST_TEMPLATE,
+            phone_number="919876543210",
+            mode="template",
+            template_name="test_template",
+            payload={"kind": "test_template", "template_params": {"1": "Ram"}},
+            idempotency_key="generic-test-template",
+        )
+        enqueue_generic_whatsapp_notification(
+            trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
+            phone_number="919876543210",
+            order=order,
+            payload={"kind": "order_enquiry_reply", "webhook_event_id": "evt-generic-1"},
+            idempotency_key="generic-enquiry",
+        )
+        enqueue_generic_whatsapp_notification(
+            trigger=WhatsAppNotificationLog.TRIGGER_WEBHOOK_INCOMING,
+            phone_number="919876543210",
+            payload={"kind": "no_order_found_reply", "webhook_event_id": "evt-generic-2"},
+            idempotency_key="generic-no-order",
+        )
+
+        summary = process_whatsapp_notification_queue(limit=10, worker_name="celery-test")
+
+        self.assertEqual(summary["success"], 4)
+        mock_send_text.assert_called_once()
+        mock_send_template.assert_called_once()
+        mock_send_enquiry.assert_called_once()
+        mock_send_no_order.assert_called_once()
+        self.assertEqual(
+            WhatsAppNotificationLog.objects.filter(is_success=True, triggered_by="").count(),
+            4,
+        )
 
     @patch("core.whatsapp_queue.send_order_status_update")
     def test_queue_processor_marks_success_and_creates_log(self, mock_send_order_status_update):
@@ -10650,7 +10597,12 @@ class CeleryFoundationTests(TestCase):
 
         result = process_whatsapp_queue()
 
-        mock_process.assert_called_once_with(limit=25, worker_name="celery")
+        mock_process.assert_called_once_with(
+            limit=25,
+            worker_name="celery",
+            include_not_due=False,
+            tenant=None,
+        )
         mock_alert.assert_called_once_with(worker_name="celery")
         self.assertEqual(mock_heartbeat.call_count, 2)
         self.assertTrue(result["enabled"])
@@ -10815,9 +10767,8 @@ class WhatsAppQueueAlertCommandTests(TestCase):
         WHATSAPP_ALERT_EMAIL_TO="ops@example.com",
         WHATSAPP_ALERT_WHATSAPP_TO="919999999999",
     )
-    @patch("core.queue_alerts.send_test_whatsapp_message")
     @patch("core.queue_alerts.send_mail")
-    def test_alert_command_sends_email_and_whatsapp(self, mock_send_mail, mock_send_whatsapp):
+    def test_alert_command_sends_email_and_queues_whatsapp(self, mock_send_mail):
         WhatsAppNotificationQueue.objects.create(
             order=self.order,
             shiprocket_order_id=self.order.shiprocket_order_id,
@@ -10831,7 +10782,9 @@ class WhatsAppQueueAlertCommandTests(TestCase):
 
         self.assertIn("status=sent", stdout.getvalue())
         mock_send_mail.assert_called_once()
-        mock_send_whatsapp.assert_called_once()
+        alert_job = WhatsAppNotificationQueue.objects.get(trigger=WhatsAppNotificationLog.TRIGGER_QUEUE_ALERT)
+        self.assertEqual(alert_job.phone_number, "919999999999")
+        self.assertEqual(alert_job.payload["kind"], "queue_alert")
 
     @override_settings(
         WHATSAPP_ALERTS_ENABLED="true",

@@ -899,8 +899,8 @@ def send_order_enquiry_reply(order, incoming_phone_number="", inbound_message_te
     }
 
 
-def send_no_order_found_reply(phone_number, inbound_message_text="", config_overrides=None):
-    config = _resolve_runtime_config(config_overrides)
+def send_no_order_found_reply(phone_number, inbound_message_text="", config_overrides=None, tenant=None):
+    config = _resolve_runtime_config(config_overrides, tenant=tenant)
     if not _is_enabled(config):
         return {"sent": False, "reason": "disabled"}
 

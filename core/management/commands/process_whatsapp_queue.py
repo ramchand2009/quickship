@@ -71,6 +71,7 @@ class Command(BaseCommand):
                     "failed_count": int(alert_result.get("failed_count") or 0),
                     "email_sent": int(alert_result.get("email_sent") or 0),
                     "whatsapp_sent": int(alert_result.get("whatsapp_sent") or 0),
+                    "whatsapp_queued": int(alert_result.get("whatsapp_queued") or 0),
                 },
             )
             self.stdout.write(
@@ -79,7 +80,7 @@ class Command(BaseCommand):
                         f"Queue alert check | status={alert_result.get('status')} "
                         f"failed={alert_result.get('failed_count')} "
                         f"email_sent={alert_result.get('email_sent')} "
-                        f"whatsapp_sent={alert_result.get('whatsapp_sent')}"
+                        f"whatsapp_queued={alert_result.get('whatsapp_queued')}"
                     )
                 )
             )
