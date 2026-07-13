@@ -506,100 +506,58 @@
     .ops-mobile-shell {
         display: block;
         min-height: 100vh;
-        padding-bottom: 7.4rem;
-        background:
-            radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 28%),
-            radial-gradient(circle at top right, rgba(45, 212, 191, 0.1), transparent 24%),
-            linear-gradient(180deg, #f8fbff 0%, #f3f6fb 54%, #eef3f8 100%);
-        color: #0f172a;
+        padding-bottom: 7rem;
+        background: #f5f5f8;
+        color: #1f2937;
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
+    .ops-mobile-shell .ops-mobile-topbar {
+        min-height: 56px;
+        padding: 0.5rem 0.9rem;
+        background: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+    }
+
+    .ops-mobile-shell .ops-mobile-topbar-row {
+        grid-template-columns: 40px minmax(0, 1fr) 40px;
+        gap: 0.35rem;
+    }
+
+    .ops-mobile-shell .ops-mobile-topbar h1 {
+        font-size: 1rem;
+        font-weight: 800;
+        text-align: center;
+        color: #111827;
+    }
+
+    .ops-mobile-shell .ops-mobile-topbar-control {
+        width: 40px;
+        height: 40px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #111827;
+        box-shadow: none;
+    }
+
     .ops-mobile-header-panel {
-        margin: 0.95rem 0.95rem 0.75rem;
-        padding: 1rem;
-        border: 1px solid rgba(214, 223, 234, 0.92);
-        border-radius: 1.2rem;
-        background: rgba(255, 255, 255, 0.88);
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
-    }
-
-    .ops-mobile-header-kicker {
-        display: block;
-        color: #5473a7;
-        font-size: 0.72rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-
-    .ops-mobile-header-panel h2 {
-        margin: 0.24rem 0 0;
-        color: #0f172a;
-        font-size: 1.3rem;
-        font-weight: 850;
-        line-height: 1.18;
-    }
-
-    .ops-mobile-header-panel p {
-        margin: 0.32rem 0 0;
-        color: #64748b;
-        font-size: 0.85rem;
-        line-height: 1.45;
-    }
-
-    .ops-mobile-summary-pills {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.7rem;
-        margin-top: 0.95rem;
-    }
-
-    .ops-mobile-summary-pill {
-        min-height: 68px;
-        padding: 0.8rem 0.85rem;
-        border: 1px solid #d9e3ef;
-        border-radius: 1rem;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
-    }
-
-    .ops-mobile-summary-pill span {
-        display: block;
-        color: #64748b;
-        font-size: 0.68rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-
-    .ops-mobile-summary-pill strong {
-        display: block;
-        margin-top: 0.28rem;
-        color: #0f172a;
-        font-size: 1.35rem;
-        font-weight: 850;
-        line-height: 1;
-    }
-
-    .ops-mobile-summary-pill.is-accent {
-        border-color: rgba(29, 78, 216, 0.2);
-        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
-    }
-
-    .ops-mobile-summary-pill.is-accent span,
-    .ops-mobile-summary-pill.is-accent strong {
-        color: #ffffff;
+        display: none;
     }
 
     .ops-mobile-tabs {
         display: flex;
-        gap: 0.65rem;
+        gap: 0;
         overflow-x: auto;
-        padding: 0 0.95rem 0.9rem;
-        background: transparent;
+        padding: 0;
+        background: #f7f7fb;
+        border-top: 1px solid #ececf1;
+        border-bottom: 1px solid #e5e7eb;
         scrollbar-width: none;
         scroll-snap-type: x proximity;
         overscroll-behavior-inline: contain;
@@ -860,65 +818,54 @@
 
     .ops-mobile-tab {
         flex: 0 0 auto;
-        min-width: 0;
-        min-height: 48px;
-        padding: 0.62rem 0.9rem;
+        min-width: 5.8rem;
+        min-height: 50px;
+        padding: 0.9rem 0.85rem 0.75rem;
         text-align: center;
-        color: #475569;
-        background: rgba(255, 255, 255, 0.92);
-        border: 1px solid #d9e3ef;
-        border-radius: 999px;
+        color: #374151;
+        background: transparent;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        border-radius: 0;
         text-decoration: none;
-        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
         scroll-snap-align: start;
     }
 
     .ops-mobile-tab strong {
         display: inline;
-        font-size: 0.82rem;
-        font-weight: 750;
+        font-size: 0.8rem;
+        font-weight: 500;
     }
 
     .ops-mobile-tab span {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin-left: 0.3rem;
-        min-width: 1.45rem;
-        min-height: 1.45rem;
-        padding: 0.12rem 0.42rem;
-        border-radius: 999px;
-        font-size: 0.74rem;
-        font-weight: 800;
-        color: #334155;
-        background: #eef2ff;
+        display: none;
     }
 
     .ops-mobile-tab.is-active {
-        color: #0b2f6b;
-        background: linear-gradient(180deg, #e9f0ff 0%, #eef4ff 100%);
-        border-color: rgba(147, 197, 253, 0.95);
-        box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.72), 0 10px 20px rgba(29, 78, 216, 0.08);
+        color: #111827;
+        background: transparent;
+        border-bottom-color: #1590c7;
+        box-shadow: none;
     }
 
     .ops-mobile-tab.is-active span {
-        color: #ffffff;
-        background: #0b2f6b;
+        display: none;
     }
 
     .ops-order-list {
         display: grid;
-        gap: 0.8rem;
-        padding: 0 0.95rem 7rem;
-        background: transparent;
+        gap: 0.7rem;
+        padding: 0.05rem 0 7rem;
+        background: #f5f5f8;
     }
 
     .ops-order-card,
     .ops-order-empty {
-        background: rgba(255, 255, 255, 0.94);
-        border-radius: 1.2rem;
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
-        border: 1px solid rgba(214, 223, 234, 0.92);
+        background: #ffffff;
+        border-radius: 0.5rem;
+        box-shadow: none;
+        border-top: 1px solid #e5e7eb;
+        border-bottom: 1px solid #e5e7eb;
     }
 
     .ops-order-card {
@@ -926,19 +873,16 @@
         text-decoration: none;
         color: inherit;
         overflow: hidden;
-        transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+        transition: background-color 0.15s ease;
     }
 
     .ops-order-card:active,
     .ops-order-card:hover {
         background: #fff;
-        border-color: rgba(148, 163, 184, 0.8);
-        box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
-        transform: translateY(-1px);
     }
 
     .ops-order-card-body {
-        padding: 1rem;
+        padding: 0.95rem 1rem;
     }
 
     .ops-order-topline {
@@ -946,7 +890,7 @@
         justify-content: space-between;
         gap: 0.85rem;
         align-items: flex-start;
-        margin-bottom: 0.82rem;
+        margin-bottom: 0.4rem;
     }
 
     .ops-order-head-main {
@@ -954,244 +898,193 @@
     }
 
     .ops-order-id {
-        margin: 0 0 0.28rem;
-        color: #153e8a;
-        font-size: 0.72rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        line-height: 0.95rem;
-        text-transform: uppercase;
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.78rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        line-height: 1.1rem;
+        text-transform: none;
     }
 
     .ops-order-customer {
-        margin: 0;
-        color: #0f172a;
-        font-size: 1.08rem;
-        font-weight: 800;
-        line-height: 1.3rem;
+        margin: 0.35rem 0 0;
+        color: #111827;
+        font-size: 0.96rem;
+        font-weight: 500;
+        line-height: 1.2rem;
         overflow-wrap: anywhere;
     }
 
-    .ops-order-subline {
+    .ops-order-summary-row {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem 0.45rem;
-        margin-top: 0.4rem;
+        justify-content: space-between;
+        gap: 0.75rem;
+        align-items: flex-start;
+        margin-top: 0.1rem;
     }
 
-    .ops-order-subpill {
+    .ops-order-main {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .ops-order-side {
+        flex: 0 0 auto;
+        min-width: 72px;
+        text-align: right;
+    }
+
+    .ops-order-address-preview {
+        margin-top: 0.45rem;
+        color: #6b7280;
+        font-size: 0.84rem;
+        line-height: 1.2rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .ops-order-payment-chip {
         display: inline-flex;
         align-items: center;
         min-height: 1.8rem;
-        padding: 0.28rem 0.58rem;
-        border-radius: 999px;
-        background: #f8fafc;
-        color: #475569;
-        border: 1px solid #e2e8f0;
-        font-size: 0.72rem;
+        margin-top: 0.8rem;
+        padding: 0.28rem 0.55rem;
+        border-radius: 0.3rem;
+        background: #ede9fe;
+        color: #9333ea;
+        font-size: 0.8rem;
         font-weight: 700;
         line-height: 1;
     }
 
-    .ops-order-address {
-        display: none;
+    .ops-order-payment-chip.is-paid {
+        background: #e7f7a8;
+        color: #166534;
+    }
+
+    .ops-order-payment-chip.is-cod {
+        background: #f5d0fe;
+        color: #9333ea;
     }
 
     .ops-order-status {
         display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.34rem 0.64rem;
-        border-radius: 999px;
-        font-size: 0.67rem;
-        font-weight: 800;
-        line-height: 0.9rem;
-        text-align: center;
+        padding: 0;
+        border-radius: 0;
+        font-size: 0.78rem;
+        font-weight: 500;
+        line-height: 1rem;
+        text-align: right;
         white-space: nowrap;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        background: #eef2ff;
-        color: #334155;
+        background: transparent;
+        color: #0f766e;
     }
 
     .ops-order-status.status-pending {
-        background: #fff7ed;
         color: #9a3412;
     }
 
     .ops-order-status.status-accepted,
     .ops-order-status.status-shipped {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .ops-order-status.status-packed {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .ops-order-status.status-delivered {
-        background: #e0f2fe;
-        color: #0369a1;
-    }
-
-    .ops-order-status.status-completed {
-        background: #ecfdf5;
-        color: #047857;
-    }
-
-    .ops-order-status.status-cancelled {
-        background: #fff1f2;
-        color: #dc2626;
-    }
-
-    .ops-order-totalbox {
-        flex: 0 0 auto;
-        display: grid;
-        justify-items: end;
-        gap: 0.45rem;
-        text-align: right;
-    }
-
-    .ops-order-amountbox {
-        min-width: 92px;
-        padding: 0.68rem 0.72rem;
-        border-radius: 1rem;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-        border: 1px solid #dbe5f0;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-    }
-
-    .ops-order-amount-label {
-        display: block;
-        color: #64748b;
-        font-size: 0.62rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-
-    .ops-order-amount-value {
-        display: block;
-        margin-top: 0.18rem;
-        color: #0f172a;
-        font-size: 1rem;
-        font-weight: 850;
-        line-height: 1.05;
-    }
-
-    .ops-order-items {
-        display: none;
-    }
-
-    .ops-order-total {
-        display: none;
-    }
-
-    .ops-order-facts {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.6rem 0.75rem;
-        margin-top: 0;
-        padding-top: 0.8rem;
-        border-top: 1px solid rgba(214, 223, 234, 0.95);
-        align-items: start;
-    }
-
-    .ops-order-fact.is-payment {
-        grid-column: span 2;
-    }
-
-    .ops-order-fact-label {
-        display: block;
-        color: #64748b;
-        font-size: 0.62rem;
-        font-weight: 800;
-        line-height: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }
-
-    .ops-order-fact-value {
-        display: block;
-        margin-top: 0.14rem;
-        color: #0f172a;
-        font-size: 0.84rem;
-        font-weight: 700;
-        line-height: 1.08rem;
-    }
-
-    .ops-order-fact-value.is-payment {
         color: #0f766e;
     }
 
-    .ops-order-fact-inline-label {
-        color: #64748b;
-        font-weight: 700;
+    .ops-order-status.status-packed {
+        color: #0f766e;
     }
 
+    .ops-order-status.status-delivered {
+        color: #0f766e;
+    }
+
+    .ops-order-status.status-completed {
+        color: #0f766e;
+    }
+
+    .ops-order-status.status-cancelled {
+        color: #dc2626;
+    }
+
+    .ops-order-side-items {
+        margin-top: 0.3rem;
+        color: #111827;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .ops-order-side-amount {
+        margin-top: 0.55rem;
+        color: #111827;
+        font-size: 0.96rem;
+        font-weight: 500;
+    }
+
+    .ops-order-amountbox {
+        display: none;
+    }
+
+    .ops-order-facts,
+    .ops-order-card-meta,
     .ops-order-tracking {
-        margin-top: 0.72rem;
-        padding-top: 0.72rem;
-        border-top: 1px dashed rgba(214, 223, 234, 0.95);
+        display: none;
     }
 
-    .ops-order-tracking-value {
-        display: block;
-        margin-top: 0;
-        color: #153e8a;
-        font-size: 0.83rem;
-        font-weight: 800;
-        line-height: 1.08rem;
-        letter-spacing: 0.04em;
-        overflow-wrap: anywhere;
+    .ops-order-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.8rem;
+        margin-top: 0.85rem;
+        padding-top: 0.9rem;
+        border-top: 2px dashed #d1d5db;
     }
 
-    .ops-order-card-meta {
-        margin-top: 0.72rem;
-        padding: 0.68rem 0.78rem;
-        border-radius: 0.9rem;
-        background: #fff7ed;
-        color: #9a3412;
-        font-size: 0.76rem;
-        font-weight: 700;
-        line-height: 1.35;
+    .ops-order-footer-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        color: #6b7280;
+        font-size: 0.82rem;
+        line-height: 1.1rem;
+    }
+
+    .ops-order-footer-delivery {
+        color: #9333ea;
+        font-weight: 500;
+    }
+
+    .ops-order-footer-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        color: #111827;
+        font-size: 0.86rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .ops-order-footer-link svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
     }
 
     .ops-order-stock-alert {
         display: inline-flex;
-        margin-top: 0.78rem;
-        padding: 0.38rem 0.62rem;
-        border-radius: 999px;
-        background: #fff1f2;
+        margin-top: 0.7rem;
+        padding: 0.28rem 0.5rem;
+        border-radius: 0.35rem;
+        background: #fff7ed;
         color: #b45309;
-        border: 1px solid #fed7aa;
+        border: 0;
         font-size: 0.74rem;
-        font-weight: 800;
-    }
-
-    .ops-order-card-meta strong {
-        color: #0f766e;
         font-weight: 700;
-    }
-
-    .ops-order-card-chevron {
-        display: block;
-        width: 18px;
-        height: 18px;
-        color: #64748b;
-        flex: 0 0 auto;
-    }
-
-    .ops-order-card-chevron svg {
-        display: block;
-        width: 18px;
-        height: 18px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 2.2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
     }
 
     .ops-order-empty {
@@ -1246,48 +1139,18 @@
 
     @media (max-width: 767px) {
         .ops-mobile-tabs {
-            padding: 0 0.85rem 0.85rem;
-        }
-
-        .ops-order-facts {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.55rem 0.68rem;
+            padding: 0;
         }
 
         .ops-order-card-body {
-            padding: 0.92rem;
+            padding: 0.95rem 1rem;
         }
     }
 
     @media (max-width: 420px) {
-        .ops-mobile-header-panel,
-        .ops-order-list,
-        .ops-mobile-tabs {
-            margin-left: 0;
-            margin-right: 0;
-        }
-
-        .ops-mobile-header-panel {
-            margin: 0.85rem 0.85rem 0.7rem;
-        }
-
-        .ops-mobile-summary-pills {
-            grid-template-columns: 1fr;
-        }
-
-        .ops-order-topline {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .ops-order-totalbox {
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: center;
-            justify-items: stretch;
-        }
-
-        .ops-order-amountbox {
-            min-width: 0;
+        .ops-order-summary-row,
+        .ops-order-footer {
+            gap: 0.55rem;
         }
     }
 </style>
@@ -1572,7 +1435,7 @@
         <div class="ops-mobile-topbar">
             <div class="ops-mobile-topbar-row">
                 <span class="ops-mobile-topbar-control is-hidden" aria-hidden="true"></span>
-                <h1>{{ active_tenant.name|default:"Mathukai" }}</h1>
+                <h1>My Orders</h1>
                 {% if can_sync_orders %}
                     <form method="post" action="{% url 'sync_orders' %}">
                         {% csrf_token %}
@@ -1586,27 +1449,11 @@
             </div>
         </div>
 
-        <div class="ops-mobile-header-panel">
-            <span class="ops-mobile-header-kicker">Orders Overview</span>
-            <h2>Manage customer orders</h2>
-            <p>Review status, amount, and key order details quickly on mobile.</p>
-            <div class="ops-mobile-summary-pills">
-                <div class="ops-mobile-summary-pill is-accent">
-                    <span>Current Tab</span>
-                    <strong>{{ status_counts|get_item:active_tab }}</strong>
-                </div>
-                <div class="ops-mobile-summary-pill">
-                    <span>Total Orders</span>
-                    <strong>{{ status_counts|get_item:'all' }}</strong>
-                </div>
-            </div>
-        </div>
-
         <div class="ops-mobile-tabs" data-ops-mobile-tabs>
             {% for tab in status_tabs %}
                 <a href="{% url 'order_management' %}?tab={{ tab.key }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}" class="ops-mobile-tab {% if active_tab == tab.key %}is-active{% endif %}">
                     <strong>{{ tab.label }}</strong>
-                    <span>{{ status_counts|get_item:tab.key }}</span>
+                    <span class="ops-order-tab-count">{{ status_counts|get_item:tab.key }}</span>
                 </a>
             {% endfor %}
         </div>
@@ -1617,59 +1464,52 @@
                     <a href="{% url 'order_detail' item.order.pk %}?tab={{ active_tab }}" class="ops-order-card">
                         <div class="ops-order-card-body">
                             <div class="ops-order-topline">
-                                <div class="ops-order-head-main">
-                                    <div class="ops-order-id">Order #{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</div>
+                                <div class="ops-order-id">Order Id: #{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</div>
+                                <div class="ops-order-status {% if item.order.local_status == 'new_order' %}status-pending{% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}status-packed{% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}status-shipped{% elif item.order.local_status == 'delivered' %}status-delivered{% elif item.order.local_status == 'completed' %}status-completed{% elif item.order.local_status == 'order_cancelled' %}status-cancelled{% else %}status-default{% endif %}">
+                                    {% if item.order.local_status == 'new_order' %}
+                                        Pending Order
+                                    {% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}
+                                        Accepted Order
+                                    {% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}
+                                        Shipped Order
+                                    {% elif item.order.local_status == 'delivered' or item.order.local_status == 'completed' %}
+                                        Delivered Order
+                                    {% elif item.order.local_status == 'order_cancelled' %}
+                                        Cancelled Order
+                                    {% else %}
+                                        {{ item.order.get_local_status_display }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="ops-order-summary-row">
+                                <div class="ops-order-main">
                                     <div class="ops-order-customer">{{ item.order.display_shipping_address.name|default:item.order.customer_name|default:"Unknown Customer" }}</div>
-                                    <div class="ops-order-subline">
-                                        <span class="ops-order-subpill">{{ item.order.order_date|date:"d M"|default:"-" }}</span>
-                                        <span class="ops-order-subpill">{{ item.order.order_items|length }} product{{ item.order.order_items|length|pluralize }}</span>
+                                    <div class="ops-order-address-preview">
+                                        {{ item.order.display_shipping_address.address_1|default:item.order.customer_name|default:"-"|truncatechars:34 }}
                                     </div>
+                                    {% if item.order.payment_received_at %}
+                                        <span class="ops-order-payment-chip is-paid">Paid</span>
+                                    {% elif item.order.payment_method|default:"" == "Cash on Delivery" %}
+                                        <span class="ops-order-payment-chip is-cod">Cash on Delivery</span>
+                                    {% else %}
+                                        <span class="ops-order-payment-chip">{{ item.order.payment_method|default:"Payment Pending" }}</span>
+                                    {% endif %}
                                 </div>
-                                <div class="ops-order-totalbox">
-                                    <div class="ops-order-status {% if item.order.local_status == 'new_order' %}status-pending{% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}status-packed{% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}status-shipped{% elif item.order.local_status == 'delivered' %}status-delivered{% elif item.order.local_status == 'completed' %}status-completed{% elif item.order.local_status == 'order_cancelled' %}status-cancelled{% else %}status-default{% endif %}">
-                                        {% if item.order.local_status == 'new_order' %}
-                                            Pending
-                                        {% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}
-                                            Accepted
-                                        {% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}
-                                            Shipped
-                                        {% elif item.order.local_status == 'delivered' or item.order.local_status == 'completed' %}
-                                            Completed
-                                        {% elif item.order.local_status == 'order_cancelled' %}
-                                            Cancelled
-                                        {% else %}
-                                            {{ item.order.get_local_status_display }}
-                                        {% endif %}
-                                    </div>
-                                    <div class="ops-order-amountbox">
-                                        <span class="ops-order-amount-label">Amount</span>
-                                        <span class="ops-order-amount-value">Rs {{ item.order.total|floatformat:0 }}</span>
-                                    </div>
-                                    <span class="ops-order-card-chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
+                                <div class="ops-order-side">
+                                    <div class="ops-order-side-items">{{ item.order.order_items|length }} Items</div>
+                                    <div class="ops-order-side-amount">₹{{ item.order.total|floatformat:0 }}</div>
                                 </div>
                             </div>
-                            <div class="ops-order-facts">
-                                <div class="ops-order-fact is-payment">
-                                    <span class="ops-order-fact-label">Payment</span>
-                                    <span class="ops-order-fact-value is-payment">{{ item.order.payment_method|default:"Cash on Delivery" }}</span>
+                            <div class="ops-order-footer">
+                                <div class="ops-order-footer-meta">
+                                    <span>{{ item.order.order_date|date:"d-m-Y g:i a"|default:"-" }}</span>
+                                    <span class="ops-order-footer-delivery">Delivery</span>
                                 </div>
-                                <div class="ops-order-fact">
-                                    <span class="ops-order-fact-label">Products</span>
-                                    <span class="ops-order-fact-value">{{ item.order.order_items|length }}</span>
-                                </div>
-                                <div class="ops-order-fact">
-                                    <span class="ops-order-fact-label">Profit</span>
-                                    <span class="ops-order-fact-value"><span class="ops-order-fact-inline-label">Profit:</span> Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
+                                <div class="ops-order-footer-link">
+                                    <span>Details</span>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                                 </div>
                             </div>
-                            {% if not item.profit_summary.is_complete %}
-                                <div class="ops-order-card-meta">Profit incomplete: update actual price or product mapping.</div>
-                            {% endif %}
-                            {% if item.order.local_status == 'shipped' and item.order.tracking_number %}
-                                <div class="ops-order-tracking">
-                                    <span class="ops-order-tracking-value">Tracking: {{ item.order.tracking_number }}</span>
-                                </div>
-                            {% endif %}
                             {% if item.stock_availability.has_shortage %}
                                 {% with shortage=item.stock_availability.shortages.0 %}
                                     <div class="ops-order-stock-alert">
@@ -1683,6 +1523,9 @@
                                 {% endwith %}
                             {% endif %}
                             <span class="ops-order-visually-hidden">Profit: Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
+                            {% if item.order.local_status == 'shipped' and item.order.tracking_number %}
+                                <span class="ops-order-visually-hidden">Tracking: {{ item.order.tracking_number }}</span>
+                            {% endif %}
                         </div>
                     </a>
                 {% endfor %}
