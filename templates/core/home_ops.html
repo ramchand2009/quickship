@@ -12,66 +12,90 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-shell {
     min-height: 100vh;
-    padding: 0 0 6rem;
-    background: #faf8ff;
-    color: #1a1b21;
+    padding: 0 0 7.5rem;
+    background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.2), transparent 30%),
+        radial-gradient(circle at top right, rgba(45, 212, 191, 0.12), transparent 26%),
+        linear-gradient(180deg, #f8fbff 0%, #f3f6fb 52%, #eef3f8 100%);
+    color: #0f172a;
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.ops-home-main {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.ops-home-hero {
+    display: grid;
+    gap: 0.95rem;
+}
+
 .ops-home-header {
-    padding: 0.85rem 1rem 0.9rem;
+    padding: 0.2rem 0 0;
 }
 
 .ops-home-eyebrow {
     margin: 0;
-    color: #444651;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
+    color: #335a96;
+    font-size: 0.73rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
 .ops-home-title {
-    margin: 0.1rem 0 0;
-    color: #1a1b21;
-    font-size: 1.18rem;
-    font-weight: 750;
-    line-height: 1.5rem;
+    margin: 0.25rem 0 0;
+    color: #0f172a;
+    font-size: clamp(1.45rem, 5vw, 1.9rem);
+    font-weight: 850;
+    line-height: 1.18;
 }
 
 .ops-home-header p {
-    margin: 0.18rem 0 0;
-    color: #444651;
-    line-height: 1.5;
-}
-
-.ops-home-month-grid {
-    display: grid;
-    gap: 0.75rem;
-    padding: 0 1rem;
+    margin: 0.35rem 0 0;
+    color: #475569;
+    font-size: 0.96rem;
+    line-height: 1.55;
 }
 
 .ops-home-sales-card {
-    margin: 0 1rem 0.65rem;
-    padding: 0.95rem 1rem;
-    border: 1px solid #1e3a8a;
-    border-radius: 0.85rem;
-    background: #1e3a8a;
+    position: relative;
+    overflow: hidden;
+    padding: 1.1rem 1.05rem;
+    border: 1px solid rgba(37, 99, 235, 0.22);
+    border-radius: 1.3rem;
+    background: linear-gradient(135deg, #183f96 0%, #1d4ed8 58%, #2563eb 100%);
     color: #ffffff;
-    box-shadow: 0 8px 20px rgba(30, 58, 138, 0.16);
+    box-shadow: 0 20px 40px rgba(29, 78, 216, 0.22);
+}
+
+.ops-home-sales-card::after {
+    content: "";
+    position: absolute;
+    inset: auto -24% -38% auto;
+    width: 160px;
+    height: 160px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
 }
 
 .ops-home-sales-label {
     display: block;
-    color: #90a8ff;
+    position: relative;
+    z-index: 1;
+    color: rgba(219, 234, 254, 0.92);
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1rem;
 }
 
 .ops-home-sales-value {
     display: block;
     margin-top: 0.35rem;
+    position: relative;
+    z-index: 1;
     font-size: clamp(1.35rem, 6vw, 1.7rem);
     font-weight: 800;
     line-height: 1.1;
@@ -79,17 +103,19 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-sales-meta {
     display: block;
-    margin-top: 0.3rem;
-    color: #dce1ff;
+    position: relative;
+    z-index: 1;
+    margin-top: 0.5rem;
+    color: rgba(219, 234, 254, 0.9);
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .ops-home-sales-metrics {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.8rem;
-    margin-top: 0.75rem;
+    margin-top: 0.9rem;
 }
 
 .ops-home-sales-metric {
@@ -98,25 +124,24 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.6rem;
-    margin-bottom: 1.1rem;
+    gap: 0.75rem;
 }
 
 .ops-home-card {
-    background: #ffffff;
-    border: 1px solid #c5c5d3;
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    border: 1px solid #d9e3ef;
+    border-radius: 1.05rem;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
     overflow: hidden;
 }
 
 .ops-home-month-grid .ops-home-card:first-child {
-    background: #1e3a8a;
-    border-color: #1e3a8a;
+    background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
+    border-color: rgba(29, 78, 216, 0.25);
 }
 
 .ops-home-month-grid .ops-home-card:first-child .ops-home-card-label {
-    color: #90a8ff;
+    color: rgba(191, 219, 254, 0.9);
 }
 
 .ops-home-month-grid .ops-home-card:first-child .ops-home-card-value {
@@ -129,130 +154,205 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 .ops-home-card-link {
     display: flex;
-    min-height: 88px;
+    min-height: 94px;
     flex-direction: column;
     justify-content: space-between;
-    padding: 0.8rem 0.85rem;
+    padding: 0.95rem;
     color: inherit;
 }
 
 .ops-home-card-label {
     display: block;
-    color: #00164e;
-    font-size: 0.78rem;
-    font-weight: 600;
+    color: #24406c;
+    font-size: 0.77rem;
+    font-weight: 700;
     line-height: 1rem;
 }
 
 .ops-home-card-value {
     display: block;
-    margin-top: 0.25rem;
-    color: #1a1b21;
-    font-size: 1.4rem;
-    font-weight: 800;
+    margin-top: 0.3rem;
+    color: #0f172a;
+    font-size: 1.5rem;
+    font-weight: 850;
     line-height: 1;
 }
 
-.ops-home-card-tone-primary { border-left: 4px solid #1e3a8a; }
-.ops-home-card-tone-warning { border-left: 4px solid #ffb691; }
-.ops-home-card-tone-info { border-left: 4px solid #006a61; }
-.ops-home-card-tone-secondary { border-left: 4px solid #757682; }
-.ops-home-card-tone-success { border-left: 4px solid #006a61; }
-.ops-home-card-tone-danger { border-left: 4px solid #ba1a1a; }
+.ops-home-card-tone-primary { border-top: 4px solid #1d4ed8; }
+.ops-home-card-tone-warning { border-top: 4px solid #f59e0b; }
+.ops-home-card-tone-info { border-top: 4px solid #0891b2; }
+.ops-home-card-tone-secondary { border-top: 4px solid #64748b; }
+.ops-home-card-tone-success { border-top: 4px solid #059669; }
+.ops-home-card-tone-danger { border-top: 4px solid #dc2626; }
+
+.ops-home-panel {
+    padding: 1rem;
+    border: 1px solid rgba(214, 223, 234, 0.9);
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.ops-home-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.8rem;
+    margin-bottom: 0.95rem;
+}
+
+.ops-home-panel-kicker {
+    display: block;
+    color: #5473a7;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ops-home-panel-head h3 {
+    margin: 0.2rem 0 0;
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 850;
+    line-height: 1.25;
+}
+
+.ops-home-panel-head p {
+    margin: 0.25rem 0 0;
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.ops-home-panel-head a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #153e8a;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
+}
 
 .ops-home-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
-    padding: 0 1rem;
-    margin-bottom: 2rem;
 }
 
 .ops-home-action {
-    min-height: 110px;
-    border-radius: 0.5rem;
-    background: #e9e7ef;
-    color: #1a1b21;
+    min-height: 112px;
+    padding: 0.9rem 0.85rem;
+    border-radius: 1rem;
+    border: 1px solid #d9e3ef;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    color: #0f172a;
     text-decoration: none;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-align: center;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 800;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
 
 .ops-home-action-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 999px;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #dce1ff;
-    color: #00164e;
+    background: #dbeafe;
+    color: #153e8a;
 }
 
 .ops-home-action:nth-child(2) .ops-home-action-icon {
-    background: #89f5e7;
-    color: #00201d;
+    background: #dcfce7;
+    color: #166534;
 }
 
 .ops-home-action:nth-child(3) .ops-home-action-icon {
-    background: #ffdbcb;
-    color: #341100;
+    background: #fef3c7;
+    color: #92400e;
 }
 
 .ops-home-action:nth-child(4) .ops-home-action-icon {
-    background: #ffdad6;
-    color: #93000a;
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.ops-home-action-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ops-home-action-label {
+    display: block;
+    color: #0f172a;
+}
+
+.ops-home-action-text {
+    display: block;
+    margin-top: 0.16rem;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.3;
 }
 
 .ops-home-stock-list {
     display: grid;
     gap: 0.75rem;
-    margin-top: 0.25rem;
-    padding: 0 1rem 1rem;
+    margin-top: 0;
 }
 
 .ops-home-stock-card {
     background: #ffffff;
-    border: 1px solid #c5c5d3;
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
-    padding: 0.9rem 1rem;
+    border: 1px solid #d9e3ef;
+    border-radius: 1rem;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    padding: 0.95rem;
 }
 
 .ops-home-settlement-card {
-    margin: 0 1rem 1rem;
-    padding: 0.9rem 1rem;
-    border: 1px solid #d8dbe5;
-    border-radius: 0.75rem;
-    background: #ffffff;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    padding: 1rem;
+    border: 1px solid rgba(209, 220, 235, 0.92);
+    border-radius: 1.2rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
 }
 
 .ops-home-settlement-card strong {
     display: block;
-    color: #111827;
-    font-size: 0.9rem;
+    color: #0f172a;
+    font-size: 1rem;
 }
 
 .ops-home-settlement-card span {
     display: block;
-    margin-top: 0.2rem;
+    margin-top: 0.25rem;
     color: #64748b;
-    font-size: 0.78rem;
-    line-height: 1.35;
+    font-size: 0.84rem;
+    line-height: 1.45;
 }
 
 .ops-home-settlement-card a {
     display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     margin-top: 0.65rem;
-    color: #00236f;
-    font-size: 0.8rem;
+    color: #153e8a;
+    font-size: 0.82rem;
     font-weight: 800;
     text-decoration: none;
 }
@@ -267,78 +367,64 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-stock-name {
     display: block;
     font-weight: 800;
-    color: #1a1b21;
+    color: #0f172a;
 }
 
 .ops-home-stock-qty {
     display: inline-flex;
     align-items: center;
-    padding: 0.3rem 0.55rem;
+    justify-content: center;
+    min-width: 82px;
+    padding: 0.34rem 0.6rem;
     border-radius: 999px;
-    background: #ffdad6;
-    color: #93000a;
-    font-size: 0.78rem;
+    background: #fff1f2;
+    color: #b91c1c;
+    font-size: 0.74rem;
     font-weight: 800;
-    white-space: nowrap;
+    text-align: center;
 }
 
 .ops-home-stock-sku {
     display: block;
-    margin-top: 0.12rem;
-    color: #444651;
+    margin-top: 0.16rem;
+    color: #64748b;
     font-size: 0.78rem;
 }
 
 .ops-home-stock-icon {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0.25rem;
-    background: #fff4f2;
-    color: #ba1a1a;
+    border-radius: 14px;
+    background: #fff1f2;
+    color: #dc2626;
+}
+
+.ops-home-stock-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .ops-home-stock-empty {
     color: #64748b;
-    font-size: 0.9rem;
-}
-
-.ops-home-section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-    margin: 0 0 0.75rem;
-    padding: 0 1rem;
-}
-
-.ops-home-section-head h3 {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 800;
-    color: #1a1b21;
-}
-
-.ops-home-section-head span {
-    color: #444651;
-    font-size: 0.84rem;
-}
-
-.ops-home-section-head a {
-    color: #00236f;
-    font-size: 0.82rem;
-    font-weight: 700;
-    text-decoration: none;
+    font-size: 0.88rem;
+    text-align: center;
+    padding: 1rem 0.5rem;
+    border: 1px dashed #d7dfeb;
+    border-radius: 1rem;
+    background: #f8fbff;
 }
 
 .ops-home-alert-panel {
-    margin: 0 1rem 1rem;
-    padding: 0.85rem;
-    border: 1px solid #f2d4a5;
-    border-radius: 8px;
-    background: #fff8ed;
+    border-color: #f3dfba;
+    background: linear-gradient(180deg, #fff9ef 0%, #fffefb 100%);
 }
 
 .ops-home-alert-title {
@@ -351,18 +437,28 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     font-weight: 800;
 }
 
+.ops-home-alert-title svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .ops-home-alert-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
+    gap: 0.7rem;
 }
 
 .ops-home-alert-card {
     display: block;
-    min-height: 78px;
-    padding: 0.7rem;
-    border: 1px solid #f0dfc6;
-    border-radius: 6px;
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid #f4e5ca;
+    border-radius: 1rem;
     background: #fff;
     color: #171923;
     text-decoration: none;
@@ -372,7 +468,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     display: block;
     margin-bottom: 0.18rem;
     color: #9a3412;
-    font-size: 1.25rem;
+    font-size: 1.35rem;
     font-weight: 900;
     line-height: 1;
 }
@@ -393,10 +489,32 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 @media (max-width: 767px) {
-    .ops-home-shell { padding: 0 0 6rem; }
-    .ops-home-card-link { padding: 0.9rem 0.9rem 0.85rem; }
+    .ops-home-shell { padding: 0 0 7.4rem; }
+    .ops-home-main { gap: 0.9rem; padding: 0.95rem; }
+    .ops-home-panel-head { flex-direction: column; }
+    .ops-home-panel-head a { white-space: normal; }
+    .ops-home-card-link { padding: 0.9rem; }
     .ops-home-card-value { font-size: 1.45rem; }
-    .ops-home-actions { gap: 0.55rem; }
+    .ops-home-actions { gap: 0.65rem; }
+}
+
+@media (max-width: 420px) {
+    .ops-home-main { padding: 0.85rem; }
+    .ops-home-month-grid,
+    .ops-home-alert-grid,
+    .ops-home-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .ops-home-stock-row {
+        grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    .ops-home-stock-qty {
+        grid-column: 2;
+        justify-self: start;
+        margin-top: 0.45rem;
+    }
 }
 </style>
 {% endblock %}
@@ -415,97 +533,155 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         </div>
     </div>
 
-    <div class="ops-home-header">
-        <div class="ops-home-eyebrow">Dashboard Overview</div>
-        <h2 class="ops-home-title">Welcome back, {{ request.user.first_name|default:request.user.username|default:"Admin" }}</h2>
-        <p>Live order status and stock overview.</p>
-    </div>
+    <main class="ops-home-main">
+        <section class="ops-home-hero">
+            <div class="ops-home-header">
+                <div class="ops-home-eyebrow">Dashboard Overview</div>
+                <h2 class="ops-home-title">Welcome back, {{ request.user.first_name|default:request.user.username|default:"Admin" }}</h2>
+                <p>Live order status and stock overview.</p>
+            </div>
 
-    <div class="ops-home-sales-card">
-        <span class="ops-home-sales-label">This Month</span>
-        <div class="ops-home-sales-metrics">
-            <div class="ops-home-sales-metric">
-                <span class="ops-home-sales-label">Sale Value</span>
-                <span class="ops-home-sales-value">Rs {{ monthly_sales_total|floatformat:2 }}</span>
-            </div>
-            <div class="ops-home-sales-metric">
-                <span class="ops-home-sales-label">Profit</span>
-                <span class="ops-home-sales-value">Rs {{ monthly_profit_total|floatformat:2 }}</span>
-            </div>
-        </div>
-        <span class="ops-home-sales-meta">{{ current_month_label }}</span>
-    </div>
-
-    <div class="ops-home-month-grid">
-        {% for card in monthly_status_cards %}
-            <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
-                <a href="{{ card.url }}" class="ops-home-card-link">
-                    <span class="ops-home-card-label">{{ card.label }}</span>
-                    <span class="ops-home-card-value">{{ card.count }}</span>
-                </a>
-            </div>
-        {% endfor %}
-    </div>
-
-    <div class="ops-home-settlement-card">
-        <strong>Settlement report</strong>
-        <span>Review sales, profit payout, and internal expenses.</span>
-        <a href="{% url 'vendor_settlements' %}">Open report &rarr;</a>
-    </div>
-
-    {% if vendor_issue_alerts.has_issues %}
-        <div class="ops-home-alert-panel">
-            <div class="ops-home-alert-title">
-                <i class="fas fa-exclamation-circle"></i>
-                <span>Needs Attention</span>
-            </div>
-            <div class="ops-home-alert-grid">
-                {% for card in vendor_issue_alerts.cards %}
-                    {% if card.count %}
-                        <a href="{{ card.url }}" class="ops-home-alert-card">
-                            <span class="ops-home-alert-count">{{ card.count }}</span>
-                            <span class="ops-home-alert-label">{{ card.label }}</span>
-                            <span class="ops-home-alert-detail">{{ card.detail }}</span>
-                        </a>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-    {% endif %}
-
-    <div class="ops-home-section-head">
-        <h3>Low Stock Alerts</h3>
-        <a href="{% url 'stock_management' %}?view=more">View All</a>
-    </div>
-    <div class="ops-home-stock-list">
-        {% for product in low_stock_products|slice:":2" %}
-            <div class="ops-home-stock-card">
-                <div class="ops-home-stock-row">
-                    <span class="ops-home-stock-icon"><i class="fas fa-exclamation-triangle"></i></span>
-                    <span>
-                        <span class="ops-home-stock-name">{{ product.name }}</span>
-                        <span class="ops-home-stock-sku">SKU: {{ product.sku|default:"-" }}</span>
-                    </span>
-                    <span class="ops-home-stock-qty">{{ product.stock_quantity }} units left</span>
-                </div>
-            </div>
-        {% empty %}
-            {% for product in no_stock_products|slice:":2" %}
-                <div class="ops-home-stock-card">
-                    <div class="ops-home-stock-row">
-                        <span class="ops-home-stock-icon"><i class="fas fa-exclamation-triangle"></i></span>
-                        <span>
-                            <span class="ops-home-stock-name">{{ product.name }}</span>
-                            <span class="ops-home-stock-sku">SKU: {{ product.sku|default:"-" }}</span>
-                        </span>
-                        <span class="ops-home-stock-qty">{{ product.stock_quantity }} units left</span>
+            <div class="ops-home-sales-card">
+                <span class="ops-home-sales-label">This Month</span>
+                <div class="ops-home-sales-metrics">
+                    <div class="ops-home-sales-metric">
+                        <span class="ops-home-sales-label">Sale Value</span>
+                        <span class="ops-home-sales-value">Rs {{ monthly_sales_total|floatformat:2 }}</span>
+                    </div>
+                    <div class="ops-home-sales-metric">
+                        <span class="ops-home-sales-label">Profit</span>
+                        <span class="ops-home-sales-value">Rs {{ monthly_profit_total|floatformat:2 }}</span>
                     </div>
                 </div>
-            {% empty %}
-                <div class="ops-home-stock-empty">No low stock alerts right now.</div>
-            {% endfor %}
-        {% endfor %}
-    </div>
+                <span class="ops-home-sales-meta">{{ current_month_label }}</span>
+            </div>
+        </section>
+
+        <section class="ops-home-panel">
+            <div class="ops-home-panel-head">
+                <div>
+                    <span class="ops-home-panel-kicker">Orders Overview</span>
+                    <h3>Track work by current status</h3>
+                    <p>See what needs action first without opening each page.</p>
+                </div>
+                <a href="{% url 'order_management' %}?tab=all">Open Orders</a>
+            </div>
+            <div class="ops-home-month-grid">
+                {% for card in monthly_status_cards %}
+                    <div class="ops-home-card ops-home-card-tone-{{ card.tone }}">
+                        <a href="{{ card.url }}" class="ops-home-card-link">
+                            <span class="ops-home-card-label">{{ card.label }}</span>
+                            <span class="ops-home-card-value">{{ card.count }}</span>
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="ops-home-panel">
+            <div class="ops-home-panel-head">
+                <div>
+                    <span class="ops-home-panel-kicker">Quick Actions</span>
+                    <h3>Jump to the main work areas</h3>
+                </div>
+            </div>
+            <div class="ops-home-actions">
+                <a href="{% url 'order_management' %}?tab=all" class="ops-home-action">
+                    <span class="ops-home-action-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 4-4h10l4 4-3 4H6L3 7Z"/><path d="M6 11v9h12v-9"/><path d="M9 7h6"/></svg></span>
+                    <span>
+                        <span class="ops-home-action-label">Orders</span>
+                        <span class="ops-home-action-text">Accept, pack, and ship faster.</span>
+                    </span>
+                </a>
+                <a href="{% url 'stock_management' %}" class="ops-home-action">
+                    <span class="ops-home-action-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h8v7H3zM13 4h8v7h-8zM3 13h8v7H3zM13 13h8v7h-8z"/></svg></span>
+                    <span>
+                        <span class="ops-home-action-label">Stock</span>
+                        <span class="ops-home-action-text">Review products and low stock.</span>
+                    </span>
+                </a>
+                <a href="{% url 'special_stock_issue_register' %}" class="ops-home-action">
+                    <span class="ops-home-action-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18v12H3zM2 5h20v4H2zM12 5v16"/><path d="M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/></svg></span>
+                    <span>
+                        <span class="ops-home-action-label">Entry</span>
+                        <span class="ops-home-action-text">Record free or sample issue stock.</span>
+                    </span>
+                </a>
+                <a href="{% url 'expense_tracker' %}" class="ops-home-action">
+                    <span class="ops-home-action-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H19v16H5.5A2.5 2.5 0 0 1 3 17.5v-11Z"/><path d="M3 7h16M15 11h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M17.5 13.5h.01"/></svg></span>
+                    <span>
+                        <span class="ops-home-action-label">Expenses</span>
+                        <span class="ops-home-action-text">Log business spending clearly.</span>
+                    </span>
+                </a>
+            </div>
+        </section>
+
+        <section class="ops-home-settlement-card">
+            <strong>Settlement report</strong>
+            <span>Review sales, profit payout, and internal expenses in one place.</span>
+            <a href="{% url 'vendor_settlements' %}">Open report <span aria-hidden="true">&rarr;</span></a>
+        </section>
+
+        {% if vendor_issue_alerts.has_issues %}
+            <section class="ops-home-panel ops-home-alert-panel">
+                <div class="ops-home-alert-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.84 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.84a2 2 0 0 0-3.4 0Z"/></svg>
+                    <span>Needs Attention</span>
+                </div>
+                <div class="ops-home-alert-grid">
+                    {% for card in vendor_issue_alerts.cards %}
+                        {% if card.count %}
+                            <a href="{{ card.url }}" class="ops-home-alert-card">
+                                <span class="ops-home-alert-count">{{ card.count }}</span>
+                                <span class="ops-home-alert-label">{{ card.label }}</span>
+                                <span class="ops-home-alert-detail">{{ card.detail }}</span>
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="ops-home-panel">
+            <div class="ops-home-panel-head">
+                <div>
+                    <span class="ops-home-panel-kicker">Inventory Alerts</span>
+                    <h3>Low stock items to review</h3>
+                </div>
+                <a href="{% url 'stock_management' %}?view=more">View All</a>
+            </div>
+            <div class="ops-home-stock-list">
+                {% for product in low_stock_products|slice:":2" %}
+                    <div class="ops-home-stock-card">
+                        <div class="ops-home-stock-row">
+                            <span class="ops-home-stock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.84 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.84a2 2 0 0 0-3.4 0Z"/></svg></span>
+                            <span>
+                                <span class="ops-home-stock-name">{{ product.name }}</span>
+                                <span class="ops-home-stock-sku">SKU: {{ product.sku|default:"-" }}</span>
+                            </span>
+                            <span class="ops-home-stock-qty">{{ product.stock_quantity }} left</span>
+                        </div>
+                    </div>
+                {% empty %}
+                    {% for product in no_stock_products|slice:":2" %}
+                        <div class="ops-home-stock-card">
+                            <div class="ops-home-stock-row">
+                                <span class="ops-home-stock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.84 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.84a2 2 0 0 0-3.4 0Z"/></svg></span>
+                                <span>
+                                    <span class="ops-home-stock-name">{{ product.name }}</span>
+                                    <span class="ops-home-stock-sku">SKU: {{ product.sku|default:"-" }}</span>
+                                </span>
+                                <span class="ops-home-stock-qty">{{ product.stock_quantity }} left</span>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="ops-home-stock-empty">No low stock alerts right now.</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </section>
+    </main>
 
     {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="home" ops_mobile_nav_sync_return="home" %}
 </div>

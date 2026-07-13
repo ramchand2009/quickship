@@ -28,49 +28,142 @@
 
     .ops-detail-shell {
         min-height: 100vh;
-        background: #faf8ff;
-        padding-bottom: 6rem;
-        color: #1a1b21;
+        background:
+            radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 28%),
+            radial-gradient(circle at top right, rgba(45, 212, 191, 0.1), transparent 24%),
+            linear-gradient(180deg, #f8fbff 0%, #f3f6fb 54%, #eef3f8 100%);
+        padding-bottom: 7.4rem;
+        color: #0f172a;
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
+    .ops-detail-header-panel {
+        margin: 0.95rem 0.95rem 0.8rem;
+        padding: 1rem;
+        border: 1px solid rgba(214, 223, 234, 0.92);
+        border-radius: 1.2rem;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .ops-detail-header-kicker {
+        display: block;
+        color: #5473a7;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .ops-detail-header-panel h2 {
+        margin: 0.24rem 0 0;
+        color: #0f172a;
+        font-size: 1.26rem;
+        font-weight: 850;
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+    }
+
+    .ops-detail-header-panel p {
+        margin: 0.32rem 0 0;
+        color: #64748b;
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+
+    .ops-detail-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+        margin-top: 0.95rem;
+    }
+
+    .ops-detail-summary-card {
+        min-height: 70px;
+        padding: 0.8rem 0.85rem;
+        border: 1px solid #d9e3ef;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    }
+
+    .ops-detail-summary-card span {
+        display: block;
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .ops-detail-summary-card strong {
+        display: block;
+        margin-top: 0.28rem;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 850;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .ops-detail-summary-card.is-accent {
+        border-color: rgba(29, 78, 216, 0.22);
+        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
+    }
+
+    .ops-detail-summary-card.is-accent span,
+    .ops-detail-summary-card.is-accent strong {
+        color: #ffffff;
+    }
+
     .ops-detail-stepper {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.35rem;
-        padding: 0.75rem 0.85rem 0.25rem;
+        gap: 0.55rem;
+        padding: 0 0.95rem 0.3rem;
     }
 
     .ops-detail-step {
         position: relative;
         text-align: center;
-        background: #e9e7ef;
-        color: #444651;
+        background: rgba(255, 255, 255, 0.92);
+        color: #64748b;
+        border: 1px solid #d9e3ef;
         font-size: 0.66rem;
-        font-weight: 700;
-        padding: 0.42rem 0.18rem;
+        font-weight: 800;
+        padding: 0.52rem 0.22rem;
         border-radius: 999px;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
     }
 
     .ops-detail-step.is-active,
     .ops-detail-step.is-complete {
-        background: #1e3a8a;
+        background: linear-gradient(180deg, #e9f0ff 0%, #eef4ff 100%);
+        border-color: rgba(147, 197, 253, 0.95);
+        color: #0b2f6b;
+        box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.72);
+    }
+
+    .ops-detail-step.is-active {
+        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
+        border-color: rgba(29, 78, 216, 0.2);
         color: #ffffff;
+        box-shadow: 0 10px 20px rgba(29, 78, 216, 0.14);
     }
 
     .ops-detail-body {
-        padding: 0.6rem 0.85rem 1rem;
+        padding: 0.5rem 0.95rem 1rem;
         display: grid;
-        gap: 0.65rem;
+        gap: 0.9rem;
     }
 
     .ops-detail-card {
-        background: #fff;
-        border-radius: 0.85rem;
-        padding: 0.9rem;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
-        border: 1px solid #d8dbe5;
+        background: rgba(255, 255, 255, 0.94);
+        border-radius: 1.2rem;
+        padding: 1rem;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+        border: 1px solid rgba(214, 223, 234, 0.92);
     }
 
     .ops-detail-actions-card {
@@ -85,9 +178,9 @@
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-        color: #444651;
+        color: #64748b;
         font-size: 0.74rem;
-        font-weight: 650;
+        font-weight: 700;
     }
 
     .ops-detail-order-row {
@@ -95,49 +188,91 @@
         justify-content: space-between;
         gap: 1rem;
         align-items: center;
-        margin-top: 0.55rem;
-        padding-bottom: 0.7rem;
-        border-bottom: 1px solid #c5c5d3;
+        margin-top: 0.62rem;
+        padding-bottom: 0.88rem;
+        border-bottom: 1px solid rgba(214, 223, 234, 0.95);
     }
 
     .ops-detail-order-row h2 {
         margin: 0;
-        font-size: 1.05rem;
-        color: #1a1b21;
-        font-weight: 700;
+        font-size: 1.12rem;
+        color: #0f172a;
+        font-weight: 850;
+        line-height: 1.28;
+        overflow-wrap: anywhere;
     }
 
     .ops-detail-status-badge {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.25rem 0.6rem;
+        min-height: 28px;
+        padding: 0.34rem 0.64rem;
         border-radius: 999px;
-        background: #86f2e4;
-        color: #006f66;
-        font-size: 0.78rem;
+        background: #eef2ff;
+        color: #334155;
+        font-size: 0.67rem;
         font-weight: 800;
         text-align: right;
         white-space: nowrap;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .ops-detail-status-badge.status-pending {
+        background: #fff7ed;
+        color: #9a3412;
+    }
+
+    .ops-detail-status-badge.status-accepted,
+    .ops-detail-status-badge.status-shipped {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .ops-detail-status-badge.status-packed {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .ops-detail-status-badge.status-delivered {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .ops-detail-status-badge.status-completed {
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    .ops-detail-status-badge.status-cancelled {
+        background: #fff1f2;
+        color: #dc2626;
     }
 
     .ops-detail-section-title {
-        margin: 0.78rem 0 0.5rem;
-        font-size: 0.82rem;
+        margin: 0.9rem 0 0.55rem;
+        font-size: 0.76rem;
         font-weight: 800;
-        color: #00236f;
+        color: #5473a7;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
     }
 
     .ops-detail-address {
-        color: #444651;
+        color: #475569;
         font-size: 0.88rem;
-        line-height: 1.45;
+        line-height: 1.52;
+        padding: 0.92rem;
+        border: 1px solid #d9e3ef;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
     }
 
     .ops-detail-contact-actions {
         display: flex;
         gap: 0.55rem;
-        margin-top: 0.7rem;
+        margin-top: 0.8rem;
     }
 
     .ops-detail-contact-actions a {
@@ -146,10 +281,11 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 0.5rem;
+        border-radius: 14px;
         text-decoration: none;
         font-size: 1.1rem;
         font-weight: 700;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
     }
 
     .ops-detail-contact-actions svg,
@@ -166,8 +302,8 @@
     .ops-detail-payment-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.55rem;
-        margin-top: 0.75rem;
+        gap: 0.7rem;
+        margin-top: 0.85rem;
     }
 
     .ops-detail-contact-actions .is-whatsapp {
@@ -183,30 +319,31 @@
     .ops-detail-inline-row {
         display: block;
         min-width: 0;
-        padding: 0.7rem;
-        border: 1px solid #e2e4eb;
-        border-radius: 0.65rem;
-        background: #f8f9fc;
+        padding: 0.82rem;
+        border: 1px solid #d9e3ef;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
     }
 
     .ops-detail-pill {
         display: inline-flex;
-        margin-top: 0.3rem;
-        padding: 0;
-        border-radius: 0;
-        background: transparent;
-        color: #00236f;
-        font-weight: 700;
+        margin-top: 0.38rem;
+        padding: 0.28rem 0.56rem;
+        border-radius: 999px;
+        background: #eef4ff;
+        color: #0b2f6b;
+        font-size: 0.76rem;
+        font-weight: 800;
     }
 
     .ops-detail-financial-details {
-        margin-top: 0.65rem;
-        border-top: 1px solid #e2e4eb;
+        margin-top: 0.8rem;
+        border-top: 1px solid rgba(214, 223, 234, 0.95);
     }
 
     .ops-detail-financial-details summary {
-        padding: 0.7rem 0 0.05rem;
-        color: #00236f;
+        padding: 0.78rem 0 0.05rem;
+        color: #153e8a;
         font-size: 0.8rem;
         font-weight: 800;
         cursor: pointer;
@@ -278,8 +415,9 @@
     .ops-detail-tracking-current {
         margin-top: 0.9rem;
         padding: 0.9rem 1rem;
-        border-radius: 0.5rem;
-        background: #f4f3fa;
+        border-radius: 1rem;
+        background: #f8fbff;
+        border: 1px solid #d9e3ef;
         color: #1f2933;
         font-weight: 700;
     }
@@ -291,19 +429,31 @@
         align-items: center;
     }
 
+    .ops-detail-items-head span {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.9rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 999px;
+        background: #eef4ff;
+        color: #0b2f6b;
+        font-size: 0.72rem;
+        font-weight: 800;
+    }
+
     .ops-detail-item {
         display: grid;
         grid-template-columns: 64px minmax(0, 1fr) auto;
-        gap: 0.7rem;
+        gap: 0.85rem;
         align-items: start;
-        padding: 0.75rem 0 0;
+        padding: 0.9rem 0 0;
     }
 
     .ops-detail-thumb {
         width: 64px;
         height: 64px;
-        border-radius: 0.5rem;
-        background: #1e3a8a;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
         color: #fff;
         display: flex;
         align-items: center;
@@ -320,41 +470,46 @@
     }
 
     .ops-detail-item-name {
-        font-size: 0.92rem;
-        font-weight: 700;
-        color: #1a1b21;
-        margin-bottom: 0.2rem;
+        font-size: 0.94rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 0.24rem;
+        line-height: 1.35;
     }
 
     .ops-detail-item-variant {
-        color: #444651;
+        color: #64748b;
         font-size: 0.78rem;
+        overflow-wrap: anywhere;
     }
 
     .ops-detail-item-price {
         text-align: right;
-        color: #1f2933;
-        font-weight: 700;
-        font-size: 0.86rem;
+        color: #0f172a;
+        font-weight: 800;
+        font-size: 0.9rem;
     }
 
     .ops-detail-item-qty {
         display: inline-flex;
         margin-top: 0.4rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.5rem;
-        background: #e9e7ef;
-        color: #444651;
-        font-weight: 700;
+        padding: 0.28rem 0.54rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: 0.74rem;
+        font-weight: 800;
     }
 
     .ops-detail-stock-alert {
         margin-top: 0.9rem;
-        padding: 0.8rem 0.9rem;
-        border-radius: 0.5rem;
-        background: #ffdbcb;
-        color: #773205;
-        font-size: 0.92rem;
+        padding: 0.9rem 0.95rem;
+        border-radius: 1rem;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: 0.9rem;
         line-height: 1.45;
     }
 
@@ -364,7 +519,7 @@
         border: 0;
         background: #fff;
         border: 1px solid #c5c5d3;
-        border-radius: 0.25rem;
+        border-radius: 0.9rem;
         padding: 0.92rem 1rem;
         font-size: 1rem;
         margin-top: 0.8rem;
@@ -889,8 +1044,8 @@
     .ops-detail-action-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.6rem;
-        margin-top: 0.7rem;
+        gap: 0.7rem;
+        margin-top: 0.8rem;
     }
 
     .ops-detail-action-grid form {
@@ -899,21 +1054,24 @@
 
     .ops-detail-action-btn {
         border: 0;
-        border-radius: 0.65rem;
-        padding: 0.82rem 0.7rem;
+        border-radius: 1rem;
+        padding: 0.9rem 0.82rem;
         font-size: 0.88rem;
-        font-weight: 700;
+        font-weight: 800;
         width: 100%;
+        text-align: center;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
     }
 
     .ops-detail-action-btn.is-primary {
-        background: #1e3a8a;
+        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
         color: #fff;
     }
 
     .ops-detail-action-btn.is-secondary {
-        background: #e9e7ef;
-        color: #444651;
+        background: #ffffff;
+        border: 1px solid #d9e3ef;
+        color: #334155;
     }
 
     .ops-detail-action-btn.is-danger {
@@ -923,21 +1081,64 @@
     }
 
     .ops-detail-empty-actions {
-        color: #6b7280;
-        margin-top: 0.8rem;
+        color: #64748b;
+        margin-top: 0.9rem;
+        padding: 0.82rem 0.9rem;
+        border-radius: 1rem;
+        background: #f8fbff;
+        border: 1px solid #d9e3ef;
+        line-height: 1.45;
     }
 
     .ops-detail-card h5,
     .ops-detail-card h6 {
-        color: #00236f;
-        font-weight: 700;
+        color: #0f172a;
+        font-weight: 800;
     }
 
     .ops-detail-action-grid .btn,
     .ops-detail-edit-actions .btn,
     .ops-detail-action-btn {
         min-height: 48px;
-        border-radius: 0.5rem;
+        border-radius: 1rem;
+    }
+
+    @media (max-width: 420px) {
+        .ops-detail-header-panel,
+        .ops-detail-stepper,
+        .ops-detail-body {
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .ops-detail-header-panel {
+            margin: 0.85rem 0.85rem 0.75rem;
+        }
+
+        .ops-detail-summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ops-detail-stepper {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ops-detail-order-row,
+        .ops-detail-items-head,
+        .ops-detail-item {
+            grid-template-columns: none;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .ops-detail-payment-grid,
+        .ops-detail-action-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ops-detail-item-price {
+            text-align: left;
+        }
     }
 
     {% include "core/_ops_mobile_bottomnav_styles.html" %}
@@ -956,6 +1157,22 @@
         </div>
     </div>
 
+    <div class="ops-detail-header-panel">
+        <span class="ops-detail-header-kicker">Order Details</span>
+        <h2>{{ order.display_shipping_address.name|default:order.customer_name|default:"Customer" }}</h2>
+        <p>Review customer details, products, payment status, and the next action from one screen.</p>
+        <div class="ops-detail-summary-grid">
+            <div class="ops-detail-summary-card is-accent">
+                <span>Order Total</span>
+                <strong>Rs {{ order.total|floatformat:2 }}</strong>
+            </div>
+            <div class="ops-detail-summary-card">
+                <span>Status</span>
+                <strong>{{ order.get_local_status_display }}</strong>
+            </div>
+        </div>
+    </div>
+
     <div class="ops-detail-stepper">
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'pending' or ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'pending' %}is-active{% endif %}">Pending</div>
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'accepted' %}is-active{% endif %}">Accepted</div>
@@ -970,7 +1187,21 @@
             </div>
             <div class="ops-detail-order-row">
                 <h2>{{ order.display_shipping_address.name|default:order.customer_name|default:"Customer" }}</h2>
-                <div class="ops-detail-status-badge">{{ order.get_local_status_display }}</div>
+                <div class="ops-detail-status-badge {% if order.local_status == 'new_order' %}status-pending{% elif order.local_status == 'order_accepted' or order.local_status == 'order_packed' %}status-packed{% elif order.local_status == 'shipped' or order.local_status == 'out_for_delivery' %}status-shipped{% elif order.local_status == 'delivered' %}status-delivered{% elif order.local_status == 'completed' %}status-completed{% elif order.local_status == 'order_cancelled' %}status-cancelled{% else %}status-default{% endif %}">
+                    {% if order.local_status == 'new_order' %}
+                        Pending
+                    {% elif order.local_status == 'order_accepted' or order.local_status == 'order_packed' %}
+                        Accepted
+                    {% elif order.local_status == 'shipped' or order.local_status == 'out_for_delivery' %}
+                        Shipped
+                    {% elif order.local_status == 'delivered' or order.local_status == 'completed' %}
+                        Completed
+                    {% elif order.local_status == 'order_cancelled' %}
+                        Cancelled
+                    {% else %}
+                        {{ order.get_local_status_display }}
+                    {% endif %}
+                </div>
             </div>
 
             <div class="ops-detail-section-title">Customer &amp; delivery</div>

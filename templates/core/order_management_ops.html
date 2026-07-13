@@ -506,20 +506,100 @@
     .ops-mobile-shell {
         display: block;
         min-height: 100vh;
-        padding-bottom: 5rem;
-        background: #faf8ff;
-        color: #1a1b21;
+        padding-bottom: 7.4rem;
+        background:
+            radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 28%),
+            radial-gradient(circle at top right, rgba(45, 212, 191, 0.1), transparent 24%),
+            linear-gradient(180deg, #f8fbff 0%, #f3f6fb 54%, #eef3f8 100%);
+        color: #0f172a;
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
+    .ops-mobile-header-panel {
+        margin: 0.95rem 0.95rem 0.75rem;
+        padding: 1rem;
+        border: 1px solid rgba(214, 223, 234, 0.92);
+        border-radius: 1.2rem;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .ops-mobile-header-kicker {
+        display: block;
+        color: #5473a7;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .ops-mobile-header-panel h2 {
+        margin: 0.24rem 0 0;
+        color: #0f172a;
+        font-size: 1.3rem;
+        font-weight: 850;
+        line-height: 1.18;
+    }
+
+    .ops-mobile-header-panel p {
+        margin: 0.32rem 0 0;
+        color: #64748b;
+        font-size: 0.85rem;
+        line-height: 1.45;
+    }
+
+    .ops-mobile-summary-pills {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+        margin-top: 0.95rem;
+    }
+
+    .ops-mobile-summary-pill {
+        min-height: 68px;
+        padding: 0.8rem 0.85rem;
+        border: 1px solid #d9e3ef;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    }
+
+    .ops-mobile-summary-pill span {
+        display: block;
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .ops-mobile-summary-pill strong {
+        display: block;
+        margin-top: 0.28rem;
+        color: #0f172a;
+        font-size: 1.35rem;
+        font-weight: 850;
+        line-height: 1;
+    }
+
+    .ops-mobile-summary-pill.is-accent {
+        border-color: rgba(29, 78, 216, 0.2);
+        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
+    }
+
+    .ops-mobile-summary-pill.is-accent span,
+    .ops-mobile-summary-pill.is-accent strong {
+        color: #ffffff;
+    }
+
     .ops-mobile-tabs {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.65rem;
         overflow-x: auto;
-        padding: 0.75rem 1rem 0.8rem;
-        background: #faf8ff;
+        padding: 0 0.95rem 0.9rem;
+        background: transparent;
         scrollbar-width: none;
         scroll-snap-type: x proximity;
         overscroll-behavior-inline: contain;
@@ -781,62 +861,64 @@
     .ops-mobile-tab {
         flex: 0 0 auto;
         min-width: 0;
-        min-height: 40px;
-        padding: 0.5rem 0.8rem;
+        min-height: 48px;
+        padding: 0.62rem 0.9rem;
         text-align: center;
-        color: #444651;
-        background: #e3e1e9;
+        color: #475569;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #d9e3ef;
         border-radius: 999px;
         text-decoration: none;
-        box-shadow: none;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
         scroll-snap-align: start;
     }
 
     .ops-mobile-tab strong {
         display: inline;
-        font-size: 0.84rem;
-        font-weight: 650;
+        font-size: 0.82rem;
+        font-weight: 750;
     }
 
     .ops-mobile-tab span {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin-left: 0.25rem;
-        min-width: 1.3rem;
-        min-height: 1.3rem;
-        padding: 0.12rem 0.38rem;
+        margin-left: 0.3rem;
+        min-width: 1.45rem;
+        min-height: 1.45rem;
+        padding: 0.12rem 0.42rem;
         border-radius: 999px;
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 800;
-        color: #444651;
-        background: rgba(255, 255, 255, 0.78);
+        color: #334155;
+        background: #eef2ff;
     }
 
     .ops-mobile-tab.is-active {
-        color: #ffffff;
-        background: #00236f;
-        box-shadow: 0 3px 8px rgba(0, 35, 111, 0.16);
+        color: #0b2f6b;
+        background: linear-gradient(180deg, #e9f0ff 0%, #eef4ff 100%);
+        border-color: rgba(147, 197, 253, 0.95);
+        box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.72), 0 10px 20px rgba(29, 78, 216, 0.08);
     }
 
     .ops-mobile-tab.is-active span {
-        color: #00236f;
-        background: #ffffff;
+        color: #ffffff;
+        background: #0b2f6b;
     }
 
     .ops-order-list {
         display: grid;
-        gap: 0.55rem;
-        padding: 0.1rem 0.85rem 5.5rem;
-        background: #faf8ff;
+        gap: 0.8rem;
+        padding: 0 0.95rem 7rem;
+        background: transparent;
     }
 
     .ops-order-card,
     .ops-order-empty {
-        background: #fff;
-        border-radius: 0.75rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border: 1px solid rgba(197, 197, 211, 0.62);
+        background: rgba(255, 255, 255, 0.94);
+        border-radius: 1.2rem;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+        border: 1px solid rgba(214, 223, 234, 0.92);
     }
 
     .ops-order-card {
@@ -844,32 +926,37 @@
         text-decoration: none;
         color: inherit;
         overflow: hidden;
-        transition: background-color 0.15s ease, border-color 0.15s ease;
+        transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
     }
 
     .ops-order-card:active,
     .ops-order-card:hover {
         background: #fff;
-        border-color: rgba(117, 118, 130, 0.38);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+        border-color: rgba(148, 163, 184, 0.8);
+        box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+        transform: translateY(-1px);
     }
 
     .ops-order-card-body {
-        padding: 0.82rem 0.9rem;
+        padding: 1rem;
     }
 
     .ops-order-topline {
         display: flex;
         justify-content: space-between;
-        gap: 0.75rem;
+        gap: 0.85rem;
         align-items: flex-start;
-        margin-bottom: 0.58rem;
+        margin-bottom: 0.82rem;
+    }
+
+    .ops-order-head-main {
+        min-width: 0;
     }
 
     .ops-order-id {
-        margin: 0 0 0.25rem;
-        color: #00236f;
-        font-size: 0.76rem;
+        margin: 0 0 0.28rem;
+        color: #153e8a;
+        font-size: 0.72rem;
         font-weight: 800;
         letter-spacing: 0.08em;
         line-height: 0.95rem;
@@ -878,10 +965,32 @@
 
     .ops-order-customer {
         margin: 0;
-        color: #1a1b21;
-        font-size: 1.02rem;
+        color: #0f172a;
+        font-size: 1.08rem;
+        font-weight: 800;
+        line-height: 1.3rem;
+        overflow-wrap: anywhere;
+    }
+
+    .ops-order-subline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 0.45rem;
+        margin-top: 0.4rem;
+    }
+
+    .ops-order-subpill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.8rem;
+        padding: 0.28rem 0.58rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        font-size: 0.72rem;
         font-weight: 700;
-        line-height: 1.25rem;
+        line-height: 1;
     }
 
     .ops-order-address {
@@ -892,56 +1001,83 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0.28rem 0.58rem;
+        padding: 0.34rem 0.64rem;
         border-radius: 999px;
-        font-size: 0.68rem;
+        font-size: 0.67rem;
         font-weight: 800;
         line-height: 0.9rem;
         text-align: center;
         white-space: nowrap;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        background: #eeedf4;
-        color: #444651;
+        background: #eef2ff;
+        color: #334155;
     }
 
     .ops-order-status.status-pending {
-        background: #eee7e4;
-        color: #4b1c00;
+        background: #fff7ed;
+        color: #9a3412;
     }
 
     .ops-order-status.status-accepted,
     .ops-order-status.status-shipped {
-        background: #dce1ff;
-        color: #00236f;
+        background: #dbeafe;
+        color: #1d4ed8;
     }
 
     .ops-order-status.status-packed {
-        background: #e6f4f2;
-        color: #006f66;
+        background: #dcfce7;
+        color: #166534;
     }
 
     .ops-order-status.status-delivered {
-        background: #e7ebf3;
-        color: #00236f;
+        background: #e0f2fe;
+        color: #0369a1;
     }
 
     .ops-order-status.status-completed {
-        background: #e7ebf3;
-        color: #00236f;
+        background: #ecfdf5;
+        color: #047857;
     }
 
     .ops-order-status.status-cancelled {
-        background: #fff0f1;
-        color: #ba1a1a;
+        background: #fff1f2;
+        color: #dc2626;
     }
 
     .ops-order-totalbox {
         flex: 0 0 auto;
-        display: flex;
-        align-items: center;
+        display: grid;
+        justify-items: end;
         gap: 0.45rem;
         text-align: right;
+    }
+
+    .ops-order-amountbox {
+        min-width: 92px;
+        padding: 0.68rem 0.72rem;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        border: 1px solid #dbe5f0;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .ops-order-amount-label {
+        display: block;
+        color: #64748b;
+        font-size: 0.62rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .ops-order-amount-value {
+        display: block;
+        margin-top: 0.18rem;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 850;
+        line-height: 1.05;
     }
 
     .ops-order-items {
@@ -954,11 +1090,11 @@
 
     .ops-order-facts {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.48rem 0.7rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem 0.75rem;
         margin-top: 0;
-        padding-top: 0.58rem;
-        border-top: 1px solid rgba(197, 197, 211, 0.72);
+        padding-top: 0.8rem;
+        border-top: 1px solid rgba(214, 223, 234, 0.95);
         align-items: start;
     }
 
@@ -968,7 +1104,7 @@
 
     .ops-order-fact-label {
         display: block;
-        color: #757682;
+        color: #64748b;
         font-size: 0.62rem;
         font-weight: 800;
         line-height: 0.8rem;
@@ -978,51 +1114,64 @@
 
     .ops-order-fact-value {
         display: block;
-        margin-top: 0.08rem;
-        color: #1a1b21;
-        font-size: 0.82rem;
+        margin-top: 0.14rem;
+        color: #0f172a;
+        font-size: 0.84rem;
         font-weight: 700;
-        line-height: 1rem;
+        line-height: 1.08rem;
     }
 
     .ops-order-fact-value.is-payment {
-        color: #006a61;
+        color: #0f766e;
+    }
+
+    .ops-order-fact-inline-label {
+        color: #64748b;
+        font-weight: 700;
     }
 
     .ops-order-tracking {
-        margin-top: 0.55rem;
-        padding-top: 0.55rem;
-        border-top: 1px dashed rgba(197, 197, 211, 0.8);
+        margin-top: 0.72rem;
+        padding-top: 0.72rem;
+        border-top: 1px dashed rgba(214, 223, 234, 0.95);
     }
 
     .ops-order-tracking-value {
         display: block;
-        margin-top: 0.1rem;
-        color: #00236f;
-        font-size: 0.82rem;
+        margin-top: 0;
+        color: #153e8a;
+        font-size: 0.83rem;
         font-weight: 800;
-        line-height: 1rem;
+        line-height: 1.08rem;
         letter-spacing: 0.04em;
         overflow-wrap: anywhere;
     }
 
     .ops-order-card-meta {
-        display: none;
+        margin-top: 0.72rem;
+        padding: 0.68rem 0.78rem;
+        border-radius: 0.9rem;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 0.76rem;
+        font-weight: 700;
+        line-height: 1.35;
     }
 
     .ops-order-stock-alert {
         display: inline-flex;
-        margin-top: 0.75rem;
-        padding: 0.28rem 0.55rem;
-        border-radius: 0.5rem;
-        background: #ffdbcb;
-        color: #773205;
-        font-size: 0.78rem;
+        margin-top: 0.78rem;
+        padding: 0.38rem 0.62rem;
+        border-radius: 999px;
+        background: #fff1f2;
+        color: #b45309;
+        border: 1px solid #fed7aa;
+        font-size: 0.74rem;
         font-weight: 800;
     }
 
     .ops-order-card-meta strong {
-        color: #006a61;
+        color: #0f766e;
         font-weight: 700;
     }
 
@@ -1047,9 +1196,34 @@
 
     .ops-order-empty {
         margin: 1rem;
-        padding: 2rem 1.2rem;
+        padding: 2.2rem 1.2rem;
         text-align: center;
-        color: #444651;
+        color: #64748b;
+    }
+
+    .ops-order-empty h5 {
+        margin-bottom: 0.38rem;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .ops-order-empty p {
+        margin: 0;
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+
+    .ops-order-visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 
     {% include "core/_ops_mobile_bottomnav_styles.html" %}
@@ -1072,16 +1246,48 @@
 
     @media (max-width: 767px) {
         .ops-mobile-tabs {
-            padding: 0.7rem 0.85rem 0.75rem;
+            padding: 0 0.85rem 0.85rem;
         }
 
         .ops-order-facts {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.45rem 0.65rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.55rem 0.68rem;
         }
 
         .ops-order-card-body {
-            padding: 0.78rem 0.82rem;
+            padding: 0.92rem;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .ops-mobile-header-panel,
+        .ops-order-list,
+        .ops-mobile-tabs {
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .ops-mobile-header-panel {
+            margin: 0.85rem 0.85rem 0.7rem;
+        }
+
+        .ops-mobile-summary-pills {
+            grid-template-columns: 1fr;
+        }
+
+        .ops-order-topline {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .ops-order-totalbox {
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            justify-items: stretch;
+        }
+
+        .ops-order-amountbox {
+            min-width: 0;
         }
     }
 </style>
@@ -1380,6 +1586,22 @@
             </div>
         </div>
 
+        <div class="ops-mobile-header-panel">
+            <span class="ops-mobile-header-kicker">Orders Overview</span>
+            <h2>Manage customer orders</h2>
+            <p>Review status, amount, and key order details quickly on mobile.</p>
+            <div class="ops-mobile-summary-pills">
+                <div class="ops-mobile-summary-pill is-accent">
+                    <span>Current Tab</span>
+                    <strong>{{ status_counts|get_item:active_tab }}</strong>
+                </div>
+                <div class="ops-mobile-summary-pill">
+                    <span>Total Orders</span>
+                    <strong>{{ status_counts|get_item:'all' }}</strong>
+                </div>
+            </div>
+        </div>
+
         <div class="ops-mobile-tabs" data-ops-mobile-tabs>
             {% for tab in status_tabs %}
                 <a href="{% url 'order_management' %}?tab={{ tab.key }}{% if tab_filter_query %}&{{ tab_filter_query }}{% endif %}" class="ops-mobile-tab {% if active_tab == tab.key %}is-active{% endif %}">
@@ -1395,9 +1617,13 @@
                     <a href="{% url 'order_detail' item.order.pk %}?tab={{ active_tab }}" class="ops-order-card">
                         <div class="ops-order-card-body">
                             <div class="ops-order-topline">
-                                <div>
+                                <div class="ops-order-head-main">
                                     <div class="ops-order-id">Order #{{ item.order.channel_order_id|default:item.order.shiprocket_order_id }}</div>
                                     <div class="ops-order-customer">{{ item.order.display_shipping_address.name|default:item.order.customer_name|default:"Unknown Customer" }}</div>
+                                    <div class="ops-order-subline">
+                                        <span class="ops-order-subpill">{{ item.order.order_date|date:"d M"|default:"-" }}</span>
+                                        <span class="ops-order-subpill">{{ item.order.order_items|length }} product{{ item.order.order_items|length|pluralize }}</span>
+                                    </div>
                                 </div>
                                 <div class="ops-order-totalbox">
                                     <div class="ops-order-status {% if item.order.local_status == 'new_order' %}status-pending{% elif item.order.local_status == 'order_accepted' or item.order.local_status == 'order_packed' %}status-packed{% elif item.order.local_status == 'shipped' or item.order.local_status == 'out_for_delivery' %}status-shipped{% elif item.order.local_status == 'delivered' %}status-delivered{% elif item.order.local_status == 'completed' %}status-completed{% elif item.order.local_status == 'order_cancelled' %}status-cancelled{% else %}status-default{% endif %}">
@@ -1415,6 +1641,10 @@
                                             {{ item.order.get_local_status_display }}
                                         {% endif %}
                                     </div>
+                                    <div class="ops-order-amountbox">
+                                        <span class="ops-order-amount-label">Amount</span>
+                                        <span class="ops-order-amount-value">Rs {{ item.order.total|floatformat:0 }}</span>
+                                    </div>
                                     <span class="ops-order-card-chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
                                 </div>
                             </div>
@@ -1424,20 +1654,12 @@
                                     <span class="ops-order-fact-value is-payment">{{ item.order.payment_method|default:"Cash on Delivery" }}</span>
                                 </div>
                                 <div class="ops-order-fact">
-                                    <span class="ops-order-fact-label">Date</span>
-                                    <span class="ops-order-fact-value">{{ item.order.order_date|date:"d M"|default:"-" }}</span>
-                                </div>
-                                <div class="ops-order-fact">
                                     <span class="ops-order-fact-label">Products</span>
                                     <span class="ops-order-fact-value">{{ item.order.order_items|length }}</span>
                                 </div>
                                 <div class="ops-order-fact">
-                                    <span class="ops-order-fact-label">Amount</span>
-                                    <span class="ops-order-fact-value">Rs {{ item.order.total|floatformat:0 }}</span>
-                                </div>
-                                <div class="ops-order-fact">
                                     <span class="ops-order-fact-label">Profit</span>
-                                    <span class="ops-order-fact-value">Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
+                                    <span class="ops-order-fact-value"><span class="ops-order-fact-inline-label">Profit:</span> Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
                                 </div>
                             </div>
                             {% if not item.profit_summary.is_complete %}
@@ -1445,8 +1667,7 @@
                             {% endif %}
                             {% if item.order.local_status == 'shipped' and item.order.tracking_number %}
                                 <div class="ops-order-tracking">
-                                    <span class="ops-order-fact-label">Tracking</span>
-                                    <span class="ops-order-tracking-value">{{ item.order.tracking_number }}</span>
+                                    <span class="ops-order-tracking-value">Tracking: {{ item.order.tracking_number }}</span>
                                 </div>
                             {% endif %}
                             {% if item.stock_availability.has_shortage %}
@@ -1461,6 +1682,7 @@
                                     </div>
                                 {% endwith %}
                             {% endif %}
+                            <span class="ops-order-visually-hidden">Profit: Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
                         </div>
                     </a>
                 {% endfor %}
@@ -1468,7 +1690,7 @@
         {% else %}
             <div class="ops-order-empty">
                 <h5 class="mb-2">No orders found</h5>
-                <p class="mb-0">Try a different tab or search term.</p>
+                <p class="mb-0">Try a different status tab or sync the latest orders.</p>
             </div>
         {% endif %}
 

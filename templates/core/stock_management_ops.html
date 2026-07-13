@@ -123,7 +123,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 <div class="ops-stock-shell">
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
-            <span class="ops-mobile-topbar-control"><i class="fas fa-bars"></i></span>
+            <span class="ops-mobile-topbar-control is-hidden" aria-hidden="true"></span>
             <h1>{{ active_tenant.name|default:"Quickship" }}</h1>
             <div class="ops-stock-topbar-actions">
                 <form method="post" action="{% url 'stock_management' %}">
