@@ -37,15 +37,37 @@
     padding: 0;
 }
 
+button,
+.btn,
+input[type="button"],
+input[type="submit"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 120ms ease, box-shadow 160ms ease, filter 160ms ease, opacity 160ms ease;
+}
+
+button:active:not(:disabled),
+.btn:active:not(.disabled),
+input[type="button"]:active:not(:disabled),
+input[type="submit"]:active:not(:disabled),
+button.is-pressing,
+.btn.is-pressing {
+    transform: translateY(1px) scale(0.975);
+    filter: brightness(0.94);
+}
+
 button.is-submitting,
 input[type="submit"].is-submitting {
     cursor: wait;
-    opacity: 0.78;
+    opacity: 0.62;
 }
 
 button.is-submitting-primary {
     position: relative;
-    transform: translateY(1px);
+    opacity: 1;
+    transform: translateY(1px) scale(0.985);
+    filter: saturate(0.9);
+    box-shadow: 0 0 0 3px rgba(22, 79, 160, 0.16);
 }
 
 button.is-submitting-primary::after {
@@ -64,6 +86,55 @@ button.is-submitting-primary::after {
 @keyframes mathukai-submit-spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+.global-action-feedback {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: 50%;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: calc(100vw - 32px);
+    padding: 0.7rem 1rem;
+    border-radius: 999px;
+    background: #0b2f6b;
+    color: #fff;
+    font-size: 0.86rem;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: 0 10px 30px rgba(15, 34, 66, 0.24);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -12px);
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.global-action-feedback.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.global-action-feedback::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: mathukai-submit-spin 0.75s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    button,
+    .btn,
+    input[type="button"],
+    input[type="submit"],
+    .global-action-feedback {
+        transition: none;
     }
 }
 

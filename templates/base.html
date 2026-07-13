@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="{% static 'assets/css/plugins/animate.min.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/plugins/perfect-scrollbar.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}">
-    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=20260320-6">
+    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=20260713-1">
     {% block extrastyle %}{% endblock %}
 </head>
 {% with current=request.resolver_match.url_name brand_name=active_tenant.name|default:"Mathukai" %}
@@ -294,6 +294,7 @@
             </div>
         {% endfor %}
     {% endif %}
+    <div id="global-action-feedback" class="global-action-feedback" role="status" aria-live="polite" aria-atomic="true"></div>
     {% block content %}{% endblock %}
 
     {% if current != "login" and current != "signup" %}
@@ -316,8 +317,65 @@
     <script>
     (function () {
         const submitSelector = "button[type='submit'], input[type='submit']";
+        const interactiveSelector = "button, .btn, input[type='button'], input[type='submit']";
+        const feedback = document.getElementById("global-action-feedback");
+        const deferUntilValidated = window.queueMicrotask || function (callback) {
+            Promise.resolve().then(callback);
+        };
+
+        const loadingLabel = function (submitter) {
+            const customLabel = String(submitter.dataset.loadingText || "").trim();
+            if (customLabel) {
+                return customLabel;
+            }
+            const label = String(submitter.textContent || submitter.value || "").trim().toLowerCase();
+            if (label.includes("accept")) return "Accepting order…";
+            if (label.includes("ship")) return "Updating shipment…";
+            if (label.includes("save")) return "Saving…";
+            if (label.includes("resend") || label.includes("reminder") || label.includes("send")) return "Queueing message…";
+            if (label.includes("sync")) return "Syncing…";
+            if (label.includes("print") || label.includes("label")) return "Preparing…";
+            if (label.includes("login") || label.includes("sign in")) return "Signing in…";
+            return "Processing…";
+        };
+
+        const restoreSubmittingForms = function () {
+            document.querySelectorAll("form[data-is-submitting='true']").forEach(function (form) {
+                form.dataset.isSubmitting = "false";
+                form.querySelectorAll("[data-submit-lock-control='true']").forEach(function (control) {
+                    control.disabled = false;
+                    control.removeAttribute("aria-busy");
+                    control.classList.remove("is-submitting", "is-submitting-primary");
+                    control.removeAttribute("data-submit-lock-control");
+                    if (control.dataset.originalSubmitHtml !== undefined) {
+                        control.innerHTML = control.dataset.originalSubmitHtml;
+                        delete control.dataset.originalSubmitHtml;
+                    }
+                    if (control.dataset.originalSubmitValue !== undefined) {
+                        control.value = control.dataset.originalSubmitValue;
+                        delete control.dataset.originalSubmitValue;
+                    }
+                    control.style.minWidth = "";
+                });
+                form.querySelectorAll("[data-submit-lock-surrogate='true']").forEach(function (input) {
+                    input.remove();
+                });
+            });
+            if (feedback) {
+                feedback.textContent = "";
+                feedback.classList.remove("is-visible");
+            }
+        };
 
         document.addEventListener("click", function (event) {
+            const interactive = event.target.closest(interactiveSelector);
+            if (interactive && !interactive.disabled && !interactive.classList.contains("disabled")) {
+                interactive.classList.add("is-pressing");
+                window.setTimeout(function () {
+                    interactive.classList.remove("is-pressing");
+                }, 180);
+            }
+
             const submitter = event.target.closest(submitSelector);
             if (!submitter || !submitter.form) {
                 return;
@@ -342,36 +400,57 @@
                 return;
             }
 
-            form.dataset.isSubmitting = "true";
-
             const submitter =
                 event.submitter ||
                 form._mathukaiSubmitter ||
                 (form.dataset.pendingSubmitterId ? document.getElementById(form.dataset.pendingSubmitterId) : null);
 
-            if (submitter && submitter.name && !submitter.disabled) {
-                const hiddenInput = document.createElement("input");
-                hiddenInput.type = "hidden";
-                hiddenInput.name = submitter.name;
-                hiddenInput.value = submitter.value;
-                hiddenInput.dataset.submitLockSurrogate = "true";
-                form.appendChild(hiddenInput);
-            }
-
-            const submitControls = form.querySelectorAll(submitSelector);
-            submitControls.forEach(function (control) {
-                if (control.disabled) {
+            deferUntilValidated(function () {
+                if (event.defaultPrevented) {
                     return;
                 }
-                control.disabled = true;
-                control.setAttribute("aria-busy", "true");
-                control.classList.add("is-submitting");
-            });
+                form.dataset.isSubmitting = "true";
 
-            if (submitter) {
-                submitter.classList.add("is-submitting-primary");
-            }
+                if (submitter && submitter.name && !submitter.disabled) {
+                    const hiddenInput = document.createElement("input");
+                    hiddenInput.type = "hidden";
+                    hiddenInput.name = submitter.name;
+                    hiddenInput.value = submitter.value;
+                    hiddenInput.dataset.submitLockSurrogate = "true";
+                    form.appendChild(hiddenInput);
+                }
+
+                const submitControls = form.querySelectorAll(submitSelector);
+                submitControls.forEach(function (control) {
+                    if (control.disabled) {
+                        return;
+                    }
+                    control.dataset.submitLockControl = "true";
+                    control.disabled = true;
+                    control.setAttribute("aria-busy", "true");
+                    control.classList.add("is-submitting");
+                });
+
+                if (submitter) {
+                    const pendingLabel = loadingLabel(submitter);
+                    submitter.classList.add("is-submitting-primary");
+                    submitter.style.minWidth = Math.ceil(submitter.getBoundingClientRect().width) + "px";
+                    if (submitter.tagName === "INPUT") {
+                        submitter.dataset.originalSubmitValue = submitter.value;
+                        submitter.value = pendingLabel;
+                    } else {
+                        submitter.dataset.originalSubmitHtml = submitter.innerHTML;
+                        submitter.textContent = pendingLabel;
+                    }
+                    if (feedback) {
+                        feedback.textContent = pendingLabel;
+                        feedback.classList.add("is-visible");
+                    }
+                }
+            });
         });
+
+        window.addEventListener("pageshow", restoreSubmittingForms);
     })();
     </script>
     {% block extra_js %}{% endblock %}

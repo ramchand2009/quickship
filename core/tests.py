@@ -7829,6 +7829,15 @@ class OrderNotificationConfigViewTests(TestCase):
 
 
 class GeneralPageResponsiveViewTests(TestCase):
+    def test_base_layout_has_global_button_interaction_feedback(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="global-action-feedback"')
+        self.assertContains(response, "is-submitting-primary")
+        self.assertContains(response, "Accepting order…")
+        self.assertContains(response, "site.css?v=20260713-1", html=False)
+
     def test_contact_page_has_responsive_form_shell(self):
         response = self.client.get(reverse("contact"))
 
