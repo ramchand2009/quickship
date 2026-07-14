@@ -492,6 +492,7 @@
         border-bottom: 1px solid rgba(194, 199, 209, 0.45);
         content-visibility: auto;
         contain-intrinsic-size: 140px;
+        align-items: flex-start;
     }
 
     .ops-detail-thumb {
@@ -517,14 +518,21 @@
     .ops-detail-item-body {
         min-width: 0;
         flex: 1 1 auto;
-        display: flex;
-        justify-content: space-between;
-        gap: 0.8rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "copy price"
+            "copy qty";
+        column-gap: 0.8rem;
+        row-gap: 0.55rem;
         margin-top: 0;
+        align-items: start;
     }
 
     .ops-detail-item-copy {
         min-width: 0;
+        grid-area: copy;
+        padding-top: 0.1rem;
     }
 
     .ops-detail-item-name {
@@ -533,6 +541,7 @@
         color: #161c27;
         margin-bottom: 0.24rem;
         line-height: 1.35;
+        overflow-wrap: anywhere;
     }
 
     .ops-detail-item-variant {
@@ -544,23 +553,22 @@
 
     .ops-detail-item-meta {
         min-width: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 0.55rem;
+        display: contents;
     }
 
     .ops-detail-item-price {
+        grid-area: price;
         text-align: right;
         color: #161c27;
         font-weight: 700;
         font-size: 1rem;
         line-height: 1.15;
         margin-top: 0;
+        white-space: nowrap;
     }
 
     .ops-detail-item-qty {
+        grid-area: qty;
         display: inline-flex;
         padding: 0.32rem 0.7rem;
         border-radius: 0.25rem;
@@ -569,6 +577,9 @@
         color: #374151;
         font-size: 0.82rem;
         font-weight: 700;
+        justify-self: end;
+        align-self: end;
+        white-space: nowrap;
     }
 
     .ops-detail-item-body > .ops-detail-item-qty {
@@ -1236,8 +1247,7 @@
             margin-right: 0;
         }
 
-        .ops-detail-order-row,
-        .ops-detail-item {
+        .ops-detail-order-row {
             grid-template-columns: none;
             flex-direction: column;
             align-items: stretch;
@@ -1248,8 +1258,11 @@
         }
 
         .ops-detail-item-body {
-            grid-template-columns: minmax(0, 1fr);
-            margin-top: 0.75rem;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas:
+                "copy price"
+                "copy qty";
+            margin-top: 0;
         }
 
         .ops-detail-item-meta {
@@ -1268,7 +1281,7 @@
         }
 
         .ops-detail-item-price {
-            text-align: left;
+            text-align: right;
         }
     }
 
