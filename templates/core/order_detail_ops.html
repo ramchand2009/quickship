@@ -1179,9 +1179,9 @@
 
     .ops-detail-action-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.7rem;
-        margin-top: 0.8rem;
+        grid-template-columns: 1fr;
+        gap: 0.95rem;
+        margin-top: 0.95rem;
     }
 
     .ops-detail-action-grid form {
@@ -1189,37 +1189,52 @@
     }
 
     .ops-detail-action-btn {
-        border: 0;
-        border-radius: 1rem;
-        padding: 0.9rem 0.82rem;
-        font-size: 0.88rem;
+        border: 1px solid transparent;
+        border-radius: 1.1rem;
+        padding: 0.94rem 1rem;
+        font-size: 0.92rem;
         font-weight: 800;
         width: 100%;
         text-align: center;
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: none;
+        transition: transform 0.12s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
     }
 
     .ops-detail-action-btn.is-primary {
-        background: linear-gradient(135deg, #15347c 0%, #1d4ed8 100%);
+        background: #0d3d6f;
         color: #fff;
+        border-color: #0d3d6f;
     }
 
     .ops-detail-action-btn.is-secondary {
         background: #ffffff;
-        border: 1px solid #d9e3ef;
-        color: #334155;
+        border-color: #74829a;
+        color: #0d3d6f;
     }
 
     .ops-detail-action-btn.is-danger {
-        border: 1px solid #fecaca;
-        background: #fff7f7;
-        color: #b42318;
+        border-color: #cfd6e0;
+        background: #ffffff;
+        color: #6b7280;
+    }
+
+    .ops-detail-action-btn:hover,
+    .ops-detail-action-btn:active {
+        opacity: 0.94;
+    }
+
+    .ops-detail-action-btn:active {
+        transform: scale(0.985);
     }
 
     .ops-detail-empty-actions {
         color: #64748b;
-        margin-top: 0.9rem;
-        padding: 0.82rem 0.9rem;
+        margin-top: 0.95rem;
+        padding: 0.92rem 1rem;
         border-radius: 1rem;
         background: #f8fbff;
         border: 1px solid #d9e3ef;
@@ -1232,11 +1247,20 @@
         font-weight: 800;
     }
 
+    .ops-detail-actions-card h5 {
+        margin: 0;
+        color: #161c27;
+        font-size: 0.88rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
     .ops-detail-action-grid .btn,
     .ops-detail-edit-actions .btn,
     .ops-detail-action-btn {
-        min-height: 48px;
-        border-radius: 1rem;
+        min-height: 56px;
+        border-radius: 1.1rem;
     }
 
     @media (max-width: 420px) {
@@ -1458,7 +1482,7 @@
         </div>
 
         <div class="ops-detail-card ops-detail-actions-card">
-            <h5 class="mb-0">Next actions</h5>
+            <h5>Next actions</h5>
             {% if can_update_order_status and not order.payment_received_at and order.local_status == 'order_accepted' or can_update_order_status and not order.payment_received_at and order.local_status == 'order_packed' %}
                 <div class="ops-detail-action-grid">
                     <form method="post" action="{% url 'send_order_payment_reminder' order.pk %}">
