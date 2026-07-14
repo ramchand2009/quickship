@@ -507,21 +507,21 @@
         display: block;
         min-height: 100vh;
         padding-bottom: 7rem;
-        background: #f5f5f8;
-        color: #1f2937;
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f9f9ff;
+        color: #161c27;
+        font-family: "Work Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
     .ops-mobile-shell .ops-mobile-topbar {
-        min-height: 56px;
-        padding: 0.5rem 0.9rem;
+        min-height: 64px;
+        padding: 0.6rem 1rem;
         background: #ffffff;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid #dbe1ec;
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
-        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
     }
 
     .ops-mobile-shell .ops-mobile-topbar-row {
@@ -530,10 +530,11 @@
     }
 
     .ops-mobile-shell .ops-mobile-topbar h1 {
-        font-size: 1rem;
-        font-weight: 800;
+        font-size: 1.02rem;
+        font-weight: 700;
         text-align: center;
-        color: #111827;
+        color: #161c27;
+        letter-spacing: -0.01em;
     }
 
     .ops-mobile-shell .ops-mobile-topbar-control {
@@ -554,10 +555,10 @@
         display: flex;
         gap: 0;
         overflow-x: auto;
-        padding: 0;
-        background: #f7f7fb;
-        border-top: 1px solid #ececf1;
-        border-bottom: 1px solid #e5e7eb;
+        padding: 0 0.35rem;
+        background: #f1f3ff;
+        border-top: 1px solid #e7eaf5;
+        border-bottom: 1px solid #dbe1ec;
         scrollbar-width: none;
         scroll-snap-type: x proximity;
         overscroll-behavior-inline: contain;
@@ -817,24 +818,24 @@
     }
 
     .ops-mobile-tab {
-        flex: 0 0 auto;
-        min-width: 6.3rem;
-        min-height: 56px;
-        padding: 0.82rem 0.95rem 0.76rem;
+        flex: 1 0 auto;
+        min-width: 5.2rem;
+        min-height: 48px;
+        padding: 0.88rem 0.8rem 0.72rem;
         text-align: center;
-        color: #374151;
+        color: #596273;
         background: transparent;
         border: 0;
-        border-bottom: 3px solid transparent;
+        border-bottom: 2px solid transparent;
         border-radius: 0;
         text-decoration: none;
         scroll-snap-align: start;
-        transition: color 0.15s ease, background-color 0.15s ease;
+        transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
     }
 
     .ops-mobile-tab strong {
         display: inline;
-        font-size: 0.95rem;
+        font-size: 0.96rem;
         font-weight: 500;
     }
 
@@ -843,9 +844,9 @@
     }
 
     .ops-mobile-tab.is-active {
-        color: #111827;
+        color: #00355f;
         background: transparent;
-        border-bottom-color: #1590c7;
+        border-bottom-color: #0f4c81;
         box-shadow: none;
     }
 
@@ -866,7 +867,7 @@
         border-radius: 0;
         box-shadow: none;
         border-top: 0;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid rgba(194, 199, 209, 0.46);
     }
 
     .ops-order-card {
@@ -874,30 +875,31 @@
         text-decoration: none;
         color: inherit;
         overflow: hidden;
-        transition: background-color 0.15s ease, opacity 0.15s ease;
+        transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.12s ease;
         content-visibility: auto;
         contain-intrinsic-size: 178px;
     }
 
     .ops-order-card:active,
     .ops-order-card:hover {
-        background: #f8fbff;
+        background: #f1f4fb;
     }
 
     .ops-order-card:active {
-        opacity: 0.88;
+        opacity: 0.92;
+        transform: scale(0.995);
     }
 
     .ops-order-card-body {
-        padding: 1rem;
+        padding: 1rem 1rem 0;
     }
 
     .ops-order-topline {
         display: flex;
         justify-content: space-between;
         gap: 0.85rem;
-        align-items: flex-start;
-        margin-bottom: 0.4rem;
+        align-items: center;
+        margin-bottom: 0.3rem;
     }
 
     .ops-order-head-main {
@@ -906,7 +908,7 @@
 
     .ops-order-id {
         margin: 0;
-        color: #6b7280;
+        color: #5b6270;
         font-size: 0.8rem;
         font-weight: 500;
         letter-spacing: 0;
@@ -915,20 +917,20 @@
     }
 
     .ops-order-customer {
-        margin: 0.45rem 0 0;
-        color: #111827;
+        margin: 0.42rem 0 0;
+        color: #161c27;
         font-size: 0.98rem;
-        font-weight: 500;
-        line-height: 1.22rem;
+        font-weight: 600;
+        line-height: 1.24rem;
         overflow-wrap: anywhere;
     }
 
     .ops-order-summary-row {
         display: flex;
         justify-content: space-between;
-        gap: 0.75rem;
+        gap: 0.85rem;
         align-items: flex-start;
-        margin-top: 0.1rem;
+        margin-top: 0.15rem;
     }
 
     .ops-order-main {
@@ -938,42 +940,44 @@
 
     .ops-order-side {
         flex: 0 0 auto;
-        min-width: 72px;
+        min-width: 74px;
         text-align: right;
     }
 
     .ops-order-address-preview {
-        margin-top: 0.4rem;
-        color: #6b7280;
+        margin-top: 0.38rem;
+        color: #727780;
         font-size: 0.83rem;
-        line-height: 1.18rem;
+        line-height: 1.2rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        max-width: 210px;
     }
 
     .ops-order-payment-chip {
         display: inline-flex;
         align-items: center;
-        min-height: 1.9rem;
-        margin-top: 0.78rem;
-        padding: 0.3rem 0.62rem;
-        border-radius: 0.34rem;
-        background: #ede9fe;
-        color: #9333ea;
-        font-size: 0.8rem;
+        min-height: 1.75rem;
+        margin-top: 0.72rem;
+        padding: 0.2rem 0.52rem;
+        border-radius: 0.22rem;
+        background: rgba(68, 75, 81, 0.12);
+        color: #2e343a;
+        font-size: 0.72rem;
         font-weight: 700;
         line-height: 1;
+        text-transform: uppercase;
     }
 
     .ops-order-payment-chip.is-paid {
-        background: #e7f7a8;
-        color: #166534;
+        background: rgba(207, 242, 129, 0.72);
+        color: #3f6212;
     }
 
     .ops-order-payment-chip.is-cod {
-        background: #f5d0fe;
-        color: #9333ea;
+        background: rgba(221, 182, 240, 0.5);
+        color: #7e22ce;
     }
 
     .ops-order-status {
@@ -986,20 +990,20 @@
         text-align: right;
         white-space: nowrap;
         background: transparent;
-        color: #0f766e;
+        color: #0f4c81;
     }
 
     .ops-order-status.status-pending {
-        color: #9a3412;
+        color: #b45309;
     }
 
     .ops-order-status.status-accepted,
     .ops-order-status.status-shipped {
-        color: #0f766e;
+        color: #0f4c81;
     }
 
     .ops-order-status.status-packed {
-        color: #0f766e;
+        color: #0f4c81;
     }
 
     .ops-order-status.status-delivered {
@@ -1015,15 +1019,15 @@
     }
 
     .ops-order-side-items {
-        margin-top: 0.15rem;
-        color: #111827;
-        font-size: 0.92rem;
+        margin-top: 0.18rem;
+        color: #545f72;
+        font-size: 0.82rem;
         font-weight: 500;
     }
 
     .ops-order-side-amount {
-        margin-top: 0.5rem;
-        color: #111827;
+        margin-top: 0.42rem;
+        color: #161c27;
         font-size: 0.98rem;
         font-weight: 600;
     }
@@ -1043,22 +1047,22 @@
         justify-content: space-between;
         align-items: center;
         gap: 0.8rem;
-        margin-top: 0.9rem;
-        padding-top: 0.9rem;
-        border-top: 2px dashed #d1d5db;
+        margin-top: 0.95rem;
+        padding: 0.85rem 1rem 1rem;
+        border-top: 1px dashed #cfd4dc;
     }
 
     .ops-order-footer-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem;
-        color: #6b7280;
-        font-size: 0.82rem;
+        gap: 0.45rem;
+        color: #596273;
+        font-size: 0.8rem;
         line-height: 1.1rem;
     }
 
     .ops-order-footer-delivery {
-        color: #9333ea;
+        color: #8b3fb4;
         font-weight: 500;
     }
 
@@ -1066,7 +1070,7 @@
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
-        color: #111827;
+        color: #161c27;
         font-size: 0.86rem;
         font-weight: 600;
         white-space: nowrap;
@@ -1084,8 +1088,8 @@
 
     .ops-order-stock-alert {
         display: inline-flex;
-        margin-top: 0.7rem;
-        padding: 0.28rem 0.5rem;
+        margin: 0 1rem 1rem;
+        padding: 0.3rem 0.55rem;
         border-radius: 0.35rem;
         background: #fff7ed;
         color: #b45309;
@@ -1095,10 +1099,11 @@
     }
 
     .ops-order-empty {
-        margin: 1rem;
-        padding: 2.2rem 1.2rem;
+        margin: 0;
+        padding: 2.4rem 1.2rem 8rem;
         text-align: center;
         color: #64748b;
+        background: #ffffff;
     }
 
     .ops-order-empty h5 {
