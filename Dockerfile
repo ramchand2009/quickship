@@ -16,7 +16,8 @@ RUN chmod +x /entrypoint.sh
 
 COPY . /app
 
-RUN mkdir -p /app/staticfiles /app/logs /app/backups /app/media
+RUN mkdir -p /app/staticfiles /app/logs /app/backups /app/media \
+    && python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
