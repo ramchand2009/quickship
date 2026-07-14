@@ -28,21 +28,21 @@
 
     .ops-detail-shell {
         min-height: 100vh;
-        background: #f5f5f8;
+        background: #f9f9ff;
         padding-bottom: 7rem;
-        color: #1f2937;
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #161c27;
+        font-family: "Work Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     {% include "core/_ops_mobile_topbar_styles.html" %}
 
     .ops-detail-shell .ops-mobile-topbar {
         min-height: 56px;
-        padding: 0.5rem 0.9rem;
+        padding: 0.5rem 1rem;
         background: #ffffff;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid #dbe1ec;
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
-        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
     }
 
     .ops-detail-shell .ops-mobile-topbar-row {
@@ -51,10 +51,11 @@
     }
 
     .ops-detail-shell .ops-mobile-topbar h1 {
-        font-size: 1rem;
-        font-weight: 800;
+        font-size: 1.02rem;
+        font-weight: 700;
         text-align: center;
-        color: #111827;
+        color: #161c27;
+        letter-spacing: -0.01em;
     }
 
     .ops-detail-shell .ops-mobile-topbar-control {
@@ -72,18 +73,23 @@
     }
 
     .ops-detail-stepper {
-        display: none;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0;
+        padding: 1rem 1rem 0.9rem;
+        background: #ffffff;
+        border-bottom: 1px solid #e7eaf5;
     }
 
     .ops-detail-step {
         position: relative;
         text-align: center;
-        background: #cfefff;
-        color: #374151;
+        background: #b8e6f1;
+        color: #161c27;
         border: 0;
-        font-size: 0.72rem;
-        font-weight: 500;
-        padding: 0.78rem 0.3rem;
+        font-size: 0.66rem;
+        font-weight: 700;
+        padding: 0.72rem 0.2rem;
         border-radius: 0;
         clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
     }
@@ -96,44 +102,54 @@
         clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
     }
 
-    .ops-detail-step.is-active,
     .ops-detail-step.is-complete {
-        background: #cfefff;
-        color: #111827;
+        background: #b8e6f1;
+        color: #161c27;
     }
 
     .ops-detail-step.is-active {
-        font-weight: 800;
+        background: #00355f;
+        color: #ffffff;
+        font-weight: 700;
     }
 
     .ops-detail-body {
-        padding: 0.85rem 0.85rem 1rem;
+        padding: 0 0 1rem;
         display: grid;
-        gap: 0.9rem;
+        gap: 1rem;
     }
 
     .ops-detail-card {
         background: #ffffff;
-        border-radius: 1rem;
-        padding: 1rem;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
-        border: 1px solid #ececf1;
+        border-radius: 0;
+        padding: 0 1rem;
+        box-shadow: none;
+        border: 0;
     }
 
     .ops-detail-actions-card {
         order: 2;
+        margin: 0 1rem;
+        padding: 1rem;
+        border: 1px solid #e3e8f1;
+        border-radius: 1rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
     }
 
     .ops-detail-products-card {
         order: 3;
     }
 
+    .ops-detail-summary-card {
+        padding-top: 0.85rem;
+    }
+
     .ops-detail-headline {
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-        color: #6b7280;
-        font-size: 0.78rem;
+        color: #727780;
+        font-size: 0.8rem;
         font-weight: 400;
     }
 
@@ -141,15 +157,15 @@
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-        align-items: flex-start;
-        margin-top: 0.55rem;
+        align-items: center;
+        margin-top: 0.45rem;
         padding-bottom: 0.78rem;
-        border-bottom: 2px dashed #d1d5db;
+        border-bottom: 1px dashed #cfd4dc;
     }
 
     .ops-detail-order-row h2 {
         margin: 0;
-        font-size: 0.94rem;
+        font-size: 0.92rem;
         color: #4b5563;
         font-weight: 500;
         line-height: 1.2rem;
@@ -165,7 +181,7 @@
         font-weight: 500;
         text-align: right;
         white-space: nowrap;
-        color: #0f766e;
+        color: #007084;
     }
 
     .ops-detail-status-badge.status-pending {
@@ -196,16 +212,16 @@
     .ops-detail-section-title {
         margin: 0 0 0.7rem;
         font-size: 1rem;
-        font-weight: 800;
-        color: #111827;
+        font-weight: 700;
+        color: #161c27;
         letter-spacing: 0;
         text-transform: none;
     }
 
     .ops-detail-address {
         color: #4b5563;
-        font-size: 0.9rem;
-        line-height: 1.52;
+        font-size: 0.88rem;
+        line-height: 1.5;
         padding: 0;
         border: 0;
         border-radius: 0;
@@ -245,10 +261,10 @@
 
     .ops-detail-payment-grid {
         display: grid;
-        gap: 0.85rem;
+        gap: 0;
         margin-top: 0.95rem;
-        padding-top: 0.95rem;
-        border-top: 1px solid #e5e7eb;
+        padding-top: 0;
+        border-top: 0;
     }
 
     .ops-detail-contact-actions .is-whatsapp {
@@ -273,37 +289,67 @@
         background: transparent;
     }
 
+    .ops-detail-inline-row.is-delivery {
+        align-items: flex-start;
+        margin-top: 0.95rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(194, 199, 209, 0.55);
+    }
+
+    .ops-detail-inline-row.is-payment {
+        padding: 1rem 0;
+        border-bottom: 1px solid rgba(194, 199, 209, 0.55);
+    }
+
     .ops-detail-pill {
         display: inline-flex;
         margin-top: 0;
-        padding: 0.32rem 0.7rem;
-        border-radius: 0.5rem;
+        padding: 0.24rem 0.7rem;
+        border-radius: 0.25rem;
         background: #f3f4f6;
         color: #374151;
         font-size: 0.82rem;
         font-weight: 700;
     }
 
+    .ops-detail-pill.is-paid {
+        background: #dcedc8;
+        color: #33691e;
+    }
+
     .ops-detail-financial-details {
         margin-top: 0;
     }
 
-    .ops-detail-financial-details summary {
-        padding: 0.1rem 0;
-        color: #6b7280;
-        font-size: 0.9rem;
-        font-weight: 500;
-        cursor: pointer;
-        list-style: revert;
+    .ops-detail-financial-meta {
+        display: grid;
+        gap: 0.75rem;
+        padding-top: 0.95rem;
     }
 
-    .ops-detail-financial-details .ops-detail-inline-row {
-        margin-top: 0.55rem;
+    .ops-detail-meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.8rem;
+    }
+
+    .ops-detail-meta-copy {
+        color: #4b5563;
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+
+    .ops-detail-meta-copy strong {
+        display: block;
+        margin-bottom: 0.18rem;
+        color: #161c27;
+        font-size: 0.92rem;
+        font-weight: 700;
     }
 
     .ops-detail-featured-card {
-        padding: 0.1rem 0 1rem;
-        border-bottom: 1px solid #e5e7eb;
+        display: none;
     }
 
     .ops-detail-featured-thumb {
@@ -419,12 +465,12 @@
 
     .ops-detail-items-head {
         display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
+        flex-direction: row;
+        justify-content: space-between;
         gap: 1rem;
-        align-items: flex-start;
-        padding-bottom: 0.85rem;
-        border-bottom: 1px solid #d1d5db;
+        align-items: center;
+        padding: 1rem 0 0.95rem;
+        border-bottom: 1px solid rgba(194, 199, 209, 0.55);
     }
 
     .ops-detail-items-head span {
@@ -434,24 +480,25 @@
         padding: 0;
         border-radius: 0;
         background: transparent;
-        color: #4b5563;
+        color: #727780;
         font-size: 0.92rem;
         font-weight: 500;
     }
 
     .ops-detail-item {
-        display: block;
+        display: flex;
+        gap: 0.95rem;
         padding: 1rem 0;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid rgba(194, 199, 209, 0.45);
         content-visibility: auto;
-        contain-intrinsic-size: 220px;
+        contain-intrinsic-size: 140px;
     }
 
     .ops-detail-thumb {
-        width: 92px;
-        height: 92px;
-        border-radius: 0.7rem;
-        background: #e5e7eb;
+        width: 80px;
+        height: 80px;
+        border-radius: 0.5rem;
+        background: #dde2f3;
         color: #fff;
         display: flex;
         align-items: center;
@@ -469,8 +516,11 @@
 
     .ops-detail-item-body {
         min-width: 0;
-        display: block;
-        margin-top: 0.9rem;
+        flex: 1 1 auto;
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        margin-top: 0;
     }
 
     .ops-detail-item-copy {
@@ -480,14 +530,14 @@
     .ops-detail-item-name {
         font-size: 0.98rem;
         font-weight: 700;
-        color: #111827;
+        color: #161c27;
         margin-bottom: 0.24rem;
         line-height: 1.35;
     }
 
     .ops-detail-item-variant {
         color: #64748b;
-        font-size: 0.82rem;
+        font-size: 0.84rem;
         overflow-wrap: anywhere;
         line-height: 1.35;
     }
@@ -496,28 +546,29 @@
         min-width: 0;
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
+        align-items: flex-end;
+        justify-content: space-between;
         gap: 0.55rem;
     }
 
     .ops-detail-item-price {
-        text-align: left;
-        color: #111827;
+        text-align: right;
+        color: #161c27;
         font-weight: 700;
         font-size: 1rem;
         line-height: 1.15;
-        margin-top: 0.8rem;
+        margin-top: 0;
     }
 
     .ops-detail-item-qty {
         display: inline-flex;
-        padding: 0.32rem 0.58rem;
-        border-radius: 0.45rem;
-        background: #f3f4f6;
+        padding: 0.32rem 0.7rem;
+        border-radius: 0.25rem;
+        background: #eceff1;
         border: 0;
-        color: #475569;
+        color: #374151;
         font-size: 0.82rem;
-        font-weight: 600;
+        font-weight: 700;
     }
 
     .ops-detail-item-body > .ops-detail-item-qty {
@@ -541,8 +592,8 @@
         display: grid;
         gap: 0.6rem;
         margin-top: 0.95rem;
-        padding-top: 0.95rem;
-        border-top: 2px dashed #d1d5db;
+        padding: 0.95rem 0 0;
+        border-top: 1px dashed #cfd4dc;
     }
 
     .ops-detail-total-row {
@@ -550,7 +601,7 @@
         justify-content: space-between;
         gap: 0.8rem;
         align-items: center;
-        color: #4b5563;
+        color: #727780;
         font-size: 0.92rem;
     }
 
@@ -565,13 +616,14 @@
 
     .ops-detail-total-row.is-grand {
         margin-top: 0.15rem;
-        color: #111827;
+        color: #161c27;
         font-size: 1rem;
         font-weight: 800;
     }
 
     .ops-detail-total-row.is-grand strong {
         font-size: 1.1rem;
+        color: #00355f;
     }
 
     .ops-detail-visually-hidden {
@@ -1184,20 +1236,20 @@
             margin-right: 0;
         }
 
-        .ops-detail-stepper {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
         .ops-detail-order-row,
-        .ops-detail-items-head,
         .ops-detail-item {
             grid-template-columns: none;
             flex-direction: column;
             align-items: stretch;
         }
 
+        .ops-detail-items-head {
+            align-items: flex-start;
+        }
+
         .ops-detail-item-body {
             grid-template-columns: minmax(0, 1fr);
+            margin-top: 0.75rem;
         }
 
         .ops-detail-item-meta {
@@ -1238,14 +1290,12 @@
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'pending' or ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'pending' %}is-active{% endif %}">Pending</div>
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'accepted' or ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'accepted' %}is-active{% endif %}">Accepted</div>
         <div class="ops-detail-step {% if ops_mobile_stage_key == 'shipped' or ops_mobile_stage_key == 'delivered' %}is-complete{% endif %} {% if ops_mobile_stage_key == 'shipped' %}is-active{% endif %}">Shipped</div>
-        <div class="ops-detail-step {% if ops_mobile_stage_key == 'delivered' %}is-active is-complete{% endif %}">Completed</div>
+        <div class="ops-detail-step {% if ops_mobile_stage_key == 'delivered' %}is-active is-complete{% endif %}">Delivered</div>
     </div>
 
     <div class="ops-detail-body">
-        <div class="ops-detail-card">
-            <details class="ops-detail-financial-details">
-                <summary>Financial details</summary>
-                <div class="ops-detail-visually-hidden">Customer &amp; delivery</div>
+        <div class="ops-detail-card ops-detail-summary-card">
+            <div class="ops-detail-financial-details">
                 <div class="ops-detail-headline">
                     <span>Placed {{ order.order_date|date:"d M Y, g:i a" }}</span>
                 </div>
@@ -1268,30 +1318,11 @@
                     </div>
                 </div>
                 <div class="ops-detail-payment-grid">
-                    <div class="ops-detail-inline-row">
-                        <div class="ops-detail-section-title" style="margin:0;">Payment Method</div>
-                        <div class="ops-detail-pill">
-                            {% if order.payment_received_at %}
-                                Paid
-                            {% else %}
-                                {{ order.payment_method|default:"Pending" }}
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="ops-detail-inline-row">
+                    <div class="ops-detail-inline-row is-delivery">
                         <div>
-                            <div class="fw-semibold">Shipping Total</div>
-                            <div class="text-muted small">
-                                Base Rs {{ order.shipping_base_amount|floatformat:2 }} + 18% tax Rs {{ order.shipping_tax_amount|floatformat:2 }}
-                            </div>
-                        </div>
-                        <div class="ops-detail-pill">Rs {{ order.shipping_total_amount|floatformat:2 }}</div>
-                    </div>
-                    <div class="ops-detail-inline-row">
-                        <div>
-                            <div class="fw-semibold">Delivery Details</div>
+                            <div class="ops-detail-section-title" style="margin:0 0 0.7rem;">Delivery Details</div>
                             <div class="ops-detail-address">
-                                <div>{{ order.display_shipping_address.name|default:"-" }}</div>
+                                <div><strong>{{ order.display_shipping_address.name|default:"-" }}</strong></div>
                                 <div>{{ order.display_shipping_address.phone|default:"-" }}</div>
                                 <div>{{ order.display_shipping_address.email|default:"-" }}</div>
                                 <div class="mt-2">
@@ -1311,45 +1342,38 @@
                             {% endif %}
                         </div>
                     </div>
-                    <div class="ops-detail-inline-row">
-                        <div>
-                            <div class="fw-semibold">Order Profit</div>
-                            <div class="text-muted small">
-                                Sales Rs {{ profit_summary.revenue_total|floatformat:2 }} - Actual Rs {{ profit_summary.actual_cost_total|floatformat:2 }}
-                            </div>
-                            {% if not profit_summary.is_complete %}
-                                <div class="text-warning small">Incomplete until actual price/product mapping is updated.</div>
+                    <div class="ops-detail-inline-row is-payment">
+                        <div class="ops-detail-section-title" style="margin:0;">Payment Method</div>
+                        <div class="ops-detail-pill {% if order.payment_received_at %}is-paid{% endif %}">
+                            {% if order.payment_received_at %}
+                                Paid
+                            {% else %}
+                                {{ order.payment_method|default:"Pending" }}
                             {% endif %}
                         </div>
-                        <div class="ops-detail-pill">Rs {{ profit_summary.profit_amount|floatformat:2 }}</div>
+                    </div>
+                    <div class="ops-detail-financial-meta">
+                        <div class="ops-detail-meta-row">
+                            <div class="ops-detail-meta-copy">
+                                <strong>Shipping Total</strong>
+                                Base Rs {{ order.shipping_base_amount|floatformat:2 }} + 18% tax Rs {{ order.shipping_tax_amount|floatformat:2 }}
+                            </div>
+                            <div class="ops-detail-pill">Rs {{ order.shipping_total_amount|floatformat:2 }}</div>
+                        </div>
+                        <div class="ops-detail-meta-row">
+                            <div class="ops-detail-meta-copy">
+                                <strong>Order Profit</strong>
+                                Sales Rs {{ profit_summary.revenue_total|floatformat:2 }} - Actual Rs {{ profit_summary.actual_cost_total|floatformat:2 }}
+                                {% if not profit_summary.is_complete %}
+                                    <div class="text-warning small">Incomplete until actual price/product mapping is updated.</div>
+                                {% endif %}
+                            </div>
+                            <div class="ops-detail-pill">Rs {{ profit_summary.profit_amount|floatformat:2 }}</div>
+                        </div>
                     </div>
                 </div>
-            </details>
+            </div>
         </div>
-
-        {% with item_count=order.order_items|length featured_item=order.order_items|first %}
-            {% if featured_item and item_count > 1 %}
-                <div class="ops-detail-featured-card">
-                    <div class="ops-detail-featured-thumb">
-                        {% if featured_item.image %}
-                            <img src="{{ featured_item.image }}" alt="{{ featured_item.name|default:'Product' }}">
-                        {% else %}
-                            {{ featured_item.name|default:"P"|slice:":1"|upper }}
-                        {% endif %}
-                    </div>
-                    <div class="ops-detail-featured-name">{{ featured_item.name|default:"Product" }}</div>
-                    <div class="ops-detail-featured-sku">
-                        {% if featured_item.sku %}{{ featured_item.sku }}{% endif %}
-                        {% if featured_item.variation_name %}
-                            {% if featured_item.sku %}<br>{% endif %}
-                            {{ featured_item.variation_name }}
-                        {% endif %}
-                    </div>
-                    <div class="ops-detail-featured-price">&#8377;{{ featured_item.price|floatformat:0|default:"0" }}</div>
-                    <div class="ops-detail-item-qty">Qty : {{ featured_item.quantity|default:"1" }}</div>
-                </div>
-            {% endif %}
-        {% endwith %}
 
         <div class="ops-detail-card ops-detail-products-card">
             <div class="ops-detail-items-head">
@@ -1370,40 +1394,35 @@
                 </div>
             {% endif %}
 
-            {% with item_count=order.order_items|length %}
-                {% for item in order.order_items %}
-                    {% if item_count > 1 and forloop.first %}
-                    {% else %}
-                        <div class="ops-detail-item">
-                            <div class="ops-detail-thumb">
-                                {% if item.image %}
-                                    <img src="{{ item.image }}" alt="{{ item.name|default:'Product' }}">
-                                {% else %}
-                                    {{ item.name|default:"P"|slice:":1"|upper }}
+            {% for item in order.order_items %}
+                <div class="ops-detail-item">
+                    <div class="ops-detail-thumb">
+                        {% if item.image %}
+                            <img src="{{ item.image }}" alt="{{ item.name|default:'Product' }}">
+                        {% else %}
+                            {{ item.name|default:"P"|slice:":1"|upper }}
+                        {% endif %}
+                    </div>
+                    <div class="ops-detail-item-body">
+                        <div class="ops-detail-item-copy">
+                            <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
+                            <div class="ops-detail-item-variant">
+                                {% if item.sku %}{{ item.sku }}{% endif %}
+                                {% if item.variation_name %}
+                                    {% if item.sku %}<br>{% endif %}
+                                    {{ item.variation_name }}
                                 {% endif %}
                             </div>
-                            <div class="ops-detail-item-body">
-                                <div class="ops-detail-item-copy">
-                                    <div class="ops-detail-item-name">{{ item.name|default:"Product" }}</div>
-                                    <div class="ops-detail-item-variant">
-                                        {% if item.sku %}{{ item.sku }}{% endif %}
-                                        {% if item.variation_name %}
-                                            {% if item.sku %}<br>{% endif %}
-                                            {{ item.variation_name }}
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="ops-detail-item-meta">
-                                    <div class="ops-detail-item-price">&#8377;{{ item.price|floatformat:0|default:"0" }}</div>
-                                    <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
-                                </div>
-                            </div>
                         </div>
-                    {% endif %}
+                        <div class="ops-detail-item-meta">
+                            <div class="ops-detail-item-price">&#8377;{{ item.price|floatformat:0|default:"0" }}</div>
+                            <div class="ops-detail-item-qty">Qty : {{ item.quantity|default:"1" }}</div>
+                        </div>
+                    </div>
+                </div>
                 {% empty %}
                     <p class="mb-0 mt-3 text-muted">No order items available.</p>
-                {% endfor %}
-            {% endwith %}
+            {% endfor %}
 
             <div class="ops-detail-totals">
                 <div class="ops-detail-total-row">
