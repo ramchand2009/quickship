@@ -9604,7 +9604,6 @@ class RoleAccessTests(TestCase):
         product = Product.objects.create(
             name="Charcoal Soap",
             sku="SOAP-001",
-            barcode="8901234567890",
             regular_price="90.00",
             image_url="https://shop.example.com/soap.jpg",
         )
@@ -9615,11 +9614,13 @@ class RoleAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Barcode Generator")
         self.assertContains(response, "Charcoal Soap")
-        self.assertContains(response, "8901234567890")
+        self.assertContains(response, "SOAP-001")
+        self.assertContains(response, "Auto from SKU")
         self.assertContains(response, "Print Barcode Labels")
         self.assertContains(response, "Number of Labels")
         self.assertContains(response, "Final dimensions: 50mm × 25mm")
         self.assertContains(response, "Expiry Date")
+        self.assertNotContains(response, "This product does not have a barcode yet")
 
     @patch("core.views.update_woocommerce_product")
     def test_ops_viewer_product_detail_updates_local_product_and_woocommerce(self, mock_update_product):

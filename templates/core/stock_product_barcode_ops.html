@@ -207,7 +207,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                     <div class="ops-barcode-inline-data">
                         <div class="ops-barcode-inline-row">
                             <span>Barcode</span>
-                            <strong>{{ barcode_value|default:"Not added yet" }}</strong>
+                            <strong>{{ barcode_value|default:"-" }}{% if barcode_is_generated %} (Auto from SKU){% endif %}</strong>
                         </div>
                         <div class="ops-barcode-inline-row">
                             <span>Expiry Date</span>

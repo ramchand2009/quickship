@@ -183,7 +183,11 @@ def _pwa_static_asset(path):
 
 
 def _product_barcode_value(product):
-    return str(product.barcode or "").strip()
+    return str(product.barcode or product.sku or "").strip()
+
+
+def _product_barcode_is_generated(product):
+    return not str(product.barcode or "").strip() and bool(str(product.sku or "").strip())
 
 
 def _product_barcode_mrp(product):
@@ -4502,6 +4506,7 @@ def stock_product_detail(request, pk):
             "form": form,
             "product": product,
             "product_barcode_value": _product_barcode_value(product),
+            "product_barcode_is_generated": _product_barcode_is_generated(product),
             "pending_change_count": product.change_requests.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
             "product_routing_detail": _vendor_product_routing_detail(product),
             "can_edit_operations": can_edit_operations,
@@ -4826,6 +4831,7 @@ def stock_product_barcode(request, pk):
             "product": product,
             "barcode_form": barcode_form,
             "barcode_value": barcode_value,
+            "barcode_is_generated": _product_barcode_is_generated(product),
             "barcode_svg": _build_product_barcode_svg(barcode_value),
             "barcode_mrp": mrp_value,
             "manufacture_date_value": manufacture_date.isoformat(),
