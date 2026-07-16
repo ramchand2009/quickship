@@ -27,9 +27,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
     justify-content:center; font-size:.92rem; font-weight:800; overflow:hidden;
 }
 .ops-barcode-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
-.ops-barcode-main {
-    width:min(100%, 1120px); margin:0 auto; padding:1rem; display:grid; gap:1rem;
-}
+.ops-barcode-main { width:min(100%, 1120px); margin:0 auto; padding:1rem; display:grid; gap:1rem; }
 .ops-barcode-grid { display:grid; gap:1rem; }
 .ops-barcode-card {
     background:#fff; border:1px solid #c2c7d1; border-radius:1rem; padding:1rem; box-shadow:0 8px 18px rgba(15, 23, 42, 0.06);
@@ -77,7 +75,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 .ops-barcode-svg { margin-top:.9rem; min-height:96px; display:flex; align-items:center; justify-content:center; }
 .ops-barcode-svg svg { width:100%; height:auto; display:block; }
 .ops-barcode-preview-footer {
-    margin-top:.75rem; padding-top:.65rem; border-top:1px solid #dde2f3; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    margin-top:.75rem; padding-top:.65rem; border-top:1px solid #dde2f3; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr));
     gap:.65rem;
 }
 .ops-barcode-preview-footer-label { color:#727780; font-size:.56rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
@@ -104,9 +102,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
     display:flex; flex-direction:column; justify-content:space-between; background:#fff; color:#000; overflow:hidden;
 }
 .ops-barcode-print-head { display:flex; justify-content:space-between; gap:1.2mm; align-items:flex-start; }
-.ops-barcode-print-name {
-    flex:1 1 auto; font-size:2.45mm; line-height:2.8mm; font-weight:800; max-height:5.8mm; overflow:hidden;
-}
+.ops-barcode-print-name { flex:1 1 auto; font-size:2.45mm; line-height:2.8mm; font-weight:800; max-height:5.8mm; overflow:hidden; }
 .ops-barcode-print-price { font-size:2.45mm; line-height:2.8mm; font-weight:800; white-space:nowrap; margin-left:1mm; }
 .ops-barcode-print-barcode { margin-top:1mm; display:flex; justify-content:center; align-items:center; min-height:11.8mm; overflow:hidden; }
 .ops-barcode-print-barcode svg { width:100%; height:100%; }
@@ -192,6 +188,10 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                         {{ barcode_form.manufacture_date }}
                     </div>
                     <div class="ops-barcode-field">
+                        <label for="{{ barcode_form.expiry_date.id_for_label }}">Expiry Date</label>
+                        {{ barcode_form.expiry_date }}
+                    </div>
+                    <div class="ops-barcode-field">
                         <label for="{{ barcode_form.label_count.id_for_label }}">Number of Labels</label>
                         <div class="ops-barcode-stepper">
                             <button type="button" data-step="-1" aria-label="Decrease labels">−</button>
@@ -199,7 +199,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                             <button type="button" data-step="1" aria-label="Increase labels">+</button>
                         </div>
                     </div>
-                    <p class="ops-barcode-note">Manufacturing date is selected here per print. Expiry date comes from the product inventory data.</p>
+                    <p class="ops-barcode-note">Manufacturing date and expiry date are entered here at print time.</p>
                 </section>
 
                 <section class="ops-barcode-card">
@@ -211,7 +211,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                         </div>
                         <div class="ops-barcode-inline-row">
                             <span>Expiry Date</span>
-                            <strong>{% if product.expiry_date %}{{ product.expiry_date|date:"d M Y" }}{% else %}Not set in Inventory{% endif %}</strong>
+                            <strong id="barcodeSummaryExpiry">{% if expiry_date_display %}{{ expiry_date_display }}{% else %}Enter on barcode screen{% endif %}</strong>
                         </div>
                         <div class="ops-barcode-inline-row">
                             <span>Label Size</span>
@@ -272,7 +272,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                         <span>Print Barcode Labels</span>
                     </button>
                     <a href="{% url 'stock_product_section' product.pk 'inventory' %}" class="ops-barcode-secondary text-decoration-none d-inline-flex align-items-center justify-content-center">
-                        {% if product.expiry_date %}Update Inventory Details{% else %}Set Expiry Date in Inventory{% endif %}
+                        Update Product Inventory
                     </a>
                 </div>
             </div>
@@ -298,7 +298,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
             </div>
             <div>
                 <div class="ops-barcode-print-item-label">EXP</div>
-                <div class="ops-barcode-print-item-value">{% if expiry_date_display %}{{ expiry_date_display }}{% else %}-{% endif %}</div>
+                <div class="ops-barcode-print-item-value" data-print-exp>{% if expiry_date_display %}{{ expiry_date_display }}{% else %}-{% endif %}</div>
             </div>
             <div>
                 <div class="ops-barcode-print-item-label">SKU</div>
@@ -315,8 +315,11 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 <script>
 (function () {
     var mfgInput = document.getElementById("{{ barcode_form.manufacture_date.id_for_label }}");
+    var expiryInput = document.getElementById("{{ barcode_form.expiry_date.id_for_label }}");
     var labelCountInput = document.getElementById("{{ barcode_form.label_count.id_for_label }}");
     var previewMfg = document.getElementById("barcodePreviewMfg");
+    var previewExpiry = document.getElementById("barcodePreviewExpiry");
+    var summaryExpiry = document.getElementById("barcodeSummaryExpiry");
     var printButton = document.getElementById("barcodePrintButton");
     var printSheet = document.getElementById("barcodePrintSheet");
     var template = document.getElementById("barcodePrintTemplate");
@@ -334,12 +337,18 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
             day: "2-digit",
             month: "short",
             year: "numeric"
-        }).replace(/ /g, " ").toUpperCase();
+        }).toUpperCase();
     }
 
     function syncPreview() {
         if (previewMfg && mfgInput) {
             previewMfg.textContent = formatDate(mfgInput.value);
+        }
+        if (previewExpiry && expiryInput) {
+            previewExpiry.textContent = formatDate(expiryInput.value);
+        }
+        if (summaryExpiry && expiryInput) {
+            summaryExpiry.textContent = expiryInput.value ? formatDate(expiryInput.value) : "Enter on barcode screen";
         }
     }
 
@@ -361,10 +370,14 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         printSheet.innerHTML = "";
         var count = normalizedLabelCount();
         var mfgText = formatDate(mfgInput ? mfgInput.value : "");
+        var expiryText = formatDate(expiryInput ? expiryInput.value : "");
         for (var index = 0; index < count; index += 1) {
             var fragment = template.content.cloneNode(true);
             fragment.querySelectorAll("[data-print-mfg]").forEach(function (node) {
                 node.textContent = mfgText;
+            });
+            fragment.querySelectorAll("[data-print-exp]").forEach(function (node) {
+                node.textContent = expiryText;
             });
             printSheet.appendChild(fragment);
         }
@@ -384,6 +397,11 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
     if (mfgInput) {
         mfgInput.addEventListener("input", syncPreview);
         mfgInput.addEventListener("change", syncPreview);
+    }
+
+    if (expiryInput) {
+        expiryInput.addEventListener("input", syncPreview);
+        expiryInput.addEventListener("change", syncPreview);
     }
 
     if (labelCountInput) {

@@ -9596,7 +9596,6 @@ class RoleAccessTests(TestCase):
         self.assertEqual(inventory_response.status_code, 200)
         self.assertContains(inventory_response, "MO-SER-001")
         self.assertContains(inventory_response, "Manage stock")
-        self.assertContains(inventory_response, "Expiry date")
         self.assertEqual(categories_response.status_code, 200)
         self.assertContains(categories_response, "Add category")
         self.assertContains(categories_response, "Serums")
@@ -9607,7 +9606,6 @@ class RoleAccessTests(TestCase):
             sku="SOAP-001",
             barcode="8901234567890",
             regular_price="90.00",
-            expiry_date=timezone.datetime(2027, 7, 31).date(),
             image_url="https://shop.example.com/soap.jpg",
         )
         self.client.force_login(self.viewer)
@@ -9621,7 +9619,7 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Print Barcode Labels")
         self.assertContains(response, "Number of Labels")
         self.assertContains(response, "Final dimensions: 50mm × 25mm")
-        self.assertContains(response, "31 JUL 2027")
+        self.assertContains(response, "Expiry Date")
 
     @patch("core.views.update_woocommerce_product")
     def test_ops_viewer_product_detail_updates_local_product_and_woocommerce(self, mock_update_product):
@@ -9705,7 +9703,7 @@ class RoleAccessTests(TestCase):
         )
         inventory_response = self.client.post(
             reverse("stock_product_section", args=[product.pk, "inventory"]),
-            {"sku": "MO-SER-001", "barcode": "890001", "stock_quantity": "8", "expiry_date": "2027-12-31"},
+            {"sku": "MO-SER-001", "barcode": "890001", "stock_quantity": "8"},
             follow=True,
         )
         category_response = self.client.post(
@@ -9722,7 +9720,6 @@ class RoleAccessTests(TestCase):
         self.assertEqual(product.image_url, "https://shop.example.com/images/serum-updated.jpg")
         self.assertEqual(product.stock_quantity, 8)
         self.assertEqual(product.barcode, "890001")
-        self.assertEqual(product.expiry_date.isoformat(), "2027-12-31")
         self.assertEqual(product.category_master, hair_care)
         self.assertEqual(mock_update_product.call_count, 5)
         self.assertContains(description_response, "Updated 24K Gold Serum locally and in WooCommerce.")
@@ -9737,7 +9734,6 @@ class RoleAccessTests(TestCase):
         self.assertContains(detail_response, "Sale price: Rs 280.00")
         self.assertContains(detail_response, "https://shop.example.com/images/serum-updated.jpg")
         self.assertContains(detail_response, "Stock quantity: 8")
-        self.assertContains(detail_response, "31 Dec 2027")
         self.assertContains(detail_response, "Hair Care")
 
     @patch("core.views.update_woocommerce_product")

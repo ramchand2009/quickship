@@ -518,7 +518,6 @@ class ProductForm(forms.ModelForm):
             "woocommerce_product_id",
             "woocommerce_variation_id",
             "barcode",
-            "expiry_date",
             "image_url",
             "stock_quantity",
             "reorder_level",
@@ -548,7 +547,6 @@ class ProductForm(forms.ModelForm):
         self.fields["category_master"].empty_label = "Select category"
         self.fields["category_master"].widget.attrs["class"] = "form-select"
         self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
-        self.fields["expiry_date"].widget = forms.DateInput(attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d")
         self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
         self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "WooCommerce product or variation ID"
         self.fields["image_url"].widget.attrs["placeholder"] = "https://your-store.com/path/product-image.jpg"
@@ -613,6 +611,10 @@ class ProductCategoryForm(forms.ModelForm):
 class ProductBarcodePrintForm(forms.Form):
     manufacture_date = forms.DateField(
         initial=timezone.localdate,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    expiry_date = forms.DateField(
+        required=False,
         widget=forms.DateInput(attrs={"type": "date"}),
     )
     label_count = forms.IntegerField(

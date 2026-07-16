@@ -4527,7 +4527,6 @@ def _product_detail_update_data(product, post_data):
         "actual_price": product.actual_price or "",
         "regular_price": product.regular_price or "",
         "sale_price": product.sale_price or "",
-        "expiry_date": product.expiry_date.isoformat() if product.expiry_date else "",
     }
     if product.is_active:
         data["is_active"] = "on"
@@ -4553,7 +4552,6 @@ PRODUCT_CHANGE_REQUEST_FIELDS = [
     "actual_price",
     "regular_price",
     "sale_price",
-    "expiry_date",
 ]
 
 
@@ -4573,7 +4571,6 @@ PRODUCT_CHANGE_REQUEST_LABELS = {
     "actual_price": "Actual Price",
     "regular_price": "Regular Price",
     "sale_price": "Sale Price",
-    "expiry_date": "Expiry Date",
 }
 
 
@@ -4604,7 +4601,6 @@ def _product_current_change_values(product):
         "actual_price": str(product.actual_price) if product.actual_price is not None else "",
         "regular_price": str(product.regular_price) if product.regular_price is not None else "",
         "sale_price": str(product.sale_price) if product.sale_price is not None else "",
-        "expiry_date": product.expiry_date.isoformat() if product.expiry_date else "",
     }
 
 
@@ -4675,8 +4671,6 @@ def _apply_product_change_request(change_request):
             setattr(product, "category_master_id", int(value) if str(value).strip().isdigit() else None)
         elif field_name in {"actual_price", "regular_price", "sale_price"}:
             setattr(product, field_name, Decimal(str(value)) if str(value).strip() else None)
-        elif field_name == "expiry_date":
-            setattr(product, field_name, parse_date(str(value)) if str(value).strip() else None)
         elif field_name in {"stock_quantity", "reorder_level"}:
             setattr(product, field_name, int(value or 0))
         elif field_name == "is_active":
@@ -4819,11 +4813,11 @@ def stock_product_barcode(request, pk):
     barcode_form = ProductBarcodePrintForm(
         initial={
             "manufacture_date": manufacture_date,
+            "expiry_date": "",
             "label_count": 1,
         }
     )
     mrp_value = _product_barcode_mrp(product)
-    expiry_date = product.expiry_date
 
     return render(
         request,
@@ -4836,7 +4830,7 @@ def stock_product_barcode(request, pk):
             "barcode_mrp": mrp_value,
             "manufacture_date_value": manufacture_date.isoformat(),
             "manufacture_date_display": _format_barcode_label_date(manufacture_date),
-            "expiry_date_display": _format_barcode_label_date(expiry_date),
+            "expiry_date_display": "",
             "label_width_mm": PRODUCT_BARCODE_LABEL_WIDTH_MM,
             "label_height_mm": PRODUCT_BARCODE_LABEL_HEIGHT_MM,
             "ops_mobile_nav_active": "stock",

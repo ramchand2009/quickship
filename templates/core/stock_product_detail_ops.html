@@ -156,7 +156,7 @@ body { overflow-x:hidden; background:#f3f3f4; }
                 <h3>Barcode</h3>
                 <p>SKU: {{ product.sku|default:"-" }}</p>
                 <p>Barcode: {{ product_barcode_value|default:"Add barcode in Inventory first" }}</p>
-                <p>Expiry: {% if product.expiry_date %}{{ product.expiry_date|date:"d M Y" }}{% else %}Set expiry date in Inventory{% endif %}</p>
+                <p>Manufacture and expiry dates will be entered while printing.</p>
             </div>
             <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
         </a>
