@@ -209,7 +209,7 @@ def _build_product_barcode_svg(value):
         "Code128",
         value=barcode_value,
         barHeight=34,
-        humanReadable=True,
+        humanReadable=False,
     )
     svg_markup = drawing.asString("svg")
     svg_markup = re.sub(r"^<\?xml[^>]*>\s*", "", svg_markup)
@@ -217,12 +217,24 @@ def _build_product_barcode_svg(value):
     return svg_markup.strip()
 
 
+def _fit_pdf_text(pdf_canvas, text, font_name, font_size, max_width):
+    value = str(text or "").strip()
+    if not value:
+        return "-"
+    if pdf_canvas.stringWidth(value, font_name, font_size) <= max_width:
+        return value
+    ellipsis = "..."
+    while value and pdf_canvas.stringWidth(value + ellipsis, font_name, font_size) > max_width:
+        value = value[:-1]
+    return (value + ellipsis) if value else ellipsis
+
+
 def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manufacture_date, expiry_date):
     page_width = PRODUCT_BARCODE_LABEL_WIDTH_MM * mm
     page_height = PRODUCT_BARCODE_LABEL_HEIGHT_MM * mm
     left = 4.5
     right = page_width - 4.5
-    top = page_height - 4.0
+    top = page_height - 6.5
 
     product_name = str(getattr(product, "name", "") or "-").strip()
     sku_value = str(getattr(product, "sku", "") or "-").strip()
@@ -232,36 +244,53 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     exp_text = _format_barcode_label_date(expiry_date) or "-"
 
     pdf_canvas.setFillColor(black)
-    pdf_canvas.setFont("Helvetica-Bold", 7.4)
-    max_name_width = page_width - 58
-    title_lines = simpleSplit(product_name, "Helvetica-Bold", 7.4, max_name_width)
-    title_line = title_lines[0] if title_lines else "-"
+    title_font_name = "Helvetica-Bold"
+    title_font_size = 6.1
+    price_font_name = "Helvetica-Bold"
+    price_font_size = 6.1
+    price_width = pdf_canvas.stringWidth(mrp_text, price_font_name, price_font_size)
+    max_name_width = max(28, page_width - left - (page_width - right) - price_width - 8)
+    title_line = _fit_pdf_text(pdf_canvas, product_name, title_font_name, title_font_size, max_name_width)
+    pdf_canvas.setFont(title_font_name, title_font_size)
     pdf_canvas.drawString(left, top, title_line)
+    pdf_canvas.setFont(price_font_name, price_font_size)
     pdf_canvas.drawRightString(right, top, mrp_text)
 
-    drawing = createBarcodeDrawing("Code128", value=barcode_value, barHeight=18 * mm, humanReadable=True)
+    drawing = createBarcodeDrawing("Code128", value=barcode_value, barHeight=8.2 * mm, humanReadable=False)
     barcode_width = min(float(drawing.width), page_width - 9)
     scale_x = barcode_width / float(drawing.width) if float(drawing.width) else 1
     barcode_x = (page_width - barcode_width) / 2
-    barcode_y = 10.6
+    barcode_y = 16.5
     pdf_canvas.saveState()
     pdf_canvas.translate(barcode_x, barcode_y)
     pdf_canvas.scale(scale_x, 1)
     renderPDF.draw(drawing, pdf_canvas, 0, 0)
     pdf_canvas.restoreState()
 
-    footer_y = 5.2
-    col_width = (page_width - 9) / 4
-    labels = [("MFG", mfg_text), ("EXP", exp_text), ("SKU", sku_value), ("BARCODE", barcode_value)]
-    for index, (label, value) in enumerate(labels):
-        col_x = left + (index * col_width)
-        pdf_canvas.setFont("Helvetica-Bold", 4.1)
-        pdf_canvas.drawString(col_x, footer_y + 5.2, label)
-        pdf_canvas.setFont("Helvetica", 4.6)
-        value_text = str(value or "-")
-        value_lines = simpleSplit(value_text, "Helvetica", 4.6, col_width - 1.5)
-        if value_lines:
-            pdf_canvas.drawString(col_x, footer_y + 1.2, value_lines[0])
+    pdf_canvas.setLineWidth(0.35)
+    pdf_canvas.line(left, 15, right, 15)
+
+    section_width = (page_width - 9) / 2
+    label_font_name = "Helvetica-Bold"
+    label_font_size = 3.9
+    value_font_name = "Helvetica"
+    value_font_size = 4.2
+
+    top_meta_y = 11.1
+    bottom_meta_y = 5.9
+
+    meta_rows = [
+        (left, top_meta_y, "MFG", mfg_text),
+        (left + section_width, top_meta_y, "EXP", exp_text),
+        (left, bottom_meta_y, "SKU", sku_value),
+        (left + section_width, bottom_meta_y, "BARCODE", barcode_value),
+    ]
+    for x, y, label, value in meta_rows:
+        pdf_canvas.setFont(label_font_name, label_font_size)
+        pdf_canvas.drawString(x, y, label)
+        pdf_canvas.setFont(value_font_name, value_font_size)
+        fitted_value = _fit_pdf_text(pdf_canvas, value, value_font_name, value_font_size, section_width - 2)
+        pdf_canvas.drawString(x, y - 3.7, fitted_value)
 
 
 def _product_barcode_pdf_response(*, product, barcode_value, manufacture_date, expiry_date, label_count):
