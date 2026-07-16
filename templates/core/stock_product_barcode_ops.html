@@ -65,21 +65,24 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 .ops-barcode-warning { color:#b42318; background:#fff2f0; border:1px solid #fecaca; border-radius:.75rem; padding:.75rem .85rem; }
 .ops-barcode-preview-shell { display:grid; gap:.9rem; justify-items:center; }
 .ops-barcode-preview-card {
-    width:min(100%, 360px); border:2px dashed #c2c7d1; border-radius:1rem; padding:1rem; background:#fff;
+    width:min(100%, 420px); border:1px solid #d7dce5; border-radius:1rem; padding:1rem 1rem .85rem; background:#fff;
 }
 .ops-barcode-preview-meta { display:flex; justify-content:space-between; gap:.75rem; align-items:flex-start; }
 .ops-barcode-preview-meta p { margin:0; }
-.ops-barcode-preview-meta-label { color:#727780; font-size:.62rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
-.ops-barcode-preview-meta-value { margin-top:.12rem !important; color:#161c27; font-size:.88rem; line-height:1.2rem; font-weight:800; }
-.ops-barcode-preview-meta-price { color:#0f4c81; }
-.ops-barcode-svg { margin-top:.9rem; min-height:96px; display:flex; align-items:center; justify-content:center; }
+.ops-barcode-preview-meta-main { color:#161c27; font-size:1rem; line-height:1.2; font-weight:900; }
+.ops-barcode-preview-meta-price { color:#161c27; font-size:1rem; line-height:1.2; font-weight:900; text-align:right; white-space:nowrap; }
+.ops-barcode-svg { margin:.8rem auto 0; min-height:100px; max-width:78%; display:flex; align-items:center; justify-content:center; }
 .ops-barcode-svg svg { width:100%; height:auto; display:block; }
-.ops-barcode-preview-footer {
-    margin-top:.75rem; padding-top:.65rem; border-top:1px solid #dde2f3; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr));
-    gap:.65rem;
+.ops-barcode-preview-barcode-text {
+    margin:.15rem 0 0; text-align:center; color:#161c27; font-size:.9rem; line-height:1.1; font-weight:900; letter-spacing:.01em;
 }
-.ops-barcode-preview-footer-label { color:#727780; font-size:.56rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
-.ops-barcode-preview-footer-value { margin-top:.12rem; color:#42474f; font-size:.7rem; line-height:1rem; font-weight:700; word-break:break-word; }
+.ops-barcode-preview-sku-text {
+    margin:.28rem 0 0; text-align:center; color:#161c27; font-size:.82rem; line-height:1.1; font-weight:900;
+}
+.ops-barcode-preview-footer {
+    margin-top:.7rem; display:flex; justify-content:space-between; gap:.75rem; align-items:flex-end;
+}
+.ops-barcode-preview-footer-value { color:#161c27; font-size:.78rem; line-height:1.05; font-weight:900; }
 .ops-barcode-dimensions { color:#727780; font-size:.82rem; text-align:center; }
 .ops-barcode-actions { display:grid; gap:.75rem; }
 .ops-barcode-primary {
@@ -118,7 +121,12 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 
 @media (max-width: 420px) {
     .ops-barcode-main { padding:.85rem; }
-    .ops-barcode-preview-footer { grid-template-columns:1fr 1fr; }
+    .ops-barcode-preview-card { width:100%; }
+    .ops-barcode-preview-meta-main, .ops-barcode-preview-meta-price { font-size:.95rem; }
+    .ops-barcode-svg { max-width:86%; }
+    .ops-barcode-preview-barcode-text { font-size:.84rem; }
+    .ops-barcode-preview-sku-text { font-size:.78rem; }
+    .ops-barcode-preview-footer-value { font-size:.72rem; }
 }
 
 @media print {
@@ -219,12 +227,10 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                     <div class="ops-barcode-preview-card" id="barcodePreviewCard">
                         <div class="ops-barcode-preview-meta">
                             <div>
-                                <p class="ops-barcode-preview-meta-label">Product Name</p>
-                                <p class="ops-barcode-preview-meta-value">{{ product.name }}</p>
+                                <p class="ops-barcode-preview-meta-main">{{ product.name }}</p>
                             </div>
-                            <div style="text-align:right;">
-                                <p class="ops-barcode-preview-meta-label">MRP</p>
-                                <p class="ops-barcode-preview-meta-value ops-barcode-preview-meta-price">
+                            <div>
+                                <p class="ops-barcode-preview-meta-price">
                                     {% if barcode_mrp %}Rs {{ barcode_mrp|floatformat:2 }}{% else %}-{% endif %}
                                 </p>
                             </div>
@@ -236,22 +242,14 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                                 <p class="ops-barcode-note" style="margin:0; text-align:center;">Add a product barcode first to preview and print labels.</p>
                             {% endif %}
                         </div>
+                        <p class="ops-barcode-preview-barcode-text">{{ barcode_value|default:"-" }}</p>
+                        <p class="ops-barcode-preview-sku-text">SKU {{ product.sku|default:"-" }}</p>
                         <div class="ops-barcode-preview-footer">
                             <div>
-                                <div class="ops-barcode-preview-footer-label">Mfg Date</div>
-                                <div class="ops-barcode-preview-footer-value" id="barcodePreviewMfg">{{ manufacture_date_display|default:"-" }}</div>
+                                <div class="ops-barcode-preview-footer-value" id="barcodePreviewMfg">MFG {{ manufacture_date_display|default:"-" }}</div>
                             </div>
                             <div>
-                                <div class="ops-barcode-preview-footer-label">Exp Date</div>
-                                <div class="ops-barcode-preview-footer-value" id="barcodePreviewExpiry">{{ expiry_date_display|default:"-" }}</div>
-                            </div>
-                            <div>
-                                <div class="ops-barcode-preview-footer-label">SKU Code</div>
-                                <div class="ops-barcode-preview-footer-value">{{ product.sku|default:"-" }}</div>
-                            </div>
-                            <div>
-                                <div class="ops-barcode-preview-footer-label">Barcode</div>
-                                <div class="ops-barcode-preview-footer-value">{{ barcode_value|default:"-" }}</div>
+                                <div class="ops-barcode-preview-footer-value" id="barcodePreviewExpiry">EXP {{ expiry_date_display|default:"-" }}</div>
                             </div>
                         </div>
                     </div>
@@ -341,10 +339,10 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         var mfgDate = parseLocalDate(mfgInput ? mfgInput.value : "");
         var expiryDate = calculatedExpiry();
         if (previewMfg) {
-            previewMfg.textContent = formatDate(mfgDate);
+            previewMfg.textContent = "MFG " + formatDate(mfgDate);
         }
         if (previewExpiry) {
-            previewExpiry.textContent = expiryDate ? formatMonthYear(expiryDate) : "-";
+            previewExpiry.textContent = "EXP " + (expiryDate ? formatMonthYear(expiryDate) : "-");
         }
         if (summaryExpiry) {
             summaryExpiry.textContent = expiryDate ? formatMonthYear(expiryDate) : "Auto from months";
