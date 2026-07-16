@@ -150,6 +150,16 @@ body { overflow-x:hidden; background:#f3f3f4; }
             </div>
             <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
         </a>
+        <a href="{% url 'stock_product_barcode' product.pk %}" class="ops-product-row">
+            <div class="ops-product-row-icon"><i class="fas fa-barcode"></i></div>
+            <div>
+                <h3>Barcode</h3>
+                <p>SKU: {{ product.sku|default:"-" }}</p>
+                <p>Barcode: {{ product_barcode_value|default:"Add barcode in Inventory first" }}</p>
+                <p>Expiry: {% if product.expiry_date %}{{ product.expiry_date|date:"d M Y" }}{% else %}Set expiry date in Inventory{% endif %}</p>
+            </div>
+            <div class="ops-product-chevron"><i class="fas fa-chevron-right"></i></div>
+        </a>
         <a href="{% url 'stock_product_section' product.pk 'categories' %}" class="ops-product-row">
             <div class="ops-product-row-icon"><i class="fas fa-folder"></i></div>
             <div>

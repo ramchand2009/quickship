@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}Barcode Generator | {{ product.name }}{% endblock %}
+
+{% block extrastyle %}
+<style>
+.pcoded-header, .pcoded-navbar { display:none !important; }
+.pcoded-main-container { margin-left:0 !important; padding-top:0 !important; }
+.pcoded-header.headerpos-fixed ~ .pcoded-main-container { padding-top:0 !important; }
+.pcoded-wrapper, .pcoded-inner-content, .main-body, .pcoded-content, .page-wrapper { margin-top:0 !important; padding:0 !important; }
+body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work Sans","Segoe UI",sans-serif; }
+{% include "core/_ops_mobile_bottomnav_styles.html" %}
+
+.ops-barcode-shell { min-height:100vh; background:#f9f9ff; padding:0 0 6.5rem; }
+.ops-barcode-topbar {
+    position:sticky; top:0; z-index:40; min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    padding:0.85rem 1rem; background:#fff; border-bottom:1px solid #dde2f3;
+}
+.ops-barcode-topbar-main { display:flex; align-items:center; gap:.85rem; min-width:0; }
+.ops-barcode-back {
+    width:40px; height:40px; border:0; border-radius:999px; background:#eef4ff; color:#00355f; display:inline-flex;
+    align-items:center; justify-content:center; font-size:1.05rem; text-decoration:none;
+}
+.ops-barcode-title { margin:0; font-size:1.18rem; font-weight:800; color:#00355f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ops-barcode-avatar {
+    width:40px; height:40px; border-radius:999px; background:#d5e0f7; color:#00355f; display:inline-flex; align-items:center;
+    justify-content:center; font-size:.92rem; font-weight:800; overflow:hidden;
+}
+.ops-barcode-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+.ops-barcode-main {
+    width:min(100%, 1120px); margin:0 auto; padding:1rem; display:grid; gap:1rem;
+}
+.ops-barcode-grid { display:grid; gap:1rem; }
+.ops-barcode-card {
+    background:#fff; border:1px solid #c2c7d1; border-radius:1rem; padding:1rem; box-shadow:0 8px 18px rgba(15, 23, 42, 0.06);
+}
+.ops-barcode-kicker {
+    margin:0 0 .85rem; color:#727780; font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+}
+.ops-barcode-product { display:flex; align-items:center; gap:.9rem; }
+.ops-barcode-product-thumb {
+    width:68px; height:68px; border-radius:.8rem; border:1px solid #c2c7d1; background:#eef3ff; display:flex;
+    align-items:center; justify-content:center; color:#00355f; font-weight:900; overflow:hidden; flex:0 0 auto;
+}
+.ops-barcode-product-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.ops-barcode-product h2 { margin:0; font-size:1.1rem; line-height:1.35rem; font-weight:800; color:#161c27; }
+.ops-barcode-product-meta { margin:.2rem 0 0; color:#0f4c81; font-size:1rem; font-weight:700; }
+.ops-barcode-product-sku { margin:.2rem 0 0; color:#586377; font-size:.86rem; }
+.ops-barcode-field { display:grid; gap:.38rem; margin-bottom:.95rem; }
+.ops-barcode-field:last-child { margin-bottom:0; }
+.ops-barcode-field label { color:#586377; font-size:.74rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+.ops-barcode-field input {
+    width:100%; min-height:50px; border:1px solid #c2c7d1; border-radius:.8rem; background:#fff; padding:.72rem .9rem;
+    color:#161c27; font-size:1rem; outline:none; box-shadow:none;
+}
+.ops-barcode-field input:focus { border-color:#0f4c81; box-shadow:0 0 0 3px rgba(15, 76, 129, 0.12); }
+.ops-barcode-stepper {
+    min-height:50px; display:grid; grid-template-columns:48px minmax(0, 1fr) 48px; align-items:center; border:1px solid #c2c7d1;
+    border-radius:.8rem; overflow:hidden; background:#fff;
+}
+.ops-barcode-stepper button {
+    height:100%; border:0; background:#e8eeff; color:#00355f; font-size:1.2rem; font-weight:800; display:flex; align-items:center; justify-content:center;
+}
+.ops-barcode-stepper input { border:0; border-radius:0; min-height:48px; text-align:center; font-weight:700; }
+.ops-barcode-note, .ops-barcode-warning { margin:.7rem 0 0; font-size:.82rem; line-height:1.3rem; }
+.ops-barcode-note { color:#586377; }
+.ops-barcode-warning { color:#b42318; background:#fff2f0; border:1px solid #fecaca; border-radius:.75rem; padding:.75rem .85rem; }
+.ops-barcode-preview-shell { display:grid; gap:.9rem; justify-items:center; }
+.ops-barcode-preview-card {
+    width:min(100%, 360px); border:2px dashed #c2c7d1; border-radius:1rem; padding:1rem; background:#fff;
+}
+.ops-barcode-preview-meta { display:flex; justify-content:space-between; gap:.75rem; align-items:flex-start; }
+.ops-barcode-preview-meta p { margin:0; }
+.ops-barcode-preview-meta-label { color:#727780; font-size:.62rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+.ops-barcode-preview-meta-value { margin-top:.12rem !important; color:#161c27; font-size:.88rem; line-height:1.2rem; font-weight:800; }
+.ops-barcode-preview-meta-price { color:#0f4c81; }
+.ops-barcode-svg { margin-top:.9rem; min-height:96px; display:flex; align-items:center; justify-content:center; }
+.ops-barcode-svg svg { width:100%; height:auto; display:block; }
+.ops-barcode-preview-footer {
+    margin-top:.75rem; padding-top:.65rem; border-top:1px solid #dde2f3; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:.65rem;
+}
+.ops-barcode-preview-footer-label { color:#727780; font-size:.56rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+.ops-barcode-preview-footer-value { margin-top:.12rem; color:#42474f; font-size:.7rem; line-height:1rem; font-weight:700; word-break:break-word; }
+.ops-barcode-dimensions { color:#727780; font-size:.82rem; text-align:center; }
+.ops-barcode-actions { display:grid; gap:.75rem; }
+.ops-barcode-primary {
+    width:100%; min-height:54px; border:0; border-radius:1rem; background:#0f4c81; color:#fff; font-size:1rem; font-weight:800;
+    display:inline-flex; align-items:center; justify-content:center; gap:.55rem; box-shadow:0 10px 18px rgba(15, 76, 129, 0.18);
+}
+.ops-barcode-primary:disabled { opacity:.55; box-shadow:none; }
+.ops-barcode-secondary {
+    width:100%; min-height:46px; border:1px solid #c2c7d1; border-radius:.9rem; background:#fff; color:#00355f; font-size:.95rem; font-weight:700;
+}
+.ops-barcode-inline-data { display:grid; gap:.65rem; }
+.ops-barcode-inline-row {
+    display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:.75rem .9rem; border-radius:.85rem; background:#f6f8ff; border:1px solid #dde2f3;
+}
+.ops-barcode-inline-row span { color:#586377; font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.ops-barcode-inline-row strong { color:#161c27; font-size:.92rem; line-height:1.25rem; text-align:right; }
+.ops-barcode-print-sheet { display:none; }
+.ops-barcode-print-label {
+    width:{{ label_width_mm }}mm; height:{{ label_height_mm }}mm; box-sizing:border-box; padding:1.5mm 1.7mm;
+    display:flex; flex-direction:column; justify-content:space-between; background:#fff; color:#000; overflow:hidden;
+}
+.ops-barcode-print-head { display:flex; justify-content:space-between; gap:1.2mm; align-items:flex-start; }
+.ops-barcode-print-name {
+    flex:1 1 auto; font-size:2.45mm; line-height:2.8mm; font-weight:800; max-height:5.8mm; overflow:hidden;
+}
+.ops-barcode-print-price { font-size:2.45mm; line-height:2.8mm; font-weight:800; white-space:nowrap; margin-left:1mm; }
+.ops-barcode-print-barcode { margin-top:1mm; display:flex; justify-content:center; align-items:center; min-height:11.8mm; overflow:hidden; }
+.ops-barcode-print-barcode svg { width:100%; height:100%; }
+.ops-barcode-print-foot {
+    display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:1mm; align-items:end; border-top:.2mm solid #cfd5de; padding-top:1mm;
+}
+.ops-barcode-print-item-label { font-size:1.35mm; line-height:1.5mm; font-weight:800; text-transform:uppercase; color:#555; }
+.ops-barcode-print-item-value { margin-top:.35mm; font-size:1.7mm; line-height:2mm; font-weight:700; color:#111; word-break:break-word; }
+
+@media (min-width: 900px) {
+    .ops-barcode-grid { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); align-items:start; }
+}
+
+@media (max-width: 420px) {
+    .ops-barcode-main { padding:.85rem; }
+    .ops-barcode-preview-footer { grid-template-columns:1fr 1fr; }
+}
+
+@media print {
+    @page { size: {{ label_width_mm }}mm {{ label_height_mm }}mm; margin: 0; }
+    body { background:#fff !important; }
+    .ops-barcode-topbar, .ops-barcode-main, .ops-mobile-bottomnav, .pcoded-main-container > *:not(.pcoded-content) { display:none !important; }
+    .ops-barcode-shell { padding:0 !important; background:#fff !important; }
+    .pcoded-content, .page-wrapper, .main-body, .pcoded-inner-content, .pcoded-wrapper, .pcoded-main-container { margin:0 !important; padding:0 !important; }
+    .ops-barcode-print-sheet { display:block !important; }
+    .ops-barcode-print-label { page-break-after:always; break-after:page; }
+    .ops-barcode-print-label:last-child { page-break-after:auto; break-after:auto; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-barcode-shell">
+    <header class="ops-barcode-topbar">
+        <div class="ops-barcode-topbar-main">
+            <a href="{% url 'stock_product_detail' product.pk %}" class="ops-barcode-back" aria-label="Back to product">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h1 class="ops-barcode-title">Barcode Generator</h1>
+        </div>
+        <span class="ops-barcode-avatar" aria-hidden="true">
+            {% if product.image_url %}
+                <img src="{{ product.image_url }}" alt="{{ product.name }}">
+            {% else %}
+                {{ product.name|default:"P"|slice:":1"|upper }}
+            {% endif %}
+        </span>
+    </header>
+
+    <main class="ops-barcode-main">
+        {% if not barcode_value %}
+            <div class="ops-barcode-warning">
+                This product does not have a barcode yet. Open Inventory, add a barcode, then come back to print the label.
+            </div>
+        {% endif %}
+
+        <div class="ops-barcode-grid">
+            <div class="ops-barcode-grid-left">
+                <section class="ops-barcode-card">
+                    <p class="ops-barcode-kicker">Selected Product</p>
+                    <div class="ops-barcode-product">
+                        <div class="ops-barcode-product-thumb">
+                            {% if product.image_url %}
+                                <img src="{{ product.image_url }}" alt="{{ product.name }}">
+                            {% else %}
+                                {{ product.name|default:"P"|slice:":1"|upper }}
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h2>{{ product.name }}</h2>
+                            <p class="ops-barcode-product-meta">
+                                {% if barcode_mrp %}Rs {{ barcode_mrp|floatformat:2 }}{% else %}MRP not set{% endif %}
+                            </p>
+                            <p class="ops-barcode-product-sku">SKU: {{ product.sku|default:"-" }}</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="ops-barcode-card">
+                    <p class="ops-barcode-kicker">Configuration</p>
+                    <div class="ops-barcode-field">
+                        <label for="{{ barcode_form.manufacture_date.id_for_label }}">Manufacturing Date</label>
+                        {{ barcode_form.manufacture_date }}
+                    </div>
+                    <div class="ops-barcode-field">
+                        <label for="{{ barcode_form.label_count.id_for_label }}">Number of Labels</label>
+                        <div class="ops-barcode-stepper">
+                            <button type="button" data-step="-1" aria-label="Decrease labels">−</button>
+                            {{ barcode_form.label_count }}
+                            <button type="button" data-step="1" aria-label="Increase labels">+</button>
+                        </div>
+                    </div>
+                    <p class="ops-barcode-note">Manufacturing date is selected here per print. Expiry date comes from the product inventory data.</p>
+                </section>
+
+                <section class="ops-barcode-card">
+                    <p class="ops-barcode-kicker">Label Data</p>
+                    <div class="ops-barcode-inline-data">
+                        <div class="ops-barcode-inline-row">
+                            <span>Barcode</span>
+                            <strong>{{ barcode_value|default:"Not added yet" }}</strong>
+                        </div>
+                        <div class="ops-barcode-inline-row">
+                            <span>Expiry Date</span>
+                            <strong>{% if product.expiry_date %}{{ product.expiry_date|date:"d M Y" }}{% else %}Not set in Inventory{% endif %}</strong>
+                        </div>
+                        <div class="ops-barcode-inline-row">
+                            <span>Label Size</span>
+                            <strong>{{ label_width_mm }}mm × {{ label_height_mm }}mm</strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="ops-barcode-grid-right">
+                <section class="ops-barcode-card ops-barcode-preview-shell">
+                    <p class="ops-barcode-kicker" style="justify-self:start;">Barcode Preview</p>
+                    <div class="ops-barcode-preview-card" id="barcodePreviewCard">
+                        <div class="ops-barcode-preview-meta">
+                            <div>
+                                <p class="ops-barcode-preview-meta-label">Product Name</p>
+                                <p class="ops-barcode-preview-meta-value">{{ product.name }}</p>
+                            </div>
+                            <div style="text-align:right;">
+                                <p class="ops-barcode-preview-meta-label">MRP</p>
+                                <p class="ops-barcode-preview-meta-value ops-barcode-preview-meta-price">
+                                    {% if barcode_mrp %}Rs {{ barcode_mrp|floatformat:2 }}{% else %}-{% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="ops-barcode-svg" id="barcodePreviewSvg">
+                            {% if barcode_svg %}
+                                {{ barcode_svg|safe }}
+                            {% else %}
+                                <p class="ops-barcode-note" style="margin:0; text-align:center;">Add a product barcode first to preview and print labels.</p>
+                            {% endif %}
+                        </div>
+                        <div class="ops-barcode-preview-footer">
+                            <div>
+                                <div class="ops-barcode-preview-footer-label">Mfg Date</div>
+                                <div class="ops-barcode-preview-footer-value" id="barcodePreviewMfg">{{ manufacture_date_display|default:"-" }}</div>
+                            </div>
+                            <div>
+                                <div class="ops-barcode-preview-footer-label">Exp Date</div>
+                                <div class="ops-barcode-preview-footer-value" id="barcodePreviewExpiry">{{ expiry_date_display|default:"-" }}</div>
+                            </div>
+                            <div>
+                                <div class="ops-barcode-preview-footer-label">SKU Code</div>
+                                <div class="ops-barcode-preview-footer-value">{{ product.sku|default:"-" }}</div>
+                            </div>
+                            <div>
+                                <div class="ops-barcode-preview-footer-label">Barcode</div>
+                                <div class="ops-barcode-preview-footer-value">{{ barcode_value|default:"-" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="ops-barcode-dimensions">Final dimensions: {{ label_width_mm }}mm × {{ label_height_mm }}mm</p>
+                </section>
+
+                <div class="ops-barcode-actions">
+                    <button type="button" class="ops-barcode-primary" id="barcodePrintButton" {% if not barcode_value %}disabled{% endif %}>
+                        <i class="fas fa-print"></i>
+                        <span>Print Barcode Labels</span>
+                    </button>
+                    <a href="{% url 'stock_product_section' product.pk 'inventory' %}" class="ops-barcode-secondary text-decoration-none d-inline-flex align-items-center justify-content-center">
+                        {% if product.expiry_date %}Update Inventory Details{% else %}Set Expiry Date in Inventory{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="ops-barcode-print-sheet" id="barcodePrintSheet" aria-hidden="true"></div>
+
+    {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="stock" %}
+</div>
+
+<template id="barcodePrintTemplate">
+    <article class="ops-barcode-print-label">
+        <div class="ops-barcode-print-head">
+            <div class="ops-barcode-print-name">{{ product.name }}</div>
+            <div class="ops-barcode-print-price">{% if barcode_mrp %}Rs {{ barcode_mrp|floatformat:2 }}{% else %}-{% endif %}</div>
+        </div>
+        <div class="ops-barcode-print-barcode">{{ barcode_svg|safe }}</div>
+        <div class="ops-barcode-print-foot">
+            <div>
+                <div class="ops-barcode-print-item-label">MFG</div>
+                <div class="ops-barcode-print-item-value" data-print-mfg>{{ manufacture_date_display|default:"-" }}</div>
+            </div>
+            <div>
+                <div class="ops-barcode-print-item-label">EXP</div>
+                <div class="ops-barcode-print-item-value">{% if expiry_date_display %}{{ expiry_date_display }}{% else %}-{% endif %}</div>
+            </div>
+            <div>
+                <div class="ops-barcode-print-item-label">SKU</div>
+                <div class="ops-barcode-print-item-value">{{ product.sku|default:"-" }}</div>
+            </div>
+            <div>
+                <div class="ops-barcode-print-item-label">BARCODE</div>
+                <div class="ops-barcode-print-item-value">{{ barcode_value|default:"-" }}</div>
+            </div>
+        </div>
+    </article>
+</template>
+
+<script>
+(function () {
+    var mfgInput = document.getElementById("{{ barcode_form.manufacture_date.id_for_label }}");
+    var labelCountInput = document.getElementById("{{ barcode_form.label_count.id_for_label }}");
+    var previewMfg = document.getElementById("barcodePreviewMfg");
+    var printButton = document.getElementById("barcodePrintButton");
+    var printSheet = document.getElementById("barcodePrintSheet");
+    var template = document.getElementById("barcodePrintTemplate");
+    var stepButtons = document.querySelectorAll("[data-step]");
+
+    function formatDate(value) {
+        if (!value) {
+            return "-";
+        }
+        var date = new Date(value + "T00:00:00");
+        if (Number.isNaN(date.getTime())) {
+            return "-";
+        }
+        return date.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }).replace(/ /g, " ").toUpperCase();
+    }
+
+    function syncPreview() {
+        if (previewMfg && mfgInput) {
+            previewMfg.textContent = formatDate(mfgInput.value);
+        }
+    }
+
+    function normalizedLabelCount() {
+        var value = parseInt(labelCountInput && labelCountInput.value ? labelCountInput.value : "1", 10);
+        if (!value || value < 1) {
+            value = 1;
+        }
+        if (labelCountInput) {
+            labelCountInput.value = value;
+        }
+        return value;
+    }
+
+    function buildPrintSheet() {
+        if (!printSheet || !template) {
+            return;
+        }
+        printSheet.innerHTML = "";
+        var count = normalizedLabelCount();
+        var mfgText = formatDate(mfgInput ? mfgInput.value : "");
+        for (var index = 0; index < count; index += 1) {
+            var fragment = template.content.cloneNode(true);
+            fragment.querySelectorAll("[data-print-mfg]").forEach(function (node) {
+                node.textContent = mfgText;
+            });
+            printSheet.appendChild(fragment);
+        }
+    }
+
+    stepButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            if (!labelCountInput) {
+                return;
+            }
+            var step = parseInt(button.getAttribute("data-step") || "0", 10);
+            var current = normalizedLabelCount();
+            labelCountInput.value = Math.max(1, current + step);
+        });
+    });
+
+    if (mfgInput) {
+        mfgInput.addEventListener("input", syncPreview);
+        mfgInput.addEventListener("change", syncPreview);
+    }
+
+    if (labelCountInput) {
+        labelCountInput.addEventListener("change", normalizedLabelCount);
+        labelCountInput.addEventListener("input", normalizedLabelCount);
+    }
+
+    if (printButton) {
+        printButton.addEventListener("click", function () {
+            buildPrintSheet();
+            printButton.disabled = true;
+            var originalHtml = printButton.innerHTML;
+            printButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Preparing labels…</span>';
+            setTimeout(function () {
+                window.print();
+                printButton.innerHTML = originalHtml;
+                printButton.disabled = false;
+            }, 120);
+        });
+    }
+
+    syncPreview();
+})();
+</script>
+{% endblock %}

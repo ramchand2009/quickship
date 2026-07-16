@@ -839,6 +839,7 @@ class Product(models.Model):
     actual_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     regular_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
     stock_quantity = models.IntegerField(default=0)
     reorder_level = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)

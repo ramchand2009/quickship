@@ -39,6 +39,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
+from reportlab.graphics.barcode import createBarcodeDrawing
 from reportlab.lib.colors import black, white
 from reportlab.lib.units import inch
 from reportlab.lib.utils import simpleSplit
@@ -63,6 +64,7 @@ from .forms import (
     BulkSmartbizMappingForm,
     ContactForm,
     ExpensePersonForm,
+    ProductBarcodePrintForm,
     ProductDetailUpdateForm,
     ProductForm,
     ProductCategoryForm,
@@ -168,6 +170,8 @@ PWA_THEME_COLOR = "#253142"
 PWA_BACKGROUND_COLOR = "#f4f7fa"
 PWA_ASSET_VERSION = "20260513-1"
 PWA_CACHE_NAME = f"mathukai-pwa-{PWA_ASSET_VERSION}"
+PRODUCT_BARCODE_LABEL_WIDTH_MM = 50
+PRODUCT_BARCODE_LABEL_HEIGHT_MM = 25
 
 
 def _is_truthy(raw_value):
@@ -176,6 +180,36 @@ def _is_truthy(raw_value):
 
 def _pwa_static_asset(path):
     return f"{static(path)}?v={PWA_ASSET_VERSION}"
+
+
+def _product_barcode_value(product):
+    return str(product.barcode or "").strip()
+
+
+def _product_barcode_mrp(product):
+    return product.regular_price or product.sale_price or product.actual_price
+
+
+def _format_barcode_label_date(value):
+    if not value:
+        return ""
+    return value.strftime("%d %b %Y").upper()
+
+
+def _build_product_barcode_svg(value):
+    barcode_value = str(value or "").strip()
+    if not barcode_value:
+        return ""
+    drawing = createBarcodeDrawing(
+        "Code128",
+        value=barcode_value,
+        barHeight=34,
+        humanReadable=True,
+    )
+    svg_markup = drawing.asString("svg")
+    svg_markup = re.sub(r"^<\?xml[^>]*>\s*", "", svg_markup)
+    svg_markup = re.sub(r"<!DOCTYPE[^>]*>\s*", "", svg_markup, count=1, flags=re.IGNORECASE)
+    return svg_markup.strip()
 
 
 @require_GET
@@ -4467,10 +4501,12 @@ def stock_product_detail(request, pk):
         {
             "form": form,
             "product": product,
+            "product_barcode_value": _product_barcode_value(product),
             "pending_change_count": product.change_requests.filter(status=ProductChangeRequest.STATUS_PENDING).count(),
             "product_routing_detail": _vendor_product_routing_detail(product),
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": ops_mobile_mode,
+            "ops_mobile_nav_active": "stock",
         },
     )
 
@@ -4491,6 +4527,7 @@ def _product_detail_update_data(product, post_data):
         "actual_price": product.actual_price or "",
         "regular_price": product.regular_price or "",
         "sale_price": product.sale_price or "",
+        "expiry_date": product.expiry_date.isoformat() if product.expiry_date else "",
     }
     if product.is_active:
         data["is_active"] = "on"
@@ -4516,6 +4553,7 @@ PRODUCT_CHANGE_REQUEST_FIELDS = [
     "actual_price",
     "regular_price",
     "sale_price",
+    "expiry_date",
 ]
 
 
@@ -4535,6 +4573,7 @@ PRODUCT_CHANGE_REQUEST_LABELS = {
     "actual_price": "Actual Price",
     "regular_price": "Regular Price",
     "sale_price": "Sale Price",
+    "expiry_date": "Expiry Date",
 }
 
 
@@ -4565,6 +4604,7 @@ def _product_current_change_values(product):
         "actual_price": str(product.actual_price) if product.actual_price is not None else "",
         "regular_price": str(product.regular_price) if product.regular_price is not None else "",
         "sale_price": str(product.sale_price) if product.sale_price is not None else "",
+        "expiry_date": product.expiry_date.isoformat() if product.expiry_date else "",
     }
 
 
@@ -4635,6 +4675,8 @@ def _apply_product_change_request(change_request):
             setattr(product, "category_master_id", int(value) if str(value).strip().isdigit() else None)
         elif field_name in {"actual_price", "regular_price", "sale_price"}:
             setattr(product, field_name, Decimal(str(value)) if str(value).strip() else None)
+        elif field_name == "expiry_date":
+            setattr(product, field_name, parse_date(str(value)) if str(value).strip() else None)
         elif field_name in {"stock_quantity", "reorder_level"}:
             setattr(product, field_name, int(value or 0))
         elif field_name == "is_active":
@@ -4757,6 +4799,47 @@ def stock_product_section(request, pk, section):
             "section_title": section_titles[section],
             "can_edit_operations": can_edit_operations,
             "ops_mobile_mode": _is_ops_viewer(getattr(request, "user", None)),
+            "ops_mobile_nav_active": "stock",
+        },
+    )
+
+
+@login_required
+def stock_product_barcode(request, pk):
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access stock management.")
+        return redirect("order_management")
+
+    product = get_object_or_404(
+        _scope_queryset_to_active_tenant(request, Product.objects.select_related("category_master")),
+        pk=pk,
+    )
+    barcode_value = _product_barcode_value(product)
+    manufacture_date = timezone.localdate()
+    barcode_form = ProductBarcodePrintForm(
+        initial={
+            "manufacture_date": manufacture_date,
+            "label_count": 1,
+        }
+    )
+    mrp_value = _product_barcode_mrp(product)
+    expiry_date = product.expiry_date
+
+    return render(
+        request,
+        "core/stock_product_barcode_ops.html",
+        {
+            "product": product,
+            "barcode_form": barcode_form,
+            "barcode_value": barcode_value,
+            "barcode_svg": _build_product_barcode_svg(barcode_value),
+            "barcode_mrp": mrp_value,
+            "manufacture_date_value": manufacture_date.isoformat(),
+            "manufacture_date_display": _format_barcode_label_date(manufacture_date),
+            "expiry_date_display": _format_barcode_label_date(expiry_date),
+            "label_width_mm": PRODUCT_BARCODE_LABEL_WIDTH_MM,
+            "label_height_mm": PRODUCT_BARCODE_LABEL_HEIGHT_MM,
+            "ops_mobile_nav_active": "stock",
         },
     )
 

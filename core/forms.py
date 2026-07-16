@@ -8,6 +8,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.db import transaction
+from django.utils import timezone
 from django.utils.text import slugify
 
 from .models import (
@@ -517,6 +518,7 @@ class ProductForm(forms.ModelForm):
             "woocommerce_product_id",
             "woocommerce_variation_id",
             "barcode",
+            "expiry_date",
             "image_url",
             "stock_quantity",
             "reorder_level",
@@ -546,6 +548,7 @@ class ProductForm(forms.ModelForm):
         self.fields["category_master"].empty_label = "Select category"
         self.fields["category_master"].widget.attrs["class"] = "form-select"
         self.fields["barcode"].widget.attrs["placeholder"] = "Scan or enter barcode"
+        self.fields["expiry_date"].widget = forms.DateInput(attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d")
         self.fields["sku"].widget.attrs["placeholder"] = "SKU-001"
         self.fields["smartbiz_product_id"].widget.attrs["placeholder"] = "WooCommerce product or variation ID"
         self.fields["image_url"].widget.attrs["placeholder"] = "https://your-store.com/path/product-image.jpg"
@@ -605,6 +608,18 @@ class ProductCategoryForm(forms.ModelForm):
         self.fields["name"].widget.attrs["class"] = "form-control"
         self.fields["name"].widget.attrs["placeholder"] = "Soap"
         self.fields["is_active"].widget.attrs["class"] = "form-check-input"
+
+
+class ProductBarcodePrintForm(forms.Form):
+    manufacture_date = forms.DateField(
+        initial=timezone.localdate,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    label_count = forms.IntegerField(
+        min_value=1,
+        initial=1,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+    )
 
 
 class StockAdjustmentForm(forms.Form):
