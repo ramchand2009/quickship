@@ -617,11 +617,6 @@ class ProductBarcodePrintForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={"type": "date"}),
     )
-    label_count = forms.IntegerField(
-        min_value=1,
-        initial=1,
-        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
-    )
 
 
 class StockAdjustmentForm(forms.Form):

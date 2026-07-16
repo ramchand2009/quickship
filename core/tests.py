@@ -9616,8 +9616,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Charcoal Soap")
         self.assertContains(response, "SOAP-001")
         self.assertContains(response, "Auto from SKU")
-        self.assertContains(response, "Download PDF Labels")
-        self.assertContains(response, "Number of Labels")
+        self.assertContains(response, "Download PDF Label")
+        self.assertNotContains(response, "Number of Labels")
         self.assertContains(response, "Final dimensions: 50mm × 25mm")
         self.assertContains(response, "Expiry Date")
         self.assertNotContains(response, "This product does not have a barcode yet")
@@ -9635,7 +9635,6 @@ class RoleAccessTests(TestCase):
             {
                 "manufacture_date": "2026-07-16",
                 "expiry_date": "2027-07-16",
-                "label_count": "2",
             },
         )
 

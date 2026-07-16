@@ -191,14 +191,6 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                         <label for="{{ barcode_form.expiry_date.id_for_label }}">Expiry Date</label>
                         {{ barcode_form.expiry_date }}
                     </div>
-                    <div class="ops-barcode-field">
-                        <label for="{{ barcode_form.label_count.id_for_label }}">Number of Labels</label>
-                        <div class="ops-barcode-stepper">
-                            <button type="button" data-step="-1" aria-label="Decrease labels">−</button>
-                            {{ barcode_form.label_count }}
-                            <button type="button" data-step="1" aria-label="Increase labels">+</button>
-                        </div>
-                    </div>
                     <p class="ops-barcode-note">Manufacturing date and expiry date are entered here at print time.</p>
                 </section>
 
@@ -269,7 +261,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                 <div class="ops-barcode-actions">
                     <button type="button" class="ops-barcode-primary" id="barcodeDownloadButton" {% if not barcode_value %}disabled{% endif %}>
                         <i class="fas fa-file-pdf"></i>
-                        <span>Download PDF Labels</span>
+                        <span>Download PDF Label</span>
                     </button>
                     <a href="{% url 'stock_product_section' product.pk 'inventory' %}" class="ops-barcode-secondary text-decoration-none d-inline-flex align-items-center justify-content-center">
                         Update Product Inventory
@@ -286,12 +278,10 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 (function () {
     var mfgInput = document.getElementById("{{ barcode_form.manufacture_date.id_for_label }}");
     var expiryInput = document.getElementById("{{ barcode_form.expiry_date.id_for_label }}");
-    var labelCountInput = document.getElementById("{{ barcode_form.label_count.id_for_label }}");
     var previewMfg = document.getElementById("barcodePreviewMfg");
     var previewExpiry = document.getElementById("barcodePreviewExpiry");
     var summaryExpiry = document.getElementById("barcodeSummaryExpiry");
     var downloadButton = document.getElementById("barcodeDownloadButton");
-    var stepButtons = document.querySelectorAll("[data-step]");
 
     function formatDate(value) {
         if (!value) {
@@ -320,17 +310,6 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         }
     }
 
-    function normalizedLabelCount() {
-        var value = parseInt(labelCountInput && labelCountInput.value ? labelCountInput.value : "1", 10);
-        if (!value || value < 1) {
-            value = 1;
-        }
-        if (labelCountInput) {
-            labelCountInput.value = value;
-        }
-        return value;
-    }
-
     function downloadUrl() {
         var params = new URLSearchParams();
         if (mfgInput && mfgInput.value) {
@@ -339,20 +318,8 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         if (expiryInput && expiryInput.value) {
             params.set("expiry_date", expiryInput.value);
         }
-        params.set("label_count", normalizedLabelCount());
         return "{% url 'stock_product_barcode_pdf' product.pk %}?" + params.toString();
     }
-
-    stepButtons.forEach(function (button) {
-        button.addEventListener("click", function () {
-            if (!labelCountInput) {
-                return;
-            }
-            var step = parseInt(button.getAttribute("data-step") || "0", 10);
-            var current = normalizedLabelCount();
-            labelCountInput.value = Math.max(1, current + step);
-        });
-    });
 
     if (mfgInput) {
         mfgInput.addEventListener("input", syncPreview);
@@ -362,11 +329,6 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
     if (expiryInput) {
         expiryInput.addEventListener("input", syncPreview);
         expiryInput.addEventListener("change", syncPreview);
-    }
-
-    if (labelCountInput) {
-        labelCountInput.addEventListener("change", normalizedLabelCount);
-        labelCountInput.addEventListener("input", normalizedLabelCount);
     }
 
     if (downloadButton) {

@@ -198,7 +198,7 @@ def _product_barcode_mrp(product):
 def _format_barcode_label_date(value):
     if not value:
         return ""
-    return value.strftime("%d %b %Y").upper()
+    return value.strftime("%d %b %y").upper()
 
 
 def _build_product_barcode_svg(value):
@@ -256,11 +256,11 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     pdf_canvas.setFont(price_font_name, price_font_size)
     pdf_canvas.drawRightString(right, top, mrp_text)
 
-    drawing = createBarcodeDrawing("Code128", value=barcode_value, barHeight=8.2 * mm, humanReadable=False)
+    drawing = createBarcodeDrawing("Code128", value=barcode_value, barHeight=7.0 * mm, humanReadable=False)
     barcode_width = min(float(drawing.width), page_width - 9)
     scale_x = barcode_width / float(drawing.width) if float(drawing.width) else 1
     barcode_x = (page_width - barcode_width) / 2
-    barcode_y = 16.5
+    barcode_y = 20.5
     pdf_canvas.saveState()
     pdf_canvas.translate(barcode_x, barcode_y)
     pdf_canvas.scale(scale_x, 1)
@@ -268,16 +268,16 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     pdf_canvas.restoreState()
 
     pdf_canvas.setLineWidth(0.35)
-    pdf_canvas.line(left, 15, right, 15)
+    pdf_canvas.line(left, 17.5, right, 17.5)
 
     section_width = (page_width - 9) / 2
     label_font_name = "Helvetica-Bold"
-    label_font_size = 3.9
+    label_font_size = 3.35
     value_font_name = "Helvetica"
-    value_font_size = 4.2
+    value_font_size = 3.7
 
-    top_meta_y = 11.1
-    bottom_meta_y = 5.9
+    top_meta_y = 13.1
+    bottom_meta_y = 6.1
 
     meta_rows = [
         (left, top_meta_y, "MFG", mfg_text),
@@ -289,8 +289,8 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
         pdf_canvas.setFont(label_font_name, label_font_size)
         pdf_canvas.drawString(x, y, label)
         pdf_canvas.setFont(value_font_name, value_font_size)
-        fitted_value = _fit_pdf_text(pdf_canvas, value, value_font_name, value_font_size, section_width - 2)
-        pdf_canvas.drawString(x, y - 3.7, fitted_value)
+        fitted_value = _fit_pdf_text(pdf_canvas, value, value_font_name, value_font_size, section_width - 2.5)
+        pdf_canvas.drawString(x, y - 2.9, fitted_value)
 
 
 def _product_barcode_pdf_response(*, product, barcode_value, manufacture_date, expiry_date, label_count):
@@ -4920,7 +4920,6 @@ def stock_product_barcode(request, pk):
         initial={
             "manufacture_date": manufacture_date,
             "expiry_date": "",
-            "label_count": 1,
         }
     )
     mrp_value = _product_barcode_mrp(product)
@@ -4967,13 +4966,12 @@ def stock_product_barcode_pdf(request, pk):
 
     manufacture_date = form.cleaned_data["manufacture_date"]
     expiry_date = form.cleaned_data.get("expiry_date")
-    label_count = form.cleaned_data["label_count"]
     return _product_barcode_pdf_response(
         product=product,
         barcode_value=barcode_value,
         manufacture_date=manufacture_date,
         expiry_date=expiry_date,
-        label_count=label_count,
+        label_count=1,
     )
 
 
