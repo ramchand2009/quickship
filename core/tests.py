@@ -9619,7 +9619,8 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Download PDF Label")
         self.assertNotContains(response, "Number of Labels")
         self.assertContains(response, "Final dimensions: 50mm × 25mm")
-        self.assertContains(response, "Expiry Date")
+        self.assertContains(response, "Expiry After (Months)")
+        self.assertContains(response, "Auto from months")
         self.assertNotContains(response, "This product does not have a barcode yet")
 
     def test_ops_viewer_can_download_product_barcode_pdf(self):
@@ -9634,7 +9635,7 @@ class RoleAccessTests(TestCase):
             reverse("stock_product_barcode_pdf", args=[product.pk]),
             {
                 "manufacture_date": "2026-07-16",
-                "expiry_date": "2027-07-16",
+                "expiry_months": "6",
             },
         )
 

@@ -188,10 +188,10 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                         {{ barcode_form.manufacture_date }}
                     </div>
                     <div class="ops-barcode-field">
-                        <label for="{{ barcode_form.expiry_date.id_for_label }}">Expiry Date</label>
-                        {{ barcode_form.expiry_date }}
+                        <label for="{{ barcode_form.expiry_months.id_for_label }}">Expiry After (Months)</label>
+                        {{ barcode_form.expiry_months }}
                     </div>
-                    <p class="ops-barcode-note">Manufacturing date and expiry date are entered here at print time.</p>
+                    <p class="ops-barcode-note">Enter shelf life in months. Expiry is calculated automatically from the manufacturing date and prints as month/year.</p>
                 </section>
 
                 <section class="ops-barcode-card">
@@ -203,7 +203,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                         </div>
                         <div class="ops-barcode-inline-row">
                             <span>Expiry Date</span>
-                            <strong id="barcodeSummaryExpiry">{% if expiry_date_display %}{{ expiry_date_display }}{% else %}Enter on barcode screen{% endif %}</strong>
+                            <strong id="barcodeSummaryExpiry">{% if expiry_date_display %}{{ expiry_date_display }}{% else %}Auto from months{% endif %}</strong>
                         </div>
                         <div class="ops-barcode-inline-row">
                             <span>Label Size</span>
@@ -277,18 +277,25 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 <script>
 (function () {
     var mfgInput = document.getElementById("{{ barcode_form.manufacture_date.id_for_label }}");
-    var expiryInput = document.getElementById("{{ barcode_form.expiry_date.id_for_label }}");
+    var expiryMonthsInput = document.getElementById("{{ barcode_form.expiry_months.id_for_label }}");
     var previewMfg = document.getElementById("barcodePreviewMfg");
     var previewExpiry = document.getElementById("barcodePreviewExpiry");
     var summaryExpiry = document.getElementById("barcodeSummaryExpiry");
     var downloadButton = document.getElementById("barcodeDownloadButton");
 
-    function formatDate(value) {
+    function parseLocalDate(value) {
         if (!value) {
-            return "-";
+            return null;
         }
         var date = new Date(value + "T00:00:00");
         if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        return date;
+    }
+
+    function formatDate(date) {
+        if (!date) {
             return "-";
         }
         return date.toLocaleDateString("en-GB", {
@@ -298,15 +305,49 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         }).toUpperCase();
     }
 
+    function formatMonthYear(date) {
+        if (!date) {
+            return "-";
+        }
+        return date.toLocaleDateString("en-GB", {
+            month: "short",
+            year: "2-digit"
+        }).toUpperCase();
+    }
+
+    function addMonths(date, months) {
+        if (!date || !months || months < 1) {
+            return null;
+        }
+        var shifted = new Date(date.getTime());
+        var originalDay = shifted.getDate();
+        shifted.setDate(1);
+        shifted.setMonth(shifted.getMonth() + months);
+        var lastDay = new Date(shifted.getFullYear(), shifted.getMonth() + 1, 0).getDate();
+        shifted.setDate(Math.min(originalDay, lastDay));
+        return shifted;
+    }
+
+    function calculatedExpiry() {
+        var mfgDate = parseLocalDate(mfgInput ? mfgInput.value : "");
+        var months = parseInt(expiryMonthsInput && expiryMonthsInput.value ? expiryMonthsInput.value : "", 10);
+        if (!mfgDate || !months || months < 1) {
+            return null;
+        }
+        return addMonths(mfgDate, months);
+    }
+
     function syncPreview() {
-        if (previewMfg && mfgInput) {
-            previewMfg.textContent = formatDate(mfgInput.value);
+        var mfgDate = parseLocalDate(mfgInput ? mfgInput.value : "");
+        var expiryDate = calculatedExpiry();
+        if (previewMfg) {
+            previewMfg.textContent = formatDate(mfgDate);
         }
-        if (previewExpiry && expiryInput) {
-            previewExpiry.textContent = formatDate(expiryInput.value);
+        if (previewExpiry) {
+            previewExpiry.textContent = expiryDate ? formatMonthYear(expiryDate) : "-";
         }
-        if (summaryExpiry && expiryInput) {
-            summaryExpiry.textContent = expiryInput.value ? formatDate(expiryInput.value) : "Enter on barcode screen";
+        if (summaryExpiry) {
+            summaryExpiry.textContent = expiryDate ? formatMonthYear(expiryDate) : "Auto from months";
         }
     }
 
@@ -315,8 +356,8 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         if (mfgInput && mfgInput.value) {
             params.set("manufacture_date", mfgInput.value);
         }
-        if (expiryInput && expiryInput.value) {
-            params.set("expiry_date", expiryInput.value);
+        if (expiryMonthsInput && expiryMonthsInput.value) {
+            params.set("expiry_months", expiryMonthsInput.value);
         }
         return "{% url 'stock_product_barcode_pdf' product.pk %}?" + params.toString();
     }
@@ -326,9 +367,9 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         mfgInput.addEventListener("change", syncPreview);
     }
 
-    if (expiryInput) {
-        expiryInput.addEventListener("input", syncPreview);
-        expiryInput.addEventListener("change", syncPreview);
+    if (expiryMonthsInput) {
+        expiryMonthsInput.addEventListener("input", syncPreview);
+        expiryMonthsInput.addEventListener("change", syncPreview);
     }
 
     if (downloadButton) {

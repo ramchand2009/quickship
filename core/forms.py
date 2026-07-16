@@ -613,9 +613,16 @@ class ProductBarcodePrintForm(forms.Form):
         initial=timezone.localdate,
         widget=forms.DateInput(attrs={"type": "date"}),
     )
-    expiry_date = forms.DateField(
+    expiry_months = forms.IntegerField(
+        min_value=1,
         required=False,
-        widget=forms.DateInput(attrs={"type": "date"}),
+        widget=forms.NumberInput(
+            attrs={
+                "inputmode": "numeric",
+                "placeholder": "6",
+                "min": "1",
+            }
+        ),
     )
 
 

@@ -1,5 +1,6 @@
 import json
 import base64
+import calendar
 from collections import Counter
 import hashlib
 import hmac
@@ -10,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from urllib.parse import parse_qsl, urlencode
 from io import StringIO
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from uuid import uuid4
 from pathlib import Path
 
@@ -201,6 +202,21 @@ def _format_barcode_label_date(value):
     return value.strftime("%d %b %y").upper()
 
 
+def _format_barcode_label_month_year(value):
+    if not value:
+        return ""
+    return value.strftime("%b %y").upper()
+
+
+def _add_months_to_date(value, months):
+    if not value or not months:
+        return None
+    year = value.year + ((value.month - 1 + months) // 12)
+    month = ((value.month - 1 + months) % 12) + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
 def _build_product_barcode_svg(value):
     barcode_value = str(value or "").strip()
     if not barcode_value:
@@ -241,7 +257,7 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     mrp_value = _product_barcode_mrp(product)
     mrp_text = f"Rs {mrp_value:.2f}" if mrp_value is not None else "-"
     mfg_text = _format_barcode_label_date(manufacture_date) or "-"
-    exp_text = _format_barcode_label_date(expiry_date) or "-"
+    exp_text = _format_barcode_label_month_year(expiry_date) or "-"
 
     pdf_canvas.setFillColor(black)
     title_font_name = "Helvetica-Bold"
@@ -267,45 +283,56 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     renderPDF.draw(drawing, pdf_canvas, 0, 0)
     pdf_canvas.restoreState()
 
+    barcode_text_font_name = "Helvetica-Bold"
+    barcode_text_font_size = 4.5
+    fitted_barcode_text = _fit_pdf_text(
+        pdf_canvas,
+        barcode_value,
+        barcode_text_font_name,
+        barcode_text_font_size,
+        page_width - 12,
+    )
+    pdf_canvas.setFont(barcode_text_font_name, barcode_text_font_size)
+    pdf_canvas.drawCentredString(page_width / 2, 16.6, fitted_barcode_text)
+
     pdf_canvas.setLineWidth(0.35)
-    pdf_canvas.line(left, 17.5, right, 17.5)
+    pdf_canvas.line(left, 14.2, right, 14.2)
 
-    section_width = (page_width - 9) / 2
+    usable_width = page_width - 9
+    section_width = usable_width / 3
     label_font_name = "Helvetica-Bold"
-    label_font_size = 3.35
+    label_font_size = 3.0
     value_font_name = "Helvetica"
-    value_font_size = 3.7
+    value_font_size = 3.2
 
-    top_meta_y = 13.1
-    bottom_meta_y = 6.1
+    meta_row_y = 10.1
+    meta_value_y = 6.4
 
     meta_rows = [
-        (left, top_meta_y, "MFG", mfg_text),
-        (left + section_width, top_meta_y, "EXP", exp_text),
-        (left, bottom_meta_y, "SKU", sku_value),
-        (left + section_width, bottom_meta_y, "BARCODE", barcode_value),
+        (left + (section_width * 0.5), "MFG", mfg_text),
+        (left + (section_width * 1.5), "EXP", exp_text),
+        (left + (section_width * 2.5), "SKU", sku_value),
     ]
-    for x, y, label, value in meta_rows:
+    for center_x, label, value in meta_rows:
         pdf_canvas.setFont(label_font_name, label_font_size)
-        pdf_canvas.drawString(x, y, label)
+        pdf_canvas.drawCentredString(center_x, meta_row_y, label)
         pdf_canvas.setFont(value_font_name, value_font_size)
-        fitted_value = _fit_pdf_text(pdf_canvas, value, value_font_name, value_font_size, section_width - 2.5)
-        pdf_canvas.drawString(x, y - 2.9, fitted_value)
+        fitted_value = _fit_pdf_text(pdf_canvas, value, value_font_name, value_font_size, section_width - 2.2)
+        pdf_canvas.drawCentredString(center_x, meta_value_y, fitted_value)
 
 
-def _product_barcode_pdf_response(*, product, barcode_value, manufacture_date, expiry_date, label_count):
+def _product_barcode_pdf_response(*, product, barcode_value, manufacture_date, expiry_date):
     page_size = (PRODUCT_BARCODE_LABEL_WIDTH_MM * mm, PRODUCT_BARCODE_LABEL_HEIGHT_MM * mm)
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=page_size, pageCompression=0)
-    for _ in range(max(1, int(label_count or 1))):
-        _render_product_barcode_pdf_page(
-            pdf,
-            product=product,
-            barcode_value=barcode_value,
-            manufacture_date=manufacture_date,
-            expiry_date=expiry_date,
-        )
-        pdf.showPage()
+    _render_product_barcode_pdf_page(
+        pdf,
+        product=product,
+        barcode_value=barcode_value,
+        manufacture_date=manufacture_date,
+        expiry_date=expiry_date,
+    )
+    pdf.showPage()
     pdf.save()
     pdf_bytes = buffer.getvalue()
     buffer.close()
@@ -4919,7 +4946,7 @@ def stock_product_barcode(request, pk):
     barcode_form = ProductBarcodePrintForm(
         initial={
             "manufacture_date": manufacture_date,
-            "expiry_date": "",
+            "expiry_months": "",
         }
     )
     mrp_value = _product_barcode_mrp(product)
@@ -4937,6 +4964,7 @@ def stock_product_barcode(request, pk):
             "manufacture_date_value": manufacture_date.isoformat(),
             "manufacture_date_display": _format_barcode_label_date(manufacture_date),
             "expiry_date_display": "",
+            "expiry_months_value": "",
             "label_width_mm": PRODUCT_BARCODE_LABEL_WIDTH_MM,
             "label_height_mm": PRODUCT_BARCODE_LABEL_HEIGHT_MM,
             "ops_mobile_nav_active": "stock",
@@ -4965,13 +4993,13 @@ def stock_product_barcode_pdf(request, pk):
         return redirect("stock_product_barcode", pk=product.pk)
 
     manufacture_date = form.cleaned_data["manufacture_date"]
-    expiry_date = form.cleaned_data.get("expiry_date")
+    expiry_months = form.cleaned_data.get("expiry_months")
+    expiry_date = _add_months_to_date(manufacture_date, expiry_months) if expiry_months else None
     return _product_barcode_pdf_response(
         product=product,
         barcode_value=barcode_value,
         manufacture_date=manufacture_date,
         expiry_date=expiry_date,
-        label_count=1,
     )
 
 
