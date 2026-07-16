@@ -65,24 +65,24 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 .ops-barcode-warning { color:#b42318; background:#fff2f0; border:1px solid #fecaca; border-radius:.75rem; padding:.75rem .85rem; }
 .ops-barcode-preview-shell { display:grid; gap:.9rem; justify-items:center; }
 .ops-barcode-preview-card {
-    width:min(100%, 420px); border:1px solid #d7dce5; border-radius:1rem; padding:1rem 1rem .85rem; background:#fff;
+    width:min(100%, 420px); border:1px solid #d7dce5; border-radius:1rem; padding:.9rem .9rem .7rem; background:#fff;
 }
 .ops-barcode-preview-meta { display:flex; justify-content:space-between; gap:.75rem; align-items:flex-start; }
 .ops-barcode-preview-meta p { margin:0; }
-.ops-barcode-preview-meta-main { color:#161c27; font-size:1rem; line-height:1.2; font-weight:900; }
-.ops-barcode-preview-meta-price { color:#161c27; font-size:1rem; line-height:1.2; font-weight:900; text-align:right; white-space:nowrap; }
-.ops-barcode-svg { margin:.8rem auto 0; min-height:100px; max-width:78%; display:flex; align-items:center; justify-content:center; }
+.ops-barcode-preview-meta-main { color:#161c27; font-size:1.12rem; line-height:1.15; font-weight:900; }
+.ops-barcode-preview-meta-price { color:#161c27; font-size:1.12rem; line-height:1.15; font-weight:900; text-align:right; white-space:nowrap; }
+.ops-barcode-svg { margin:.65rem auto 0; min-height:112px; max-width:88%; display:flex; align-items:center; justify-content:center; }
 .ops-barcode-svg svg { width:100%; height:auto; display:block; }
 .ops-barcode-preview-barcode-text {
-    margin:.15rem 0 0; text-align:center; color:#161c27; font-size:.9rem; line-height:1.1; font-weight:900; letter-spacing:.01em;
+    margin:.05rem 0 0; text-align:center; color:#161c27; font-size:1.12rem; line-height:1.05; font-weight:900; letter-spacing:.01em;
 }
 .ops-barcode-preview-sku-text {
-    margin:.28rem 0 0; text-align:center; color:#161c27; font-size:.82rem; line-height:1.1; font-weight:900;
+    margin:.18rem 0 0; text-align:center; color:#161c27; font-size:.98rem; line-height:1.05; font-weight:900;
 }
 .ops-barcode-preview-footer {
-    margin-top:.7rem; display:flex; justify-content:space-between; gap:.75rem; align-items:flex-end;
+    margin-top:.55rem; display:flex; justify-content:space-between; gap:.75rem; align-items:flex-end;
 }
-.ops-barcode-preview-footer-value { color:#161c27; font-size:.78rem; line-height:1.05; font-weight:900; }
+.ops-barcode-preview-footer-value { color:#161c27; font-size:.94rem; line-height:1.05; font-weight:900; }
 .ops-barcode-dimensions { color:#727780; font-size:.82rem; text-align:center; }
 .ops-barcode-actions { display:grid; gap:.75rem; }
 .ops-barcode-primary {
@@ -122,11 +122,11 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
 @media (max-width: 420px) {
     .ops-barcode-main { padding:.85rem; }
     .ops-barcode-preview-card { width:100%; }
-    .ops-barcode-preview-meta-main, .ops-barcode-preview-meta-price { font-size:.95rem; }
-    .ops-barcode-svg { max-width:86%; }
-    .ops-barcode-preview-barcode-text { font-size:.84rem; }
-    .ops-barcode-preview-sku-text { font-size:.78rem; }
-    .ops-barcode-preview-footer-value { font-size:.72rem; }
+    .ops-barcode-preview-meta-main, .ops-barcode-preview-meta-price { font-size:1rem; }
+    .ops-barcode-svg { max-width:92%; min-height:104px; }
+    .ops-barcode-preview-barcode-text { font-size:1rem; }
+    .ops-barcode-preview-sku-text { font-size:.88rem; }
+    .ops-barcode-preview-footer-value { font-size:.84rem; }
 }
 
 @media print {
@@ -243,7 +243,9 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                             {% endif %}
                         </div>
                         <p class="ops-barcode-preview-barcode-text">{{ barcode_value|default:"-" }}</p>
-                        <p class="ops-barcode-preview-sku-text">SKU {{ product.sku|default:"-" }}</p>
+                        {% if not barcode_matches_sku %}
+                            <p class="ops-barcode-preview-sku-text">SKU {{ product.sku|default:"-" }}</p>
+                        {% endif %}
                         <div class="ops-barcode-preview-footer">
                             <div>
                                 <div class="ops-barcode-preview-footer-value" id="barcodePreviewMfg">MFG {{ manufacture_date_display|default:"-" }}</div>
