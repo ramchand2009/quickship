@@ -261,9 +261,9 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
 
     pdf_canvas.setFillColor(black)
     title_font_name = "Helvetica-Bold"
-    title_font_size = 5.3
+    title_font_size = 5.8
     price_font_name = "Helvetica-Bold"
-    price_font_size = 5.3
+    price_font_size = 5.8
     price_width = pdf_canvas.stringWidth(mrp_text, price_font_name, price_font_size)
     max_name_width = max(24, right - left - price_width - 6)
     title_line = _fit_pdf_text(pdf_canvas, product_name, title_font_name, title_font_size, max_name_width)
@@ -284,7 +284,7 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     pdf_canvas.restoreState()
 
     barcode_text_font_name = "Helvetica-Bold"
-    barcode_text_font_size = 3.8
+    barcode_text_font_size = 4.3
     fitted_barcode_text = _fit_pdf_text(
         pdf_canvas,
         barcode_value,
@@ -296,7 +296,7 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     pdf_canvas.drawCentredString(page_width / 2, 18.0, fitted_barcode_text)
 
     sku_text_font_name = "Helvetica-Bold"
-    sku_text_font_size = 3.7
+    sku_text_font_size = 4.1
     fitted_sku_text = _fit_pdf_text(
         pdf_canvas,
         f"SKU {sku_value}",
@@ -308,7 +308,7 @@ def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manu
     pdf_canvas.drawCentredString(page_width / 2, 11.9, fitted_sku_text)
 
     meta_font_name = "Helvetica-Bold"
-    meta_font_size = 3.3
+    meta_font_size = 3.7
     fitted_mfg_text = _fit_pdf_text(
         pdf_canvas,
         f"MFG {mfg_text}",
