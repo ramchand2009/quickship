@@ -9616,11 +9616,32 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "Charcoal Soap")
         self.assertContains(response, "SOAP-001")
         self.assertContains(response, "Auto from SKU")
-        self.assertContains(response, "Print Barcode Labels")
+        self.assertContains(response, "Download PDF Labels")
         self.assertContains(response, "Number of Labels")
         self.assertContains(response, "Final dimensions: 50mm × 25mm")
         self.assertContains(response, "Expiry Date")
         self.assertNotContains(response, "This product does not have a barcode yet")
+
+    def test_ops_viewer_can_download_product_barcode_pdf(self):
+        product = Product.objects.create(
+            name="Charcoal Soap",
+            sku="SOAP-001",
+            regular_price="90.00",
+        )
+        self.client.force_login(self.viewer)
+
+        response = self.client.get(
+            reverse("stock_product_barcode_pdf", args=[product.pk]),
+            {
+                "manufacture_date": "2026-07-16",
+                "expiry_date": "2027-07-16",
+                "label_count": "2",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment;", response["Content-Disposition"])
 
     @patch("core.views.update_woocommerce_product")
     def test_ops_viewer_product_detail_updates_local_product_and_woocommerce(self, mock_update_product):

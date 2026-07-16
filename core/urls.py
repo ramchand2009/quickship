@@ -56,6 +56,7 @@ from .views import (
     special_stock_issue_register,
     stock_management,
     stock_product_barcode,
+    stock_product_barcode_pdf,
     stock_product_detail,
     stock_product_section,
     tenant_detail,
@@ -138,6 +139,7 @@ urlpatterns = [
     path("stock-management/", stock_management, name="stock_management"),
     path("stock-management/products/<int:pk>/", stock_product_detail, name="stock_product_detail"),
     path("stock-management/products/<int:pk>/barcode/", stock_product_barcode, name="stock_product_barcode"),
+    path("stock-management/products/<int:pk>/barcode/pdf/", stock_product_barcode_pdf, name="stock_product_barcode_pdf"),
     path("media/product-images/<path:filename>", product_image_media, name="product_image_media"),
     path(
         "stock-management/products/<int:pk>/<slug:section>/",

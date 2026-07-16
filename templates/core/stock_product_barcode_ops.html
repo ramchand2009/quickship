@@ -267,9 +267,9 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
                 </section>
 
                 <div class="ops-barcode-actions">
-                    <button type="button" class="ops-barcode-primary" id="barcodePrintButton" {% if not barcode_value %}disabled{% endif %}>
-                        <i class="fas fa-print"></i>
-                        <span>Print Barcode Labels</span>
+                    <button type="button" class="ops-barcode-primary" id="barcodeDownloadButton" {% if not barcode_value %}disabled{% endif %}>
+                        <i class="fas fa-file-pdf"></i>
+                        <span>Download PDF Labels</span>
                     </button>
                     <a href="{% url 'stock_product_section' product.pk 'inventory' %}" class="ops-barcode-secondary text-decoration-none d-inline-flex align-items-center justify-content-center">
                         Update Product Inventory
@@ -279,38 +279,8 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         </div>
     </main>
 
-    <div class="ops-barcode-print-sheet" id="barcodePrintSheet" aria-hidden="true"></div>
-
     {% include "core/_ops_mobile_bottomnav.html" with ops_mobile_nav_active="stock" %}
 </div>
-
-<template id="barcodePrintTemplate">
-    <article class="ops-barcode-print-label">
-        <div class="ops-barcode-print-head">
-            <div class="ops-barcode-print-name">{{ product.name }}</div>
-            <div class="ops-barcode-print-price">{% if barcode_mrp %}Rs {{ barcode_mrp|floatformat:2 }}{% else %}-{% endif %}</div>
-        </div>
-        <div class="ops-barcode-print-barcode">{{ barcode_svg|safe }}</div>
-        <div class="ops-barcode-print-foot">
-            <div>
-                <div class="ops-barcode-print-item-label">MFG</div>
-                <div class="ops-barcode-print-item-value" data-print-mfg>{{ manufacture_date_display|default:"-" }}</div>
-            </div>
-            <div>
-                <div class="ops-barcode-print-item-label">EXP</div>
-                <div class="ops-barcode-print-item-value" data-print-exp>{% if expiry_date_display %}{{ expiry_date_display }}{% else %}-{% endif %}</div>
-            </div>
-            <div>
-                <div class="ops-barcode-print-item-label">SKU</div>
-                <div class="ops-barcode-print-item-value">{{ product.sku|default:"-" }}</div>
-            </div>
-            <div>
-                <div class="ops-barcode-print-item-label">BARCODE</div>
-                <div class="ops-barcode-print-item-value">{{ barcode_value|default:"-" }}</div>
-            </div>
-        </div>
-    </article>
-</template>
 
 <script>
 (function () {
@@ -320,9 +290,7 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
     var previewMfg = document.getElementById("barcodePreviewMfg");
     var previewExpiry = document.getElementById("barcodePreviewExpiry");
     var summaryExpiry = document.getElementById("barcodeSummaryExpiry");
-    var printButton = document.getElementById("barcodePrintButton");
-    var printSheet = document.getElementById("barcodePrintSheet");
-    var template = document.getElementById("barcodePrintTemplate");
+    var downloadButton = document.getElementById("barcodeDownloadButton");
     var stepButtons = document.querySelectorAll("[data-step]");
 
     function formatDate(value) {
@@ -363,24 +331,16 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         return value;
     }
 
-    function buildPrintSheet() {
-        if (!printSheet || !template) {
-            return;
+    function downloadUrl() {
+        var params = new URLSearchParams();
+        if (mfgInput && mfgInput.value) {
+            params.set("manufacture_date", mfgInput.value);
         }
-        printSheet.innerHTML = "";
-        var count = normalizedLabelCount();
-        var mfgText = formatDate(mfgInput ? mfgInput.value : "");
-        var expiryText = formatDate(expiryInput ? expiryInput.value : "");
-        for (var index = 0; index < count; index += 1) {
-            var fragment = template.content.cloneNode(true);
-            fragment.querySelectorAll("[data-print-mfg]").forEach(function (node) {
-                node.textContent = mfgText;
-            });
-            fragment.querySelectorAll("[data-print-exp]").forEach(function (node) {
-                node.textContent = expiryText;
-            });
-            printSheet.appendChild(fragment);
+        if (expiryInput && expiryInput.value) {
+            params.set("expiry_date", expiryInput.value);
         }
+        params.set("label_count", normalizedLabelCount());
+        return "{% url 'stock_product_barcode_pdf' product.pk %}?" + params.toString();
     }
 
     stepButtons.forEach(function (button) {
@@ -409,16 +369,15 @@ body { overflow-x:hidden; background:#f9f9ff; color:#161c27; font-family:"Work S
         labelCountInput.addEventListener("input", normalizedLabelCount);
     }
 
-    if (printButton) {
-        printButton.addEventListener("click", function () {
-            buildPrintSheet();
-            printButton.disabled = true;
-            var originalHtml = printButton.innerHTML;
-            printButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Preparing labels…</span>';
+    if (downloadButton) {
+        downloadButton.addEventListener("click", function () {
+            downloadButton.disabled = true;
+            var originalHtml = downloadButton.innerHTML;
+            downloadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Preparing PDF…</span>';
             setTimeout(function () {
-                window.print();
-                printButton.innerHTML = originalHtml;
-                printButton.disabled = false;
+                window.location.href = downloadUrl();
+                downloadButton.innerHTML = originalHtml;
+                downloadButton.disabled = false;
             }, 120);
         });
     }

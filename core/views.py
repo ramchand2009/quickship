@@ -39,9 +39,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
+from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode import createBarcodeDrawing
 from reportlab.lib.colors import black, white
-from reportlab.lib.units import inch
+from reportlab.lib.units import inch, mm
 from reportlab.lib.utils import simpleSplit
 from reportlab.pdfgen import canvas
 
@@ -214,6 +215,77 @@ def _build_product_barcode_svg(value):
     svg_markup = re.sub(r"^<\?xml[^>]*>\s*", "", svg_markup)
     svg_markup = re.sub(r"<!DOCTYPE[^>]*>\s*", "", svg_markup, count=1, flags=re.IGNORECASE)
     return svg_markup.strip()
+
+
+def _render_product_barcode_pdf_page(pdf_canvas, *, product, barcode_value, manufacture_date, expiry_date):
+    page_width = PRODUCT_BARCODE_LABEL_WIDTH_MM * mm
+    page_height = PRODUCT_BARCODE_LABEL_HEIGHT_MM * mm
+    left = 4.5
+    right = page_width - 4.5
+    top = page_height - 4.0
+
+    product_name = str(getattr(product, "name", "") or "-").strip()
+    sku_value = str(getattr(product, "sku", "") or "-").strip()
+    mrp_value = _product_barcode_mrp(product)
+    mrp_text = f"Rs {mrp_value:.2f}" if mrp_value is not None else "-"
+    mfg_text = _format_barcode_label_date(manufacture_date) or "-"
+    exp_text = _format_barcode_label_date(expiry_date) or "-"
+
+    pdf_canvas.setFillColor(black)
+    pdf_canvas.setFont("Helvetica-Bold", 7.4)
+    max_name_width = page_width - 58
+    title_lines = simpleSplit(product_name, "Helvetica-Bold", 7.4, max_name_width)
+    title_line = title_lines[0] if title_lines else "-"
+    pdf_canvas.drawString(left, top, title_line)
+    pdf_canvas.drawRightString(right, top, mrp_text)
+
+    drawing = createBarcodeDrawing("Code128", value=barcode_value, barHeight=18 * mm, humanReadable=True)
+    barcode_width = min(float(drawing.width), page_width - 9)
+    scale_x = barcode_width / float(drawing.width) if float(drawing.width) else 1
+    barcode_x = (page_width - barcode_width) / 2
+    barcode_y = 10.6
+    pdf_canvas.saveState()
+    pdf_canvas.translate(barcode_x, barcode_y)
+    pdf_canvas.scale(scale_x, 1)
+    renderPDF.draw(drawing, pdf_canvas, 0, 0)
+    pdf_canvas.restoreState()
+
+    footer_y = 5.2
+    col_width = (page_width - 9) / 4
+    labels = [("MFG", mfg_text), ("EXP", exp_text), ("SKU", sku_value), ("BARCODE", barcode_value)]
+    for index, (label, value) in enumerate(labels):
+        col_x = left + (index * col_width)
+        pdf_canvas.setFont("Helvetica-Bold", 4.1)
+        pdf_canvas.drawString(col_x, footer_y + 5.2, label)
+        pdf_canvas.setFont("Helvetica", 4.6)
+        value_text = str(value or "-")
+        value_lines = simpleSplit(value_text, "Helvetica", 4.6, col_width - 1.5)
+        if value_lines:
+            pdf_canvas.drawString(col_x, footer_y + 1.2, value_lines[0])
+
+
+def _product_barcode_pdf_response(*, product, barcode_value, manufacture_date, expiry_date, label_count):
+    page_size = (PRODUCT_BARCODE_LABEL_WIDTH_MM * mm, PRODUCT_BARCODE_LABEL_HEIGHT_MM * mm)
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=page_size, pageCompression=0)
+    for _ in range(max(1, int(label_count or 1))):
+        _render_product_barcode_pdf_page(
+            pdf,
+            product=product,
+            barcode_value=barcode_value,
+            manufacture_date=manufacture_date,
+            expiry_date=expiry_date,
+        )
+        pdf.showPage()
+    pdf.save()
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    safe_sku = re.sub(r"[^A-Za-z0-9_-]+", "-", str(getattr(product, "sku", "") or product.pk)).strip("-") or "label"
+    timestamp = timezone.localtime().strftime("%Y%m%d-%H%M")
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="barcode-labels-{safe_sku}-{timestamp}.pdf"'
+    return response
 
 
 @require_GET
@@ -4841,6 +4913,38 @@ def stock_product_barcode(request, pk):
             "label_height_mm": PRODUCT_BARCODE_LABEL_HEIGHT_MM,
             "ops_mobile_nav_active": "stock",
         },
+    )
+
+
+@login_required
+def stock_product_barcode_pdf(request, pk):
+    if not _can_manage_stock(request.user):
+        messages.error(request, "Your role cannot access stock management.")
+        return redirect("order_management")
+
+    product = get_object_or_404(
+        _scope_queryset_to_active_tenant(request, Product.objects.select_related("category_master")),
+        pk=pk,
+    )
+    barcode_value = _product_barcode_value(product)
+    if not barcode_value:
+        messages.error(request, "This product needs at least a SKU before barcode labels can be downloaded.")
+        return redirect("stock_product_barcode", pk=product.pk)
+
+    form = ProductBarcodePrintForm(request.GET or None)
+    if not form.is_valid():
+        messages.error(request, "Enter valid label details before downloading the PDF.")
+        return redirect("stock_product_barcode", pk=product.pk)
+
+    manufacture_date = form.cleaned_data["manufacture_date"]
+    expiry_date = form.cleaned_data.get("expiry_date")
+    label_count = form.cleaned_data["label_count"]
+    return _product_barcode_pdf_response(
+        product=product,
+        barcode_value=barcode_value,
+        manufacture_date=manufacture_date,
+        expiry_date=expiry_date,
+        label_count=label_count,
     )
 
 
