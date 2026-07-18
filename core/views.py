@@ -395,6 +395,31 @@ def manifest_webmanifest(request):
 
 @never_cache
 @require_GET
+def android_asset_links(request):
+    """Associate the production site with the signed Android TWA application."""
+    package_id = str(getattr(settings, "ANDROID_APP_PACKAGE_ID", "") or "").strip()
+    fingerprints = [
+        str(value).strip()
+        for value in getattr(settings, "ANDROID_APP_SHA256_FINGERPRINTS", []) or []
+        if str(value).strip()
+    ]
+    payload = []
+    if package_id and fingerprints:
+        payload.append(
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": package_id,
+                    "sha256_cert_fingerprints": fingerprints,
+                },
+            }
+        )
+    return JsonResponse(payload, safe=False)
+
+
+@never_cache
+@require_GET
 def service_worker(request):
     precache_urls = [
         reverse("offline_page"),

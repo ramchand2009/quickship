@@ -9,6 +9,7 @@ from .views import (
     audit_export_csv,
     admin_utilities,
     activity_history,
+    android_asset_links,
     contact,
     expense_tracker,
     healthz,
@@ -85,6 +86,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path(".well-known/assetlinks.json", android_asset_links, name="android_asset_links"),
     path("manifest.webmanifest", manifest_webmanifest, name="pwa_manifest"),
     path("service-worker.js", service_worker, name="service_worker"),
     path("offline/", offline_page, name="offline_page"),

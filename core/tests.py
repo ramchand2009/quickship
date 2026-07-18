@@ -10710,6 +10710,36 @@ class PwaEndpointTests(TestCase):
         self.assertContains(response, reverse("pwa_manifest"))
         self.assertContains(response, "pwa-register.js")
 
+    @override_settings(
+        ANDROID_APP_PACKAGE_ID="com.mathukai.dashboard",
+        ANDROID_APP_SHA256_FINGERPRINTS=["AA:BB:CC", "11:22:33"],
+    )
+    def test_android_asset_links_associates_signed_mobile_app(self):
+        response = self.client.get(reverse("android_asset_links"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/json", response["Content-Type"])
+        self.assertEqual(
+            response.json(),
+            [
+                {
+                    "relation": ["delegate_permission/common.handle_all_urls"],
+                    "target": {
+                        "namespace": "android_app",
+                        "package_name": "com.mathukai.dashboard",
+                        "sha256_cert_fingerprints": ["AA:BB:CC", "11:22:33"],
+                    },
+                }
+            ],
+        )
+
+    @override_settings(ANDROID_APP_SHA256_FINGERPRINTS=[])
+    def test_android_asset_links_does_not_claim_unsigned_app(self):
+        response = self.client.get(reverse("android_asset_links"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
 
 class MetricsEndpointTests(TestCase):
     def test_metrics_returns_prometheus_text(self):
