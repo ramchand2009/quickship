@@ -1,9 +1,13 @@
 # Mathukai Mobile App - Phase 1 Product Requirements
 
-**Status:** Draft for approval  
-**Date:** 18 July 2026  
-**Platforms:** Android and iOS  
-**Mobile stack:** React Native, Expo, TypeScript  
+**Status:** Draft for approval
+
+**Date:** 18 July 2026
+
+**Platforms:** Android and iOS
+
+**Mobile stack:** React Native, Expo, TypeScript
+
 **Backend:** Existing Django application with Django REST Framework
 
 ## 1. Purpose
