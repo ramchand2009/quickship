@@ -8860,12 +8860,15 @@ class RoleAccessTests(TestCase):
         self.assertContains(response, "ops-detail-step")
         self.assertContains(response, "Accept Order")
         self.assertContains(response, "Reject Order")
-        self.assertContains(response, "Customer &amp; delivery", html=False)
+        self.assertContains(response, "Delivery Details")
         self.assertContains(response, "Next actions")
-        self.assertContains(response, "Financial details")
+        self.assertContains(response, "Payment Method")
+        self.assertContains(response, "Edit customer address")
+        self.assertContains(response, "Save address changes")
         self.assertContains(response, f'name="order-{order.pk}-manual_customer_phone"', html=False)
         self.assertContains(response, f'name="order-{order.pk}-local_status"', html=False)
         self.assertContains(response, f'name="order-{order.pk}-tracking_number"', html=False)
+        self.assertContains(response, f'action="{reverse("update_shiprocket_order", args=[order.pk])}"', html=False)
 
     def test_ops_viewer_order_detail_shows_order_profit(self):
         Product.objects.create(

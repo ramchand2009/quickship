@@ -86,6 +86,56 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     gap: 0.85rem;
 }
 
+.ops-home-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.ops-home-quick-action,
+.ops-home-quick-actions form button {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 0.95rem;
+    border: 1px solid #c2cde0;
+    background: #ffffff;
+    color: #00355f;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
+}
+
+.ops-home-quick-actions form {
+    margin: 0;
+}
+
+.ops-home-quick-actions form button {
+    cursor: pointer;
+}
+
+.ops-home-quick-action.is-secondary,
+.ops-home-quick-actions form button {
+    background: #f8fafc;
+    color: #334155;
+}
+
+.ops-home-quick-action svg,
+.ops-home-quick-actions form button svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .ops-home-title {
     margin: 0;
     color: #00355f;
@@ -419,6 +469,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 @media (max-width: 420px) {
     .ops-home-main { padding: 0.95rem; }
+    .ops-home-quick-actions { grid-template-columns: 1fr; }
     .ops-home-status-grid,
     .ops-home-alert-grid {
         grid-template-columns: 1fr 1fr;
@@ -459,6 +510,19 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             <div class="ops-home-date-pill">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4M17 3v4"/><path d="M4 9h16"/><rect x="4" y="5" width="16" height="15" rx="2"/></svg>
                 <span>{% now "F j, Y" %}</span>
+            </div>
+            <div class="ops-home-quick-actions">
+                <a href="{% url 'special_stock_issue_register' %}" class="ops-home-quick-action">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18v12H3zM2 5h20v4H2zM12 5v16"/><path d="M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/></svg>
+                    <span>Entry</span>
+                </a>
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="is-secondary">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4v16h6M14 8l4 4-4 4M8 12h10"/></svg>
+                        <span>Logout</span>
+                    </button>
+                </form>
             </div>
         </section>
 

@@ -7884,14 +7884,18 @@ def sync_shiprocket_orders(request):
 @login_required
 def update_shiprocket_order(request, pk):
     order = get_object_or_404(_scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all()), pk=pk)
+    active_tab = (request.POST.get("active_tab") or "").strip()
+    redirect_url = reverse("order_detail", args=[pk])
+    if active_tab:
+        redirect_url = f"{redirect_url}?{urlencode({'tab': active_tab})}"
     if request.method != "POST":
-        return redirect("order_detail", pk=pk)
+        return redirect(redirect_url)
     if not _can_edit_manual_order_details(request.user):
         messages.error(request, "Your role has read-only access and cannot edit orders.")
-        return redirect("order_detail", pk=pk)
+        return redirect(redirect_url)
     if order.is_manual_edit_locked:
         messages.error(request, "Manual shipping edits are locked after the order reaches shipped.")
-        return redirect("order_detail", pk=pk)
+        return redirect(redirect_url)
 
     form_payload = request.POST.copy()
     for field_name in ShiprocketOrderManualUpdateForm.Meta.fields:
@@ -7929,7 +7933,7 @@ def update_shiprocket_order(request, pk):
         )
         messages.error(request, "Unable to update the order details. Check the form fields.")
 
-    return redirect("order_detail", pk=pk)
+    return redirect(redirect_url)
 
 
 @login_required

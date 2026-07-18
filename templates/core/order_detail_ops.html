@@ -277,6 +277,114 @@
         color: #213247;
     }
 
+    .ops-detail-edit-address {
+        margin-top: 0.85rem;
+        border-top: 1px solid rgba(194, 199, 209, 0.55);
+        padding-top: 0.9rem;
+    }
+
+    .ops-detail-edit-address summary {
+        list-style: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        cursor: pointer;
+        color: #0f4c81;
+        font-size: 0.88rem;
+        font-weight: 800;
+    }
+
+    .ops-detail-edit-address summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .ops-detail-edit-address summary svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: transform 0.18s ease;
+    }
+
+    .ops-detail-edit-address[open] summary svg {
+        transform: rotate(90deg);
+    }
+
+    .ops-detail-edit-form {
+        margin-top: 0.9rem;
+        display: grid;
+        gap: 0.8rem;
+    }
+
+    .ops-detail-edit-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+    }
+
+    .ops-detail-edit-field {
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    .ops-detail-edit-field.is-full {
+        grid-column: 1 / -1;
+    }
+
+    .ops-detail-edit-field label {
+        margin: 0;
+        color: #596273;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .ops-detail-edit-field input {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid #cfd4dc;
+        border-radius: 0.85rem;
+        background: #fff;
+        padding: 0.72rem 0.9rem;
+        color: #161c27;
+        font-size: 0.94rem;
+        line-height: 1.2;
+        outline: none;
+        box-shadow: none;
+    }
+
+    .ops-detail-edit-field input:focus {
+        border-color: #0f4c81;
+        box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.12);
+    }
+
+    .ops-detail-edit-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .ops-detail-edit-save {
+        min-height: 46px;
+        border: 0;
+        border-radius: 0.9rem;
+        background: #0f4c81;
+        color: #fff;
+        padding: 0.8rem 1rem;
+        font-size: 0.94rem;
+        font-weight: 800;
+    }
+
+    .ops-detail-edit-note {
+        margin-top: 0.8rem;
+        color: #b45309;
+        font-size: 0.82rem;
+        line-height: 1.4;
+    }
+
     .ops-detail-inline-row {
         display: flex;
         align-items: center;
@@ -310,6 +418,12 @@
         color: #374151;
         font-size: 0.82rem;
         font-weight: 700;
+    }
+
+    @media (max-width: 420px) {
+        .ops-detail-edit-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     .ops-detail-pill.is-paid {
@@ -1473,6 +1587,63 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% if can_edit_manual_order_details %}
+                        {% if order.is_manual_edit_locked %}
+                            <div class="ops-detail-edit-note">Address editing is locked after the order reaches shipped status.</div>
+                        {% else %}
+                            <details class="ops-detail-edit-address">
+                                <summary>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                                    <span>Edit customer address</span>
+                                </summary>
+                                <form method="post" action="{% url 'update_shiprocket_order' order.pk %}" class="ops-detail-edit-form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="active_tab" value="{{ return_tab|default:'all' }}">
+                                    <div class="ops-detail-edit-grid">
+                                        <div class="ops-detail-edit-field is-full">
+                                            <label for="{{ form.manual_customer_name.id_for_label }}">Customer Name</label>
+                                            {{ form.manual_customer_name }}
+                                        </div>
+                                        <div class="ops-detail-edit-field">
+                                            <label for="{{ form.manual_customer_phone.id_for_label }}">Customer Mobile</label>
+                                            {{ form.manual_customer_phone }}
+                                        </div>
+                                        <div class="ops-detail-edit-field">
+                                            <label for="{{ form.manual_customer_alternate_phone.id_for_label }}">Alternate Mobile</label>
+                                            {{ form.manual_customer_alternate_phone }}
+                                        </div>
+                                        <div class="ops-detail-edit-field is-full">
+                                            <label for="{{ form.manual_shipping_address_1.id_for_label }}">Address Line 1</label>
+                                            {{ form.manual_shipping_address_1 }}
+                                        </div>
+                                        <div class="ops-detail-edit-field is-full">
+                                            <label for="{{ form.manual_shipping_address_2.id_for_label }}">Address Line 2</label>
+                                            {{ form.manual_shipping_address_2 }}
+                                        </div>
+                                        <div class="ops-detail-edit-field">
+                                            <label for="{{ form.manual_shipping_city.id_for_label }}">City</label>
+                                            {{ form.manual_shipping_city }}
+                                        </div>
+                                        <div class="ops-detail-edit-field">
+                                            <label for="{{ form.manual_shipping_state.id_for_label }}">State</label>
+                                            {{ form.manual_shipping_state }}
+                                        </div>
+                                        <div class="ops-detail-edit-field">
+                                            <label for="{{ form.manual_shipping_pincode.id_for_label }}">Pincode</label>
+                                            {{ form.manual_shipping_pincode }}
+                                        </div>
+                                        <div class="ops-detail-edit-field">
+                                            <label for="{{ form.manual_shipping_country.id_for_label }}">Country</label>
+                                            {{ form.manual_shipping_country }}
+                                        </div>
+                                    </div>
+                                    <div class="ops-detail-edit-actions">
+                                        <button type="submit" class="ops-detail-edit-save">Save address changes</button>
+                                    </div>
+                                </form>
+                            </details>
+                        {% endif %}
+                    {% endif %}
                     <div class="ops-detail-inline-row is-payment">
                         <div class="ops-detail-section-title" style="margin:0;">Payment Method</div>
                         <div class="ops-detail-pill {% if order.payment_received_at %}is-paid{% endif %}">

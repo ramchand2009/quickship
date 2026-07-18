@@ -919,8 +919,8 @@
     .ops-order-customer {
         margin: 0.42rem 0 0;
         color: #161c27;
-        font-size: 0.98rem;
-        font-weight: 600;
+        font-size: 1.04rem;
+        font-weight: 800;
         line-height: 1.24rem;
         overflow-wrap: anywhere;
     }
@@ -978,6 +978,15 @@
     .ops-order-payment-chip.is-cod {
         background: rgba(221, 182, 240, 0.5);
         color: #7e22ce;
+    }
+
+    .ops-order-tracking-inline {
+        margin-top: 0.55rem;
+        color: #0f4c81;
+        font-size: 0.78rem;
+        font-weight: 700;
+        line-height: 1.15rem;
+        overflow-wrap: anywhere;
     }
 
     .ops-order-status {
@@ -1499,6 +1508,9 @@
                                     <div class="ops-order-address-preview">
                                         {{ item.order.display_shipping_address.address_1|default:item.order.customer_name|default:"-"|truncatechars:34 }}
                                     </div>
+                                    {% if item.order.tracking_number %}
+                                        <div class="ops-order-tracking-inline">Tracking: {{ item.order.tracking_number }}</div>
+                                    {% endif %}
                                     {% if item.order.payment_received_at %}
                                         <span class="ops-order-payment-chip is-paid">Paid</span>
                                     {% elif item.order.payment_method|default:"" == "Cash on Delivery" %}
@@ -1535,9 +1547,6 @@
                                 {% endwith %}
                             {% endif %}
                             <span class="ops-order-visually-hidden">Profit: Rs {{ item.profit_summary.profit_amount|floatformat:2 }}</span>
-                            {% if item.order.local_status == 'shipped' and item.order.tracking_number %}
-                                <span class="ops-order-visually-hidden">Tracking: {{ item.order.tracking_number }}</span>
-                            {% endif %}
                         </div>
                     </a>
                 {% endfor %}
