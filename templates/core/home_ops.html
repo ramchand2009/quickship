@@ -27,8 +27,15 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 }
 
 .ops-home-shell .ops-mobile-topbar-row {
-    grid-template-columns: minmax(0, 1fr) 40px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.65rem;
+}
+
+.ops-home-topbar-cluster {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
 }
 
 .ops-home-topbar-brand {
@@ -37,6 +44,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     gap: 0.75rem;
     min-width: 0;
     text-decoration: none;
+    flex: 1 1 auto;
 }
 
 .ops-home-avatar {
@@ -75,6 +83,92 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     box-shadow: none;
 }
 
+.ops-home-topbar-menu {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.ops-home-topbar-menu summary {
+    list-style: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #00355f;
+    background: #eef4ff;
+    border: 1px solid #d6e2ff;
+}
+
+.ops-home-topbar-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.ops-home-topbar-menu summary svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ops-home-topbar-menu-list {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    min-width: 190px;
+    padding: 0.45rem;
+    border: 1px solid #dbe1ec;
+    border-radius: 0.95rem;
+    background: #fff;
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+    display: grid;
+    gap: 0.3rem;
+}
+
+.ops-home-topbar-menu-item,
+.ops-home-topbar-menu-list button {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    border-radius: 0.8rem;
+    background: transparent;
+    color: #1f2937;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.75rem 0.8rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+.ops-home-topbar-menu-list form {
+    margin: 0;
+}
+
+.ops-home-topbar-menu-item:hover,
+.ops-home-topbar-menu-list button:hover {
+    background: #f6f8ff;
+}
+
+.ops-home-topbar-menu-item svg,
+.ops-home-topbar-menu-list button svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .ops-home-main {
     display: grid;
     gap: 1rem;
@@ -84,56 +178,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 .ops-home-hero {
     display: grid;
     gap: 0.85rem;
-}
-
-.ops-home-quick-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-}
-
-.ops-home-quick-action,
-.ops-home-quick-actions form button {
-    width: 100%;
-    min-height: 48px;
-    border-radius: 0.95rem;
-    border: 1px solid #c2cde0;
-    background: #ffffff;
-    color: #00355f;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.55rem;
-    padding: 0.85rem 1rem;
-    font-size: 0.95rem;
-    font-weight: 800;
-    box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
-}
-
-.ops-home-quick-actions form {
-    margin: 0;
-}
-
-.ops-home-quick-actions form button {
-    cursor: pointer;
-}
-
-.ops-home-quick-action.is-secondary,
-.ops-home-quick-actions form button {
-    background: #f8fafc;
-    color: #334155;
-}
-
-.ops-home-quick-action svg,
-.ops-home-quick-actions form button svg {
-    width: 18px;
-    height: 18px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
 }
 
 .ops-home-title {
@@ -469,7 +513,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 
 @media (max-width: 420px) {
     .ops-home-main { padding: 0.95rem; }
-    .ops-home-quick-actions { grid-template-columns: 1fr; }
     .ops-home-status-grid,
     .ops-home-alert-grid {
         grid-template-columns: 1fr 1fr;
@@ -482,22 +525,43 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
 <div class="ops-home-shell">
     <div class="ops-mobile-topbar">
         <div class="ops-mobile-topbar-row">
-            {% if can_manage_current_vendor_settings %}
-                <a href="{% url 'vendor_profile' %}" class="ops-home-topbar-brand" aria-label="Vendor profile">
-                    <span class="ops-home-avatar">{{ active_tenant.name|default:"M"|slice:":1"|upper }}</span>
-                    <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Vendor" }}</span>
-                </a>
-            {% else %}
-                <span class="ops-home-topbar-brand">
-                    <span class="ops-home-avatar">{{ active_tenant.name|default:"M"|slice:":1"|upper }}</span>
-                    <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Vendor" }}</span>
-                </span>
-            {% endif %}
-            {% if can_manage_current_vendor_settings %}
-                <a href="{% url 'vendor_profile' %}" class="ops-mobile-topbar-control" aria-label="Vendor settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 8 .8.8 1.2-.2.4 1.2-1 .7.1 1.2-1.2.4-.7 1-.8-.8-1.2.2-.4-1.2 1-.7-.1-1.2 1.2-.4.7-1Z"/><circle cx="17.9" cy="11.1" r="2.2"/><path d="M12 6h-1l-.5-2h-1L9 6l-1 .4-1.6-1-.7.7 1 1.6L6 9v1l-2 .5v1l2 .5v1l-.4 1-1.6 1 .7.7 1.6-1 1 .4.5 2h1l.5-2 1-.4 1.6 1 .7-.7-1-1.6.4-1v-1l2-.5v-1l-2-.5V9l.4-1 1.6-1-.7-.7-1.6 1-1-.4L12 6Z"/></svg></a>
-            {% else %}
-                <span class="ops-mobile-topbar-control is-hidden" aria-hidden="true"></span>
-            {% endif %}
+            <div class="ops-home-topbar-cluster">
+                {% if can_manage_current_vendor_settings %}
+                    <a href="{% url 'vendor_profile' %}" class="ops-home-topbar-brand" aria-label="Vendor profile">
+                        <span class="ops-home-avatar">{{ active_tenant.name|default:"M"|slice:":1"|upper }}</span>
+                        <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Vendor" }}</span>
+                    </a>
+                {% else %}
+                    <span class="ops-home-topbar-brand">
+                        <span class="ops-home-avatar">{{ active_tenant.name|default:"M"|slice:":1"|upper }}</span>
+                        <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Vendor" }}</span>
+                    </span>
+                {% endif %}
+                <details class="ops-home-topbar-menu">
+                    <summary aria-label="Open home menu">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9h12M6 15h12"/></svg>
+                    </summary>
+                    <div class="ops-home-topbar-menu-list">
+                        {% if can_manage_current_vendor_settings %}
+                            <a href="{% url 'vendor_profile' %}" class="ops-home-topbar-menu-item">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 8 .8.8 1.2-.2.4 1.2-1 .7.1 1.2-1.2.4-.7 1-.8-.8-1.2.2-.4-1.2 1-.7-.1-1.2 1.2-.4.7-1Z"/><circle cx="17.9" cy="11.1" r="2.2"/><path d="M12 6h-1l-.5-2h-1L9 6l-1 .4-1.6-1-.7.7 1 1.6L6 9v1l-2 .5v1l2 .5v1l-.4 1-1.6 1 .7.7 1.6-1 1 .4.5 2h1l.5-2 1-.4 1.6 1 .7-.7-1-1.6.4-1v-1l2-.5v-1l-2-.5V9l.4-1 1.6-1-.7-.7-1.6 1-1-.4L12 6Z"/></svg>
+                                <span>Settings</span>
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'special_stock_issue_register' %}" class="ops-home-topbar-menu-item">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18v12H3zM2 5h20v4H2zM12 5v16"/><path d="M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/></svg>
+                            <span>Entry</span>
+                        </a>
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4v16h6M14 8l4 4-4 4M8 12h10"/></svg>
+                                <span>Logout</span>
+                            </button>
+                        </form>
+                    </div>
+                </details>
+            </div>
         </div>
     </div>
 
@@ -510,19 +574,6 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             <div class="ops-home-date-pill">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4M17 3v4"/><path d="M4 9h16"/><rect x="4" y="5" width="16" height="15" rx="2"/></svg>
                 <span>{% now "F j, Y" %}</span>
-            </div>
-            <div class="ops-home-quick-actions">
-                <a href="{% url 'special_stock_issue_register' %}" class="ops-home-quick-action">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18v12H3zM2 5h20v4H2zM12 5v16"/><path d="M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/></svg>
-                    <span>Entry</span>
-                </a>
-                <form method="post" action="{% url 'logout' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="is-secondary">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4v16h6M14 8l4 4-4 4M8 12h10"/></svg>
-                        <span>Logout</span>
-                    </button>
-                </form>
             </div>
         </section>
 
