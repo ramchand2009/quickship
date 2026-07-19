@@ -396,7 +396,7 @@ def manifest_webmanifest(request):
 @never_cache
 @require_GET
 def android_asset_links(request):
-    """Associate the production site with the signed Android TWA application."""
+    """Associate the production site with signed Android application builds."""
     package_id = str(getattr(settings, "ANDROID_APP_PACKAGE_ID", "") or "").strip()
     fingerprints = [
         str(value).strip()
@@ -416,6 +416,29 @@ def android_asset_links(request):
             }
         )
     return JsonResponse(payload, safe=False)
+
+
+@never_cache
+@require_GET
+def apple_app_site_association(request):
+    """Associate the production site with the signed iOS application."""
+    team_id = str(getattr(settings, "IOS_APP_TEAM_ID", "") or "").strip()
+    bundle_id = str(getattr(settings, "IOS_APP_BUNDLE_ID", "") or "").strip()
+    details = []
+    if team_id and bundle_id:
+        details.append(
+            {
+                "appID": f"{team_id}.{bundle_id}",
+                "paths": ["/app/*", "/orders/*"],
+            }
+        )
+    payload = {
+        "applinks": {
+            "apps": [],
+            "details": details,
+        }
+    }
+    return JsonResponse(payload)
 
 
 @never_cache

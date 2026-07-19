@@ -10711,7 +10711,7 @@ class PwaEndpointTests(TestCase):
         self.assertContains(response, "pwa-register.js")
 
     @override_settings(
-        ANDROID_APP_PACKAGE_ID="com.mathukai.dashboard",
+        ANDROID_APP_PACKAGE_ID="com.mathukai.operations",
         ANDROID_APP_SHA256_FINGERPRINTS=["AA:BB:CC", "11:22:33"],
     )
     def test_android_asset_links_associates_signed_mobile_app(self):
@@ -10726,7 +10726,7 @@ class PwaEndpointTests(TestCase):
                     "relation": ["delegate_permission/common.handle_all_urls"],
                     "target": {
                         "namespace": "android_app",
-                        "package_name": "com.mathukai.dashboard",
+                        "package_name": "com.mathukai.operations",
                         "sha256_cert_fingerprints": ["AA:BB:CC", "11:22:33"],
                     },
                 }
@@ -10739,6 +10739,40 @@ class PwaEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
+
+    @override_settings(
+        IOS_APP_TEAM_ID="TEAM123456",
+        IOS_APP_BUNDLE_ID="com.mathukai.operations",
+    )
+    def test_apple_app_site_association_exposes_universal_links(self):
+        response = self.client.get(reverse("apple_app_site_association"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/json", response["Content-Type"])
+        self.assertEqual(
+            response.json(),
+            {
+                "applinks": {
+                    "apps": [],
+                    "details": [
+                        {
+                            "appID": "TEAM123456.com.mathukai.operations",
+                            "paths": ["/app/*", "/orders/*"],
+                        }
+                    ],
+                }
+            },
+        )
+
+    @override_settings(IOS_APP_TEAM_ID="")
+    def test_apple_app_site_association_does_not_claim_unconfigured_app(self):
+        response = self.client.get(reverse("apple_app_site_association"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"applinks": {"apps": [], "details": []}},
+        )
 
 
 class MetricsEndpointTests(TestCase):

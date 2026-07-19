@@ -130,8 +130,10 @@ if DEBUG and not ALLOWED_HOSTS:
     ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver','192.168.1.5']
 
 CSRF_TRUSTED_ORIGINS = _env_csv('DJANGO_CSRF_TRUSTED_ORIGINS', '')
-ANDROID_APP_PACKAGE_ID = os.environ.get("ANDROID_APP_PACKAGE_ID", "com.mathukai.dashboard").strip()
+ANDROID_APP_PACKAGE_ID = os.environ.get("ANDROID_APP_PACKAGE_ID", "com.mathukai.operations").strip()
 ANDROID_APP_SHA256_FINGERPRINTS = _env_csv("ANDROID_APP_SHA256_FINGERPRINTS", "")
+IOS_APP_BUNDLE_ID = os.environ.get("IOS_APP_BUNDLE_ID", "com.mathukai.operations").strip()
+IOS_APP_TEAM_ID = os.environ.get("IOS_APP_TEAM_ID", "").strip()
 SESSION_COOKIE_SECURE = _env_bool('DJANGO_SESSION_COOKIE_SECURE', not DEBUG)
 CSRF_COOKIE_SECURE = _env_bool('DJANGO_CSRF_COOKIE_SECURE', not DEBUG)
 SECURE_SSL_REDIRECT = _env_bool('DJANGO_SECURE_SSL_REDIRECT', False)

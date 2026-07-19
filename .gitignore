@@ -23,19 +23,6 @@ data.json
 data.nobom.json
 staticfiles/
 
-# Generated Android app and private signing material
-mobile/android/app/
-mobile/android/build/
-mobile/android/gradle/
-mobile/android/.gradle/
-mobile/android/gradlew
-mobile/android/gradlew.bat
-mobile/android/*.jks
-mobile/android/*.keystore
-mobile/android/app-release-*.apk
-mobile/android/app-release-*.aab
-mobile/android/node_modules/
-
 # OS/editor noise
 .DS_Store
 Thumbs.db
