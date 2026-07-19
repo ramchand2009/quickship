@@ -162,6 +162,7 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'core.api.renderers.MobileJSONRenderer',
     ],
+    'EXCEPTION_HANDLER': 'core.api.v1.exceptions.mobile_exception_handler',
 }
 
 MIDDLEWARE = [
