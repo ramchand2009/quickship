@@ -61,8 +61,6 @@ Set these in your deployment environment:
 - `DJANGO_CSRF_TRUSTED_ORIGINS=https://your-domain.com,https://www.your-domain.com`
 - `ANDROID_APP_PACKAGE_ID=com.mathukai.operations`
 - `ANDROID_APP_SHA256_FINGERPRINTS=<Play App Signing SHA-256 fingerprint>`
-- `IOS_APP_BUNDLE_ID=com.mathukai.operations`
-- `IOS_APP_TEAM_ID=<Apple Developer Team ID>`
 - `DJANGO_SESSION_COOKIE_SECURE=true`
 - `DJANGO_CSRF_COOKIE_SECURE=true`
 - `DJANGO_USE_X_FORWARDED_PROTO=true` (when behind reverse proxy)

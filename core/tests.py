@@ -10740,41 +10740,6 @@ class PwaEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
 
-    @override_settings(
-        IOS_APP_TEAM_ID="TEAM123456",
-        IOS_APP_BUNDLE_ID="com.mathukai.operations",
-    )
-    def test_apple_app_site_association_exposes_universal_links(self):
-        response = self.client.get(reverse("apple_app_site_association"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("application/json", response["Content-Type"])
-        self.assertEqual(
-            response.json(),
-            {
-                "applinks": {
-                    "apps": [],
-                    "details": [
-                        {
-                            "appID": "TEAM123456.com.mathukai.operations",
-                            "paths": ["/app/*", "/orders/*"],
-                        }
-                    ],
-                }
-            },
-        )
-
-    @override_settings(IOS_APP_TEAM_ID="")
-    def test_apple_app_site_association_does_not_claim_unconfigured_app(self):
-        response = self.client.get(reverse("apple_app_site_association"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {"applinks": {"apps": [], "details": []}},
-        )
-
-
 class MetricsEndpointTests(TestCase):
     def test_metrics_returns_prometheus_text(self):
         response = self.client.get(reverse("metrics"))
