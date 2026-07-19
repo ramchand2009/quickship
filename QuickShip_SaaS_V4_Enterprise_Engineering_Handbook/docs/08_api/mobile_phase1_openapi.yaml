@@ -423,6 +423,48 @@ paths:
         '403':
           $ref: '#/components/responses/PermissionError'
 
+  /notification-preferences:
+    get:
+      tags: [Notifications]
+      operationId: getNotificationPreferences
+      summary: Return effective notification preferences for the active tenant.
+      responses:
+        '200':
+          description: Stored choices combined with mandatory server policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferencesResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+        '403':
+          $ref: '#/components/responses/PermissionError'
+    patch:
+      tags: [Notifications]
+      operationId: updateNotificationPreferences
+      summary: Update optional notification categories for the active tenant.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesUpdateRequest'
+      responses:
+        '200':
+          description: Updated effective preferences.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferencesResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/AuthenticationError'
+        '403':
+          $ref: '#/components/responses/PermissionError'
+
   /notifications/{notification_id}/read:
     post:
       tags: [Notifications]
@@ -789,7 +831,7 @@ components:
           type: string
         role:
           type: string
-          enum: [vendor_owner, vendor_operator, vendor_viewer, warehouse]
+          enum: [vendor_owner, vendor_operator, vendor_viewer, warehouse_operator]
         role_label:
           type: string
 
@@ -1401,6 +1443,53 @@ components:
                 unread_count:
                   type: integer
                   minimum: 0
+
+    NotificationPreference:
+      type: object
+      additionalProperties: false
+      required: [category, enabled, mandatory]
+      properties:
+        category:
+          $ref: '#/components/schemas/NotificationCategory'
+        enabled:
+          type: boolean
+        mandatory:
+          type: boolean
+          description: Mandatory categories cannot be disabled by the user.
+
+    NotificationPreferenceUpdate:
+      type: object
+      additionalProperties: false
+      required: [category, enabled]
+      properties:
+        category:
+          $ref: '#/components/schemas/NotificationCategory'
+        enabled:
+          type: boolean
+
+    NotificationPreferencesUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [preferences]
+      properties:
+        preferences:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/NotificationPreferenceUpdate'
+
+    NotificationPreferencesResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationPreference'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
 
     NotificationResponse:
       type: object

@@ -257,6 +257,8 @@ GET /api/v1/stock/movements
 ```text
 GET    /api/v1/notifications
 POST   /api/v1/notifications/{id}/read
+GET    /api/v1/notification-preferences
+PATCH  /api/v1/notification-preferences
 POST   /api/v1/devices/push-token
 DELETE /api/v1/devices/{id}
 ```
