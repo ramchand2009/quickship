@@ -1,6 +1,6 @@
 # Mathukai Mobile Phase 1 Data Model
 
-**Status:** Proposed for design approval
+**Status:** Approved for detailed architecture design
 
 **Date:** 19 July 2026
 
@@ -371,7 +371,7 @@ to rerun.
 Every migration requires a production-scale dry run, rollback plan, tenant
 isolation tests, and RC migration-safety audit.
 
-## 15. Design decisions awaiting approval
+## 15. Approved data-model decisions
 
 - Add the tenant-scoped `warehouse_operator` membership role.
 - Use opaque hashed refresh tokens rather than persisted refresh JWTs.
@@ -381,5 +381,6 @@ isolation tests, and RC migration-safety audit.
 - Use an explicit atomic order version shared by web and mobile mutations.
 - Treat notification preferences as a required Phase 1 API surface.
 
-No model, migration, API, or background-task implementation begins from this
-document until these decisions are approved.
+These decisions were approved on 19 July 2026. No model, migration, API, or
+background-task implementation begins until the Phase 1 runtime architecture
+and implementation plan are also approved.
