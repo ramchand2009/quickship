@@ -162,6 +162,8 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'core.api.renderers.MobileJSONRenderer',
     ],
+    'DEFAULT_PAGINATION_CLASS': 'core.api.v1.pagination.MobileCursorPagination',
+    'PAGE_SIZE': 25,
     'EXCEPTION_HANDLER': 'core.api.v1.exceptions.mobile_exception_handler',
 }
 
