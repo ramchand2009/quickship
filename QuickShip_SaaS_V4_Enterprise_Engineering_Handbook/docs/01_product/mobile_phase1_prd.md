@@ -1,8 +1,8 @@
 # Mathukai Mobile App - Phase 1 Product Requirements
 
-**Status:** Draft for approval
+**Status:** Approved for detailed API design
 
-**Date:** 18 July 2026
+**Approved:** 19 July 2026
 
 **Platforms:** Android and iOS
 
@@ -219,26 +219,26 @@ All mobile endpoints are versioned under `/api/v1/`.
 ### Authentication
 
 ```text
-POST /api/v1/auth/login/
-POST /api/v1/auth/refresh/
-POST /api/v1/auth/logout/
-GET  /api/v1/auth/me/
-POST /api/v1/auth/select-tenant/
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
+GET  /api/v1/auth/me
+POST /api/v1/auth/select-tenant
 ```
 
 ### Dashboard
 
 ```text
-GET /api/v1/dashboard/
+GET /api/v1/dashboard
 ```
 
 ### Orders
 
 ```text
-GET  /api/v1/orders/
-GET  /api/v1/orders/{id}/
-POST /api/v1/orders/{id}/status/
-POST /api/v1/orders/{id}/payment-received/
+GET  /api/v1/orders
+GET  /api/v1/orders/{id}
+POST /api/v1/orders/{id}/status
+POST /api/v1/orders/{id}/payment-received
 ```
 
 The payment-received action is exposed only if confirmed as required and
@@ -247,18 +247,18 @@ permitted for Phase 1 during API contract review.
 ### Products and stock
 
 ```text
-GET /api/v1/products/
-GET /api/v1/products/{id}/
-GET /api/v1/stock/movements/
+GET /api/v1/products
+GET /api/v1/products/{id}
+GET /api/v1/stock/movements
 ```
 
 ### Notifications and devices
 
 ```text
-GET    /api/v1/notifications/
-POST   /api/v1/notifications/{id}/read/
-POST   /api/v1/devices/push-token/
-DELETE /api/v1/devices/{id}/
+GET    /api/v1/notifications
+POST   /api/v1/notifications/{id}/read
+POST   /api/v1/devices/push-token
+DELETE /api/v1/devices/{id}
 ```
 
 ## 9. API conventions
@@ -410,10 +410,10 @@ Phase 2 can add:
 Candidate Phase 2 endpoints:
 
 ```text
-GET  /api/v1/packing/queue/
-GET  /api/v1/packing/orders/{id}/requirements/
-POST /api/v1/packing/orders/{id}/scan/
-POST /api/v1/packing/orders/{id}/complete/
+GET  /api/v1/packing/queue
+GET  /api/v1/packing/orders/{id}/requirements
+POST /api/v1/packing/orders/{id}/scan
+POST /api/v1/packing/orders/{id}/complete
 ```
 
 No Phase 2 packing endpoint is part of Phase 1 implementation acceptance.
@@ -438,18 +438,30 @@ Phase 1 is ready for production approval when:
 - Internal Android and iOS acceptance testing passes.
 - Privacy, store metadata, signing, monitoring, and rollback plans are approved.
 
-## 18. Decisions required before implementation
+## 18. Approved product defaults
 
-- Final application display name, package/bundle identifiers, and branding.
-- Minimum supported Android and iOS versions.
-- Final token lifetimes and mobile-session revocation policy.
-- Exact customer fields visible to each role.
-- Exact order transitions enabled for vendor owners and operators.
-- Whether payment-received is included in Phase 1 mobile actions.
-- Notification preference categories and quiet-hour requirements.
-- Cached operational-data retention period.
-- Staging domain and production API domain.
-- Ownership of Apple Developer, Google Play, Firebase, Expo, and monitoring
-  accounts.
+- Application display name: **Mathukai Operations**.
+- Android package ID: `com.mathukai.operations`.
+- iOS bundle ID: `com.mathukai.operations`.
+- Product support baseline: Android 10 or later and iOS 16.4 or later.
+- Authentication baseline: 10-minute access token and 30-day rotating refresh
+  token with revocation and reuse detection.
+- Customer visibility: full permitted details for owners, operational details
+  for operators, masked details for viewers, and fulfilment-only fields for
+  warehouse users.
+- Order actions reuse existing Django permissions and add no mobile-only
+  privileges.
+- Payment-received is included for authorized owners and operators.
+- Notification categories: new orders, attention-required orders, status
+  changes, and permitted routing or integration alerts.
+- Read-only offline cache retention: no more than 24 hours, with immediate clear
+  on logout or tenant switch.
+- All Phase 1 writes require connectivity.
+- Apple, Google Play, Firebase, Expo, and monitoring accounts are company-owned
+  and protected with multi-factor authentication.
+- Production testing uses Expo development builds and EAS, not Expo Go.
+- Barcode scanning, packing, and offline write synchronization remain Phase 2.
 
-Implementation must not begin until these decisions and this PRD are approved.
+Staging and production domains, final brand assets, and store-account contacts
+must be supplied during release preparation. Detailed API design must be
+approved before implementation begins.
