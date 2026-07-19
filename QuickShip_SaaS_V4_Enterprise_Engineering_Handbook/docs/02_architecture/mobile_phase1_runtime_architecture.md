@@ -26,8 +26,8 @@ WooCommerce, WhatsApp, Shiprocket, Celery, Redis, and PostgreSQL domain.
 - Tenant and role policy stay in one backend.
 - Stock and order side effects are not duplicated.
 - Web and mobile updates share concurrency controls and audit history.
-- React Native provides a genuine Android/iOS application without a second
-  native codebase.
+- React Native provides a genuine Android application while retaining the
+  approved Expo development stack.
 - The API boundary can be introduced incrementally without rewriting existing
   web workflows.
 
@@ -45,7 +45,6 @@ flowchart LR
     Celery["Celery workers"]
     Expo["Expo Push Service"]
     FCM["FCM"]
-    APNs["APNs"]
     External["WooCommerce / WhatsApp / Shiprocket"]
 
     Mobile --> API
@@ -57,7 +56,6 @@ flowchart LR
     Services --> Celery
     Celery --> Expo
     Expo --> FCM
-    Expo --> APNs
     Celery --> External
 ```
 
@@ -307,7 +305,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Celery as Celery worker
     participant Expo as Expo Push Service
-    participant Device as Android/iOS device
+    participant Device as Android device
 
     Event->>DB: Select authorized recipients and preferences
     Event->>DB: Create deduplicated inbox and delivery records
@@ -316,7 +314,7 @@ sequenceDiagram
     Celery->>Expo: Send minimal notification payload
     Expo-->>Celery: Ticket/receipt identifier
     Celery->>DB: Record sent state without raw provider payload
-    Expo->>Device: Deliver through FCM/APNs
+    Expo->>Device: Deliver through FCM
     Device->>Device: Open internal destination
     Device->>API: Fetch resource with tenant authorization
 ```
@@ -341,8 +339,8 @@ mathukai://orders/{id}
 https://<approved-domain>/app/orders/{id}
 ```
 
-Android App Links and iOS Universal Links require deployment-time website/app
-associations. A deep link is navigation intent only; the API independently
+Android App Links require deployment-time website/app associations. A deep link
+is navigation intent only; the API independently
 checks user, tenant, role, and object access.
 
 If logged out, the app retains only the safe internal destination through login

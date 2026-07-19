@@ -71,19 +71,19 @@ mobile authentication gates pass.
 - **Priority/size:** P0 / S
 - **Depends on:** Approved design baseline
 - **Owner:** Product/operations
-- **Outcome:** Record owners and availability for Expo, Apple, Google Play,
-  Firebase, monitoring, staging domain, production domain, signing backup, and
-  final brand assets.
-- **Acceptance:** Company ownership and MFA confirmed; missing non-blocking
-  assets explicitly marked as placeholders.
+- **Outcome:** Record current availability for the local Android toolchain,
+  Expo, optional EAS cloud builds, Google Play, Firebase, monitoring, domains, signing backup,
+  and final brand assets.
+- **Acceptance:** Missing external accounts are assigned to the milestone that
+  needs them; non-blocking assets are explicitly marked as placeholders.
 - **Commit:** Documentation only.
 
 ### MOB-001 Define environment identity matrix
 
 - **Priority/size:** P0 / S
 - **Depends on:** MOB-000
-- **Outcome:** Finalize development, staging, and production package/bundle IDs,
-  API hosts, deep-link hosts, Expo project/channel names, and Firebase projects.
+- **Outcome:** Finalize development, staging, and production Android package
+  IDs, API hosts, deep-link hosts, Expo project plan, and Firebase project plan.
 - **Acceptance:** No environment shares a production database or push
   credential accidentally.
 - **Commit:** `Document mobile environment identity matrix`.
@@ -102,15 +102,14 @@ mobile authentication gates pass.
 
 - **Priority/size:** P0 / M
 - **Depends on:** MOB-001
-- **Outcome:** Keep Android Digital Asset Links under the approved package ID and
-  design/add Apple App Site Association configuration for Universal Links.
-- **Acceptance:** Environment-specific signing fingerprints/team IDs; empty safe
-  defaults claim no unconfigured app; focused endpoint tests.
-- **Commit:** `Prepare mobile app and universal link associations`.
+- **Outcome:** Keep Android Digital Asset Links under the approved package ID.
+- **Acceptance:** Environment-specific signing fingerprints; empty safe defaults
+  claim no unconfigured app; focused endpoint tests.
+- **Commit:** `Prepare Android App Links association`.
 
 ### Gate M0
 
-- External account ownership recorded.
+- External account gaps and their required milestones recorded.
 - Environment identity matrix approved.
 - TWA workspace removal independently reviewable.
 - No secret or signing material in Git.
@@ -363,7 +362,7 @@ Existing login, tenant middleware, PWA and production-preflight tests also pass.
 - **Priority/size:** P1 / M
 - **Depends on:** Gate M1, MOB-001
 - **Outcome:** `mobile/app` with stable Expo SDK, Expo Router and strict TypeScript.
-- **Acceptance:** Android/iOS development builds compile; placeholder screen only;
+- **Acceptance:** Android development build compiles; placeholder screen only;
   dependency health check passes.
 - **Commit:** `Create Mathukai Operations Expo app`.
 
@@ -441,7 +440,8 @@ npm test
 npx expo-doctor
 ```
 
-Physical Android and iOS development builds install and contact only staging.
+Android emulator and physical-device development builds install and contact
+only staging.
 
 ## 8. Milestone 5 - mobile authentication
 
@@ -479,7 +479,7 @@ Physical Android and iOS development builds install and contact only staging.
 
 ### Gate M5
 
-- Authentication passes on physical Android/iOS.
+- Authentication passes on the Android emulator and a physical Android device.
 - Security review confirms no tenant or token persistence leakage.
 
 ## 9. Milestone 6 - Phase 1 read screens
@@ -525,7 +525,7 @@ Physical Android and iOS development builds install and contact only staging.
 
 ### Gate M6
 
-- Read-only UAT passes for all four roles on Android and iOS.
+- Read-only UAT passes for all four roles on Android.
 - No Scan tab, packing completion or stock adjustment exists.
 
 ## 10. Milestone 7 - safe order writes
@@ -625,20 +625,20 @@ Physical Android and iOS development builds install and contact only staging.
 - **Priority/size:** P1 / L
 - **Depends on:** PUSH-003, APP-005, UIA-004
 - **Acceptance:** Contextual permission, token refresh, unread state, preferences,
-  logout disablement and Android/iOS tests.
+  logout disablement and Android tests.
 - **Commit:** `Add mobile notifications experience`.
 
-### PUSH-006 Implement app/universal links
+### PUSH-006 Implement Android App Links
 
 - **Priority/size:** P0 / L
 - **Depends on:** MOB-003, UIO-002, PUSH-005
 - **Acceptance:** Logged-in/logged-out route, tenant selection, unauthorized ID,
-  verified domain association on physical Android/iOS.
+  verified domain association on physical Android.
 - **Commit:** `Add verified mobile order deep links`.
 
 ### Gate M8
 
-- End-to-end push and deep links pass on physical Android/iOS.
+- End-to-end push and deep links pass on physical Android.
 - Privacy review and association validation pass.
 
 ## 12. Milestone 9 - hardening and release
@@ -662,7 +662,7 @@ Physical Android and iOS development builds install and contact only staging.
 
 - **Priority/size:** P1 / M
 - **Depends on:** Gates M7 and M8
-- **Acceptance:** Minimum Android/iOS devices, font scaling, screen reader, touch
+- **Acceptance:** Minimum Android devices, font scaling, screen reader, touch
   targets, contrast, reduced motion and poor-network behavior.
 
 ### REL-004 Prepare store and privacy material
@@ -676,7 +676,7 @@ Physical Android and iOS development builds install and contact only staging.
 
 - **Priority/size:** P0 / M
 - **Depends on:** REL-001 through REL-004
-- **Acceptance:** Internal Play and TestFlight builds, staff acceptance, crash/API
+- **Acceptance:** Internal Play build, staff acceptance, crash/API
   monitoring, rollback drill.
 
 ### REL-006 Run staged tenant pilot

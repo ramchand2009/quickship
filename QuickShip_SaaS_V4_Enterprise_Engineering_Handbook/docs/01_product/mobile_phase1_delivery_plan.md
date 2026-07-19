@@ -29,20 +29,24 @@ Every slice must:
 
 ## 2. Preconditions
 
-Before implementation begins, supply or create:
+The API foundation can begin without external mobile accounts. Before the
+milestone that uses each service, supply or create:
 
-- Company-owned Expo account with multi-factor authentication.
-- Company-owned Google Play and Apple Developer accounts.
-- Company-owned Firebase project for Android notifications.
+- Android Studio, its bundled JDK, and the Android SDK for local emulator and
+  development builds before Milestone 4.
+- Company-owned Firebase project before Android push-notification acceptance.
+- Company-owned Google Play account before internal store distribution.
+- Company-owned Expo account before Expo push acceptance, or earlier if EAS
+  cloud builds are adopted.
 - Staging HTTPS domain and production HTTPS domain.
 - Company-owned monitoring project.
 - Final logo, icon, splash assets, and approved brand colors.
 - Named owners for signing credentials, backups, store submission, and incident
   response.
 
-Development may begin with placeholder brand assets, but package IDs, bundle
-IDs, signing ownership, and environment separation must be fixed before the
-first shared build.
+Development may begin with placeholder brand assets and local Android builds.
+Package IDs, signing ownership, and environment separation must be fixed before
+the first shared or store build.
 
 ## 3. Superseded TWA prototype
 
@@ -56,11 +60,9 @@ During the first implementation slice:
 - Change the Android association package from `com.mathukai.dashboard` to the
   approved `com.mathukai.operations`.
 - Adapt `assetlinks.json` for React Native Android App Links.
-- Add the Apple App Site Association endpoint for iOS Universal Links.
-- Keep association fingerprints/team identifiers environment-configurable.
+- Keep Android association fingerprints environment-configurable.
 
-No signing key, provisioning profile, APK, AAB, IPA, push credential, or store
-secret is committed.
+No signing key, APK, AAB, push credential, or store secret is committed.
 
 ## 4. Milestone 0 - implementation readiness
 
@@ -253,7 +255,7 @@ the operational client.
 
 ### Gate 4
 
-- Android and iOS development builds install on physical devices.
+- Android development builds install on an emulator and a physical device.
 - Staging build connects only to staging API.
 - No secret is present in JavaScript bundles or build logs.
 - Base accessibility and navigation review passes.
@@ -286,7 +288,7 @@ development credentials.
 
 ### Gate 5
 
-- Authentication passes on physical Android and iOS devices.
+- Authentication passes on an Android emulator and physical Android device.
 - Security review confirms token and cache behavior.
 - No protected screen renders data from a prior tenant.
 
@@ -318,7 +320,7 @@ development credentials.
 - Tenant switch invalidates visible data.
 - Deep links cannot reveal unauthorized objects.
 - Poor-network behavior retains safe cache.
-- Android and iOS visual/accessibility review.
+- Android visual/accessibility review.
 
 ### Gate 6
 
@@ -405,7 +407,7 @@ development credentials.
 - Request push permission contextually.
 - Register/refresh token after authentication.
 - Add notification inbox and unread state.
-- Add internal deep links, Android App Links and iOS Universal Links.
+- Add internal deep links and Android App Links.
 - Revalidate every destination through API access.
 
 ### Tests
@@ -418,11 +420,11 @@ development credentials.
 - Logged-in and logged-out deep links.
 - Unauthorized and removed-order deep links.
 - Notification payload contains no prohibited data.
-- Physical Android and iOS notification delivery.
+- Physical Android notification delivery.
 
 ### Gate 8
 
-- End-to-end staging delivery works on Android and iOS.
+- End-to-end staging delivery works on Android.
 - Association files validate for approved domains.
 - Push credentials are company-owned and backed up.
 - Privacy review passes.
@@ -454,9 +456,9 @@ development credentials.
 ### Store gate
 
 - Final icons, splash, name, descriptions and privacy policy approved.
-- Android/iOS signing ownership and backups verified.
+- Android signing ownership and backups verified.
 - Data-safety and privacy declarations reviewed.
-- Internal Play and TestFlight testing completed.
+- Internal Play testing completed.
 - Minimum supported app version mechanism verified.
 
 ### Production rollout
@@ -492,12 +494,12 @@ Phase 1 is complete only when:
 
 - All PRD acceptance criteria pass.
 - OpenAPI and implementation contract tests agree.
-- Approved roles work on Android and iOS physical devices.
+- Approved roles work on Android physical devices.
 - Tenant isolation is proven for every endpoint and protected field.
 - Order and payment writes are idempotent, versioned and audited.
 - Notification and deep-link flows pass privacy and authorization review.
 - Monitoring, feature flags, runbooks and rollback have been tested.
-- Internal Play and TestFlight acceptance is complete.
+- Internal Play acceptance is complete.
 - The PWA remains operational.
 - Barcode scanning and packing completion remain outside the release.
 
@@ -507,7 +509,8 @@ Phase 1 is complete only when:
 - Approve removal of the Bubblewrap/TWA packaging workspace.
 - Approve retaining and adapting domain-association endpoints.
 - Approve feature-flagged, tenant-cohort rollout.
-- Confirm accounts/domains/assets can be provided before shared builds.
+- Confirm Firebase, Play, domains, and assets can be provided before the
+  milestones that need them.
 
 This plan was approved on 19 July 2026. Approval authorizes implementation
 planning at task level. It does not by itself authorize implementation,

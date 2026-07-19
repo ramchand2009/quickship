@@ -52,7 +52,7 @@ erDiagram
 | `id` | UUID primary key | Server generated |
 | `user` | Foreign key to user | Required, cascade delete |
 | `installation_id` | UUID | Generated once by the app |
-| `platform` | String | `android` or `ios` |
+| `platform` | String | `android` |
 | `app_version` | String | Last reported application version |
 | `active_tenant` | Nullable tenant FK | Must be an active membership |
 | `status` | String | `active`, `revoked`, or `expired` |
@@ -120,7 +120,7 @@ multiple tenants on the same installation.
 | `id` | UUID primary key | Server generated |
 | `user` | User FK | Required, cascade delete |
 | `installation_id` | UUID | Same installation identifier used at login |
-| `platform` | String | `android` or `ios` |
+| `platform` | String | `android` |
 | `push_token_ciphertext` | Binary/text | Encrypted Expo token |
 | `push_token_hash` | Fixed string/binary | Deterministic lookup hash |
 | `app_version` | String | Last reported version |

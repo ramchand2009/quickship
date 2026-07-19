@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Mathukai Operations Mobile API
   version: 1.0.0-draft
-  summary: Phase 1 API contract for the Android and iOS mobile application.
+  summary: Phase 1 API contract for the Android mobile application.
   description: |
     Design contract for Mathukai Operations Phase 1. Django remains the source
     of truth for tenant access, permissions, order transitions, stock values,
@@ -736,7 +736,7 @@ components:
           format: uuid
         platform:
           type: string
-          enum: [android, ios]
+          enum: [android]
         app_version:
           type: string
           maxLength: 32
@@ -1511,7 +1511,7 @@ components:
           format: uuid
         platform:
           type: string
-          enum: [android, ios]
+          enum: [android]
         expo_push_token:
           type: string
           minLength: 16
@@ -1536,7 +1536,7 @@ components:
           format: uuid
         platform:
           type: string
-          enum: [android, ios]
+          enum: [android]
         app_version:
           type: string
         enabled:

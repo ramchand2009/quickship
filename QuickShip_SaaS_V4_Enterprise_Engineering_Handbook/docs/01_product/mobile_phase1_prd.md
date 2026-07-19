@@ -4,7 +4,7 @@
 
 **Approved:** 19 July 2026
 
-**Platforms:** Android and iOS
+**Platform:** Android only
 
 **Mobile stack:** React Native, Expo, TypeScript
 
@@ -22,14 +22,14 @@ versioned REST API and does not duplicate business rules from Django.
 
 ## 2. Goals
 
-- Give vendor users a focused Android and iOS experience for daily operations.
+- Give vendor users a focused Android experience for daily operations.
 - Make current order workload and urgent issues visible immediately.
 - Allow authorized users to review orders and perform permitted status changes.
 - Provide read-only product and stock visibility.
 - Deliver role-appropriate push notifications that open the relevant screen.
 - Preserve the existing tenant isolation, audit logging, idempotency, and
   integration behavior.
-- Release one shared React Native codebase for Android and iOS.
+- Release one React Native codebase for Android.
 
 ## 3. Non-goals for Phase 1
 
@@ -357,8 +357,9 @@ Phase 1 supports read-only cached data, not offline writes.
 - Zustand only for small cross-screen client state where required.
 - React Hook Form and Zod for client-side form validation.
 - Expo SecureStore for refresh tokens.
-- Expo Notifications backed by FCM and APNs.
-- Expo EAS for signed development and release builds.
+- Expo Notifications backed by FCM.
+- Local Android development builds initially; Expo EAS may be adopted later for
+  shared signed builds.
 
 ### Backend
 
@@ -377,15 +378,16 @@ Phase 1 supports read-only cached data, not offline writes.
 - Pagination, filtering, and validation tests.
 - Push registration and invalid-token tests.
 - Mobile unit and component tests for critical states.
-- Android and iOS physical-device testing.
+- Android emulator and physical-device testing.
 - Poor-network, expired-session, and interrupted-request testing.
 - Accessibility review of every Phase 1 screen.
 
 ## 15. Release approach
 
 1. Development builds connected to a local or development API.
-2. Staging API and internal Expo/EAS builds.
-3. Internal Android testing and iOS TestFlight testing.
+2. Staging API and internal Android builds.
+3. Internal Android testing through the Play Console when the company account
+   is available.
 4. Role-based user acceptance testing with representative tenant data.
 5. Security, privacy, performance, and release checklist approval.
 6. Controlled production rollout.
@@ -429,7 +431,7 @@ Phase 1 is ready for production approval when:
 - Removed memberships and revoked sessions stop access promptly.
 - Each role sees only permitted tenant data and actions.
 - Dashboard data is accurate and role-aware.
-- Order search, filters, pagination, and details work on Android and iOS.
+- Order search, filters, pagination, and details work on Android.
 - Permitted status updates are transactional, idempotent, audited, and protected
   against stale data.
 - Stock data is read-only and shows synchronization time.
@@ -437,15 +439,14 @@ Phase 1 is ready for production approval when:
   prohibited sensitive information.
 - Offline screens clearly distinguish cached from current information.
 - Required tenant-isolation, permission, security, and concurrency tests pass.
-- Internal Android and iOS acceptance testing passes.
+- Internal Android acceptance testing passes.
 - Privacy, store metadata, signing, monitoring, and rollback plans are approved.
 
 ## 18. Approved product defaults
 
 - Application display name: **Mathukai Operations**.
 - Android package ID: `com.mathukai.operations`.
-- iOS bundle ID: `com.mathukai.operations`.
-- Product support baseline: Android 10 or later and iOS 16.4 or later.
+- Product support baseline: Android 10 or later.
 - Authentication baseline: 10-minute access token and 30-day rotating refresh
   token with revocation and reuse detection.
 - Customer visibility: full permitted details for owners, operational details
@@ -459,11 +460,14 @@ Phase 1 is ready for production approval when:
 - Read-only offline cache retention: no more than 24 hours, with immediate clear
   on logout or tenant switch.
 - All Phase 1 writes require connectivity.
-- Apple, Google Play, Firebase, Expo, and monitoring accounts are company-owned
-  and protected with multi-factor authentication.
-- Production testing uses Expo development builds and EAS, not Expo Go.
+- Google Play, Firebase, Expo, and monitoring accounts must be
+  company-owned and protected with multi-factor authentication when created.
+- EAS cloud builds are optional for initial development; an Expo project is
+  required later if the approved Expo Push Service design is retained.
+- Local Android development builds and the Android emulator require no store
+  account. Expo Go is not used for production acceptance.
 - Barcode scanning, packing, and offline write synchronization remain Phase 2.
 
-Staging and production domains, final brand assets, and store-account contacts
-must be supplied during release preparation. Detailed API design must be
-approved before implementation begins.
+Staging and production domains, final brand assets, and Google Play account
+contacts must be supplied before release. Firebase ownership is required before
+push-notification acceptance; neither is a blocker for the API foundation.
