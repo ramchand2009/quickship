@@ -159,10 +159,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'core.api.renderers.MobileJSONRenderer',
+    ],
 }
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'core.api.middleware.ApiRequestIdMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -327,15 +331,21 @@ except OSError:
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {
+            "()": "core.api.request_ids.RequestIdLogFilter",
+        },
+    },
     "formatters": {
         "standard": {
-            "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            "format": "%(asctime)s | %(levelname)s | %(name)s | %(request_id)s | %(message)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",
+            "filters": ["request_id"],
         },
         "app_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -343,6 +353,7 @@ LOGGING = {
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "standard",
+            "filters": ["request_id"],
             "encoding": "utf-8",
         },
     },
