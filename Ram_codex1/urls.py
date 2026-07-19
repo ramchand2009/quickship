@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
+    path('api/v1/', include(('core.api.v1.urls', 'mobile_api_v1'), namespace='mobile_api_v1')),
     path('', include('core.urls')),
     path('admin/', admin.site.urls),
 ]
