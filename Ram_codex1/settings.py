@@ -164,6 +164,16 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'core.api.v1.pagination.MobileCursorPagination',
     'PAGE_SIZE': 25,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'core.api.v1.throttling.MobileScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'mobile_login': os.environ.get('MOBILE_API_LOGIN_RATE', '5/min'),
+        'mobile_refresh': os.environ.get('MOBILE_API_REFRESH_RATE', '10/min'),
+        'mobile_write': os.environ.get('MOBILE_API_WRITE_RATE', '60/min'),
+        'mobile_device': os.environ.get('MOBILE_API_DEVICE_RATE', '30/min'),
+        'mobile_read': os.environ.get('MOBILE_API_READ_RATE', '300/min'),
+    },
     'EXCEPTION_HANDLER': 'core.api.v1.exceptions.mobile_exception_handler',
 }
 
