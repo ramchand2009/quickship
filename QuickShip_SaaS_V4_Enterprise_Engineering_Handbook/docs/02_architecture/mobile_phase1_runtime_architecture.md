@@ -1,8 +1,8 @@
 # Mathukai Mobile Phase 1 Runtime Architecture
 
-**Status:** Proposed for design approval
+**Status:** Approved
 
-**Date:** 19 July 2026
+**Approved:** 19 July 2026
 
 **Decision scope:** React Native application, Django REST API, authentication,
 tenant authorization, order mutations, read-only stock, notification delivery,
@@ -459,4 +459,5 @@ keeps the existing PWA operational.
 - Keep barcode scanning and packing completion in Phase 2.
 - Use development, staging, and production app variants.
 
-Approval of this checklist completes the Phase 1 architecture design baseline.
+This checklist was approved on 19 July 2026 and completes the Phase 1
+architecture design baseline.
