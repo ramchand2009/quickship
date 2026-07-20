@@ -1116,6 +1116,40 @@ class MobileAuthCleanupTests(TestCase):
         self.assertFalse(MobileSession.objects.filter(pk=self.session.pk).exists())
         self.assertFalse(MobileRefreshToken.objects.filter(pk=token.pk).exists())
 
+    def test_cleanup_rechecks_session_state_before_deleting_selected_history(self):
+        self.expire_session(days=40)
+        MobileSession.objects.filter(pk=self.session.pk).update(
+            status=MobileSession.STATUS_EXPIRED,
+            revoked_at=self.now - timedelta(days=40),
+        )
+        from core.api.v1 import cleanup as cleanup_module
+
+        original_limited_ids = cleanup_module._limited_ids
+        call_count = 0
+
+        def reactivate_after_selection(queryset, batch_size):
+            nonlocal call_count
+            call_count += 1
+            selected = original_limited_ids(queryset, batch_size)
+            if call_count == 4:
+                MobileSession.objects.filter(pk=self.session.pk).update(
+                    status=MobileSession.STATUS_ACTIVE,
+                    expires_at=self.now + timedelta(days=30),
+                    revoked_at=None,
+                    revocation_reason="",
+                )
+            return selected
+
+        with patch(
+            "core.api.v1.cleanup._limited_ids",
+            side_effect=reactivate_after_selection,
+        ):
+            summary = cleanup_mobile_auth(retention_days=30, now=self.now)
+
+        self.session.refresh_from_db()
+        self.assertEqual(summary["sessions_deleted"], 0)
+        self.assertEqual(self.session.status, MobileSession.STATUS_ACTIVE)
+
     def test_management_command_supports_dry_run(self):
         self.expire_session()
         output = StringIO()

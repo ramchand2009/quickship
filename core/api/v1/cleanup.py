@@ -60,18 +60,41 @@ def cleanup_mobile_auth(*, batch_size=None, retention_days=None, dry_run=False, 
     if dry_run:
         return summary
 
+    summary.update(
+        sessions_expired=0,
+        refresh_tokens_revoked=0,
+        refresh_tokens_deleted=0,
+        sessions_deleted=0,
+    )
     if expired_session_ids:
-        MobileSession.objects.filter(pk__in=expired_session_ids).update(
+        summary["sessions_expired"] = MobileSession.objects.filter(
+            pk__in=expired_session_ids,
+            status=MobileSession.STATUS_ACTIVE,
+            expires_at__lte=cleaned_at,
+        ).update(
             status=MobileSession.STATUS_EXPIRED,
             revoked_at=cleaned_at,
             revocation_reason="session_expired",
         )
     if expired_token_ids:
-        MobileRefreshToken.objects.filter(pk__in=expired_token_ids).update(
-            revoked_at=cleaned_at
-        )
+        summary["refresh_tokens_revoked"] = MobileRefreshToken.objects.filter(
+            pk__in=expired_token_ids,
+            expires_at__lte=cleaned_at,
+            revoked_at__isnull=True,
+        ).update(revoked_at=cleaned_at)
     if token_history_ids:
-        MobileRefreshToken.objects.filter(pk__in=token_history_ids).delete()
+        _, deleted = MobileRefreshToken.objects.filter(
+            pk__in=token_history_ids,
+            expires_at__lt=cutoff,
+        ).filter(
+            Q(revoked_at__isnull=False) | Q(consumed_at__isnull=False)
+        ).delete()
+        summary["refresh_tokens_deleted"] = deleted.get("core.MobileRefreshToken", 0)
     if session_history_ids:
-        MobileSession.objects.filter(pk__in=session_history_ids).delete()
+        _, deleted = MobileSession.objects.filter(
+            pk__in=session_history_ids,
+            status__in=[MobileSession.STATUS_EXPIRED, MobileSession.STATUS_REVOKED],
+            expires_at__lt=cutoff,
+        ).delete()
+        summary["sessions_deleted"] = deleted.get("core.MobileSession", 0)
     return summary
