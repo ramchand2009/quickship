@@ -15,7 +15,7 @@ from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.checks import Tags, run_checks
 from django.core.cache import cache
-from django.db import IntegrityError, close_old_connections, transaction
+from django.db import IntegrityError, connections, transaction
 from django.test import TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
 from django.urls import path
 from django.utils import timezone
@@ -509,7 +509,7 @@ class MobileRefreshConcurrencyTests(TransactionTestCase):
         start = threading.Barrier(3)
 
         def rotate_once():
-            close_old_connections()
+            connections.close_all()
             try:
                 start.wait(timeout=10)
                 rotate_refresh_token(
@@ -520,7 +520,7 @@ class MobileRefreshConcurrencyTests(TransactionTestCase):
             except RefreshTokenReuseDetected:
                 return "reuse_detected"
             finally:
-                close_old_connections()
+                connections.close_all()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             futures = [pool.submit(rotate_once) for _ in range(2)]
