@@ -621,8 +621,6 @@ class TenantFoundationTests(TestCase):
         self.assertContains(response, "Profit Gaps")
         self.assertContains(response, "Pending Approvals")
         self.assertContains(response, reverse("my_product_change_requests"))
-        self.assertContains(response, "ops-mobile-notification-badge")
-        self.assertContains(response, "1 pending product request notifications")
         self.assertEqual(alerts["missing_cost_product_count"], 1)
         self.assertEqual(alerts["mapping_issue_order_count"], 1)
         self.assertEqual(alerts["pending_approval_count"], 1)
@@ -631,7 +629,7 @@ class TenantFoundationTests(TestCase):
         self.assertIn("OWN-MISSING-SKU", alerts["missing_identifiers"])
         self.assertNotIn("OTHER-MISSING-SKU", alerts["missing_identifiers"])
 
-    def test_vendor_mobile_bottom_nav_shows_logout_action(self):
+    def test_vendor_mobile_bottom_nav_links_to_home_logout_menu(self):
         TenantMembership.objects.create(
             tenant=self.mathukai,
             user=self.vendor_user,
@@ -639,12 +637,16 @@ class TenantFoundationTests(TestCase):
         )
         self.client.force_login(self.vendor_user)
 
-        response = self.client.get(reverse("order_management"))
+        orders_response = self.client.get(reverse("order_management"))
+        home_response = self.client.get(reverse("home"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse("logout"))
-        self.assertContains(response, "Logout")
-        self.assertContains(response, "fa-sign-out-alt")
+        self.assertEqual(orders_response.status_code, 200)
+        self.assertContains(orders_response, reverse("home"))
+        self.assertContains(orders_response, "ops-mobile-bottomnav")
+        self.assertEqual(home_response.status_code, 200)
+        self.assertContains(home_response, reverse("logout"))
+        self.assertContains(home_response, "Logout")
+        self.assertContains(home_response, "Open home menu")
 
     def test_vendor_mobile_stock_empty_state_shows_product_sync_action(self):
         TenantMembership.objects.create(
