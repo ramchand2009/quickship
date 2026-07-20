@@ -1,0 +1,21 @@
+# The EAS project lives in mobile/app inside this Django monorepo.
+# Upload only that application and exclude backend data and tooling.
+*
+!mobile/
+mobile/*
+!mobile/app/
+!mobile/app/**
+
+# Re-apply generated and local exclusions inside the included app.
+mobile/app/node_modules/
+mobile/app/android/
+mobile/app/ios/
+mobile/app/.expo/
+mobile/app/dist/
+mobile/app/web-build/
+mobile/app/.kotlin/
+mobile/app/.env
+mobile/app/.env.*
+!mobile/app/.env.example
+mobile/app/*.log
+mobile/app/*.tsbuildinfo
