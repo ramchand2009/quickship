@@ -1,8 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from io import StringIO
 import hashlib
 import json
+import threading
 import uuid
-from datetime import timedelta
 from unittest.mock import patch
 
 import jwt
@@ -12,8 +14,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.cache import cache
-from django.db import IntegrityError, transaction
-from django.test import TestCase, override_settings
+from django.db import IntegrityError, close_old_connections, transaction
+from django.test import TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
 from django.urls import path
 from django.utils import timezone
 from rest_framework.response import Response
@@ -452,6 +454,58 @@ class MobileRefreshRotationTests(TestCase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.status, MobileSession.STATUS_REVOKED)
         self.assertEqual(self.session.revocation_reason, "session_ineligible")
+
+
+@skipUnlessDBFeature("has_select_for_update")
+class MobileRefreshConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="concurrent-rotation-user")
+        self.tenant = Tenant.objects.order_by("pk").first()
+        if self.tenant is None:
+            self.tenant = Tenant.objects.create(
+                name="Concurrent Tenant",
+                slug="concurrent-tenant",
+            )
+        TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        self.session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+
+    def test_same_refresh_token_has_one_rotation_winner_and_reuse_revokes_family(self):
+        raw_token, _ = issue_refresh_token(self.session)
+        start = threading.Barrier(3)
+
+        def rotate_once():
+            close_old_connections()
+            try:
+                start.wait(timeout=10)
+                rotate_refresh_token(
+                    raw_token=raw_token,
+                    installation_id=self.session.installation_id,
+                )
+                return "rotated"
+            except RefreshTokenReuseDetected:
+                return "reuse_detected"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(rotate_once) for _ in range(2)]
+            start.wait(timeout=10)
+            outcomes = sorted(future.result(timeout=15) for future in futures)
+
+        self.assertEqual(outcomes, ["reuse_detected", "rotated"])
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(self.session.revocation_reason, "refresh_token_reuse")
+        self.assertFalse(self.session.refresh_tokens.filter(revoked_at__isnull=True).exists())
 
 
 @override_settings(ROOT_URLCONF=__name__)
