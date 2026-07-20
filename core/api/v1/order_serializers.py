@@ -1,10 +1,16 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from rest_framework import serializers
 
 from core.models import ShiprocketOrder, TenantMembership
 
 from .session_services import ROLE_PERMISSIONS
+
+
+FULL_ORDER_DETAIL_ROLES = {
+    TenantMembership.ROLE_VENDOR_OWNER,
+    TenantMembership.ROLE_VENDOR_OPERATOR,
+}
 
 
 class OrderListQuerySerializer(serializers.Serializer):
@@ -75,10 +81,7 @@ class OrderSummarySerializer(serializers.ModelSerializer):
         if not name:
             return None
         role = self.context.get("role")
-        if role in {
-            TenantMembership.ROLE_VENDOR_OWNER,
-            TenantMembership.ROLE_VENDOR_OPERATOR,
-        }:
+        if role in FULL_ORDER_DETAIL_ROLES:
             return name
         return f"{name[0]}•••"
 
@@ -188,11 +191,11 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 quantity = 1
             try:
                 unit_price = Decimal(str(item.get("price") or item.get("unit_price") or "0"))
-            except Exception:
+            except (InvalidOperation, TypeError, ValueError):
                 unit_price = Decimal("0.00")
             try:
                 total = Decimal(str(item.get("total"))) if item.get("total") is not None else unit_price * quantity
-            except Exception:
+            except (InvalidOperation, TypeError, ValueError):
                 total = unit_price * quantity
             product_id = item.get("product_id")
             try:
@@ -224,6 +227,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
         return order.cancellation_reason or None
 
     def get_cancellation_note(self, order):
+        if self.context.get("role") not in FULL_ORDER_DETAIL_ROLES:
+            return None
         return order.cancellation_note or None
 
     def get_allowed_actions(self, order):
@@ -264,16 +269,13 @@ class OrderDetailSerializer(OrderSummarySerializer):
 
     def get_activity(self, order):
         role = self.context.get("role")
-        show_actor = role in {
-            TenantMembership.ROLE_VENDOR_OWNER,
-            TenantMembership.ROLE_VENDOR_OPERATOR,
-        }
+        show_sensitive_activity = role in FULL_ORDER_DETAIL_ROLES
         return [
             {
                 "id": entry.pk,
                 "title": entry.title or "Order activity",
-                "description": entry.description or None,
-                "actor_display_name": entry.triggered_by or None if show_actor else None,
+                "description": entry.description or None if show_sensitive_activity else None,
+                "actor_display_name": entry.triggered_by or None if show_sensitive_activity else None,
                 "previous_status": entry.previous_status or None,
                 "current_status": entry.current_status or None,
                 "created_at": entry.created_at,

@@ -210,6 +210,8 @@ class MobileOrderDetailApiTests(TestCase):
                 "courier_name": "Safe Courier",
                 "consumer_secret": "must-never-leak",
             },
+            cancellation_reason=ShiprocketOrder.CANCEL_REASON_CUSTOMER_REQUEST,
+            cancellation_note="Customer shared a private reason",
         )
         self.activity = OrderActivityLog.objects.create(
             tenant=self.tenant,
@@ -253,6 +255,8 @@ class MobileOrderDetailApiTests(TestCase):
                 "address": True,
                 "actions": True,
                 "actor": "operator@example.com",
+                "description": "Ready for dispatch",
+                "cancellation_note": "Customer shared a private reason",
             },
             TenantMembership.ROLE_VENDOR_OPERATOR: {
                 "name": "Private Customer",
@@ -261,6 +265,8 @@ class MobileOrderDetailApiTests(TestCase):
                 "address": True,
                 "actions": True,
                 "actor": "operator@example.com",
+                "description": "Ready for dispatch",
+                "cancellation_note": "Customer shared a private reason",
             },
             TenantMembership.ROLE_VENDOR_VIEWER: {
                 "name": "P•••",
@@ -269,6 +275,8 @@ class MobileOrderDetailApiTests(TestCase):
                 "address": False,
                 "actions": False,
                 "actor": None,
+                "description": None,
+                "cancellation_note": None,
             },
             TenantMembership.ROLE_WAREHOUSE_OPERATOR: {
                 "name": "Private Customer",
@@ -277,6 +285,8 @@ class MobileOrderDetailApiTests(TestCase):
                 "address": True,
                 "actions": False,
                 "actor": None,
+                "description": None,
+                "cancellation_note": None,
             },
         }
         for role, expected in expectations.items():
@@ -291,6 +301,8 @@ class MobileOrderDetailApiTests(TestCase):
                 self.assertEqual(customer["delivery_address"] is not None, expected["address"])
                 self.assertEqual(bool(data["allowed_actions"]), expected["actions"])
                 self.assertEqual(data["activity"][0]["actor_display_name"], expected["actor"])
+                self.assertEqual(data["activity"][0]["description"], expected["description"])
+                self.assertEqual(data["cancellation_note"], expected["cancellation_note"])
                 action_targets = {
                     action["target_status"]
                     for action in data["allowed_actions"]
