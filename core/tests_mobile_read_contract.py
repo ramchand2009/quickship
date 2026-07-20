@@ -163,6 +163,13 @@ class MobileReadContractTests(OpenApiContractMixin, TestCase):
                 self.assertEqual(response.status_code, 401)
                 self.assert_contract(response, "ErrorResponse")
 
+    def test_every_read_operation_rejects_mutations(self):
+        for path, _schema_name in self.endpoints():
+            with self.subTest(path=path):
+                response = self.client.post(path, {}, headers=self.headers)
+                self.assertEqual(response.status_code, 405)
+                self.assert_contract(response, "ErrorResponse")
+
     def test_semantic_read_errors_match_the_standard_contract(self):
         no_tenant_user = get_user_model().objects.create_user(username="contract-no-tenant")
         no_tenant_session = create_mobile_session(
