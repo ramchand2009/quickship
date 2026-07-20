@@ -661,6 +661,7 @@ class ShiprocketOrder(models.Model):
     manual_shipping_country = models.CharField(max_length=120, blank=True)
     manual_shipping_pincode = models.CharField(max_length=20, blank=True)
     local_status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_NEW)
+    version = models.PositiveBigIntegerField(default=1)
     cancellation_reason = models.CharField(max_length=32, choices=CANCELLATION_REASON_CHOICES, blank=True)
     cancellation_note = models.CharField(max_length=255, blank=True)
     tracking_number = models.CharField(max_length=128, blank=True)

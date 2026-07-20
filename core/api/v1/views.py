@@ -18,6 +18,9 @@ from .serializers import (
 )
 from .dashboard_services import build_mobile_dashboard
 from .permissions import HasActiveMobileTenant
+from .order_serializers import OrderListQuerySerializer, OrderSummarySerializer
+from .order_services import mobile_order_queryset
+from .pagination import MobileCursorPagination
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
     InvalidRefreshToken,
@@ -184,3 +187,25 @@ class MobileDashboardView(MobileReadEnabledMixin, APIView):
         response["ETag"] = etag
         response["Cache-Control"] = f"private, max-age={settings.MOBILE_DASHBOARD_CACHE_SECONDS}"
         return response
+
+
+class MobileOrderListView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasActiveMobileTenant]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        query = OrderListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        queryset = mobile_order_queryset(
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            filters=query.validated_data,
+        )
+        paginator = MobileCursorPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        data = OrderSummarySerializer(
+            page,
+            many=True,
+            context={"role": request.tenant_membership.role},
+        ).data
+        return paginator.get_paginated_response(data)
