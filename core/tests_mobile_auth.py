@@ -1,5 +1,6 @@
 from io import StringIO
 import hashlib
+import json
 import uuid
 from datetime import timedelta
 
@@ -8,6 +9,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import path
@@ -552,3 +554,129 @@ class MobileAuthenticationTests(TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(allowed.json()["data"]["role"], TenantMembership.ROLE_WAREHOUSE_OPERATOR)
         self.assertEqual(vendor_denied.status_code, 403)
+
+
+class MobileLoginEndpointTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.password = "Strong-Mobile-Password-123"
+        self.user = get_user_model().objects.create_user(
+            username="mobile-login-user",
+            password=self.password,
+            email="mobile@example.com",
+        )
+        self.tenant = Tenant.objects.create(name="Login Tenant", slug="login-tenant")
+        self.membership = TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        self.installation_id = uuid.uuid4()
+
+    def tearDown(self):
+        cache.clear()
+
+    def payload(self, **overrides):
+        values = {
+            "username": self.user.username,
+            "password": self.password,
+            "installation_id": str(self.installation_id),
+            "platform": "android",
+            "app_version": "1.0.0",
+        }
+        values.update(overrides)
+        return values
+
+    def post_login(self, **overrides):
+        return self.client.post(
+            "/api/v1/auth/login",
+            data=json.dumps(self.payload(**overrides)),
+            content_type="application/json",
+        )
+
+    def test_single_tenant_login_creates_scoped_session_and_token_pair(self):
+        response = self.post_login()
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()["data"]
+        session = MobileSession.objects.get(user=self.user, installation_id=self.installation_id)
+        self.assertEqual(body["session"]["active_tenant"]["tenant_id"], self.tenant.pk)
+        self.assertEqual(body["session"]["available_tenants"][0]["role"], "vendor_owner")
+        self.assertIn("orders.update_status", body["session"]["permissions"])
+        self.assertEqual(decode_access_token(body["tokens"]["access_token"])["sid"], str(session.pk))
+        self.assertEqual(
+            session.refresh_tokens.get().token_hash,
+            hash_refresh_token(body["tokens"]["refresh_token"]),
+        )
+        self.assertNotContains(response, self.password)
+
+    def test_multiple_tenants_require_explicit_selection(self):
+        second_tenant = Tenant.objects.create(name="Second Login Tenant", slug="second-login-tenant")
+        TenantMembership.objects.create(
+            user=self.user,
+            tenant=second_tenant,
+            role=TenantMembership.ROLE_VENDOR_VIEWER,
+        )
+
+        response = self.post_login()
+
+        body = response.json()["data"]
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(body["session"]["active_tenant"])
+        self.assertEqual(len(body["session"]["available_tenants"]), 2)
+        self.assertEqual(body["session"]["permissions"], [])
+        self.assertIsNone(decode_access_token(body["tokens"]["access_token"])["tenant_id"])
+
+    def test_bad_credentials_and_inactive_user_are_generic(self):
+        bad_password = self.post_login(password="incorrect-password")
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        inactive = self.post_login()
+
+        for response in (bad_password, inactive):
+            self.assertEqual(response.status_code, 401)
+            self.assertEqual(response.json()["error"]["code"], "authentication_required")
+            self.assertNotContains(response, self.user.username, status_code=401)
+
+    def test_inactive_tenant_cannot_start_mobile_session(self):
+        self.tenant.is_active = False
+        self.tenant.save(update_fields=["is_active"])
+
+        response = self.post_login()
+
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(MobileSession.objects.filter(user=self.user).exists())
+
+    @override_settings(
+        LOGIN_LOCKOUT_ATTEMPTS=2,
+        LOGIN_LOCKOUT_WINDOW_SECONDS=60,
+        LOGIN_LOCKOUT_DURATION_SECONDS=60,
+    )
+    def test_existing_lockout_policy_returns_retryable_rate_limit(self):
+        first = self.post_login(password="wrong-one")
+        locked = self.post_login(password="wrong-two")
+
+        self.assertEqual(first.status_code, 401)
+        self.assertEqual(locked.status_code, 429)
+        self.assertEqual(locked.json()["error"]["code"], "rate_limited")
+        self.assertIn("Retry-After", locked)
+
+    def test_invalid_platform_is_rejected_before_authentication(self):
+        response = self.post_login(platform="ios")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["code"], "validation_error")
+        self.assertIn("platform", response.json()["error"]["fields"])
+
+    def test_relogin_same_installation_revokes_old_refresh_family(self):
+        first = self.post_login()
+        old_refresh = first.json()["data"]["tokens"]["refresh_token"]
+        second = self.post_login(app_version="1.0.1")
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(MobileSession.objects.filter(user=self.user).count(), 1)
+        session = MobileSession.objects.get(user=self.user)
+        self.assertEqual(session.app_version, "1.0.1")
+        self.assertIsNotNone(
+            session.refresh_tokens.get(token_hash=hash_refresh_token(old_refresh)).revoked_at
+        )

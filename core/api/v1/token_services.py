@@ -24,7 +24,6 @@ ACCESS_TOKEN_REQUIRED_CLAIMS = [
     "jti",
     "sub",
     "sid",
-    "tenant_id",
     "token_type",
 ]
 
@@ -80,6 +79,8 @@ def decode_access_token(encoded_token):
     except jwt.PyJWTError as error:
         raise InvalidAccessToken("The access token is invalid or expired.") from error
 
+    if "tenant_id" not in payload:
+        raise InvalidAccessToken("The access token tenant context is missing.")
     if payload.get("token_type") != "access":
         raise InvalidAccessToken("The access token type is invalid.")
     return payload
