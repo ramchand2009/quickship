@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import jwt
 from django.conf import settings
+from django.contrib.auth import SESSION_KEY
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
@@ -680,3 +681,76 @@ class MobileLoginEndpointTests(TestCase):
         self.assertIsNotNone(
             session.refresh_tokens.get(token_hash=hash_refresh_token(old_refresh)).revoked_at
         )
+
+    def test_refresh_rotates_pair_and_reuse_revokes_session(self):
+        login = self.post_login()
+        tokens = login.json()["data"]["tokens"]
+        refresh_payload = {
+            "refresh_token": tokens["refresh_token"],
+            "installation_id": str(self.installation_id),
+        }
+
+        refreshed = self.client.post(
+            "/api/v1/auth/refresh",
+            data=json.dumps(refresh_payload),
+            content_type="application/json",
+        )
+        reused = self.client.post(
+            "/api/v1/auth/refresh",
+            data=json.dumps(refresh_payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(refreshed.status_code, 200)
+        self.assertNotEqual(
+            refreshed.json()["data"]["refresh_token"],
+            tokens["refresh_token"],
+        )
+        self.assertEqual(reused.status_code, 401)
+        session = MobileSession.objects.get(user=self.user)
+        self.assertEqual(session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(session.revocation_reason, "refresh_token_reuse")
+
+    def test_refresh_rejects_wrong_installation_without_consuming_token(self):
+        login = self.post_login()
+        refresh_token = login.json()["data"]["tokens"]["refresh_token"]
+
+        response = self.client.post(
+            "/api/v1/auth/refresh",
+            data=json.dumps(
+                {
+                    "refresh_token": refresh_token,
+                    "installation_id": str(uuid.uuid4()),
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        token = MobileRefreshToken.objects.get(token_hash=hash_refresh_token(refresh_token))
+        self.assertIsNone(token.consumed_at)
+
+    def test_logout_revokes_only_mobile_session_not_browser_session(self):
+        self.client.force_login(self.user)
+        browser_user_id = self.client.session[SESSION_KEY]
+        login = self.post_login()
+        tokens = login.json()["data"]["tokens"]
+
+        response = self.client.post(
+            "/api/v1/auth/logout",
+            data=json.dumps(
+                {
+                    "refresh_token": tokens["refresh_token"],
+                    "installation_id": str(self.installation_id),
+                }
+            ),
+            content_type="application/json",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        session = MobileSession.objects.get(user=self.user)
+        self.assertEqual(session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(session.revocation_reason, "logout")
+        self.assertFalse(session.refresh_tokens.filter(revoked_at__isnull=True).exists())
+        self.assertEqual(self.client.session[SESSION_KEY], browser_user_id)

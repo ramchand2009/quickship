@@ -211,3 +211,20 @@ def rotate_refresh_token(*, raw_token, installation_id, now=None):
     if terminal_error is not None:
         raise terminal_error
     return result
+
+
+def revoke_session_with_refresh(*, session, raw_token, installation_id, now=None):
+    revoked_at = now or timezone.now()
+    with transaction.atomic():
+        locked_session = MobileSession.objects.select_for_update().get(pk=session.pk)
+        if str(locked_session.installation_id) != str(installation_id):
+            raise InvalidRefreshToken("The refresh token is invalid or expired.")
+        try:
+            MobileRefreshToken.objects.select_for_update().get(
+                session=locked_session,
+                token_hash=hash_refresh_token(raw_token),
+            )
+        except MobileRefreshToken.DoesNotExist as error:
+            raise InvalidRefreshToken("The refresh token is invalid or expired.") from error
+        if locked_session.status != MobileSession.STATUS_REVOKED:
+            revoke_session_family(locked_session, now=revoked_at, reason="logout")

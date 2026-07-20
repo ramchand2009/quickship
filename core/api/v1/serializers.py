@@ -9,3 +9,12 @@ class LoginRequestSerializer(serializers.Serializer):
     installation_id = serializers.UUIDField()
     platform = serializers.ChoiceField(choices=["android"])
     app_version = serializers.CharField(max_length=32, allow_blank=True)
+
+
+class RefreshRequestSerializer(serializers.Serializer):
+    refresh_token = serializers.CharField(min_length=32, max_length=512, write_only=True)
+    installation_id = serializers.UUIDField()
+
+
+class LogoutRequestSerializer(RefreshRequestSerializer):
+    pass

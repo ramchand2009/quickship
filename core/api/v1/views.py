@@ -9,9 +9,14 @@ from rest_framework.views import APIView
 from core.access import active_tenant_memberships
 from core.forms import LoginForm
 
-from .serializers import LoginRequestSerializer
+from .serializers import LoginRequestSerializer, LogoutRequestSerializer, RefreshRequestSerializer
 from .session_services import serialize_mobile_session, start_mobile_session
-from .token_services import issue_token_pair
+from .token_services import (
+    InvalidRefreshToken,
+    issue_token_pair,
+    revoke_session_with_refresh,
+    rotate_refresh_token,
+)
 
 
 class MobileLoginView(APIView):
@@ -59,3 +64,40 @@ class MobileLoginView(APIView):
                 }
             }
         )
+
+
+class MobileRefreshView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "mobile_refresh"
+
+    def post(self, request):
+        serializer = RefreshRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        try:
+            tokens = rotate_refresh_token(
+                raw_token=values["refresh_token"],
+                installation_id=values["installation_id"],
+            )
+        except InvalidRefreshToken as error:
+            raise AuthenticationFailed("The refresh token is invalid or expired.") from error
+        return Response({"data": tokens})
+
+
+class MobileLogoutView(APIView):
+    throttle_scope = "mobile_write"
+
+    def post(self, request):
+        serializer = LogoutRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        try:
+            revoke_session_with_refresh(
+                session=request.auth,
+                raw_token=values["refresh_token"],
+                installation_id=values["installation_id"],
+            )
+        except InvalidRefreshToken as error:
+            raise AuthenticationFailed("The refresh token is invalid or expired.") from error
+        return Response(status=204)
