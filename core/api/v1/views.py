@@ -21,6 +21,8 @@ from .permissions import HasActiveMobileTenant
 from .order_serializers import OrderDetailSerializer, OrderListQuerySerializer, OrderSummarySerializer
 from .order_services import mobile_order_detail, mobile_order_queryset
 from .pagination import MobileCursorPagination
+from .product_serializers import ProductListQuerySerializer, ProductSummarySerializer
+from .product_services import mobile_product_queryset, mobile_product_routing_rules
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
     InvalidRefreshToken,
@@ -227,3 +229,24 @@ class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
             },
         ).data
         return Response({"data": data})
+
+
+class MobileProductListView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasActiveMobileTenant]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        query = ProductListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        queryset = mobile_product_queryset(
+            tenant=request.tenant,
+            filters=query.validated_data,
+        )
+        paginator = MobileCursorPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        data = ProductSummarySerializer(
+            page,
+            many=True,
+            context={"routing_rules": mobile_product_routing_rules(tenant=request.tenant)},
+        ).data
+        return paginator.get_paginated_response(data)

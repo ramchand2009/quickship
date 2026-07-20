@@ -9,6 +9,7 @@ from .views import (
     MobileLogoutView,
     MobileOrderListView,
     MobileOrderDetailView,
+    MobileProductListView,
     MobileRefreshView,
     MobileSelectTenantView,
 )
@@ -24,4 +25,5 @@ urlpatterns = [
     path("dashboard", MobileDashboardView.as_view(), name="dashboard"),
     path("orders", MobileOrderListView.as_view(), name="orders"),
     path("orders/<int:order_id>", MobileOrderDetailView.as_view(), name="order_detail"),
+    path("products", MobileProductListView.as_view(), name="products"),
 ]

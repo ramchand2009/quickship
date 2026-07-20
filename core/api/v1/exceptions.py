@@ -5,6 +5,7 @@ import logging
 from rest_framework.exceptions import (
     APIException,
     AuthenticationFailed,
+    MethodNotAllowed,
     NotAuthenticated,
     NotFound,
     PermissionDenied,
@@ -113,6 +114,12 @@ def mobile_exception_handler(exc, context):
         return Response(
             _error_payload("not_found", "The requested resource is unavailable."),
             status=404,
+            headers=headers,
+        )
+    if isinstance(exc, MethodNotAllowed):
+        return Response(
+            _error_payload("method_not_allowed", "This operation is not available."),
+            status=405,
             headers=headers,
         )
     if isinstance(exc, Throttled):
