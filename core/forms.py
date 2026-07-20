@@ -185,10 +185,17 @@ class LoginForm(AuthenticationForm):
         request = getattr(self, "request", None)
         if not request:
             return "unknown"
+        remote_addr = str(request.META.get("REMOTE_ADDR") or "").strip() or "unknown"
+        trusted_proxy_count = max(0, int(getattr(settings, "LOGIN_TRUSTED_PROXY_COUNT", 0) or 0))
+        if trusted_proxy_count == 0:
+            return remote_addr
         forwarded_for = str(request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip() or "unknown"
-        return str(request.META.get("REMOTE_ADDR") or "").strip() or "unknown"
+        chain = [item.strip() for item in forwarded_for.split(",") if item.strip()]
+        chain.append(remote_addr)
+        client_index = len(chain) - trusted_proxy_count - 1
+        if client_index < 0:
+            return remote_addr
+        return chain[client_index]
 
     def _get_login_rate_limit_config(self):
         attempts = int(getattr(settings, "LOGIN_LOCKOUT_ATTEMPTS", 5) or 5)
@@ -201,15 +208,25 @@ class LoginForm(AuthenticationForm):
         ip = self._get_client_ip()
         identity = f"{username}|{ip}" if username else ip
         safe_identity = "".join(char if char.isalnum() or char in {"-", "_", "|", "."} else "_" for char in identity)
-        return f"login_fail:{safe_identity}", f"login_lock:{safe_identity}"
+        identities = [safe_identity]
+        if username:
+            safe_username = "".join(
+                char if char.isalnum() or char in {"-", "_", "."} else "_"
+                for char in username
+            )
+            identities.append(f"user:{safe_username}")
+        return (
+            [f"login_fail:{item}" for item in identities],
+            [f"login_lock:{item}" for item in identities],
+        )
 
     def clean(self):
         attempts_limit, window_seconds, lock_seconds = self._get_login_rate_limit_config()
         if attempts_limit <= 0:
             return super().clean()
 
-        fail_key, lock_key = self._get_rate_limit_keys()
-        if cache.get(lock_key):
+        fail_keys, lock_keys = self._get_rate_limit_keys()
+        if any(cache.get(lock_key) for lock_key in lock_keys):
             raise forms.ValidationError(
                 self.error_messages["too_many_attempts"],
                 code="too_many_attempts",
@@ -218,18 +235,21 @@ class LoginForm(AuthenticationForm):
         try:
             cleaned_data = super().clean()
         except forms.ValidationError as exc:
-            failures = int(cache.get(fail_key, 0) or 0) + 1
-            cache.set(fail_key, failures, timeout=window_seconds)
-            if failures >= attempts_limit:
-                cache.set(lock_key, "1", timeout=lock_seconds)
+            failures = []
+            for fail_key in fail_keys:
+                failure_count = int(cache.get(fail_key, 0) or 0) + 1
+                cache.set(fail_key, failure_count, timeout=window_seconds)
+                failures.append(failure_count)
+            if any(failure_count >= attempts_limit for failure_count in failures):
+                for lock_key in lock_keys:
+                    cache.set(lock_key, "1", timeout=lock_seconds)
                 raise forms.ValidationError(
                     self.error_messages["too_many_attempts"],
                     code="too_many_attempts",
                 ) from exc
             raise
 
-        cache.delete(fail_key)
-        cache.delete(lock_key)
+        cache.delete_many([*fail_keys, *lock_keys])
         return cleaned_data
 
 

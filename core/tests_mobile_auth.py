@@ -787,6 +787,29 @@ class MobileLoginEndpointTests(TestCase):
         self.assertEqual(locked.json()["error"]["code"], "rate_limited")
         self.assertIn("Retry-After", locked)
 
+    @override_settings(
+        LOGIN_LOCKOUT_ATTEMPTS=2,
+        LOGIN_LOCKOUT_WINDOW_SECONDS=60,
+        LOGIN_LOCKOUT_DURATION_SECONDS=60,
+        LOGIN_TRUSTED_PROXY_COUNT=0,
+    )
+    def test_spoofed_forwarding_headers_cannot_bypass_username_lockout(self):
+        first = self.client.post(
+            "/api/v1/auth/login",
+            data=json.dumps(self.payload(password="wrong-one")),
+            content_type="application/json",
+            headers={"X-Forwarded-For": "198.51.100.10"},
+        )
+        second = self.client.post(
+            "/api/v1/auth/login",
+            data=json.dumps(self.payload(password="wrong-two")),
+            content_type="application/json",
+            headers={"X-Forwarded-For": "203.0.113.20"},
+        )
+
+        self.assertEqual(first.status_code, 401)
+        self.assertEqual(second.status_code, 429)
+
     def test_invalid_platform_is_rejected_before_authentication(self):
         response = self.post_login(platform="ios")
 

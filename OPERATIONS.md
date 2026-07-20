@@ -77,6 +77,7 @@ Set these in your deployment environment:
 - `LOGIN_LOCKOUT_ATTEMPTS=5`
 - `LOGIN_LOCKOUT_WINDOW_SECONDS=900`
 - `LOGIN_LOCKOUT_DURATION_SECONDS=900`
+- `LOGIN_TRUSTED_PROXY_COUNT=0` (set only when the edge proxy sanitizes and appends forwarding headers)
 - `MOBILE_API_LOGIN_RATE=5/min`
 - `MOBILE_API_ENABLED=false` until the mobile milestone is approved
 - `MOBILE_AUTH_ENABLED=false` until Gate M2 is approved
