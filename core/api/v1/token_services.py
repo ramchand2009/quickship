@@ -24,6 +24,7 @@ ACCESS_TOKEN_REQUIRED_CLAIMS = [
     "jti",
     "sub",
     "sid",
+    "sg",
     "token_type",
 ]
 
@@ -65,6 +66,7 @@ def issue_access_token(session, *, now=None):
         "jti": str(uuid.uuid4()),
         "sub": str(session.user_id),
         "sid": str(session.pk),
+        "sg": session.auth_generation,
         "tenant_id": session.active_tenant_id,
         "token_type": "access",
     }

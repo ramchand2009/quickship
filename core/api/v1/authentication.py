@@ -41,6 +41,8 @@ class MobileAccessTokenAuthentication(BaseAuthentication):
         tenant_claim = payload.get("tenant_id")
         if str(session.user_id) != payload.get("sub"):
             raise AuthenticationFailed("The access token is invalid or expired.")
+        if payload.get("sg") != session.auth_generation:
+            raise AuthenticationFailed("The access token is invalid or expired.")
         if tenant_claim != session.active_tenant_id:
             raise AuthenticationFailed("The access token is invalid or expired.")
 

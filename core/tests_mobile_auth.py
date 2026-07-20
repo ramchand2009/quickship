@@ -727,6 +727,7 @@ class MobileLoginEndpointTests(TestCase):
 
     def test_relogin_same_installation_revokes_old_refresh_family(self):
         first = self.post_login()
+        old_access = first.json()["data"]["tokens"]["access_token"]
         old_refresh = first.json()["data"]["tokens"]["refresh_token"]
         second = self.post_login(app_version="1.0.1")
 
@@ -737,6 +738,12 @@ class MobileLoginEndpointTests(TestCase):
         self.assertIsNotNone(
             session.refresh_tokens.get(token_hash=hash_refresh_token(old_refresh)).revoked_at
         )
+        self.assertEqual(session.auth_generation, 2)
+        rejected = self.client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {old_access}"},
+        )
+        self.assertEqual(rejected.status_code, 401)
 
     def test_refresh_rotates_pair_and_reuse_revokes_session(self):
         login = self.post_login()

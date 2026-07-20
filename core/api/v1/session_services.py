@@ -77,6 +77,7 @@ def start_mobile_session(*, user, installation_id, app_version, active_tenant=No
     session.app_version = str(app_version or "").strip()
     session.active_tenant = active_tenant
     session.status = MobileSession.STATUS_ACTIVE
+    session.auth_generation += 1
     session.last_seen_at = now
     session.expires_at = expires_at
     session.revoked_at = None
@@ -87,6 +88,7 @@ def start_mobile_session(*, user, installation_id, app_version, active_tenant=No
             "app_version",
             "active_tenant",
             "status",
+            "auth_generation",
             "last_seen_at",
             "expires_at",
             "revoked_at",

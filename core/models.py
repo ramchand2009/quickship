@@ -158,6 +158,7 @@ class MobileSession(models.Model):
         related_name="active_mobile_sessions",
     )
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    auth_generation = models.PositiveBigIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     last_seen_at = models.DateTimeField(default=timezone.now)
     expires_at = models.DateTimeField(default=default_mobile_session_expiry)
