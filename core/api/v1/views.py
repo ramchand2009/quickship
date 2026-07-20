@@ -18,8 +18,8 @@ from .serializers import (
 )
 from .dashboard_services import build_mobile_dashboard
 from .permissions import HasActiveMobileTenant
-from .order_serializers import OrderListQuerySerializer, OrderSummarySerializer
-from .order_services import mobile_order_queryset
+from .order_serializers import OrderDetailSerializer, OrderListQuerySerializer, OrderSummarySerializer
+from .order_services import mobile_order_detail, mobile_order_queryset
 from .pagination import MobileCursorPagination
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
@@ -209,3 +209,21 @@ class MobileOrderListView(MobileReadEnabledMixin, APIView):
             context={"role": request.tenant_membership.role},
         ).data
         return paginator.get_paginated_response(data)
+
+
+class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasActiveMobileTenant]
+    throttle_scope = "mobile_read"
+
+    def get(self, request, order_id):
+        order, activity = mobile_order_detail(tenant=request.tenant, order_id=order_id)
+        if order is None:
+            raise NotFound("The requested resource is unavailable.")
+        data = OrderDetailSerializer(
+            order,
+            context={
+                "role": request.tenant_membership.role,
+                "activity": activity,
+            },
+        ).data
+        return Response({"data": data})

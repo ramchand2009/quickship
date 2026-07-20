@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.api.v1.session_services import create_mobile_session
 from core.api.v1.token_services import issue_access_token
-from core.models import ShiprocketOrder, Tenant, TenantMembership
+from core.models import OrderActivityLog, ShiprocketOrder, Tenant, TenantMembership
 
 
 @override_settings(MOBILE_API_ENABLED=True, MOBILE_READ_API_ENABLED=True)
@@ -155,4 +155,187 @@ class MobileOrderListApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["data"]), 25)
+        self.assertLessEqual(len(queries), 5)
+
+
+@override_settings(MOBILE_API_ENABLED=True, MOBILE_READ_API_ENABLED=True)
+class MobileOrderDetailApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="order-detail-user")
+        self.tenant = Tenant.objects.create(name="Detail Tenant", slug="detail-tenant")
+        self.other_tenant = Tenant.objects.create(name="Other Detail", slug="other-detail")
+        self.membership = TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+        token, _ = issue_access_token(session)
+        self.headers = {"Authorization": f"Bearer {token}"}
+        self.order = ShiprocketOrder.objects.create(
+            tenant=self.tenant,
+            shiprocket_order_id="MOBILE-DETAIL-1",
+            local_status=ShiprocketOrder.STATUS_ACCEPTED,
+            customer_name="Private Customer",
+            customer_email="private@example.com",
+            customer_phone="9876543210",
+            shipping_address={
+                "name": "Private Customer",
+                "email": "private@example.com",
+                "phone": "9876543210",
+                "address_1": "10 Private Street",
+                "city": "Chennai",
+                "state": "Tamil Nadu",
+                "pincode": "600001",
+                "country": "India",
+            },
+            order_items=[
+                {
+                    "product_id": 42,
+                    "name": "Organic Item",
+                    "sku": "ORG-42",
+                    "quantity": 2,
+                    "price": "75.25",
+                    "image_url": "https://example.com/item.jpg",
+                }
+            ],
+            total="150.50",
+            shipping_base_amount="20.00",
+            raw_payload={
+                "courier_name": "Safe Courier",
+                "consumer_secret": "must-never-leak",
+            },
+        )
+        self.activity = OrderActivityLog.objects.create(
+            tenant=self.tenant,
+            order=self.order,
+            shiprocket_order_id=self.order.shiprocket_order_id,
+            title="Order accepted",
+            description="Ready for dispatch",
+            previous_status=ShiprocketOrder.STATUS_NEW,
+            current_status=ShiprocketOrder.STATUS_ACCEPTED,
+            triggered_by="operator@example.com",
+        )
+
+    def get(self, order=None):
+        target = order or self.order
+        return self.client.get(f"/api/v1/orders/{target.pk}", headers=self.headers)
+
+    def test_owner_detail_matches_normalized_contract_and_excludes_raw_payload(self):
+        response = self.get()
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]
+        self.assertEqual(data["customer"]["name"], "Private Customer")
+        self.assertEqual(data["customer"]["phone"], "9876543210")
+        self.assertEqual(data["customer"]["email"], "private@example.com")
+        self.assertIn("10 Private Street", data["customer"]["delivery_address"])
+        self.assertEqual(data["items"][0]["total"], {"amount": "150.50", "currency": "INR"})
+        self.assertEqual(data["courier_name"], "Safe Courier")
+        self.assertEqual(data["shipping_cost"], {"amount": "20.00", "currency": "INR"})
+        self.assertEqual(data["activity"][0]["id"], self.activity.pk)
+        self.assertEqual(data["activity"][0]["actor_display_name"], "operator@example.com")
+        response_text = response.content.decode("utf-8")
+        self.assertNotIn("consumer_secret", response_text)
+        self.assertNotIn("must-never-leak", response_text)
+
+    def test_role_field_snapshots_and_allowed_actions(self):
+        expectations = {
+            TenantMembership.ROLE_VENDOR_OWNER: {
+                "name": "Private Customer",
+                "phone": "9876543210",
+                "email": "private@example.com",
+                "address": True,
+                "actions": True,
+                "actor": "operator@example.com",
+            },
+            TenantMembership.ROLE_VENDOR_OPERATOR: {
+                "name": "Private Customer",
+                "phone": "9876543210",
+                "email": "private@example.com",
+                "address": True,
+                "actions": True,
+                "actor": "operator@example.com",
+            },
+            TenantMembership.ROLE_VENDOR_VIEWER: {
+                "name": "P•••",
+                "phone": None,
+                "email": None,
+                "address": False,
+                "actions": False,
+                "actor": None,
+            },
+            TenantMembership.ROLE_WAREHOUSE_OPERATOR: {
+                "name": "Private Customer",
+                "phone": "9876543210",
+                "email": None,
+                "address": True,
+                "actions": False,
+                "actor": None,
+            },
+        }
+        for role, expected in expectations.items():
+            with self.subTest(role=role):
+                self.membership.role = role
+                self.membership.save(update_fields=["role"])
+                data = self.get().json()["data"]
+                customer = data["customer"]
+                self.assertEqual(customer["name"], expected["name"])
+                self.assertEqual(customer["phone"], expected["phone"])
+                self.assertEqual(customer["email"], expected["email"])
+                self.assertEqual(customer["delivery_address"] is not None, expected["address"])
+                self.assertEqual(bool(data["allowed_actions"]), expected["actions"])
+                self.assertEqual(data["activity"][0]["actor_display_name"], expected["actor"])
+                action_targets = {
+                    action["target_status"]
+                    for action in data["allowed_actions"]
+                    if action["code"] == "update_status"
+                }
+                self.assertNotIn(ShiprocketOrder.STATUS_PACKED, action_targets)
+
+    def test_owner_actions_include_shipping_requirements_and_payment(self):
+        actions = self.get().json()["data"]["allowed_actions"]
+        shipped = next(
+            action for action in actions if action.get("target_status") == ShiprocketOrder.STATUS_SHIPPED
+        )
+        cancelled = next(
+            action for action in actions if action.get("target_status") == ShiprocketOrder.STATUS_CANCELLED
+        )
+        payment = next(action for action in actions if action["code"] == "mark_payment_received")
+
+        self.assertEqual(
+            shipped["required_fields"],
+            ["courier_name", "tracking_number", "shipping_base_amount"],
+        )
+        self.assertTrue(cancelled["reason_required"])
+        self.assertTrue(payment["confirmation_required"])
+
+    def test_cross_tenant_id_and_cross_tenant_activity_are_not_exposed(self):
+        other_order = ShiprocketOrder.objects.create(
+            tenant=self.other_tenant,
+            shiprocket_order_id="MOBILE-DETAIL-OTHER",
+        )
+        OrderActivityLog.objects.create(
+            tenant=self.other_tenant,
+            order=self.order,
+            title="Cross tenant poison",
+            description="must not appear",
+        )
+
+        forbidden = self.get(other_order)
+        own = self.get()
+
+        self.assertEqual(forbidden.status_code, 404)
+        self.assertNotIn("Cross tenant poison", own.content.decode("utf-8"))
+
+    def test_detail_query_count_is_bounded(self):
+        with CaptureQueriesContext(connection) as queries:
+            response = self.get()
+
+        self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(queries), 5)

@@ -1,6 +1,6 @@
 from django.db.models import Q
 
-from core.models import ShiprocketOrder, TenantMembership
+from core.models import OrderActivityLog, ShiprocketOrder, TenantMembership
 
 
 CUSTOMER_SEARCH_ROLES = {
@@ -63,3 +63,58 @@ def mobile_order_queryset(*, tenant, role, filters):
         "created_at",
         "updated_at",
     )
+
+
+def mobile_order_detail(*, tenant, order_id):
+    order = ShiprocketOrder.objects.filter(tenant=tenant, pk=order_id).only(
+        "id",
+        "tenant_id",
+        "source",
+        "shiprocket_order_id",
+        "woocommerce_order_id",
+        "channel_order_id",
+        "customer_name",
+        "customer_email",
+        "customer_phone",
+        "manual_customer_name",
+        "manual_customer_email",
+        "manual_customer_phone",
+        "manual_customer_alternate_phone",
+        "manual_shipping_address_1",
+        "manual_shipping_address_2",
+        "manual_shipping_city",
+        "manual_shipping_state",
+        "manual_shipping_country",
+        "manual_shipping_pincode",
+        "shipping_address",
+        "billing_address",
+        "raw_payload",
+        "local_status",
+        "payment_received_at",
+        "order_items",
+        "total",
+        "order_date",
+        "tracking_number",
+        "shipping_base_amount",
+        "cancellation_reason",
+        "cancellation_note",
+        "version",
+        "created_at",
+        "updated_at",
+    ).first()
+    if order is None:
+        return None, []
+    activity = list(
+        OrderActivityLog.objects.filter(tenant=tenant, order=order)
+        .only(
+            "id",
+            "title",
+            "description",
+            "triggered_by",
+            "previous_status",
+            "current_status",
+            "created_at",
+        )
+        .order_by("-created_at", "-pk")[:50]
+    )
+    return order, activity

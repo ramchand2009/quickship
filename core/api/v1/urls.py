@@ -8,6 +8,7 @@ from .views import (
     MobileLoginView,
     MobileLogoutView,
     MobileOrderListView,
+    MobileOrderDetailView,
     MobileRefreshView,
     MobileSelectTenantView,
 )
@@ -22,4 +23,5 @@ urlpatterns = [
     path("auth/select-tenant", MobileSelectTenantView.as_view(), name="auth_select_tenant"),
     path("dashboard", MobileDashboardView.as_view(), name="dashboard"),
     path("orders", MobileOrderListView.as_view(), name="orders"),
+    path("orders/<int:order_id>", MobileOrderDetailView.as_view(), name="order_detail"),
 ]
