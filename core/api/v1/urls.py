@@ -2,7 +2,13 @@
 
 from django.urls import path
 
-from .views import MobileLoginView, MobileLogoutView, MobileRefreshView
+from .views import (
+    MobileCurrentSessionView,
+    MobileLoginView,
+    MobileLogoutView,
+    MobileRefreshView,
+    MobileSelectTenantView,
+)
 
 app_name = "mobile_api_v1"
 
@@ -10,4 +16,6 @@ urlpatterns = [
     path("auth/login", MobileLoginView.as_view(), name="auth_login"),
     path("auth/refresh", MobileRefreshView.as_view(), name="auth_refresh"),
     path("auth/logout", MobileLogoutView.as_view(), name="auth_logout"),
+    path("auth/me", MobileCurrentSessionView.as_view(), name="auth_me"),
+    path("auth/select-tenant", MobileSelectTenantView.as_view(), name="auth_select_tenant"),
 ]

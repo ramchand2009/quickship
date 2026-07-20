@@ -754,3 +754,112 @@ class MobileLoginEndpointTests(TestCase):
         self.assertEqual(session.revocation_reason, "logout")
         self.assertFalse(session.refresh_tokens.filter(revoked_at__isnull=True).exists())
         self.assertEqual(self.client.session[SESSION_KEY], browser_user_id)
+
+    def test_multi_tenant_me_and_selection_rotate_to_new_context(self):
+        second_tenant = Tenant.objects.create(name="Selectable Tenant", slug="selectable-tenant")
+        TenantMembership.objects.create(
+            user=self.user,
+            tenant=second_tenant,
+            role=TenantMembership.ROLE_VENDOR_VIEWER,
+        )
+        login = self.post_login()
+        tokens = login.json()["data"]["tokens"]
+        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+        current = self.client.get("/api/v1/auth/me", headers=headers)
+        selected = self.client.post(
+            "/api/v1/auth/select-tenant",
+            data=json.dumps(
+                {
+                    "tenant_id": second_tenant.pk,
+                    "refresh_token": tokens["refresh_token"],
+                }
+            ),
+            content_type="application/json",
+            headers=headers,
+        )
+
+        self.assertEqual(current.status_code, 200)
+        self.assertIsNone(current.json()["data"]["active_tenant"])
+        self.assertEqual(len(current.json()["data"]["available_tenants"]), 2)
+        self.assertEqual(selected.status_code, 200)
+        selected_data = selected.json()["data"]
+        self.assertEqual(selected_data["session"]["active_tenant"]["tenant_id"], second_tenant.pk)
+        self.assertNotIn("orders.update_status", selected_data["session"]["permissions"])
+        self.assertEqual(
+            decode_access_token(selected_data["tokens"]["access_token"])["tenant_id"],
+            second_tenant.pk,
+        )
+        old_token = MobileRefreshToken.objects.get(token_hash=hash_refresh_token(tokens["refresh_token"]))
+        self.assertIsNotNone(old_token.consumed_at)
+
+    def test_tenant_selection_rejects_cross_tenant_without_consuming_refresh(self):
+        second_tenant = Tenant.objects.create(name="Owned Second Tenant", slug="owned-second-tenant")
+        TenantMembership.objects.create(
+            user=self.user,
+            tenant=second_tenant,
+            role=TenantMembership.ROLE_VENDOR_VIEWER,
+        )
+        forbidden_tenant = Tenant.objects.create(name="Forbidden Tenant", slug="forbidden-tenant")
+        login = self.post_login()
+        tokens = login.json()["data"]["tokens"]
+
+        response = self.client.post(
+            "/api/v1/auth/select-tenant",
+            data=json.dumps(
+                {
+                    "tenant_id": forbidden_tenant.pk,
+                    "refresh_token": tokens["refresh_token"],
+                }
+            ),
+            content_type="application/json",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        session = MobileSession.objects.get(user=self.user)
+        self.assertIsNone(session.active_tenant_id)
+        refresh = session.refresh_tokens.get(token_hash=hash_refresh_token(tokens["refresh_token"]))
+        self.assertIsNone(refresh.consumed_at)
+
+    def test_me_returns_normalized_permission_matrix_for_all_roles(self):
+        expected_write_access = {
+            TenantMembership.ROLE_VENDOR_OWNER: True,
+            TenantMembership.ROLE_VENDOR_OPERATOR: True,
+            TenantMembership.ROLE_VENDOR_VIEWER: False,
+            TenantMembership.ROLE_WAREHOUSE_OPERATOR: False,
+        }
+
+        for index, (role, can_write) in enumerate(expected_write_access.items()):
+            with self.subTest(role=role):
+                user = get_user_model().objects.create_user(
+                    username=f"role-user-{index}",
+                    password=self.password,
+                )
+                tenant = Tenant.objects.create(name=f"Role Tenant {index}", slug=f"role-tenant-{index}")
+                TenantMembership.objects.create(user=user, tenant=tenant, role=role)
+                login = self.client.post(
+                    "/api/v1/auth/login",
+                    data=json.dumps(
+                        {
+                            "username": user.username,
+                            "password": self.password,
+                            "installation_id": str(uuid.uuid4()),
+                            "platform": "android",
+                            "app_version": "1.0.0",
+                        }
+                    ),
+                    content_type="application/json",
+                )
+                token = login.json()["data"]["tokens"]["access_token"]
+                current = self.client.get(
+                    "/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+
+                self.assertEqual(login.status_code, 200)
+                self.assertEqual(current.status_code, 200)
+                permissions = current.json()["data"]["permissions"]
+                self.assertEqual("orders.update_status" in permissions, can_write)
+                self.assertIn("orders.view", permissions)
+                self.assertIn("stock.view", permissions)

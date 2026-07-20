@@ -1,18 +1,25 @@
 """Views for the version 1 mobile API."""
 
 from django.conf import settings
-from rest_framework.exceptions import AuthenticationFailed, Throttled
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, Throttled
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.access import active_tenant_memberships
 from core.forms import LoginForm
+from core.models import MobileSession, Tenant
 
-from .serializers import LoginRequestSerializer, LogoutRequestSerializer, RefreshRequestSerializer
+from .serializers import (
+    LoginRequestSerializer,
+    LogoutRequestSerializer,
+    RefreshRequestSerializer,
+    SelectTenantRequestSerializer,
+)
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
     InvalidRefreshToken,
+    InvalidTenantSelection,
     issue_token_pair,
     revoke_session_with_refresh,
     rotate_refresh_token,
@@ -101,3 +108,44 @@ class MobileLogoutView(APIView):
         except InvalidRefreshToken as error:
             raise AuthenticationFailed("The refresh token is invalid or expired.") from error
         return Response(status=204)
+
+
+class MobileCurrentSessionView(APIView):
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        memberships = active_tenant_memberships(request.user)
+        return Response({"data": serialize_mobile_session(request.auth, memberships)})
+
+
+class MobileSelectTenantView(APIView):
+    throttle_scope = "mobile_write"
+
+    def post(self, request):
+        serializer = SelectTenantRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        tenant = Tenant.objects.filter(pk=values["tenant_id"], is_active=True).first()
+        if tenant is None:
+            raise PermissionDenied("The selected tenant is unavailable.")
+        try:
+            tokens = rotate_refresh_token(
+                raw_token=values["refresh_token"],
+                installation_id=request.auth.installation_id,
+                active_tenant=tenant,
+            )
+        except InvalidTenantSelection as error:
+            raise PermissionDenied("The selected tenant is unavailable.") from error
+        except InvalidRefreshToken as error:
+            raise AuthenticationFailed("The refresh token is invalid or expired.") from error
+
+        session = MobileSession.objects.select_related("user", "active_tenant").get(pk=request.auth.pk)
+        memberships = active_tenant_memberships(request.user)
+        return Response(
+            {
+                "data": {
+                    "tokens": tokens,
+                    "session": serialize_mobile_session(session, memberships),
+                }
+            }
+        )

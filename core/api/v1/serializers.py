@@ -18,3 +18,8 @@ class RefreshRequestSerializer(serializers.Serializer):
 
 class LogoutRequestSerializer(RefreshRequestSerializer):
     pass
+
+
+class SelectTenantRequestSerializer(serializers.Serializer):
+    tenant_id = serializers.IntegerField(min_value=1)
+    refresh_token = serializers.CharField(min_length=32, max_length=512, write_only=True)

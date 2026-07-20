@@ -40,6 +40,13 @@ class RefreshTokenReuseDetected(InvalidRefreshToken):
     pass
 
 
+class InvalidTenantSelection(ValueError):
+    pass
+
+
+_KEEP_TENANT = object()
+
+
 def issue_access_token(session, *, now=None):
     issued_at = now or timezone.now()
     expires_at = min(
@@ -159,7 +166,7 @@ def _session_is_eligible(session, now):
     ).exists()
 
 
-def rotate_refresh_token(*, raw_token, installation_id, now=None):
+def rotate_refresh_token(*, raw_token, installation_id, now=None, active_tenant=_KEEP_TENANT):
     rotated_at = now or timezone.now()
     terminal_error = None
     result = None
@@ -193,6 +200,17 @@ def rotate_refresh_token(*, raw_token, installation_id, now=None):
             revoke_session_family(session, now=rotated_at, reason="session_ineligible")
             terminal_error = InvalidRefreshToken("The refresh token is invalid or expired.")
         else:
+            if active_tenant is not _KEEP_TENANT:
+                membership_exists = TenantMembership.objects.filter(
+                    user=session.user,
+                    tenant=active_tenant,
+                    is_active=True,
+                    tenant__is_active=True,
+                ).exists()
+                if not membership_exists:
+                    raise InvalidTenantSelection("The selected tenant is unavailable.")
+                session.active_tenant = active_tenant
+                session.save(update_fields=["active_tenant"])
             token.consumed_at = rotated_at
             token.save(update_fields=["consumed_at"])
             child_raw_token, child = issue_refresh_token(
