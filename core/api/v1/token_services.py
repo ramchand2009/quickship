@@ -98,7 +98,7 @@ def decode_access_token(encoded_token):
 def hash_refresh_token(raw_token):
     token_bytes = str(raw_token or "").encode("utf-8")
     key = hmac.new(
-        settings.SECRET_KEY.encode("utf-8"),
+        settings.MOBILE_REFRESH_TOKEN_HASH_KEY.encode("utf-8"),
         b"mathukai.mobile-refresh-token.v1",
         hashlib.sha256,
     ).digest()

@@ -13,6 +13,7 @@ from django.contrib.auth import SESSION_KEY
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
+from django.core.checks import Tags, run_checks
 from django.core.cache import cache
 from django.db import IntegrityError, close_old_connections, transaction
 from django.test import TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
@@ -358,6 +359,31 @@ class MobileAccessTokenTests(TestCase):
             )
             with self.subTest(payload=invalid_payload), self.assertRaises(InvalidAccessToken):
                 decode_access_token(encoded_invalid)
+
+    @override_settings(
+        DEBUG=False,
+        SECRET_KEY="django-secret-that-is-long-and-distinct-123456789",
+        MOBILE_JWT_SIGNING_KEY_EXPLICIT=False,
+        MOBILE_JWT_SIGNING_KEY="django-secret-that-is-long-and-distinct-123456789",
+        MOBILE_REFRESH_TOKEN_HASH_KEY="change-me",
+    )
+    def test_deployment_check_rejects_missing_or_coupled_mobile_secrets(self):
+        errors = run_checks(tags=[Tags.security], include_deployment_checks=True)
+
+        mobile_errors = [error for error in errors if error.id.startswith("core.E")]
+        self.assertGreaterEqual(len(mobile_errors), 3)
+
+    @override_settings(
+        DEBUG=False,
+        SECRET_KEY="django-secret-that-is-long-and-distinct-123456789",
+        MOBILE_JWT_SIGNING_KEY_EXPLICIT=True,
+        MOBILE_JWT_SIGNING_KEY="mobile-jwt-secret-that-is-long-and-distinct-123456789",
+        MOBILE_REFRESH_TOKEN_HASH_KEY="mobile-refresh-hash-secret-long-and-distinct-123456789",
+    )
+    def test_deployment_check_accepts_separated_mobile_secrets(self):
+        errors = run_checks(tags=[Tags.security], include_deployment_checks=True)
+
+        self.assertFalse([error for error in errors if error.id.startswith("core.E")])
 
 
 class MobileRefreshRotationTests(TestCase):

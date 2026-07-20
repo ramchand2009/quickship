@@ -94,6 +94,7 @@ Set these in your deployment environment:
 - `MOBILE_ACCESS_TOKEN_ISSUER=mathukai-api`
 - `MOBILE_ACCESS_TOKEN_AUDIENCE=mathukai-operations-android`
 - `MOBILE_JWT_SIGNING_KEY=<independent high-entropy secret>`
+- `MOBILE_REFRESH_TOKEN_HASH_KEY=<independent high-entropy secret>`
 
 Mobile authentication cleanup runs daily through Celery Beat. Preview or run it manually with:
 

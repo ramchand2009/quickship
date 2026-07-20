@@ -7,6 +7,7 @@ from core.management.commands.audit_rc2_migration_safety import (
     find_duplicate_active_whatsapp_queue_jobs,
     find_duplicate_woocommerce_orders,
 )
+from core.mobile_security import mobile_secret_issues
 
 
 class Command(BaseCommand):
@@ -40,6 +41,11 @@ class Command(BaseCommand):
                 failures.append("ALLOWED_HOSTS is empty while DEBUG is false.")
             else:
                 successes.append(f"ALLOWED_HOSTS configured ({len(allowed_hosts)} host(s)).")
+            secret_issues = mobile_secret_issues(settings)
+            if secret_issues:
+                failures.extend(secret_issues)
+            else:
+                successes.append("Mobile authentication secrets are production-safe and separated.")
 
         csrf_origins = list(getattr(settings, "CSRF_TRUSTED_ORIGINS", []) or [])
         if not csrf_origins:
