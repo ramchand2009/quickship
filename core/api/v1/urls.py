@@ -4,6 +4,7 @@ from django.urls import path
 
 from .views import (
     MobileCurrentSessionView,
+    MobileDashboardView,
     MobileLoginView,
     MobileLogoutView,
     MobileRefreshView,
@@ -18,4 +19,5 @@ urlpatterns = [
     path("auth/logout", MobileLogoutView.as_view(), name="auth_logout"),
     path("auth/me", MobileCurrentSessionView.as_view(), name="auth_me"),
     path("auth/select-tenant", MobileSelectTenantView.as_view(), name="auth_select_tenant"),
+    path("dashboard", MobileDashboardView.as_view(), name="dashboard"),
 ]

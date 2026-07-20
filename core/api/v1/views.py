@@ -16,6 +16,8 @@ from .serializers import (
     RefreshRequestSerializer,
     SelectTenantRequestSerializer,
 )
+from .dashboard_services import build_mobile_dashboard
+from .permissions import HasActiveMobileTenant
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
     InvalidRefreshToken,
@@ -29,6 +31,13 @@ from .token_services import (
 class MobileAuthEnabledMixin:
     def initial(self, request, *args, **kwargs):
         if not settings.MOBILE_API_ENABLED or not settings.MOBILE_AUTH_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        return super().initial(request, *args, **kwargs)
+
+
+class MobileReadEnabledMixin:
+    def initial(self, request, *args, **kwargs):
+        if not settings.MOBILE_API_ENABLED or not settings.MOBILE_READ_API_ENABLED:
             raise NotFound("The requested resource is unavailable.")
         return super().initial(request, *args, **kwargs)
 
@@ -156,3 +165,22 @@ class MobileSelectTenantView(MobileAuthEnabledMixin, APIView):
                 }
             }
         )
+
+
+class MobileDashboardView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasActiveMobileTenant]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        dashboard = build_mobile_dashboard(
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+        )
+        etag = dashboard.pop("etag")
+        if request.headers.get("If-None-Match") == etag:
+            response = Response(status=304)
+        else:
+            response = Response(dashboard)
+        response["ETag"] = etag
+        response["Cache-Control"] = f"private, max-age={settings.MOBILE_DASHBOARD_CACHE_SECONDS}"
+        return response

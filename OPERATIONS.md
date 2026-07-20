@@ -81,6 +81,8 @@ Set these in your deployment environment:
 - `MOBILE_API_LOGIN_RATE=5/min`
 - `MOBILE_API_ENABLED=false` until the mobile milestone is approved
 - `MOBILE_AUTH_ENABLED=false` until Gate M2 is approved
+- `MOBILE_READ_API_ENABLED=false` until Gate M3 is approved
+- `MOBILE_DASHBOARD_CACHE_SECONDS=30`
 - `MOBILE_API_REFRESH_RATE=10/min`
 - `MOBILE_API_WRITE_RATE=60/min`
 - `MOBILE_API_DEVICE_RATE=30/min`
