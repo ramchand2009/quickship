@@ -1,7 +1,10 @@
 from decimal import Decimal
+from datetime import timedelta
+import uuid
 
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 DEFAULT_TENANT_NAME = "Mathukai"
 DEFAULT_TENANT_SLUG = "mathukai"
@@ -53,6 +56,10 @@ def get_default_tenant():
 
 def get_default_tenant_pk():
     return get_default_tenant().pk
+
+
+def default_mobile_session_expiry():
+    return timezone.now() + timedelta(days=settings.MOBILE_SESSION_ABSOLUTE_LIFETIME_DAYS)
 
 
 class Tenant(models.Model):
@@ -111,6 +118,68 @@ class TenantMembership(models.Model):
 
     def __str__(self):
         return f"{self.user} @ {self.tenant} ({self.role})"
+
+
+class MobileSession(models.Model):
+    PLATFORM_ANDROID = "android"
+    PLATFORM_CHOICES = [(PLATFORM_ANDROID, "Android")]
+
+    STATUS_ACTIVE = "active"
+    STATUS_REVOKED = "revoked"
+    STATUS_EXPIRED = "expired"
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_REVOKED, "Revoked"),
+        (STATUS_EXPIRED, "Expired"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mobile_sessions",
+    )
+    installation_id = models.UUIDField()
+    platform = models.CharField(
+        max_length=16,
+        choices=PLATFORM_CHOICES,
+        default=PLATFORM_ANDROID,
+    )
+    app_version = models.CharField(max_length=32)
+    active_tenant = models.ForeignKey(
+        Tenant,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="active_mobile_sessions",
+    )
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(default=default_mobile_session_expiry)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revocation_reason = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "installation_id"],
+                name="uniq_mobile_session_user_installation",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["user", "status", "expires_at"],
+                name="mobile_sess_user_state_idx",
+            ),
+            models.Index(
+                fields=["active_tenant", "status"],
+                name="mobile_sess_tenant_state_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"MobileSession {self.pk}"
 
 
 class Project(models.Model):

@@ -1,9 +1,12 @@
 from io import StringIO
+import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
+from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.utils import timezone
 
 from core.access import (
     can_access_tenant,
@@ -14,7 +17,12 @@ from core.access import (
     is_vendor_user,
     is_warehouse_operator,
 )
-from core.models import Tenant, TenantMembership
+from core.api.v1.session_services import (
+    InvalidActiveTenant,
+    create_mobile_session,
+    select_session_tenant,
+)
+from core.models import MobileSession, Tenant, TenantMembership
 
 
 class WarehouseOperatorRoleTests(TestCase):
@@ -72,3 +80,87 @@ class WarehouseRoleBootstrapTests(TestCase):
         self.assertFalse(Group.objects.filter(name__in=["admin", "ops_viewer"]).exists())
         self.assertFalse(Group.objects.filter(name="warehouse_operator").exists())
         self.assertIn("warehouse_operator remains tenant-membership-only", stdout.getvalue())
+
+
+class MobileSessionPersistenceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="mobile-session-user")
+        self.other_user = get_user_model().objects.create_user(username="other-mobile-user")
+        self.tenant = Tenant.objects.create(name="Session Tenant", slug="session-tenant")
+        self.other_tenant = Tenant.objects.create(name="Other Session Tenant", slug="other-session-tenant")
+        self.membership = TenantMembership.objects.create(
+            tenant=self.tenant,
+            user=self.user,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+
+    def test_service_creates_android_session_for_active_membership(self):
+        installation_id = uuid.uuid4()
+
+        session = create_mobile_session(
+            user=self.user,
+            installation_id=installation_id,
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+
+        self.assertEqual(session.platform, MobileSession.PLATFORM_ANDROID)
+        self.assertEqual(session.status, MobileSession.STATUS_ACTIVE)
+        self.assertEqual(session.active_tenant, self.tenant)
+        self.assertEqual(session.installation_id, installation_id)
+        self.assertGreater(session.expires_at, timezone.now())
+        self.assertEqual(str(session), f"MobileSession {session.pk}")
+
+    def test_user_and_installation_are_unique(self):
+        installation_id = uuid.uuid4()
+        create_mobile_session(
+            user=self.user,
+            installation_id=installation_id,
+            app_version="1.0.0",
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            create_mobile_session(
+                user=self.user,
+                installation_id=installation_id,
+                app_version="1.0.1",
+            )
+
+        other_session = create_mobile_session(
+            user=self.other_user,
+            installation_id=installation_id,
+            app_version="1.0.0",
+        )
+        self.assertEqual(other_session.user, self.other_user)
+
+    def test_service_rejects_cross_tenant_or_inactive_membership(self):
+        with self.assertRaises(InvalidActiveTenant):
+            create_mobile_session(
+                user=self.user,
+                installation_id=uuid.uuid4(),
+                app_version="1.0.0",
+                active_tenant=self.other_tenant,
+            )
+
+        self.membership.is_active = False
+        self.membership.save(update_fields=["is_active"])
+        with self.assertRaises(InvalidActiveTenant):
+            create_mobile_session(
+                user=self.user,
+                installation_id=uuid.uuid4(),
+                app_version="1.0.0",
+                active_tenant=self.tenant,
+            )
+
+    def test_tenant_selection_revalidates_membership(self):
+        session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+        )
+
+        selected = select_session_tenant(session=session, tenant=self.tenant)
+        self.assertEqual(selected.active_tenant, self.tenant)
+
+        with self.assertRaises(InvalidActiveTenant):
+            select_session_tenant(session=session, tenant=self.other_tenant)
