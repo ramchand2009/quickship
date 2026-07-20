@@ -1,21 +1,47 @@
-# The EAS project lives in mobile/app inside this Django monorepo.
-# Upload only that application and exclude backend data and tooling.
-*
-!mobile/
-mobile/*
-!mobile/app/
-!mobile/app/**
+# Version control, dependencies, virtual environments, and local tooling.
+**/.git/
+**/.venv/
+**/venv/
+**/node_modules/
+**/.codex_tmp/
+**/.agents/
+**/.codex/
 
-# Re-apply generated and local exclusions inside the included app.
-mobile/app/node_modules/
-mobile/app/android/
-mobile/app/ios/
-mobile/app/.expo/
-mobile/app/dist/
-mobile/app/web-build/
-mobile/app/.kotlin/
-mobile/app/.env
-mobile/app/.env.*
-!mobile/app/.env.example
-mobile/app/*.log
-mobile/app/*.tsbuildinfo
+# Generated Expo and native build output at any project depth.
+**/android/
+**/ios/
+**/.expo/
+**/dist/
+**/web-build/
+**/.kotlin/
+.metro-health-check*
+*.tsbuildinfo
+*.log
+
+# Backend runtime data is never required by the Android build.
+**/backups/
+**/media/
+**/static/
+**/staticfiles/
+**/logs/
+db.sqlite3
+db.sqlite3-*
+*.sqlite3
+*.sqlite3-journal
+data.json
+data.nobom.json
+**/django-datta-able-pro-v1.0.26/
+
+# Local configuration, secrets, signing material, and OS noise.
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+.DS_Store
+Thumbs.db
+TODAY_SUMMARY_*.md
