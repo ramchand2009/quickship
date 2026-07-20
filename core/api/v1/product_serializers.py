@@ -1,6 +1,14 @@
 from rest_framework import serializers
 
-from core.models import Product, TenantWooCommerceMappingRule
+from core.models import Product, StockMovement, TenantMembership, TenantWooCommerceMappingRule
+
+
+PRICE_VISIBILITY = {
+    TenantMembership.ROLE_VENDOR_OWNER: {"actual", "regular", "sale"},
+    TenantMembership.ROLE_VENDOR_OPERATOR: {"regular", "sale"},
+    TenantMembership.ROLE_VENDOR_VIEWER: {"regular", "sale"},
+    TenantMembership.ROLE_WAREHOUSE_OPERATOR: set(),
+}
 
 
 class ProductListQuerySerializer(serializers.Serializer):
@@ -86,3 +94,95 @@ class ProductSummarySerializer(serializers.ModelSerializer):
 
     def get_route_ready(self, product):
         return product_route_ready(product, self.context.get("routing_rules", []))
+
+
+def _price(value):
+    if value is None:
+        return None
+    return {"amount": f"{value:.2f}", "currency": "INR"}
+
+
+class ProductDetailSerializer(ProductSummarySerializer):
+    description = serializers.SerializerMethodField()
+    prices = serializers.SerializerMethodField()
+    routing = serializers.SerializerMethodField()
+
+    class Meta(ProductSummarySerializer.Meta):
+        fields = ProductSummarySerializer.Meta.fields + ["description", "prices", "routing"]
+
+    def get_description(self, product):
+        return str(product.description or "").strip() or None
+
+    def get_prices(self, product):
+        visible = PRICE_VISIBILITY.get(self.context.get("role"), set())
+        return {
+            "actual": _price(product.actual_price) if "actual" in visible else None,
+            "regular": _price(product.regular_price) if "regular" in visible else None,
+            "sale": _price(product.sale_price) if "sale" in visible else None,
+        }
+
+    def get_routing(self, product):
+        show_identifiers = self.context.get("role") == TenantMembership.ROLE_VENDOR_OWNER
+        return {
+            "ready": product_route_ready(product, self.context.get("routing_rules", [])),
+            "woocommerce_product_id": (
+                str(product.woocommerce_product_id or "").strip() or None
+                if show_identifiers
+                else None
+            ),
+            "woocommerce_variation_id": (
+                str(product.woocommerce_variation_id or "").strip() or None
+                if show_identifiers
+                else None
+            ),
+        }
+
+
+class StockMovementQuerySerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(required=False, min_value=1)
+    updated_after = serializers.DateTimeField(required=False)
+
+
+class StockMovementSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField()
+    order_id = serializers.SerializerMethodField()
+    movement_type = serializers.SerializerMethodField()
+    note = serializers.SerializerMethodField()
+    actor_display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StockMovement
+        fields = [
+            "id",
+            "product_id",
+            "order_id",
+            "movement_type",
+            "quantity_delta",
+            "quantity_after",
+            "note",
+            "actor_display_name",
+            "created_at",
+        ]
+
+    def get_order_id(self, movement):
+        return getattr(movement, "safe_order_id", None)
+
+    def get_movement_type(self, movement):
+        return {
+            "code": movement.movement_type,
+            "label": movement.get_movement_type_display(),
+        }
+
+    def get_note(self, movement):
+        role = self.context.get("role")
+        if role == TenantMembership.ROLE_VENDOR_VIEWER:
+            return None
+        return str(movement.notes or "").strip() or None
+
+    def get_actor_display_name(self, movement):
+        if self.context.get("role") not in {
+            TenantMembership.ROLE_VENDOR_OWNER,
+            TenantMembership.ROLE_VENDOR_OPERATOR,
+        }:
+            return None
+        return str(movement.triggered_by or "").strip() or None

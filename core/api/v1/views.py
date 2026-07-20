@@ -21,8 +21,19 @@ from .permissions import HasActiveMobileTenant
 from .order_serializers import OrderDetailSerializer, OrderListQuerySerializer, OrderSummarySerializer
 from .order_services import mobile_order_detail, mobile_order_queryset
 from .pagination import MobileCursorPagination
-from .product_serializers import ProductListQuerySerializer, ProductSummarySerializer
-from .product_services import mobile_product_queryset, mobile_product_routing_rules
+from .product_serializers import (
+    ProductDetailSerializer,
+    ProductListQuerySerializer,
+    ProductSummarySerializer,
+    StockMovementQuerySerializer,
+    StockMovementSerializer,
+)
+from .product_services import (
+    mobile_product_detail,
+    mobile_product_queryset,
+    mobile_product_routing_rules,
+    mobile_stock_movement_queryset,
+)
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
     InvalidRefreshToken,
@@ -248,5 +259,44 @@ class MobileProductListView(MobileReadEnabledMixin, APIView):
             page,
             many=True,
             context={"routing_rules": mobile_product_routing_rules(tenant=request.tenant)},
+        ).data
+        return paginator.get_paginated_response(data)
+
+
+class MobileProductDetailView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasActiveMobileTenant]
+    throttle_scope = "mobile_read"
+
+    def get(self, request, product_id):
+        product = mobile_product_detail(tenant=request.tenant, product_id=product_id)
+        if product is None:
+            raise NotFound("The requested resource is unavailable.")
+        data = ProductDetailSerializer(
+            product,
+            context={
+                "role": request.tenant_membership.role,
+                "routing_rules": mobile_product_routing_rules(tenant=request.tenant),
+            },
+        ).data
+        return Response({"data": data})
+
+
+class MobileStockMovementListView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasActiveMobileTenant]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        query = StockMovementQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        queryset = mobile_stock_movement_queryset(
+            tenant=request.tenant,
+            filters=query.validated_data,
+        )
+        paginator = MobileCursorPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        data = StockMovementSerializer(
+            page,
+            many=True,
+            context={"role": request.tenant_membership.role},
         ).data
         return paginator.get_paginated_response(data)

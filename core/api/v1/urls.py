@@ -10,6 +10,8 @@ from .views import (
     MobileOrderListView,
     MobileOrderDetailView,
     MobileProductListView,
+    MobileProductDetailView,
+    MobileStockMovementListView,
     MobileRefreshView,
     MobileSelectTenantView,
 )
@@ -26,4 +28,6 @@ urlpatterns = [
     path("orders", MobileOrderListView.as_view(), name="orders"),
     path("orders/<int:order_id>", MobileOrderDetailView.as_view(), name="order_detail"),
     path("products", MobileProductListView.as_view(), name="products"),
+    path("products/<int:product_id>", MobileProductDetailView.as_view(), name="product_detail"),
+    path("stock/movements", MobileStockMovementListView.as_view(), name="stock_movements"),
 ]
