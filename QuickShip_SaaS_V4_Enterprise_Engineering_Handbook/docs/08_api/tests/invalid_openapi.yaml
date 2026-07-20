@@ -1,0 +1,4 @@
+# This fixture must remain invalid. CI uses it to prove the validation gate fails closed.
+openapi: 3.1.0
+info: invalid
+paths: {}
