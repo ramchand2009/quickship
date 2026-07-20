@@ -2,14 +2,16 @@
 
 import hashlib
 import hmac
+import secrets
 import uuid
 from datetime import timedelta
 
 import jwt
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
-from core.models import MobileRefreshToken
+from core.models import MobileRefreshToken, MobileSession, TenantMembership
 
 
 ACCESS_TOKEN_ALGORITHM = "HS256"
@@ -28,6 +30,14 @@ ACCESS_TOKEN_REQUIRED_CLAIMS = [
 
 
 class InvalidAccessToken(ValueError):
+    pass
+
+
+class InvalidRefreshToken(ValueError):
+    pass
+
+
+class RefreshTokenReuseDetected(InvalidRefreshToken):
     pass
 
 
@@ -94,3 +104,109 @@ def persist_refresh_token(*, session, raw_token, parent=None, expires_at=None):
     if expires_at is not None:
         values["expires_at"] = expires_at
     return MobileRefreshToken.objects.create(**values)
+
+
+def issue_refresh_token(session, *, parent=None, now=None):
+    issued_at = now or timezone.now()
+    expires_at = min(
+        issued_at + timedelta(days=settings.MOBILE_REFRESH_TOKEN_LIFETIME_DAYS),
+        session.expires_at,
+    )
+    if expires_at <= issued_at:
+        raise InvalidRefreshToken("The mobile session has expired.")
+    raw_token = secrets.token_urlsafe(48)
+    record = persist_refresh_token(
+        session=session,
+        raw_token=raw_token,
+        parent=parent,
+        expires_at=expires_at,
+    )
+    return raw_token, record
+
+
+def issue_token_pair(session, *, now=None):
+    access_token, access_expires_at = issue_access_token(session, now=now)
+    refresh_token, refresh_record = issue_refresh_token(session, now=now)
+    return {
+        "access_token": access_token,
+        "access_expires_at": access_expires_at,
+        "refresh_token": refresh_token,
+        "refresh_expires_at": refresh_record.expires_at,
+    }
+
+
+def _revoke_session_family(session, *, now, reason):
+    session.status = MobileSession.STATUS_REVOKED
+    session.revoked_at = now
+    session.revocation_reason = reason
+    session.save(update_fields=["status", "revoked_at", "revocation_reason"])
+    MobileRefreshToken.objects.filter(session=session, revoked_at__isnull=True).update(revoked_at=now)
+
+
+def _session_is_eligible(session, now):
+    if not session.user.is_active or session.status != MobileSession.STATUS_ACTIVE:
+        return False
+    if session.expires_at <= now:
+        return False
+    if session.active_tenant_id is None:
+        return True
+    return TenantMembership.objects.filter(
+        user=session.user,
+        tenant_id=session.active_tenant_id,
+        is_active=True,
+        tenant__is_active=True,
+    ).exists()
+
+
+def rotate_refresh_token(*, raw_token, installation_id, now=None):
+    rotated_at = now or timezone.now()
+    terminal_error = None
+    result = None
+
+    with transaction.atomic():
+        try:
+            token = (
+                MobileRefreshToken.objects.select_for_update()
+                .select_related("session__user")
+                .get(token_hash=hash_refresh_token(raw_token))
+            )
+        except MobileRefreshToken.DoesNotExist as error:
+            raise InvalidRefreshToken("The refresh token is invalid or expired.") from error
+
+        session = (
+            MobileSession.objects.select_for_update()
+            .select_related("user")
+            .get(pk=token.session_id)
+        )
+        if str(session.installation_id) != str(installation_id):
+            raise InvalidRefreshToken("The refresh token is invalid or expired.")
+
+        if token.consumed_at is not None:
+            _revoke_session_family(session, now=rotated_at, reason="refresh_token_reuse")
+            terminal_error = RefreshTokenReuseDetected(
+                "Refresh token reuse revoked the mobile session."
+            )
+        elif token.revoked_at is not None or token.expires_at <= rotated_at:
+            raise InvalidRefreshToken("The refresh token is invalid or expired.")
+        elif not _session_is_eligible(session, rotated_at):
+            _revoke_session_family(session, now=rotated_at, reason="session_ineligible")
+            terminal_error = InvalidRefreshToken("The refresh token is invalid or expired.")
+        else:
+            token.consumed_at = rotated_at
+            token.save(update_fields=["consumed_at"])
+            child_raw_token, child = issue_refresh_token(
+                session,
+                parent=token,
+                now=rotated_at,
+            )
+            access_token, access_expires_at = issue_access_token(session, now=rotated_at)
+            result = {
+                "access_token": access_token,
+                "access_expires_at": access_expires_at,
+                "refresh_token": child_raw_token,
+                "refresh_expires_at": child.expires_at,
+            }
+
+    if terminal_error is not None:
+        raise terminal_error
+    return result

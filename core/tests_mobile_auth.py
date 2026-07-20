@@ -30,8 +30,13 @@ from core.api.v1.token_services import hash_refresh_token, persist_refresh_token
 from core.api.v1.token_services import (
     ACCESS_TOKEN_ALGORITHM,
     InvalidAccessToken,
+    InvalidRefreshToken,
+    RefreshTokenReuseDetected,
     decode_access_token,
+    issue_refresh_token,
+    issue_token_pair,
     issue_access_token,
+    rotate_refresh_token,
 )
 from core.models import MobileRefreshToken, MobileSession, Tenant, TenantMembership
 
@@ -315,3 +320,99 @@ class MobileAccessTokenTests(TestCase):
             )
             with self.subTest(payload=invalid_payload), self.assertRaises(InvalidAccessToken):
                 decode_access_token(encoded_invalid)
+
+
+class MobileRefreshRotationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="rotation-user")
+        self.tenant = Tenant.objects.create(name="Rotation Tenant", slug="rotation-tenant")
+        TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        self.session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+
+    def test_issued_pair_returns_raw_secret_once_and_persists_only_hash(self):
+        pair = issue_token_pair(self.session)
+        stored = self.session.refresh_tokens.get()
+
+        self.assertGreaterEqual(len(pair["refresh_token"]), 43)
+        self.assertEqual(stored.token_hash, hash_refresh_token(pair["refresh_token"]))
+        self.assertNotEqual(stored.token_hash, pair["refresh_token"])
+        self.assertEqual(decode_access_token(pair["access_token"])["sid"], str(self.session.pk))
+
+    def test_rotation_consumes_parent_and_creates_one_child(self):
+        raw_token, parent = issue_refresh_token(self.session)
+
+        pair = rotate_refresh_token(
+            raw_token=raw_token,
+            installation_id=self.session.installation_id,
+        )
+
+        parent.refresh_from_db()
+        child = parent.children.get()
+        self.assertIsNotNone(parent.consumed_at)
+        self.assertEqual(child.token_hash, hash_refresh_token(pair["refresh_token"]))
+        self.assertIsNone(child.consumed_at)
+        self.assertEqual(self.session.refresh_tokens.count(), 2)
+
+    def test_competing_reuse_revokes_session_and_entire_family(self):
+        raw_token, parent = issue_refresh_token(self.session)
+        rotate_refresh_token(
+            raw_token=raw_token,
+            installation_id=self.session.installation_id,
+        )
+
+        with self.assertRaises(RefreshTokenReuseDetected):
+            rotate_refresh_token(
+                raw_token=raw_token,
+                installation_id=self.session.installation_id,
+            )
+
+        self.session.refresh_from_db()
+        parent.refresh_from_db()
+        self.assertEqual(self.session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(self.session.revocation_reason, "refresh_token_reuse")
+        self.assertEqual(self.session.refresh_tokens.filter(revoked_at__isnull=False).count(), 2)
+
+    def test_wrong_installation_does_not_consume_token(self):
+        raw_token, token = issue_refresh_token(self.session)
+
+        with self.assertRaises(InvalidRefreshToken):
+            rotate_refresh_token(raw_token=raw_token, installation_id=uuid.uuid4())
+
+        token.refresh_from_db()
+        self.session.refresh_from_db()
+        self.assertIsNone(token.consumed_at)
+        self.assertEqual(self.session.status, MobileSession.STATUS_ACTIVE)
+
+    def test_expired_token_is_rejected(self):
+        raw_token, token = issue_refresh_token(self.session)
+        token.expires_at = timezone.now() - timedelta(seconds=1)
+        token.save(update_fields=["expires_at"])
+
+        with self.assertRaises(InvalidRefreshToken):
+            rotate_refresh_token(
+                raw_token=raw_token,
+                installation_id=self.session.installation_id,
+            )
+
+    def test_removed_membership_revokes_session(self):
+        raw_token, _ = issue_refresh_token(self.session)
+        TenantMembership.objects.filter(user=self.user, tenant=self.tenant).update(is_active=False)
+
+        with self.assertRaises(InvalidRefreshToken):
+            rotate_refresh_token(
+                raw_token=raw_token,
+                installation_id=self.session.installation_id,
+            )
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(self.session.revocation_reason, "session_ineligible")
