@@ -1,7 +1,10 @@
 from io import StringIO
 import hashlib
 import uuid
+from datetime import timedelta
 
+import jwt
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
@@ -24,6 +27,12 @@ from core.api.v1.session_services import (
     select_session_tenant,
 )
 from core.api.v1.token_services import hash_refresh_token, persist_refresh_token
+from core.api.v1.token_services import (
+    ACCESS_TOKEN_ALGORITHM,
+    InvalidAccessToken,
+    decode_access_token,
+    issue_access_token,
+)
 from core.models import MobileRefreshToken, MobileSession, Tenant, TenantMembership
 
 
@@ -214,3 +223,95 @@ class MobileRefreshTokenPersistenceTests(TestCase):
         self.assertEqual(child.parent, parent)
         self.assertEqual(list(parent.children.all()), [child])
         self.assertGreater(child.expires_at, timezone.now())
+
+
+class MobileAccessTokenTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="access-token-user")
+        self.tenant = Tenant.objects.create(name="Access Tenant", slug="access-tenant")
+        TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_VIEWER,
+        )
+        self.session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+
+    def test_access_token_has_required_scoped_claims(self):
+        encoded, expires_at = issue_access_token(self.session)
+
+        payload = decode_access_token(encoded)
+
+        self.assertEqual(payload["sub"], str(self.user.pk))
+        self.assertEqual(payload["sid"], str(self.session.pk))
+        self.assertEqual(payload["tenant_id"], self.tenant.pk)
+        self.assertEqual(payload["token_type"], "access")
+        self.assertEqual(payload["iss"], settings.MOBILE_ACCESS_TOKEN_ISSUER)
+        self.assertEqual(payload["aud"], settings.MOBILE_ACCESS_TOKEN_AUDIENCE)
+        self.assertLessEqual(expires_at, self.session.expires_at)
+
+    def test_access_token_expiry_is_capped_by_session(self):
+        now = timezone.now()
+        self.session.expires_at = now + timedelta(seconds=60)
+        self.session.save(update_fields=["expires_at"])
+
+        _, expires_at = issue_access_token(self.session, now=now)
+
+        self.assertEqual(expires_at, self.session.expires_at)
+
+    def test_expired_or_wrongly_signed_tokens_are_rejected(self):
+        now = timezone.now()
+        base_payload = {
+            "iss": settings.MOBILE_ACCESS_TOKEN_ISSUER,
+            "aud": settings.MOBILE_ACCESS_TOKEN_AUDIENCE,
+            "iat": now - timedelta(minutes=20),
+            "nbf": now - timedelta(minutes=20),
+            "exp": now - timedelta(minutes=10),
+            "jti": str(uuid.uuid4()),
+            "sub": str(self.user.pk),
+            "sid": str(self.session.pk),
+            "tenant_id": self.tenant.pk,
+            "token_type": "access",
+        }
+        expired = jwt.encode(
+            base_payload,
+            settings.MOBILE_JWT_SIGNING_KEY,
+            algorithm=ACCESS_TOKEN_ALGORITHM,
+        )
+        wrongly_signed = jwt.encode(
+            {**base_payload, "exp": now + timedelta(minutes=10)},
+            "wrong-key-that-is-at-least-32-bytes-long",
+            algorithm=ACCESS_TOKEN_ALGORITHM,
+        )
+
+        for encoded in (expired, wrongly_signed):
+            with self.subTest(encoded=encoded[:16]), self.assertRaises(InvalidAccessToken):
+                decode_access_token(encoded)
+
+    def test_wrong_issuer_audience_missing_claim_and_token_type_are_rejected(self):
+        encoded, _ = issue_access_token(self.session)
+        payload = jwt.decode(
+            encoded,
+            settings.MOBILE_JWT_SIGNING_KEY,
+            algorithms=[ACCESS_TOKEN_ALGORITHM],
+            options={"verify_signature": True, "verify_aud": False},
+        )
+        invalid_payloads = [
+            {**payload, "iss": "wrong-issuer"},
+            {**payload, "aud": "wrong-audience"},
+            {key: value for key, value in payload.items() if key != "sid"},
+            {**payload, "token_type": "refresh"},
+        ]
+
+        for invalid_payload in invalid_payloads:
+            encoded_invalid = jwt.encode(
+                invalid_payload,
+                settings.MOBILE_JWT_SIGNING_KEY,
+                algorithm=ACCESS_TOKEN_ALGORITHM,
+            )
+            with self.subTest(payload=invalid_payload), self.assertRaises(InvalidAccessToken):
+                decode_access_token(encoded_invalid)

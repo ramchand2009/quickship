@@ -84,6 +84,11 @@ Set these in your deployment environment:
 - `MOBILE_API_READ_RATE=300/min`
 - `MOBILE_SESSION_ABSOLUTE_LIFETIME_DAYS=30`
 - `MOBILE_REFRESH_TOKEN_LIFETIME_DAYS=30`
+- `MOBILE_ACCESS_TOKEN_LIFETIME_SECONDS=600`
+- `MOBILE_ACCESS_TOKEN_CLOCK_SKEW_SECONDS=30`
+- `MOBILE_ACCESS_TOKEN_ISSUER=mathukai-api`
+- `MOBILE_ACCESS_TOKEN_AUDIENCE=mathukai-operations-android`
+- `MOBILE_JWT_SIGNING_KEY=<independent high-entropy secret>`
 
 ## 5) Startup Preflight Check
 
