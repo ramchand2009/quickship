@@ -62,6 +62,10 @@ def default_mobile_session_expiry():
     return timezone.now() + timedelta(days=settings.MOBILE_SESSION_ABSOLUTE_LIFETIME_DAYS)
 
 
+def default_mobile_refresh_expiry():
+    return timezone.now() + timedelta(days=settings.MOBILE_REFRESH_TOKEN_LIFETIME_DAYS)
+
+
 class Tenant(models.Model):
     name = models.CharField(max_length=160)
     slug = models.SlugField(max_length=80, unique=True)
@@ -180,6 +184,42 @@ class MobileSession(models.Model):
 
     def __str__(self):
         return f"MobileSession {self.pk}"
+
+
+class MobileRefreshToken(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(
+        MobileSession,
+        on_delete=models.CASCADE,
+        related_name="refresh_tokens",
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="children",
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=default_mobile_refresh_expiry)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["session", "expires_at"],
+                name="mobile_rt_session_exp_idx",
+            ),
+            models.Index(
+                fields=["expires_at", "revoked_at"],
+                name="mobile_rt_exp_revoke_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"MobileRefreshToken {self.pk}"
 
 
 class Project(models.Model):

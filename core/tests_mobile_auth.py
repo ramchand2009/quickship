@@ -1,4 +1,5 @@
 from io import StringIO
+import hashlib
 import uuid
 
 from django.contrib.auth import get_user_model
@@ -22,7 +23,8 @@ from core.api.v1.session_services import (
     create_mobile_session,
     select_session_tenant,
 )
-from core.models import MobileSession, Tenant, TenantMembership
+from core.api.v1.token_services import hash_refresh_token, persist_refresh_token
+from core.models import MobileRefreshToken, MobileSession, Tenant, TenantMembership
 
 
 class WarehouseOperatorRoleTests(TestCase):
@@ -164,3 +166,51 @@ class MobileSessionPersistenceTests(TestCase):
 
         with self.assertRaises(InvalidActiveTenant):
             select_session_tenant(session=session, tenant=self.other_tenant)
+
+
+class MobileRefreshTokenPersistenceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="refresh-user")
+        self.session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+        )
+
+    def test_raw_refresh_token_is_hashed_before_persistence(self):
+        raw_token = "raw-refresh-secret-that-must-not-be-stored"
+
+        token = persist_refresh_token(session=self.session, raw_token=raw_token)
+        token.refresh_from_db()
+
+        self.assertEqual(token.token_hash, hash_refresh_token(raw_token))
+        self.assertNotEqual(token.token_hash, raw_token)
+        self.assertNotIn(raw_token, str(token))
+        self.assertNotIn(raw_token, repr(token))
+        self.assertNotIn("raw_token", {field.name for field in token._meta.get_fields()})
+
+    def test_hash_is_deterministic_and_keyed(self):
+        first = hash_refresh_token("same-token")
+        second = hash_refresh_token("same-token")
+
+        self.assertEqual(first, second)
+        self.assertEqual(len(first), 64)
+        self.assertNotEqual(first, hashlib.sha256(b"same-token").hexdigest())
+
+    def test_token_hash_is_unique(self):
+        persist_refresh_token(session=self.session, raw_token="duplicate-token")
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            persist_refresh_token(session=self.session, raw_token="duplicate-token")
+
+    def test_rotation_parent_keeps_lineage_without_raw_secret(self):
+        parent = persist_refresh_token(session=self.session, raw_token="parent-token")
+        child = persist_refresh_token(
+            session=self.session,
+            raw_token="child-token",
+            parent=parent,
+        )
+
+        self.assertEqual(child.parent, parent)
+        self.assertEqual(list(parent.children.all()), [child])
+        self.assertGreater(child.expires_at, timezone.now())

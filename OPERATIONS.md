@@ -83,6 +83,7 @@ Set these in your deployment environment:
 - `MOBILE_API_DEVICE_RATE=30/min`
 - `MOBILE_API_READ_RATE=300/min`
 - `MOBILE_SESSION_ABSOLUTE_LIFETIME_DAYS=30`
+- `MOBILE_REFRESH_TOKEN_LIFETIME_DAYS=30`
 
 ## 5) Startup Preflight Check
 
