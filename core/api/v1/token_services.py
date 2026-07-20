@@ -135,7 +135,7 @@ def issue_token_pair(session, *, now=None):
     }
 
 
-def _revoke_session_family(session, *, now, reason):
+def revoke_session_family(session, *, now, reason):
     session.status = MobileSession.STATUS_REVOKED
     session.revoked_at = now
     session.revocation_reason = reason
@@ -182,14 +182,14 @@ def rotate_refresh_token(*, raw_token, installation_id, now=None):
             raise InvalidRefreshToken("The refresh token is invalid or expired.")
 
         if token.consumed_at is not None:
-            _revoke_session_family(session, now=rotated_at, reason="refresh_token_reuse")
+            revoke_session_family(session, now=rotated_at, reason="refresh_token_reuse")
             terminal_error = RefreshTokenReuseDetected(
                 "Refresh token reuse revoked the mobile session."
             )
         elif token.revoked_at is not None or token.expires_at <= rotated_at:
             raise InvalidRefreshToken("The refresh token is invalid or expired.")
         elif not _session_is_eligible(session, rotated_at):
-            _revoke_session_family(session, now=rotated_at, reason="session_ineligible")
+            revoke_session_family(session, now=rotated_at, reason="session_ineligible")
             terminal_error = InvalidRefreshToken("The refresh token is invalid or expired.")
         else:
             token.consumed_at = rotated_at

@@ -9,8 +9,11 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.urls import path
 from django.utils import timezone
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.access import (
     can_access_tenant,
@@ -26,6 +29,7 @@ from core.api.v1.session_services import (
     create_mobile_session,
     select_session_tenant,
 )
+from core.api.v1.permissions import HasActiveMobileTenant, HasMobileTenantRole
 from core.api.v1.token_services import hash_refresh_token, persist_refresh_token
 from core.api.v1.token_services import (
     ACCESS_TOKEN_ALGORITHM,
@@ -39,6 +43,33 @@ from core.api.v1.token_services import (
     rotate_refresh_token,
 )
 from core.models import MobileRefreshToken, MobileSession, Tenant, TenantMembership
+
+
+class MobileContextProbeView(APIView):
+    permission_classes = [HasActiveMobileTenant]
+
+    def get(self, request):
+        return Response(
+            {
+                "data": {
+                    "user_id": request.user.pk,
+                    "session_id": str(request.mobile_session.pk),
+                    "tenant_id": request.tenant.pk,
+                    "role": request.tenant_membership.role,
+                }
+            }
+        )
+
+
+class WarehouseOnlyProbeView(MobileContextProbeView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [TenantMembership.ROLE_WAREHOUSE_OPERATOR]
+
+
+urlpatterns = [
+    path("api/v1/auth-context/", MobileContextProbeView.as_view()),
+    path("api/v1/warehouse-context/", WarehouseOnlyProbeView.as_view()),
+]
 
 
 class WarehouseOperatorRoleTests(TestCase):
@@ -416,3 +447,108 @@ class MobileRefreshRotationTests(TestCase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.status, MobileSession.STATUS_REVOKED)
         self.assertEqual(self.session.revocation_reason, "session_ineligible")
+
+
+@override_settings(ROOT_URLCONF=__name__)
+class MobileAuthenticationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="authenticated-mobile-user")
+        self.tenant = Tenant.objects.create(name="Authenticated Tenant", slug="authenticated-tenant")
+        self.other_tenant = Tenant.objects.create(name="Unselected Tenant", slug="unselected-tenant")
+        self.membership = TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_OPERATOR,
+        )
+        self.session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+        self.access_token, _ = issue_access_token(self.session)
+
+    def get(self, path="/api/v1/auth-context/", token=None):
+        return self.client.get(
+            path,
+            headers={"Authorization": f"Bearer {token or self.access_token}"},
+        )
+
+    def test_valid_token_exposes_live_session_tenant_and_role(self):
+        response = self.get()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["data"],
+            {
+                "user_id": self.user.pk,
+                "session_id": str(self.session.pk),
+                "tenant_id": self.tenant.pk,
+                "role": TenantMembership.ROLE_VENDOR_OPERATOR,
+            },
+        )
+
+    def test_disabled_user_revokes_session(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+
+        response = self.get()
+
+        self.assertEqual(response.status_code, 401)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(self.session.revocation_reason, "user_inactive")
+
+    def test_expired_database_session_is_rejected_and_revoked(self):
+        self.session.expires_at = timezone.now() - timedelta(seconds=1)
+        self.session.save(update_fields=["expires_at"])
+
+        response = self.get()
+
+        self.assertEqual(response.status_code, 401)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.revocation_reason, "session_expired")
+
+    def test_removed_membership_is_rejected_and_revoked(self):
+        self.membership.delete()
+
+        response = self.get()
+
+        self.assertEqual(response.status_code, 401)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.revocation_reason, "membership_removed")
+
+    def test_token_for_different_tenant_context_is_rejected(self):
+        payload = decode_access_token(self.access_token)
+        payload["tenant_id"] = self.other_tenant.pk
+        mismatched = jwt.encode(
+            payload,
+            settings.MOBILE_JWT_SIGNING_KEY,
+            algorithm=ACCESS_TOKEN_ALGORITHM,
+        )
+
+        response = self.get(token=mismatched)
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_warehouse_role_is_allowed_only_for_its_selected_tenant(self):
+        warehouse_user = get_user_model().objects.create_user(username="warehouse-mobile-auth")
+        TenantMembership.objects.create(
+            user=warehouse_user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_WAREHOUSE_OPERATOR,
+        )
+        warehouse_session = create_mobile_session(
+            user=warehouse_user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+        warehouse_token, _ = issue_access_token(warehouse_session)
+
+        allowed = self.get("/api/v1/warehouse-context/", warehouse_token)
+        vendor_denied = self.get("/api/v1/warehouse-context/")
+
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.json()["data"]["role"], TenantMembership.ROLE_WAREHOUSE_OPERATOR)
+        self.assertEqual(vendor_denied.status_code, 403)
