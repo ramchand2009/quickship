@@ -667,6 +667,49 @@ class MobileLoginEndpointTests(TestCase):
         )
         self.assertNotContains(response, self.password)
 
+    @override_settings(MOBILE_AUTH_ENABLED=False)
+    def test_auth_kill_switch_hides_every_auth_endpoint(self):
+        for method, path in [
+            ("post", "/api/v1/auth/login"),
+            ("post", "/api/v1/auth/refresh"),
+            ("post", "/api/v1/auth/logout"),
+            ("get", "/api/v1/auth/me"),
+            ("post", "/api/v1/auth/select-tenant"),
+        ]:
+            with self.subTest(path=path):
+                if method == "get":
+                    response = self.client.get(path)
+                else:
+                    response = self.client.post(
+                        path,
+                        data=json.dumps({}),
+                        content_type="application/json",
+                    )
+                self.assertEqual(response.status_code, 404)
+
+    @override_settings(MOBILE_API_ENABLED=False)
+    def test_api_kill_switch_hides_auth_endpoint(self):
+        response = self.post_login()
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_revoke_all_command_supports_dry_run_and_rollback(self):
+        login = self.post_login()
+        session = MobileSession.objects.get(user=self.user)
+        output = StringIO()
+
+        call_command("revoke_mobile_sessions", "--dry-run", stdout=output)
+        session.refresh_from_db()
+        self.assertEqual(session.status, MobileSession.STATUS_ACTIVE)
+        self.assertIn('"sessions_revoked": 1', output.getvalue())
+
+        call_command("revoke_mobile_sessions", "--reason", "gate_rollback")
+        session.refresh_from_db()
+        self.assertEqual(session.status, MobileSession.STATUS_REVOKED)
+        self.assertEqual(session.revocation_reason, "gate_rollback")
+        self.assertFalse(session.refresh_tokens.filter(revoked_at__isnull=True).exists())
+        self.assertTrue(login.json()["data"]["tokens"]["access_token"])
+
     def test_multiple_tenants_require_explicit_selection(self):
         second_tenant = Tenant.objects.create(name="Second Login Tenant", slug="second-login-tenant")
         TenantMembership.objects.create(

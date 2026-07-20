@@ -1,7 +1,7 @@
 """Views for the version 1 mobile API."""
 
 from django.conf import settings
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, Throttled
+from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied, Throttled
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -26,7 +26,14 @@ from .token_services import (
 )
 
 
-class MobileLoginView(APIView):
+class MobileAuthEnabledMixin:
+    def initial(self, request, *args, **kwargs):
+        if not settings.MOBILE_API_ENABLED or not settings.MOBILE_AUTH_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        return super().initial(request, *args, **kwargs)
+
+
+class MobileLoginView(MobileAuthEnabledMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_scope = "mobile_login"
@@ -73,7 +80,7 @@ class MobileLoginView(APIView):
         )
 
 
-class MobileRefreshView(APIView):
+class MobileRefreshView(MobileAuthEnabledMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_scope = "mobile_refresh"
@@ -92,7 +99,7 @@ class MobileRefreshView(APIView):
         return Response({"data": tokens})
 
 
-class MobileLogoutView(APIView):
+class MobileLogoutView(MobileAuthEnabledMixin, APIView):
     throttle_scope = "mobile_write"
 
     def post(self, request):
@@ -110,7 +117,7 @@ class MobileLogoutView(APIView):
         return Response(status=204)
 
 
-class MobileCurrentSessionView(APIView):
+class MobileCurrentSessionView(MobileAuthEnabledMixin, APIView):
     throttle_scope = "mobile_read"
 
     def get(self, request):
@@ -118,7 +125,7 @@ class MobileCurrentSessionView(APIView):
         return Response({"data": serialize_mobile_session(request.auth, memberships)})
 
 
-class MobileSelectTenantView(APIView):
+class MobileSelectTenantView(MobileAuthEnabledMixin, APIView):
     throttle_scope = "mobile_write"
 
     def post(self, request):

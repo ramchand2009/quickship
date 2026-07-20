@@ -78,6 +78,8 @@ Set these in your deployment environment:
 - `LOGIN_LOCKOUT_WINDOW_SECONDS=900`
 - `LOGIN_LOCKOUT_DURATION_SECONDS=900`
 - `MOBILE_API_LOGIN_RATE=5/min`
+- `MOBILE_API_ENABLED=false` until the mobile milestone is approved
+- `MOBILE_AUTH_ENABLED=false` until Gate M2 is approved
 - `MOBILE_API_REFRESH_RATE=10/min`
 - `MOBILE_API_WRITE_RATE=60/min`
 - `MOBILE_API_DEVICE_RATE=30/min`
@@ -98,6 +100,14 @@ Mobile authentication cleanup runs daily through Celery Beat. Preview or run it 
 ```powershell
 .\.venv\Scripts\python.exe manage.py cleanup_mobile_auth --dry-run
 .\.venv\Scripts\python.exe manage.py cleanup_mobile_auth
+```
+
+Emergency mobile-auth rollback keeps the PWA available:
+
+```powershell
+# Set MOBILE_AUTH_ENABLED=false and restart the web service, then revoke sessions:
+.\.venv\Scripts\python.exe manage.py revoke_mobile_sessions --dry-run
+.\.venv\Scripts\python.exe manage.py revoke_mobile_sessions --reason incident_rollback
 ```
 
 ## 5) Startup Preflight Check
