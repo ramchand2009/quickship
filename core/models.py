@@ -88,10 +88,12 @@ class TenantMembership(models.Model):
     ROLE_VENDOR_OWNER = "vendor_owner"
     ROLE_VENDOR_OPERATOR = "vendor_operator"
     ROLE_VENDOR_VIEWER = "vendor_viewer"
+    ROLE_WAREHOUSE_OPERATOR = "warehouse_operator"
     ROLE_CHOICES = [
         (ROLE_VENDOR_OWNER, "Vendor Owner"),
         (ROLE_VENDOR_OPERATOR, "Vendor Operator"),
         (ROLE_VENDOR_VIEWER, "Vendor Viewer"),
+        (ROLE_WAREHOUSE_OPERATOR, "Warehouse Operator"),
     ]
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="memberships")

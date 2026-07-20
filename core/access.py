@@ -80,6 +80,17 @@ def is_vendor_viewer(user, tenant=None):
     return has_tenant_role(user, tenant, TenantMembership.ROLE_VENDOR_VIEWER)
 
 
+def is_warehouse_operator(user, tenant=None):
+    from .models import TenantMembership
+
+    if tenant is None:
+        return any(
+            membership.role == TenantMembership.ROLE_WAREHOUSE_OPERATOR
+            for membership in active_tenant_memberships(user)
+        )
+    return has_tenant_role(user, tenant, TenantMembership.ROLE_WAREHOUSE_OPERATOR)
+
+
 def can_operate_any_vendor(user):
     from .models import TenantMembership
 
