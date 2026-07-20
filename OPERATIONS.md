@@ -84,11 +84,21 @@ Set these in your deployment environment:
 - `MOBILE_API_READ_RATE=300/min`
 - `MOBILE_SESSION_ABSOLUTE_LIFETIME_DAYS=30`
 - `MOBILE_REFRESH_TOKEN_LIFETIME_DAYS=30`
+- `MOBILE_AUTH_RETENTION_DAYS=30`
+- `MOBILE_AUTH_CLEANUP_BATCH_SIZE=500`
+- `MOBILE_AUTH_CLEANUP_INTERVAL_SECONDS=86400`
 - `MOBILE_ACCESS_TOKEN_LIFETIME_SECONDS=600`
 - `MOBILE_ACCESS_TOKEN_CLOCK_SKEW_SECONDS=30`
 - `MOBILE_ACCESS_TOKEN_ISSUER=mathukai-api`
 - `MOBILE_ACCESS_TOKEN_AUDIENCE=mathukai-operations-android`
 - `MOBILE_JWT_SIGNING_KEY=<independent high-entropy secret>`
+
+Mobile authentication cleanup runs daily through Celery Beat. Preview or run it manually with:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py cleanup_mobile_auth --dry-run
+.\.venv\Scripts\python.exe manage.py cleanup_mobile_auth
+```
 
 ## 5) Startup Preflight Check
 

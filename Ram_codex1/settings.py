@@ -138,6 +138,13 @@ MOBILE_SESSION_ABSOLUTE_LIFETIME_DAYS = int(
 MOBILE_REFRESH_TOKEN_LIFETIME_DAYS = int(
     os.environ.get("MOBILE_REFRESH_TOKEN_LIFETIME_DAYS", "30") or 30
 )
+MOBILE_AUTH_RETENTION_DAYS = int(os.environ.get("MOBILE_AUTH_RETENTION_DAYS", "30") or 30)
+MOBILE_AUTH_CLEANUP_BATCH_SIZE = int(
+    os.environ.get("MOBILE_AUTH_CLEANUP_BATCH_SIZE", "500") or 500
+)
+MOBILE_AUTH_CLEANUP_INTERVAL_SECONDS = int(
+    os.environ.get("MOBILE_AUTH_CLEANUP_INTERVAL_SECONDS", "86400") or 86400
+)
 MOBILE_ACCESS_TOKEN_LIFETIME_SECONDS = int(
     os.environ.get("MOBILE_ACCESS_TOKEN_LIFETIME_SECONDS", "600") or 600
 )
@@ -349,6 +356,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.tasks.process_whatsapp_queue",
         "schedule": CELERY_WHATSAPP_QUEUE_INTERVAL_SECONDS,
         "options": {"queue": "whatsapp"},
+    },
+    "cleanup-mobile-auth-daily": {
+        "task": "core.tasks.cleanup_mobile_auth",
+        "schedule": MOBILE_AUTH_CLEANUP_INTERVAL_SECONDS,
     },
 }
 

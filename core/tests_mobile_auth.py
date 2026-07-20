@@ -3,6 +3,7 @@ import hashlib
 import json
 import uuid
 from datetime import timedelta
+from unittest.mock import patch
 
 import jwt
 from django.conf import settings
@@ -32,6 +33,7 @@ from core.api.v1.session_services import (
     create_mobile_session,
     select_session_tenant,
 )
+from core.api.v1.cleanup import cleanup_mobile_auth
 from core.api.v1.permissions import HasActiveMobileTenant, HasMobileTenantRole
 from core.api.v1.token_services import hash_refresh_token, persist_refresh_token
 from core.api.v1.token_services import (
@@ -863,3 +865,120 @@ class MobileLoginEndpointTests(TestCase):
                 self.assertEqual("orders.update_status" in permissions, can_write)
                 self.assertIn("orders.view", permissions)
                 self.assertIn("stock.view", permissions)
+
+
+class MobileAuthCleanupTests(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+        self.user = get_user_model().objects.create_user(username="cleanup-user")
+        self.session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+        )
+
+    def expire_session(self, session=None, days=1):
+        target = session or self.session
+        MobileSession.objects.filter(pk=target.pk).update(
+            expires_at=self.now - timedelta(days=days)
+        )
+        target.refresh_from_db()
+        return target
+
+    def test_dry_run_reports_without_changing_records(self):
+        self.expire_session()
+        token = persist_refresh_token(
+            session=self.session,
+            raw_token="expired-dry-run",
+            expires_at=self.now - timedelta(days=1),
+        )
+
+        summary = cleanup_mobile_auth(dry_run=True, now=self.now)
+
+        self.session.refresh_from_db()
+        token.refresh_from_db()
+        self.assertEqual(summary["sessions_expired"], 1)
+        self.assertEqual(summary["refresh_tokens_revoked"], 1)
+        self.assertEqual(self.session.status, MobileSession.STATUS_ACTIVE)
+        self.assertIsNone(token.revoked_at)
+
+    def test_cleanup_is_bounded_and_rerunnable(self):
+        sessions = [self.expire_session()]
+        for index in range(2):
+            user = get_user_model().objects.create_user(username=f"cleanup-{index}")
+            sessions.append(
+                self.expire_session(
+                    create_mobile_session(
+                        user=user,
+                        installation_id=uuid.uuid4(),
+                        app_version="1.0.0",
+                    )
+                )
+            )
+
+        first = cleanup_mobile_auth(batch_size=2, now=self.now)
+        second = cleanup_mobile_auth(batch_size=2, now=self.now)
+        third = cleanup_mobile_auth(batch_size=2, now=self.now)
+
+        self.assertEqual(first["sessions_expired"], 2)
+        self.assertEqual(second["sessions_expired"], 1)
+        self.assertEqual(third["sessions_expired"], 0)
+        self.assertEqual(
+            MobileSession.objects.filter(status=MobileSession.STATUS_EXPIRED).count(),
+            3,
+        )
+
+    def test_cleanup_preserves_live_session_and_refresh_token(self):
+        raw_token, token = issue_refresh_token(self.session, now=self.now)
+
+        summary = cleanup_mobile_auth(retention_days=0, now=self.now)
+
+        self.session.refresh_from_db()
+        token.refresh_from_db()
+        self.assertTrue(raw_token)
+        self.assertEqual(self.session.status, MobileSession.STATUS_ACTIVE)
+        self.assertIsNone(token.revoked_at)
+        self.assertEqual(summary["sessions_deleted"], 0)
+        self.assertEqual(summary["refresh_tokens_deleted"], 0)
+
+    def test_cleanup_deletes_only_terminal_history_past_retention(self):
+        self.expire_session(days=40)
+        MobileSession.objects.filter(pk=self.session.pk).update(
+            status=MobileSession.STATUS_EXPIRED,
+            revoked_at=self.now - timedelta(days=40),
+        )
+        token = persist_refresh_token(
+            session=self.session,
+            raw_token="old-terminal-token",
+            expires_at=self.now - timedelta(days=40),
+        )
+        MobileRefreshToken.objects.filter(pk=token.pk).update(
+            revoked_at=self.now - timedelta(days=40)
+        )
+
+        summary = cleanup_mobile_auth(retention_days=30, now=self.now)
+
+        self.assertEqual(summary["refresh_tokens_deleted"], 1)
+        self.assertEqual(summary["sessions_deleted"], 1)
+        self.assertFalse(MobileSession.objects.filter(pk=self.session.pk).exists())
+        self.assertFalse(MobileRefreshToken.objects.filter(pk=token.pk).exists())
+
+    def test_management_command_supports_dry_run(self):
+        self.expire_session()
+        output = StringIO()
+
+        call_command("cleanup_mobile_auth", "--dry-run", stdout=output)
+
+        self.session.refresh_from_db()
+        self.assertIn('"dry_run": true', output.getvalue())
+        self.assertEqual(self.session.status, MobileSession.STATUS_ACTIVE)
+
+    @patch("core.tasks.write_system_heartbeat")
+    def test_celery_task_records_cleanup_heartbeat(self, heartbeat):
+        from core.tasks import cleanup_mobile_auth as cleanup_task
+
+        self.expire_session()
+        result = cleanup_task.run()
+
+        self.assertEqual(result["sessions_expired"], 1)
+        heartbeat.assert_called_once_with("mobile_auth_cleanup", result)

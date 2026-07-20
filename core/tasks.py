@@ -2,6 +2,7 @@ from celery import shared_task
 from django.conf import settings
 
 from .queue_alerts import check_and_send_failed_queue_alert
+from .api.v1.cleanup import cleanup_mobile_auth as run_mobile_auth_cleanup
 from .models import Tenant
 from .system_status import write_system_heartbeat
 from .whatsapp_queue import process_whatsapp_notification_queue
@@ -40,3 +41,13 @@ def process_whatsapp_queue(limit=None, include_not_due=False, tenant_id=None, wo
         },
     )
     return {"enabled": True, **summary, "alerts": alert_result}
+
+
+@shared_task(name="core.tasks.cleanup_mobile_auth")
+def cleanup_mobile_auth():
+    summary = run_mobile_auth_cleanup(
+        batch_size=settings.MOBILE_AUTH_CLEANUP_BATCH_SIZE,
+        retention_days=settings.MOBILE_AUTH_RETENTION_DAYS,
+    )
+    write_system_heartbeat("mobile_auth_cleanup", summary)
+    return summary
