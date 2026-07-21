@@ -22,6 +22,37 @@ export type MobileSession = {
 
 export type StoredAuth = { tokens: AuthTokens; session: MobileSession };
 
+export type DashboardMetricTone = 'neutral' | 'positive' | 'attention' | 'critical';
+
+export type DashboardMetric = {
+  key: string;
+  label: string;
+  value: number;
+  destination: string;
+  tone: DashboardMetricTone;
+};
+
+export type DashboardAlert = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  destination: string;
+  created_at: string;
+};
+
+export type DashboardResponse = {
+  data: {
+    metrics: DashboardMetric[];
+    alerts: DashboardAlert[];
+  };
+  meta: {
+    cache_expires_at: string;
+    request_id?: string;
+    server_time?: string;
+  };
+};
+
 export type ApiErrorBody = {
   error?: { code?: string; message?: string; fields?: Record<string, string[]>; retryable?: boolean };
 };

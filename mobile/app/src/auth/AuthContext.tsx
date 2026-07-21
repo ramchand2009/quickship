@@ -10,6 +10,7 @@ type AuthContextValue = {
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   chooseTenant: (tenantId: number) => Promise<void>;
+  runAuthenticated: <T>(operation: (accessToken: string) => Promise<T>) => Promise<T>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -22,6 +23,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setAuth(next);
     if (next) await saveStoredAuth(next); else await clearStoredAuth();
   }, []);
+
+  const runAuthenticated = useCallback(async <T,>(operation: (accessToken: string) => Promise<T>) => {
+    if (!auth) throw new api.ApiError(401, 'authentication_required', 'Please sign in again.');
+    try {
+      return await operation(auth.tokens.access_token);
+    } catch (error) {
+      if (!(error instanceof api.ApiError) || error.status !== 401) throw error;
+    }
+
+    let refreshed: StoredAuth;
+    try {
+      const installationId = await getInstallationId();
+      const tokens = await api.refresh(auth.tokens.refresh_token, installationId);
+      const session = await api.currentSession(tokens.access_token);
+      refreshed = { tokens, session };
+      await replaceAuth(refreshed);
+    } catch (error) {
+      if (!(error instanceof api.ApiError) || error.status !== 401) throw error;
+      await replaceAuth(null);
+      throw new api.ApiError(401, 'session_expired', 'Your session expired. Please sign in again.');
+    }
+    return operation(refreshed.tokens.access_token);
+  }, [auth, replaceAuth]);
 
   useEffect(() => {
     void (async () => {
@@ -56,6 +80,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!auth) return;
       await replaceAuth(await api.selectTenant(auth.tokens.access_token, auth.tokens.refresh_token, tenantId));
     },
+    runAuthenticated,
     signOut: async () => {
       if (auth) {
         try {
@@ -65,7 +90,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       await replaceAuth(null);
     },
-  }), [auth, loading, replaceAuth]);
+  }), [auth, loading, replaceAuth, runAuthenticated]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

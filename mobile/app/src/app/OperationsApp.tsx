@@ -1,0 +1,284 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import * as api from '../auth/api';
+import { useAuth } from '../auth/AuthContext';
+import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
+
+type AppTab = 'dashboard' | 'orders' | 'stock' | 'account';
+
+const TABS: { key: AppTab; label: string }[] = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'stock', label: 'Stock' },
+  { key: 'account', label: 'Account' },
+];
+
+const TONE_STYLES: Record<DashboardMetricTone, { card: object; value: object }> = {
+  neutral: { card: { borderColor: '#D9E2DE' }, value: { color: '#17352A' } },
+  positive: { card: { borderColor: '#B9DAC8' }, value: { color: '#147348' } },
+  attention: { card: { borderColor: '#F0D08D' }, value: { color: '#9A5B00' } },
+  critical: { card: { borderColor: '#F1B7B3' }, value: { color: '#B42318' } },
+};
+
+function formatUpdatedAt(value?: string) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function EmptyFeature({ title, message }: { title: string; message: string }) {
+  return (
+    <View style={styles.emptyFeature}>
+      <View style={styles.emptyBadge}><Text style={styles.emptyBadgeText}>NEXT</Text></View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyMessage}>{message}</Text>
+    </View>
+  );
+}
+
+function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) {
+  const { runAuthenticated } = useAuth();
+  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadDashboard = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true); else setLoading(true);
+    setError('');
+    try {
+      setDashboard(await runAuthenticated(api.dashboard));
+    } catch (reason) {
+      setError(reason instanceof api.ApiError ? reason.message : 'Dashboard could not be loaded.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [runAuthenticated]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  const destinationTab = (destination: string): AppTab => (
+    destination.startsWith('/products') ? 'stock' : 'orders'
+  );
+
+  if (loading && !dashboard) {
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /><Text style={styles.loadingText}>Loading operations...</Text></View>;
+  }
+
+  if (!dashboard) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorTitle}>Dashboard unavailable</Text>
+        <Text style={styles.errorMessage}>{error || 'Check your connection and try again.'}</Text>
+        <Pressable onPress={() => void loadDashboard()} style={styles.retryButton}><Text style={styles.retryText}>Try again</Text></Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadDashboard(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
+    >
+      {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded data.</Text></View> : null}
+      <View style={styles.sectionHeading}>
+        <Text style={styles.sectionTitle}>Today at a glance</Text>
+        <Text style={styles.updatedText}>Updated {formatUpdatedAt(dashboard.meta.server_time) || 'recently'}</Text>
+      </View>
+      <View style={styles.metricGrid}>
+        {dashboard.data.metrics.map((metric) => {
+          const tone = TONE_STYLES[metric.tone] || TONE_STYLES.neutral;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              key={metric.key}
+              onPress={() => onNavigate(destinationTab(metric.destination))}
+              style={({ pressed }) => [styles.metricCard, tone.card, pressed && styles.pressed]}
+            >
+              <Text style={[styles.metricValue, tone.value]}>{metric.value}</Text>
+              <Text style={styles.metricLabel}>{metric.label}</Text>
+              <Text style={styles.metricAction}>View details</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.sectionTitle, styles.alertHeading]}>Attention</Text>
+      {dashboard.data.alerts.length ? dashboard.data.alerts.map((alert) => (
+        <Pressable
+          key={alert.id}
+          onPress={() => onNavigate(destinationTab(alert.destination))}
+          style={({ pressed }) => [styles.alertCard, pressed && styles.pressed]}
+        >
+          <View style={styles.alertDot} />
+          <View style={styles.alertCopy}>
+            <Text style={styles.alertTitle}>{alert.title}</Text>
+            <Text style={styles.alertMessage}>{alert.message}</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      )) : (
+        <View style={styles.clearCard}>
+          <Text style={styles.clearTitle}>No urgent issues</Text>
+          <Text style={styles.clearMessage}>Orders and stock are within the current alert thresholds.</Text>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function AccountScreen() {
+  const { auth, signOut } = useAuth();
+  const [busy, setBusy] = useState(false);
+  if (!auth?.session.active_tenant) return null;
+
+  const signOutNow = async () => {
+    setBusy(true);
+    await signOut();
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Text style={styles.sectionTitle}>Account</Text>
+      <View style={styles.profileCard}>
+        <View style={styles.avatar}><Text style={styles.avatarText}>{auth.session.user.display_name.slice(0, 1).toUpperCase()}</Text></View>
+        <View style={styles.profileCopy}>
+          <Text style={styles.profileName}>{auth.session.user.display_name}</Text>
+          <Text style={styles.profileUsername}>@{auth.session.user.username}</Text>
+        </View>
+      </View>
+      <View style={styles.detailCard}>
+        <Text style={styles.detailLabel}>Workspace</Text>
+        <Text style={styles.detailValue}>{auth.session.active_tenant.tenant_name}</Text>
+        <View style={styles.divider} />
+        <Text style={styles.detailLabel}>Role</Text>
+        <Text style={styles.detailValue}>{auth.session.active_tenant.role_label}</Text>
+      </View>
+      <Pressable disabled={busy} onPress={() => void signOutNow()} style={({ pressed }) => [styles.signOutButton, (pressed || busy) && styles.pressed]}>
+        {busy ? <ActivityIndicator color="#B42318" /> : <Text style={styles.signOutText}>Sign out</Text>}
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+export default function OperationsApp() {
+  const { auth } = useAuth();
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  const title = useMemo(() => {
+    if (activeTab === 'dashboard') return `Hello, ${auth?.session.user.display_name || ''}`;
+    return TABS.find((tab) => tab.key === activeTab)?.label || '';
+  }, [activeTab, auth?.session.user.display_name]);
+
+  return (
+    <SafeAreaView style={styles.app}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerEyebrow}>{auth?.session.active_tenant?.tenant_name}</Text>
+          <Text style={styles.headerTitle}>{title}</Text>
+        </View>
+        <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
+      </View>
+
+      <View style={styles.content}>
+        {activeTab === 'dashboard' ? <DashboardScreen onNavigate={setActiveTab} /> : null}
+        {activeTab === 'orders' ? <EmptyFeature title="Orders are next" message="The order list and order details will be connected in the next implementation slice." /> : null}
+        {activeTab === 'stock' ? <EmptyFeature title="Stock is next" message="Product inventory and stock history will be connected after the order screens." /> : null}
+        {activeTab === 'account' ? <AccountScreen /> : null}
+      </View>
+
+      <View style={styles.tabBar}>
+        {TABS.map((tab) => {
+          const selected = tab.key === activeTab;
+          return (
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              key={tab.key}
+              onPress={() => setActiveTab(tab.key)}
+              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+            >
+              <View style={[styles.tabIndicator, selected && styles.tabIndicatorActive]} />
+              <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  app: { flex: 1, backgroundColor: '#F4F7F5' },
+  header: { minHeight: 92, backgroundColor: '#0B5D3B', paddingHorizontal: 22, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerEyebrow: { color: '#BFE2D2', fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
+  headerTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 5 },
+  liveBadge: { backgroundColor: '#174E36', borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#65D49B', marginRight: 6 },
+  liveText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+  content: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 28 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
+  loadingText: { color: '#587066', marginTop: 14, fontWeight: '600' },
+  warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  warningText: { color: '#7A4A00', lineHeight: 19 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 },
+  sectionTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' },
+  updatedText: { color: '#71867D', fontSize: 12 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
+  metricCard: { width: '48%', minHeight: 148, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, padding: 16 },
+  metricValue: { fontSize: 34, fontWeight: '900' },
+  metricLabel: { color: '#29483D', fontSize: 14, fontWeight: '700', lineHeight: 19, marginTop: 5, flex: 1 },
+  metricAction: { color: '#0B5D3B', fontSize: 12, fontWeight: '800', marginTop: 8 },
+  alertHeading: { marginTop: 26, marginBottom: 12 },
+  alertCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 15, padding: 15, marginBottom: 10, flexDirection: 'row', alignItems: 'center' },
+  alertDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#D92D20', marginRight: 12 },
+  alertCopy: { flex: 1 },
+  alertTitle: { color: '#17352A', fontWeight: '800', fontSize: 15 },
+  alertMessage: { color: '#587066', lineHeight: 19, marginTop: 3 },
+  chevron: { color: '#82958D', fontSize: 28, marginLeft: 8 },
+  clearCard: { backgroundColor: '#E4F3EB', borderRadius: 15, padding: 17 },
+  clearTitle: { color: '#174E36', fontSize: 16, fontWeight: '800' },
+  clearMessage: { color: '#3D6958', lineHeight: 20, marginTop: 5 },
+  errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800', textAlign: 'center' },
+  errorMessage: { color: '#587066', lineHeight: 21, textAlign: 'center', marginTop: 8 },
+  retryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  retryText: { color: '#FFFFFF', fontWeight: '800' },
+  emptyFeature: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 34 },
+  emptyBadge: { backgroundColor: '#E2F1E9', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
+  emptyBadgeText: { color: '#0B5D3B', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  emptyTitle: { color: '#17352A', fontSize: 24, fontWeight: '800', textAlign: 'center', marginTop: 18 },
+  emptyMessage: { color: '#587066', lineHeight: 22, textAlign: 'center', marginTop: 8 },
+  profileCard: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 18, flexDirection: 'row', alignItems: 'center', marginTop: 16 },
+  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' },
+  profileCopy: { marginLeft: 14 },
+  profileName: { color: '#17352A', fontSize: 18, fontWeight: '800' },
+  profileUsername: { color: '#71867D', marginTop: 3 },
+  detailCard: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 18, marginTop: 14 },
+  detailLabel: { color: '#71867D', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
+  detailValue: { color: '#17352A', fontSize: 16, fontWeight: '800', marginTop: 5 },
+  divider: { height: 1, backgroundColor: '#E4EAE7', marginVertical: 16 },
+  signOutButton: { minHeight: 52, borderColor: '#E5AAA5', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  signOutText: { color: '#B42318', fontWeight: '800' },
+  tabBar: { minHeight: 68, backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, flexDirection: 'row', paddingHorizontal: 6 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabIndicator: { width: 22, height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: 7 },
+  tabIndicatorActive: { backgroundColor: '#0B5D3B' },
+  tabText: { color: '#71867D', fontSize: 12, fontWeight: '700' },
+  tabTextActive: { color: '#0B5D3B', fontWeight: '900' },
+  pressed: { opacity: 0.65 },
+});

@@ -1,4 +1,4 @@
-import type { ApiErrorBody, AuthTokens, MobileSession, StoredAuth } from './types';
+import type { ApiErrorBody, AuthTokens, DashboardResponse, MobileSession, StoredAuth } from './types';
 
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8000/api/v1').replace(/\/$/, '');
 
@@ -46,6 +46,12 @@ export async function currentSession(accessToken: string): Promise<MobileSession
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return body.data;
+}
+
+export async function dashboard(accessToken: string): Promise<DashboardResponse> {
+  return request<DashboardResponse>('/dashboard', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 }
 
 export async function selectTenant(accessToken: string, refreshToken: string, tenantId: number): Promise<StoredAuth> {

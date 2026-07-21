@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
+import OperationsApp from './OperationsApp';
 
 export default function IndexScreen() {
-  const { auth, loading, signIn, signOut, chooseTenant } = useAuth();
+  const { auth, loading, signIn, chooseTenant } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,15 +55,7 @@ export default function IndexScreen() {
     </SafeAreaView>
   );
 
-  return (
-    <SafeAreaView style={styles.page}>
-      <Text style={styles.eyebrow}>{auth.session.active_tenant.tenant_name}</Text>
-      <Text style={styles.title}>Welcome, {auth.session.user.display_name}</Text>
-      <Text style={styles.subtitle}>{auth.session.active_tenant.role_label} · Android session secured</Text>
-      <View style={styles.ready}><Text style={styles.readyText}>Authentication is ready</Text></View>
-      <Pressable onPress={() => void run(signOut)} disabled={busy} style={styles.secondary}><Text style={styles.secondaryText}>Sign out</Text></Pressable>
-    </SafeAreaView>
-  );
+  return <OperationsApp />;
 }
 
 const styles = StyleSheet.create({
@@ -79,7 +72,4 @@ const styles = StyleSheet.create({
   buttonMuted: { opacity: 0.6 }, buttonText: { color: '#FFF', fontSize: 17, fontWeight: '800' },
   tenant: { backgroundColor: '#FFF', borderColor: '#D5E0DB', borderWidth: 1, borderRadius: 15, padding: 18 },
   tenantName: { color: '#17352A', fontSize: 17, fontWeight: '800' }, tenantRole: { color: '#587066', marginTop: 4 },
-  eyebrow: { color: '#0B5D3B', fontWeight: '800', textAlign: 'center', textTransform: 'uppercase', marginBottom: 10 },
-  ready: { backgroundColor: '#E2F1E9', borderRadius: 14, padding: 18, marginTop: 32 }, readyText: { color: '#174E36', textAlign: 'center', fontWeight: '800' },
-  secondary: { borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, minHeight: 52, alignItems: 'center', justifyContent: 'center', marginTop: 18 }, secondaryText: { color: '#0B5D3B', fontWeight: '800' },
 });
