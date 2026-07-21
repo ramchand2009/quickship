@@ -15,6 +15,7 @@ import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
+import StockScreen from '../stock/StockScreen';
 
 type AppTab = 'dashboard' | 'orders' | 'stock' | 'account';
 type TabIconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -38,16 +39,6 @@ function formatUpdatedAt(value?: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function EmptyFeature({ title, message }: { title: string; message: string }) {
-  return (
-    <View style={styles.emptyFeature}>
-      <View style={styles.emptyBadge}><Text style={styles.emptyBadgeText}>NEXT</Text></View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyMessage}>{message}</Text>
-    </View>
-  );
 }
 
 function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) {
@@ -199,7 +190,7 @@ export default function OperationsApp() {
       <View style={styles.content}>
         {activeTab === 'dashboard' ? <DashboardScreen onNavigate={setActiveTab} /> : null}
         {activeTab === 'orders' ? <OrdersScreen /> : null}
-        {activeTab === 'stock' ? <EmptyFeature title="Stock is next" message="Product inventory and stock history will be connected after the order screens." /> : null}
+        {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
       </View>
 
@@ -266,11 +257,6 @@ const styles = StyleSheet.create({
   errorMessage: { color: '#587066', lineHeight: 21, textAlign: 'center', marginTop: 8 },
   retryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   retryText: { color: '#FFFFFF', fontWeight: '800' },
-  emptyFeature: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 34 },
-  emptyBadge: { backgroundColor: '#E2F1E9', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
-  emptyBadgeText: { color: '#0B5D3B', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
-  emptyTitle: { color: '#17352A', fontSize: 24, fontWeight: '800', textAlign: 'center', marginTop: 18 },
-  emptyMessage: { color: '#587066', lineHeight: 22, textAlign: 'center', marginTop: 8 },
   profileCard: { backgroundColor: '#FFFFFF', borderRadius: 17, padding: 18, flexDirection: 'row', alignItems: 'center', marginTop: 16 },
   avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' },

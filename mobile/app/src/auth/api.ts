@@ -1,5 +1,6 @@
 import type { ApiErrorBody, AuthTokens, DashboardResponse, MobileSession, StoredAuth } from './types';
 import type { OrderDetailResponse, OrderListFilters, OrderListResponse } from '../orders/types';
+import type { ProductDetailResponse, ProductFilters, ProductListResponse, StockMovementResponse } from '../stock/types';
 
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8000/api/v1').replace(/\/$/, '');
 
@@ -67,6 +68,28 @@ export async function orders(accessToken: string, filters: OrderListFilters = {}
 
 export async function orderDetail(accessToken: string, orderId: number): Promise<OrderDetailResponse> {
   return request<OrderDetailResponse>(`/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function products(accessToken: string, filters: ProductFilters = {}): Promise<ProductListResponse> {
+  const query = Object.entries(filters)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return request<ProductListResponse>(`/products${query ? `?${query}` : ''}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function productDetail(accessToken: string, productId: number): Promise<ProductDetailResponse> {
+  return request<ProductDetailResponse>(`/products/${productId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function stockMovements(accessToken: string, productId: number): Promise<StockMovementResponse> {
+  return request<StockMovementResponse>(`/stock/movements?product_id=${productId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
