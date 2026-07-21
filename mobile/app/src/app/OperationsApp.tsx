@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,12 +17,13 @@ import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
 
 type AppTab = 'dashboard' | 'orders' | 'stock' | 'account';
+type TabIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
-const TABS: { key: AppTab; label: string }[] = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'orders', label: 'Orders' },
-  { key: 'stock', label: 'Stock' },
-  { key: 'account', label: 'Account' },
+const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIconName }[] = [
+  { key: 'dashboard', label: 'Dashboard', icon: 'view-dashboard-outline', activeIcon: 'view-dashboard' },
+  { key: 'orders', label: 'Orders', icon: 'clipboard-text-outline', activeIcon: 'clipboard-text' },
+  { key: 'stock', label: 'Stock', icon: 'package-variant-closed', activeIcon: 'package-variant' },
+  { key: 'account', label: 'Account', icon: 'account-circle-outline', activeIcon: 'account-circle' },
 ];
 
 const TONE_STYLES: Record<DashboardMetricTone, { card: object; value: object }> = {
@@ -213,6 +215,12 @@ export default function OperationsApp() {
               style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
             >
               <View style={[styles.tabIndicator, selected && styles.tabIndicatorActive]} />
+              <MaterialCommunityIcons
+                color={selected ? '#0B5D3B' : '#71867D'}
+                name={selected ? tab.activeIcon : tab.icon}
+                size={25}
+                style={styles.tabIcon}
+              />
               <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
             </Pressable>
           );
@@ -275,10 +283,11 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#E4EAE7', marginVertical: 16 },
   signOutButton: { minHeight: 52, borderColor: '#E5AAA5', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
   signOutText: { color: '#B42318', fontWeight: '800' },
-  tabBar: { minHeight: 68, backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, flexDirection: 'row', paddingHorizontal: 6 },
+  tabBar: { minHeight: 76, backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, flexDirection: 'row', paddingHorizontal: 6 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabIndicator: { width: 22, height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: 7 },
+  tabIndicator: { width: 22, height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: 4 },
   tabIndicatorActive: { backgroundColor: '#0B5D3B' },
+  tabIcon: { marginBottom: 2 },
   tabText: { color: '#71867D', fontSize: 12, fontWeight: '700' },
   tabTextActive: { color: '#0B5D3B', fontWeight: '900' },
   pressed: { opacity: 0.65 },
