@@ -1,4 +1,5 @@
 import type { ApiErrorBody, AuthTokens, DashboardResponse, MobileSession, StoredAuth } from './types';
+import type { OrderDetailResponse, OrderListFilters, OrderListResponse } from '../orders/types';
 
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8000/api/v1').replace(/\/$/, '');
 
@@ -50,6 +51,22 @@ export async function currentSession(accessToken: string): Promise<MobileSession
 
 export async function dashboard(accessToken: string): Promise<DashboardResponse> {
   return request<DashboardResponse>('/dashboard', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function orders(accessToken: string, filters: OrderListFilters = {}): Promise<OrderListResponse> {
+  const query = Object.entries(filters)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return request<OrderListResponse>(`/orders${query ? `?${query}` : ''}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function orderDetail(accessToken: string, orderId: number): Promise<OrderDetailResponse> {
+  return request<OrderDetailResponse>(`/orders/${orderId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

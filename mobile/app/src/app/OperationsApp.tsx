@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
+import OrdersScreen from '../orders/OrdersScreen';
 
 type AppTab = 'dashboard' | 'orders' | 'stock' | 'account';
 
@@ -195,7 +196,7 @@ export default function OperationsApp() {
 
       <View style={styles.content}>
         {activeTab === 'dashboard' ? <DashboardScreen onNavigate={setActiveTab} /> : null}
-        {activeTab === 'orders' ? <EmptyFeature title="Orders are next" message="The order list and order details will be connected in the next implementation slice." /> : null}
+        {activeTab === 'orders' ? <OrdersScreen /> : null}
         {activeTab === 'stock' ? <EmptyFeature title="Stock is next" message="Product inventory and stock history will be connected after the order screens." /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
       </View>
