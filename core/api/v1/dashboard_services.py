@@ -35,7 +35,7 @@ def _money_metric(key, label, value, destination, tone="neutral"):
     return {
         "key": key,
         "label": label,
-        "value": {"amount": f"{amount:.2f}", "currency": "INR"},
+        "value": f"₹ {amount:.2f}",
         "destination": destination,
         "tone": tone,
     }

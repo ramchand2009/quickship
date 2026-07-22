@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { DashboardMetricTone, DashboardMoney, DashboardResponse } from '../auth/types';
+import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
 import StockScreen from '../stock/StockScreen';
@@ -42,13 +42,8 @@ function formatUpdatedAt(value?: string) {
   return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatMetricValue(value: number | DashboardMoney) {
-  if (typeof value === 'number') return String(value);
-  const amount = Number(value.amount);
-  const formattedAmount = Number.isFinite(amount)
-    ? amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : value.amount;
-  return `${value.currency === 'INR' ? '₹' : value.currency} ${formattedAmount}`;
+function formatMetricValue(value: number | string) {
+  return String(value);
 }
 
 function destinationParameter(destination: string, key: string) {

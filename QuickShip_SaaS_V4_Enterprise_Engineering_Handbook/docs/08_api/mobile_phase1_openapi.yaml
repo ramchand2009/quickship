@@ -901,7 +901,8 @@ components:
           oneOf:
             - type: integer
               minimum: 0
-            - $ref: '#/components/schemas/Money'
+            - type: string
+              minLength: 1
         destination:
           type: string
         tone:

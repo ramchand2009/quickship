@@ -23,12 +23,11 @@ export type MobileSession = {
 export type StoredAuth = { tokens: AuthTokens; session: MobileSession };
 
 export type DashboardMetricTone = 'neutral' | 'positive' | 'attention' | 'critical';
-export type DashboardMoney = { amount: string; currency: string };
 
 export type DashboardMetric = {
   key: string;
   label: string;
-  value: number | DashboardMoney;
+  value: number | string;
   destination: string;
   tone: DashboardMetricTone;
 };
