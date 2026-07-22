@@ -18,7 +18,14 @@ import type {
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8000/api/v1').replace(/\/$/, '');
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string) {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+    public fields: Record<string, string[]> = {},
+    public retryable = false,
+    public requestId = '',
+  ) {
     super(message);
   }
 }
@@ -35,7 +42,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
-    throw new ApiError(response.status, body.error?.code || 'request_failed', body.error?.message || 'Request failed.');
+    throw new ApiError(
+      response.status,
+      body.error?.code || 'request_failed',
+      body.error?.message || 'Request failed.',
+      body.error?.fields || {},
+      Boolean(body.error?.retryable),
+      body.meta?.request_id || response.headers.get('X-Request-ID') || '',
+    );
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
