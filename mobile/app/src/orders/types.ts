@@ -60,6 +60,8 @@ export type OrderListFilters = {
   search?: string;
   status?: string;
   payment_state?: string;
+  date_from?: string;
+  date_to?: string;
   cursor?: string;
 };
 

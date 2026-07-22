@@ -50,6 +50,13 @@ def build_mobile_dashboard(*, tenant, role, now=None):
     local_generated_at = timezone.localtime(generated_at)
     month_start = local_generated_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+    month_end = next_month_start.date() - timedelta(days=1)
+    month_query = f"date_from={month_start.date().isoformat()}&date_to={month_end.isoformat()}"
+
+    def order_destination(status=None):
+        status_query = f"status={status}&" if status else ""
+        return f"/orders?{status_query}{month_query}"
+
     monthly_orders = ShiprocketOrder.objects.filter(tenant=tenant).annotate(
         dashboard_order_date=Coalesce("order_date", "created_at")
     ).filter(
@@ -80,12 +87,12 @@ def build_mobile_dashboard(*, tenant, role, now=None):
     attention = order_counts["attention"]
     low_stock = product_counts["low_stock"]
     metrics = [
-        _metric("total_orders", "Total orders", order_counts["total"], "/orders"),
-        _metric("pending_orders", "Pending", pending, "/orders?status=new_order", "attention" if pending else "positive"),
-        _metric("accepted_orders", "Accepted", accepted, "/orders?status=order_accepted"),
-        _metric("shipped_orders", "Shipped", order_counts["shipped"], "/orders?status=shipped"),
-        _metric("completed_orders", "Completed", order_counts["completed"], "/orders?status=completed", "positive"),
-        _metric("cancelled_orders", "Cancelled", order_counts["cancelled"], "/orders?status=order_cancelled", "critical" if order_counts["cancelled"] else "positive"),
+        _metric("total_orders", "Total orders", order_counts["total"], order_destination()),
+        _metric("pending_orders", "Pending", pending, order_destination(ShiprocketOrder.STATUS_NEW), "attention" if pending else "positive"),
+        _metric("accepted_orders", "Accepted", accepted, order_destination(ShiprocketOrder.STATUS_ACCEPTED)),
+        _metric("shipped_orders", "Shipped", order_counts["shipped"], order_destination(ShiprocketOrder.STATUS_SHIPPED)),
+        _metric("completed_orders", "Completed", order_counts["completed"], order_destination(ShiprocketOrder.STATUS_COMPLETED), "positive"),
+        _metric("cancelled_orders", "Cancelled", order_counts["cancelled"], order_destination(ShiprocketOrder.STATUS_CANCELLED), "critical" if order_counts["cancelled"] else "positive"),
     ]
 
     routing_issues = 0
@@ -98,7 +105,7 @@ def build_mobile_dashboard(*, tenant, role, now=None):
 
     alerts = []
     if attention:
-        alerts.append(_alert("orders:delivery_issue", "order_attention", "Orders need attention", f"{attention} order(s) have a delivery issue.", "/orders?status=delivery_issue", alert_time))
+        alerts.append(_alert("orders:delivery_issue", "order_attention", "Orders need attention", f"{attention} order(s) have a delivery issue.", order_destination(ShiprocketOrder.STATUS_DELIVERY_ISSUE), alert_time))
     if low_stock:
         alerts.append(_alert("stock:low", "stock_attention", "Stock needs attention", f"{low_stock} active product(s) are at or below reorder level.", "/products?stock_state=low", alert_time))
     if routing_issues:

@@ -13,7 +13,7 @@ import {
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { Money, OrderDetail, OrderSummary } from './types';
+import type { Money, OrderDetail, OrderListFilters, OrderSummary } from './types';
 
 const STATUS_FILTERS = [
   { code: '', label: 'All' },
@@ -23,6 +23,8 @@ const STATUS_FILTERS = [
   { code: 'shipped', label: 'Shipped' },
   { code: 'delivery_issue', label: 'Attention' },
   { code: 'delivered', label: 'Delivered' },
+  { code: 'completed', label: 'Completed' },
+  { code: 'order_cancelled', label: 'Cancelled' },
 ];
 
 function money(value: Money) {
@@ -178,12 +180,14 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   );
 }
 
-export default function OrdersScreen() {
+export default function OrdersScreen({ initialFilters = {} }: { initialFilters?: OrderListFilters }) {
   const { runAuthenticated } = useAuth();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(initialFilters.status || '');
+  const dateFrom = initialFilters.date_from || '';
+  const dateTo = initialFilters.date_to || '';
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -195,7 +199,12 @@ export default function OrdersScreen() {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError('');
     try {
-      const response = await runAuthenticated((token) => api.orders(token, { search, status }));
+      const response = await runAuthenticated((token) => api.orders(token, {
+        search,
+        status,
+        date_from: dateFrom,
+        date_to: dateTo,
+      }));
       setOrders(response.data);
       setNextCursor(response.pagination.next_cursor);
     } catch (reason) {
@@ -204,7 +213,7 @@ export default function OrdersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [runAuthenticated, search, status]);
+  }, [dateFrom, dateTo, runAuthenticated, search, status]);
 
   useEffect(() => { void loadFirstPage(); }, [loadFirstPage]);
 
@@ -213,7 +222,13 @@ export default function OrdersScreen() {
     setLoadingMore(true);
     setError('');
     try {
-      const response = await runAuthenticated((token) => api.orders(token, { search, status, cursor: nextCursor }));
+      const response = await runAuthenticated((token) => api.orders(token, {
+        search,
+        status,
+        date_from: dateFrom,
+        date_to: dateTo,
+        cursor: nextCursor,
+      }));
       setOrders((current) => [...current, ...response.data]);
       setNextCursor(response.pagination.next_cursor);
     } catch (reason) {
@@ -227,6 +242,12 @@ export default function OrdersScreen() {
 
   const listHeader = (
     <View>
+      {dateFrom && dateTo ? (
+        <View style={styles.scopeBanner}>
+          <Text style={styles.scopeLabel}>Current month</Text>
+          <Text style={styles.scopeDates}>{dateFrom} to {dateTo}</Text>
+        </View>
+      ) : null}
       <View style={styles.searchRow}>
         <TextInput
           accessibilityLabel="Search orders"
@@ -284,6 +305,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   loadingText: { color: '#587066', marginTop: 14, fontWeight: '600' },
   listContent: { padding: 18, paddingBottom: 28 },
+  scopeBanner: { backgroundColor: '#E4F3EB', borderRadius: 12, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  scopeLabel: { color: '#0B5D3B', fontSize: 13, fontWeight: '800' },
+  scopeDates: { color: '#587066', fontSize: 11, marginTop: 2 },
   searchRow: { flexDirection: 'row', marginBottom: 12 },
   searchInput: { flex: 1, minHeight: 48, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, color: '#17352A', fontSize: 15 },
   searchButton: { minWidth: 78, minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },

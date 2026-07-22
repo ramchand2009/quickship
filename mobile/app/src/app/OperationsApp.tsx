@@ -15,6 +15,7 @@ import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
+import type { OrderListFilters } from '../orders/types';
 import StockScreen from '../stock/StockScreen';
 
 type AppTab = 'dashboard' | 'orders' | 'stock' | 'account';
@@ -41,7 +42,22 @@ function formatUpdatedAt(value?: string) {
   return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) {
+function destinationParameter(destination: string, key: string) {
+  const query = destination.split('?', 2)[1] || '';
+  const entry = query.split('&').find((part) => part.split('=', 1)[0] === key);
+  if (!entry) return undefined;
+  return decodeURIComponent(entry.slice(entry.indexOf('=') + 1));
+}
+
+function orderFiltersFromDestination(destination: string): OrderListFilters {
+  return {
+    status: destinationParameter(destination, 'status'),
+    date_from: destinationParameter(destination, 'date_from'),
+    date_to: destinationParameter(destination, 'date_to'),
+  };
+}
+
+function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => void }) {
   const { runAuthenticated } = useAuth();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,10 +80,6 @@ function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) 
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
-
-  const destinationTab = (destination: string): AppTab => (
-    destination.startsWith('/products') ? 'stock' : 'orders'
-  );
 
   if (loading && !dashboard) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /><Text style={styles.loadingText}>Loading operations...</Text></View>;
@@ -100,7 +112,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) 
             <Pressable
               accessibilityRole="button"
               key={metric.key}
-              onPress={() => onNavigate(destinationTab(metric.destination))}
+              onPress={() => onNavigate(metric.destination)}
               style={({ pressed }) => [styles.metricCard, tone.card, pressed && styles.pressed]}
             >
               <Text style={[styles.metricValue, tone.value]}>{metric.value}</Text>
@@ -115,7 +127,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) 
       {dashboard.data.alerts.length ? dashboard.data.alerts.map((alert) => (
         <Pressable
           key={alert.id}
-          onPress={() => onNavigate(destinationTab(alert.destination))}
+          onPress={() => onNavigate(alert.destination)}
           style={({ pressed }) => [styles.alertCard, pressed && styles.pressed]}
         >
           <View style={styles.alertDot} />
@@ -172,6 +184,26 @@ function AccountScreen() {
 export default function OperationsApp() {
   const { auth } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  const [ordersInitialFilters, setOrdersInitialFilters] = useState<OrderListFilters>({});
+  const [ordersScreenKey, setOrdersScreenKey] = useState(0);
+
+  const openDestination = useCallback((destination: string) => {
+    if (destination.startsWith('/products')) {
+      setActiveTab('stock');
+      return;
+    }
+    setOrdersInitialFilters(orderFiltersFromDestination(destination));
+    setOrdersScreenKey((current) => current + 1);
+    setActiveTab('orders');
+  }, []);
+
+  const openTab = useCallback((tab: AppTab) => {
+    if (tab === 'orders') {
+      setOrdersInitialFilters({});
+      setOrdersScreenKey((current) => current + 1);
+    }
+    setActiveTab(tab);
+  }, []);
   const title = useMemo(() => {
     if (activeTab === 'dashboard') return `Hello, ${auth?.session.user.display_name || ''}`;
     return TABS.find((tab) => tab.key === activeTab)?.label || '';
@@ -188,8 +220,8 @@ export default function OperationsApp() {
       </View>
 
       <View style={styles.content}>
-        {activeTab === 'dashboard' ? <DashboardScreen onNavigate={setActiveTab} /> : null}
-        {activeTab === 'orders' ? <OrdersScreen /> : null}
+        {activeTab === 'dashboard' ? <DashboardScreen onNavigate={openDestination} /> : null}
+        {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} key={ordersScreenKey} /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
       </View>
@@ -202,7 +234,7 @@ export default function OperationsApp() {
               accessibilityRole="tab"
               accessibilityState={{ selected }}
               key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
+              onPress={() => openTab(tab.key)}
               style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
             >
               <View style={[styles.tabIndicator, selected && styles.tabIndicatorActive]} />

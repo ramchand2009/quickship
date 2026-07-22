@@ -74,13 +74,17 @@ class MobileDashboardApiTests(TestCase):
         response = self.client.get("/api/v1/dashboard", headers=self.headers)
 
         self.assertEqual(response.status_code, 200)
-        metrics = {row["key"]: row["value"] for row in response.json()["data"]["metrics"]}
+        metric_rows = {row["key"]: row for row in response.json()["data"]["metrics"]}
+        metrics = {key: row["value"] for key, row in metric_rows.items()}
         self.assertEqual(metrics["total_orders"], 6)
         self.assertEqual(metrics["pending_orders"], 1)
         self.assertEqual(metrics["accepted_orders"], 1)
         self.assertEqual(metrics["shipped_orders"], 1)
         self.assertEqual(metrics["completed_orders"], 1)
         self.assertEqual(metrics["cancelled_orders"], 1)
+        self.assertIn("status=shipped", metric_rows["shipped_orders"]["destination"])
+        self.assertIn("date_from=", metric_rows["shipped_orders"]["destination"])
+        self.assertIn("date_to=", metric_rows["shipped_orders"]["destination"])
         self.assertEqual(
             set(metrics),
             {

@@ -116,6 +116,15 @@ class MobileOrderListApiTests(TestCase):
         self.assertEqual(invalid.status_code, 400)
         self.assertIn("date_to", invalid.json()["error"]["fields"])
 
+    def test_date_filter_falls_back_to_created_at_when_order_date_is_missing(self):
+        order = self.order("NO-ORDER-DATE", order_date=None)
+        today = timezone.localdate().isoformat()
+
+        response = self.get({"date_from": today, "date_to": today})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.json()["data"]], [order.pk])
+
     def test_customer_search_and_display_follow_role_policy(self):
         order = self.order("CUSTOMER", customer_name="Sensitive Name")
         owner = self.get({"search": "Sensitive Name"})

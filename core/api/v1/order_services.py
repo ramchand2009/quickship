@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.db.models.functions import Coalesce
 
 from core.models import OrderActivityLog, ShiprocketOrder, TenantMembership
 
@@ -19,10 +20,12 @@ def mobile_order_queryset(*, tenant, role, filters):
         queryset = queryset.filter(payment_received_at__isnull=False)
     elif payment_state == "pending":
         queryset = queryset.filter(payment_received_at__isnull=True)
+    if filters.get("date_from") or filters.get("date_to"):
+        queryset = queryset.annotate(effective_order_date=Coalesce("order_date", "created_at"))
     if filters.get("date_from"):
-        queryset = queryset.filter(order_date__date__gte=filters["date_from"])
+        queryset = queryset.filter(effective_order_date__date__gte=filters["date_from"])
     if filters.get("date_to"):
-        queryset = queryset.filter(order_date__date__lte=filters["date_to"])
+        queryset = queryset.filter(effective_order_date__date__lte=filters["date_to"])
     if filters.get("updated_after"):
         queryset = queryset.filter(updated_at__gt=filters["updated_after"])
 
