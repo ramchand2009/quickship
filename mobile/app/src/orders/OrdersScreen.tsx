@@ -3,6 +3,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   FlatList,
   Linking,
   Modal,
@@ -308,6 +309,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     <ScrollView
       contentContainerStyle={styles.detailContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
+      stickyHeaderIndices={[0]}
     >
       <Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹ Back to orders</Text></Pressable>
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded details.</Text></View> : null}
@@ -533,6 +535,15 @@ export default function OrdersScreen({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (selectedOrderId === null) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelectedOrderId(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [selectedOrderId]);
+
   const loadFirstPage = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError('');
@@ -691,7 +702,7 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   primaryButtonText: { color: '#FFFFFF', fontWeight: '800' },
   detailContent: { padding: 18, paddingBottom: 32 },
-  backButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 14, marginBottom: 8 },
+  backButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center', marginBottom: 8 },
   backText: { color: '#0B5D3B', fontSize: 15, fontWeight: '800' },
   detailHero: { backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22 },
   detailReference: { color: '#17352A', fontSize: 21, fontWeight: '900' },
