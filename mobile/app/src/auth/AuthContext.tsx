@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 
 import * as api from './api';
-import { clearStoredAuth, getInstallationId, loadStoredAuth, saveStoredAuth } from './storage';
+import {
+  clearPushDeviceId,
+  clearStoredAuth,
+  getInstallationId,
+  getPushDeviceId,
+  loadStoredAuth,
+  saveStoredAuth,
+} from './storage';
 import type { StoredAuth } from './types';
 
 type AuthContextValue = {
@@ -84,10 +91,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     signOut: async () => {
       if (auth) {
         try {
+          const pushDeviceId = await getPushDeviceId();
+          if (pushDeviceId) await api.disablePushDevice(auth.tokens.access_token, pushDeviceId);
+        } catch { /* Push cleanup must not prevent API logout. */ }
+        try {
           const installationId = await getInstallationId();
           await api.logout(auth.tokens.access_token, auth.tokens.refresh_token, installationId);
         } catch { /* Local sign-out must always succeed. */ }
       }
+      await clearPushDeviceId();
       await replaceAuth(null);
     },
   }), [auth, loading, replaceAuth, runAuthenticated]);

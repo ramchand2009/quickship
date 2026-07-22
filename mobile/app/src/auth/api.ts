@@ -7,6 +7,13 @@ import type {
   OrderStatusUpdate,
 } from '../orders/types';
 import type { ProductDetailResponse, ProductFilters, ProductListResponse, StockMovementResponse } from '../stock/types';
+import type {
+  MobileDevice,
+  MobileNotification,
+  NotificationCategory,
+  NotificationListResponse,
+  NotificationPreferencesResponse,
+} from '../notifications/types';
 
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8000/api/v1').replace(/\/$/, '');
 
@@ -74,6 +81,74 @@ export async function orders(accessToken: string, filters: OrderListFilters = {}
 
 export async function orderDetail(accessToken: string, orderId: number): Promise<OrderDetailResponse> {
   return request<OrderDetailResponse>(`/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function notifications(
+  accessToken: string,
+  filters: { unread_only?: boolean; cursor?: string; page_size?: number } = {},
+): Promise<NotificationListResponse> {
+  const query = Object.entries(filters)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return request<NotificationListResponse>(`/notifications${query ? `?${query}` : ''}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function markNotificationRead(
+  accessToken: string,
+  notificationId: number,
+  idempotencyKey: string,
+): Promise<{ data: MobileNotification }> {
+  return request<{ data: MobileNotification }>(`/notifications/${notificationId}/read`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: '{}',
+  });
+}
+
+export async function notificationPreferences(accessToken: string): Promise<NotificationPreferencesResponse> {
+  return request<NotificationPreferencesResponse>('/notification-preferences', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function updateNotificationPreferences(
+  accessToken: string,
+  preferences: { category: NotificationCategory; enabled: boolean }[],
+  idempotencyKey: string,
+): Promise<NotificationPreferencesResponse> {
+  return request<NotificationPreferencesResponse>('/notification-preferences', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ preferences }),
+  });
+}
+
+export async function registerPushToken(
+  accessToken: string,
+  values: {
+    installation_id: string;
+    platform: 'android';
+    expo_push_token: string;
+    app_version: string;
+    device_name?: string;
+  },
+  idempotencyKey: string,
+): Promise<{ data: MobileDevice }> {
+  return request<{ data: MobileDevice }>('/devices/push-token', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
+  });
+}
+
+export async function disablePushDevice(accessToken: string, deviceId: string): Promise<void> {
+  await request<void>(`/devices/${deviceId}`, {
+    method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

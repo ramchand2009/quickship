@@ -512,7 +512,13 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   );
 }
 
-export default function OrdersScreen({ initialFilters = {} }: { initialFilters?: OrderListFilters }) {
+export default function OrdersScreen({
+  initialFilters = {},
+  initialOrderId = null,
+}: {
+  initialFilters?: OrderListFilters;
+  initialOrderId?: number | null;
+}) {
   const { runAuthenticated } = useAuth();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [draftSearch, setDraftSearch] = useState('');
@@ -521,7 +527,7 @@ export default function OrdersScreen({ initialFilters = {} }: { initialFilters?:
   const dateFrom = initialFilters.date_from || '';
   const dateTo = initialFilters.date_to || '';
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialOrderId);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);

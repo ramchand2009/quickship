@@ -16,9 +16,11 @@ import { useAuth } from '../auth/AuthContext';
 import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
+import NotificationBridge from '../notifications/NotificationBridge';
+import NotificationsScreen from '../notifications/NotificationsScreen';
 import StockScreen from '../stock/StockScreen';
 
-type AppTab = 'dashboard' | 'orders' | 'stock' | 'account';
+type AppTab = 'dashboard' | 'orders' | 'stock' | 'account' | 'notifications';
 type TabIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
 const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIconName }[] = [
@@ -59,6 +61,11 @@ function orderFiltersFromDestination(destination: string): OrderListFilters {
     date_from: destinationParameter(destination, 'date_from'),
     date_to: destinationParameter(destination, 'date_to'),
   };
+}
+
+function orderIdFromDestination(destination: string) {
+  const match = destination.match(/^\/orders\/(\d+)$/);
+  return match ? Number(match[1]) : null;
 }
 
 function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => void }) {
@@ -186,16 +193,31 @@ function AccountScreen() {
 }
 
 export default function OperationsApp() {
-  const { auth } = useAuth();
+  const { auth, runAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [ordersInitialFilters, setOrdersInitialFilters] = useState<OrderListFilters>({});
+  const [ordersInitialOrderId, setOrdersInitialOrderId] = useState<number | null>(null);
   const [ordersScreenKey, setOrdersScreenKey] = useState(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (!auth?.session.active_tenant) return;
+    try {
+      const response = await runAuthenticated((token) => api.notifications(token, { unread_only: true, page_size: 1 }));
+      setUnreadNotificationCount(response.meta.unread_count || 0);
+    } catch {
+      // The rest of the app remains usable when notification summary refresh fails.
+    }
+  }, [auth?.session.active_tenant, runAuthenticated]);
+
+  useEffect(() => { void refreshUnreadCount(); }, [refreshUnreadCount]);
 
   const openDestination = useCallback((destination: string) => {
     if (destination.startsWith('/products')) {
       setActiveTab('stock');
       return;
     }
+    setOrdersInitialOrderId(orderIdFromDestination(destination));
     setOrdersInitialFilters(orderFiltersFromDestination(destination));
     setOrdersScreenKey((current) => current + 1);
     setActiveTab('orders');
@@ -204,12 +226,14 @@ export default function OperationsApp() {
   const openTab = useCallback((tab: AppTab) => {
     if (tab === 'orders') {
       setOrdersInitialFilters({});
+      setOrdersInitialOrderId(null);
       setOrdersScreenKey((current) => current + 1);
     }
     setActiveTab(tab);
   }, []);
   const title = useMemo(() => {
     if (activeTab === 'dashboard') return `Hello, ${auth?.session.user.display_name || ''}`;
+    if (activeTab === 'notifications') return 'Notifications';
     return TABS.find((tab) => tab.key === activeTab)?.label || '';
   }, [activeTab, auth?.session.user.display_name]);
 
@@ -220,14 +244,30 @@ export default function OperationsApp() {
           <Text style={styles.headerEyebrow}>{auth?.session.active_tenant?.tenant_name}</Text>
           <Text style={styles.headerTitle}>{title}</Text>
         </View>
-        <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="Open notifications"
+            onPress={() => setActiveTab('notifications')}
+            style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}
+          >
+            <MaterialCommunityIcons color="#FFFFFF" name={unreadNotificationCount ? 'bell' : 'bell-outline'} size={25} />
+            {unreadNotificationCount ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
+        </View>
       </View>
 
       <View style={styles.content}>
+        <NotificationBridge onDestination={openDestination} onNotificationReceived={refreshUnreadCount} />
         {activeTab === 'dashboard' ? <DashboardScreen onNavigate={openDestination} /> : null}
-        {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} key={ordersScreenKey} /> : null}
+        {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={ordersScreenKey} /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
+        {activeTab === 'notifications' ? <NotificationsScreen onOpenDestination={openDestination} onUnreadCountChange={setUnreadNotificationCount} /> : null}
       </View>
 
       <View style={styles.tabBar}>
@@ -262,6 +302,10 @@ const styles = StyleSheet.create({
   header: { minHeight: 92, backgroundColor: '#0B5D3B', paddingHorizontal: 22, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerEyebrow: { color: '#BFE2D2', fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
   headerTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 5 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
+  notificationButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#174E36', alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', top: -4, right: -5, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#D92D20', borderColor: '#0B5D3B', borderWidth: 2, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   liveBadge: { backgroundColor: '#174E36', borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#65D49B', marginRight: 6 },
   liveText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },

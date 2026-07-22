@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import WebPushSubscription
+from .api.v1.notification_services import deliver_new_order_notification
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +62,23 @@ def send_web_push_notification(subscription, payload):
 
 
 def send_new_order_push_notification(order):
-    if not web_push_is_configured():
-        return {"enabled": False, "sent": 0}
+    web_enabled = web_push_is_configured()
+    web_sent = 0
+    if web_enabled:
+        payload = build_order_push_payload(order)
+        for subscription in WebPushSubscription.objects.filter(
+            tenant=order.tenant,
+            is_active=True,
+        ).iterator():
+            if send_web_push_notification(subscription, payload):
+                web_sent += 1
 
-    payload = build_order_push_payload(order)
-    sent = 0
-    for subscription in WebPushSubscription.objects.filter(is_active=True).iterator():
-        if send_web_push_notification(subscription, payload):
-            sent += 1
-    return {"enabled": True, "sent": sent}
+    mobile_result = deliver_new_order_notification(order)
+    mobile_sent = int(mobile_result.get("sent") or 0)
+    return {
+        "enabled": web_enabled or bool(mobile_result.get("enabled")),
+        "sent": web_sent + mobile_sent,
+        "web_sent": web_sent,
+        "mobile_sent": mobile_sent,
+        "notification_count": int(mobile_result.get("notification_count") or 0),
+    }
