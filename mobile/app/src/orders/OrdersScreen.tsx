@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -46,6 +49,25 @@ function StatusPill({ order }: { order: OrderSummary }) {
   );
 }
 
+function PaymentPill({ order }: { order: OrderSummary }) {
+  const received = order.payment_state.code === 'received';
+  return (
+    <View style={[styles.paymentPill, received ? styles.paymentPillReceived : styles.paymentPillPending]}>
+      <Text style={[styles.paymentPillText, received ? styles.paymentPillTextReceived : styles.paymentPillTextPending]}>
+        Payment: {order.payment_state.label}
+      </Text>
+    </View>
+  );
+}
+
+function normalizedContactPhone(value: string | null | undefined) {
+  if (!value || /[•*xX]/.test(value)) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`;
+  return digits.length >= 8 ? digits : '';
+}
+
 function OrderCard({ order, onPress }: { order: OrderSummary; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, pressed && styles.pressed]}>
@@ -58,7 +80,15 @@ function OrderCard({ order, onPress }: { order: OrderSummary; onPress: () => voi
       </View>
       <Text style={styles.customerName}>{order.customer_display_name || 'Customer unavailable'}</Text>
       <View style={styles.orderBottomRow}>
-        <Text style={styles.orderMeta}>{order.item_count} item{order.item_count === 1 ? '' : 's'} · {order.payment_state.label}</Text>
+        <View style={styles.orderSummaryCopy}>
+          <View style={styles.orderMetaRow}>
+            <Text style={styles.orderMeta}>{order.item_count} item{order.item_count === 1 ? '' : 's'}</Text>
+            <PaymentPill order={order} />
+          </View>
+          {order.status.code === 'shipped' && order.tracking_number ? (
+            <Text numberOfLines={1} selectable style={styles.trackingText}>Tracking: {order.tracking_number}</Text>
+          ) : null}
+        </View>
         <Text style={styles.orderTotal}>{money(order.total)}</Text>
       </View>
     </Pressable>
@@ -107,6 +137,24 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     </View>
   );
 
+  const contactPhone = normalizedContactPhone(order.customer.phone);
+  const openWhatsApp = async () => {
+    const customerName = order.customer.name || 'Customer';
+    const message = `Hello ${customerName}, this is Mathukai regarding order ${order.reference}.`;
+    try {
+      await Linking.openURL(`https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`);
+    } catch {
+      Alert.alert('WhatsApp unavailable', 'WhatsApp could not be opened on this device.');
+    }
+  };
+  const openDialer = async () => {
+    try {
+      await Linking.openURL(`tel:+${contactPhone}`);
+    } catch {
+      Alert.alert('Dialer unavailable', 'The phone dialer could not be opened on this device.');
+    }
+  };
+
   return (
     <ScrollView
       contentContainerStyle={styles.detailContent}
@@ -136,6 +184,26 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Email" value={order.customer.email} />
         <DetailRow label="Delivery address" value={order.customer.delivery_address} />
         {order.customer.fields_masked.length ? <Text style={styles.maskedNote}>Some customer fields are hidden for your role.</Text> : null}
+        {contactPhone ? (
+          <View style={styles.contactActions}>
+            <Pressable
+              accessibilityLabel={`Message ${order.customer.name || 'customer'} on WhatsApp`}
+              onPress={() => void openWhatsApp()}
+              style={({ pressed }) => [styles.whatsAppButton, pressed && styles.pressed]}
+            >
+              <MaterialCommunityIcons color="#FFFFFF" name="whatsapp" size={22} />
+              <Text style={styles.whatsAppButtonText}>WhatsApp</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel={`Call ${order.customer.name || 'customer'}`}
+              onPress={() => void openDialer()}
+              style={({ pressed }) => [styles.callButton, pressed && styles.pressed]}
+            >
+              <MaterialCommunityIcons color="#0B5D3B" name="phone-outline" size={22} />
+              <Text style={styles.callButtonText}>Call</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.sectionTitle}>Items ({order.items.length})</Text>
@@ -159,23 +227,6 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Order date" value={dateTime(order.order_date)} />
       </View>
 
-      {order.activity.length ? (
-        <>
-          <Text style={styles.sectionTitle}>Recent activity</Text>
-          <View style={styles.sectionCard}>
-            {order.activity.map((entry, index) => (
-              <View key={entry.id} style={[styles.activityRow, index > 0 && styles.itemDivider]}>
-                <View style={styles.activityDot} />
-                <View style={styles.activityCopy}>
-                  <Text style={styles.activityTitle}>{entry.title}</Text>
-                  {entry.description ? <Text style={styles.activityDescription}>{entry.description}</Text> : null}
-                  <Text style={styles.activityTime}>{dateTime(entry.created_at)}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </>
-      ) : null}
     </ScrollView>
   );
 }
@@ -327,9 +378,18 @@ const styles = StyleSheet.create({
   statusPillCritical: { backgroundColor: '#FDE8E7' },
   statusText: { color: '#147348', fontSize: 11, fontWeight: '800' },
   statusTextCritical: { color: '#B42318' },
+  paymentPill: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  paymentPillReceived: { backgroundColor: '#E4F3EB' },
+  paymentPillPending: { backgroundColor: '#FFF4D8' },
+  paymentPillText: { fontSize: 10, fontWeight: '800' },
+  paymentPillTextReceived: { color: '#147348' },
+  paymentPillTextPending: { color: '#9A5B00' },
   customerName: { color: '#29483D', fontSize: 15, fontWeight: '700', marginTop: 14 },
   orderBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  orderSummaryCopy: { flex: 1, paddingRight: 12 },
+  orderMetaRow: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
   orderMeta: { color: '#71867D', fontSize: 12 },
+  trackingText: { color: '#587066', fontSize: 12, fontWeight: '700', marginTop: 7 },
   orderTotal: { color: '#17352A', fontSize: 16, fontWeight: '900' },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   warningText: { color: '#7A4A00', lineHeight: 19 },
@@ -357,17 +417,16 @@ const styles = StyleSheet.create({
   detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   detailValue: { color: '#29483D', fontSize: 15, lineHeight: 21, fontWeight: '600', marginTop: 4 },
   maskedNote: { color: '#7A4A00', backgroundColor: '#FFF4D8', borderRadius: 9, padding: 10, lineHeight: 18 },
+  contactActions: { borderTopColor: '#E7ECEA', borderTopWidth: 1, flexDirection: 'row', columnGap: 10, marginTop: 4, paddingTop: 14 },
+  whatsAppButton: { flex: 1, minHeight: 48, backgroundColor: '#128C4A', borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
+  whatsAppButtonText: { color: '#FFFFFF', fontWeight: '800' },
+  callButton: { flex: 1, minHeight: 48, backgroundColor: '#FFFFFF', borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
+  callButtonText: { color: '#0B5D3B', fontWeight: '800' },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   itemDivider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 },
   itemCopy: { flex: 1, paddingRight: 12 },
   itemName: { color: '#29483D', fontSize: 15, fontWeight: '800' },
   itemMeta: { color: '#71867D', fontSize: 12, marginTop: 4 },
   itemTotal: { color: '#17352A', fontWeight: '900' },
-  activityRow: { flexDirection: 'row', paddingVertical: 5 },
-  activityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0B5D3B', marginTop: 5, marginRight: 12 },
-  activityCopy: { flex: 1 },
-  activityTitle: { color: '#29483D', fontWeight: '800' },
-  activityDescription: { color: '#587066', lineHeight: 19, marginTop: 3 },
-  activityTime: { color: '#82958D', fontSize: 11, marginTop: 5 },
   pressed: { opacity: 0.65 },
 });
