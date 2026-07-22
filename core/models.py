@@ -223,6 +223,49 @@ class MobileRefreshToken(models.Model):
         return f"MobileRefreshToken {self.pk}"
 
 
+class MobileMutationReceipt(models.Model):
+    STATUS_PROCESSING = "processing"
+    STATUS_COMPLETED = "completed"
+    STATUS_CHOICES = [
+        (STATUS_PROCESSING, "Processing"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    session = models.ForeignKey(
+        MobileSession,
+        on_delete=models.CASCADE,
+        related_name="mutation_receipts",
+    )
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="mobile_mutation_receipts",
+    )
+    idempotency_key = models.CharField(max_length=128)
+    request_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PROCESSING)
+    response_payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "idempotency_key"],
+                name="uniq_mobile_mutation_session_key",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["tenant", "created_at"],
+                name="mobile_mut_tenant_created_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"MobileMutationReceipt {self.session_id}:{self.idempotency_key}"
+
+
 class Project(models.Model):
     tenant = models.ForeignKey(
         Tenant,

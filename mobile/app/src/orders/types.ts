@@ -44,6 +44,15 @@ export type OrderActivity = {
   created_at: string;
 };
 
+export type OrderAction = {
+  code: 'update_status' | 'mark_payment_received';
+  label: string;
+  target_status: string | null;
+  confirmation_required: boolean;
+  reason_required: boolean;
+  required_fields: string[];
+};
+
 export type OrderDetail = OrderSummary & {
   customer: OrderCustomer;
   items: OrderItem[];
@@ -52,7 +61,7 @@ export type OrderDetail = OrderSummary & {
   payment_received_at: string | null;
   cancellation_reason: string | null;
   cancellation_note: string | null;
-  allowed_actions: unknown[];
+  allowed_actions: OrderAction[];
   activity: OrderActivity[];
 };
 
@@ -74,4 +83,29 @@ export type OrderListResponse = {
 export type OrderDetailResponse = {
   data: OrderDetail;
   meta?: { request_id?: string; server_time?: string };
+};
+
+export type OrderStatusUpdate = {
+  target_status: string;
+  expected_version: string;
+  customer_phone?: string;
+  courier_name?: string;
+  tracking_number?: string;
+  shipping_base_amount?: string;
+  cancellation_reason?: string;
+  cancellation_note?: string;
+};
+
+export type MutationEffect = {
+  code: 'stock_sync' | 'whatsapp_notification' | 'woocommerce_sync';
+  state: 'completed' | 'queued' | 'skipped' | 'warning';
+  message: string | null;
+};
+
+export type OrderMutationResponse = {
+  data: {
+    order: OrderDetail;
+    effects: MutationEffect[];
+    replayed: boolean;
+  };
 };

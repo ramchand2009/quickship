@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from core.access import active_tenant_memberships
 from core.forms import LoginForm
-from core.models import MobileSession, Tenant
+from core.models import MobileSession, Tenant, TenantMembership
 
 from .serializers import (
     LoginRequestSerializer,
@@ -17,8 +17,15 @@ from .serializers import (
     SelectTenantRequestSerializer,
 )
 from .dashboard_services import build_mobile_dashboard
-from .permissions import HasActiveMobileTenant
-from .order_serializers import OrderDetailSerializer, OrderListQuerySerializer, OrderSummarySerializer
+from .permissions import HasActiveMobileTenant, HasMobileTenantRole
+from .order_mutations import mark_payment_received, update_order_status
+from .order_serializers import (
+    OrderDetailSerializer,
+    OrderListQuerySerializer,
+    OrderStatusUpdateSerializer,
+    OrderSummarySerializer,
+    PaymentReceivedSerializer,
+)
 from .order_services import mobile_order_detail, mobile_order_queryset
 from .pagination import MobileCursorPagination
 from .product_serializers import (
@@ -56,6 +63,25 @@ class MobileReadEnabledMixin:
         if not settings.MOBILE_API_ENABLED or not settings.MOBILE_READ_API_ENABLED:
             raise NotFound("The requested resource is unavailable.")
         return super().initial(request, *args, **kwargs)
+
+
+class MobileWriteEnabledMixin:
+    def initial(self, request, *args, **kwargs):
+        if not settings.MOBILE_API_ENABLED or not settings.MOBILE_WRITE_API_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        return super().initial(request, *args, **kwargs)
+
+    def idempotency_key(self, request):
+        key = str(request.headers.get("Idempotency-Key") or "").strip()
+        if not key:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"idempotency_key": ["Send an Idempotency-Key header."]})
+        if len(key) > 128:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"idempotency_key": ["Must be 128 characters or fewer."]})
+        return key
 
 
 class MobileLoginView(MobileAuthEnabledMixin, APIView):
@@ -240,6 +266,52 @@ class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
             },
         ).data
         return Response({"data": data})
+
+
+class MobileOrderStatusView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def post(self, request, order_id):
+        serializer = OrderStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = update_order_status(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            actor=request.user.get_username(),
+            order_id=order_id,
+            idempotency_key=self.idempotency_key(request),
+            values=serializer.validated_data,
+        )
+        return Response(payload)
+
+
+class MobileOrderPaymentReceivedView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def post(self, request, order_id):
+        serializer = PaymentReceivedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = mark_payment_received(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            actor=request.user.get_username(),
+            order_id=order_id,
+            idempotency_key=self.idempotency_key(request),
+            values=serializer.validated_data,
+        )
+        return Response(payload)
 
 
 class MobileProductListView(MobileReadEnabledMixin, APIView):

@@ -1194,6 +1194,10 @@ components:
           $ref: '#/components/schemas/OrderStatusCode'
         expected_version:
           type: string
+        customer_phone:
+          type: [string, 'null']
+          maxLength: 32
+          description: Required when accepting an order that has no usable customer phone.
         courier_name:
           type: [string, 'null']
           maxLength: 160
