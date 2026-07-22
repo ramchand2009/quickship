@@ -4,6 +4,7 @@ import type { StoredAuth } from './types';
 
 const AUTH_KEY = 'mathukai.auth.v1';
 const INSTALLATION_KEY = 'mathukai.installation-id.v1';
+const PUSH_DEVICE_KEY = 'mathukai.push-device-id.v1';
 
 function createInstallationId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
@@ -38,4 +39,16 @@ export async function getInstallationId() {
   const created = createInstallationId();
   await SecureStore.setItemAsync(INSTALLATION_KEY, created);
   return created;
+}
+
+export async function savePushDeviceId(deviceId: string) {
+  await SecureStore.setItemAsync(PUSH_DEVICE_KEY, deviceId);
+}
+
+export async function getPushDeviceId() {
+  return SecureStore.getItemAsync(PUSH_DEVICE_KEY);
+}
+
+export async function clearPushDeviceId() {
+  await SecureStore.deleteItemAsync(PUSH_DEVICE_KEY);
 }

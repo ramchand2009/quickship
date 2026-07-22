@@ -266,6 +266,129 @@ class MobileMutationReceipt(models.Model):
         return f"MobileMutationReceipt {self.session_id}:{self.idempotency_key}"
 
 
+class MobileDevice(models.Model):
+    PLATFORM_ANDROID = "android"
+    PLATFORM_CHOICES = [(PLATFORM_ANDROID, "Android")]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mobile_devices",
+    )
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="mobile_devices",
+    )
+    installation_id = models.UUIDField()
+    platform = models.CharField(max_length=16, choices=PLATFORM_CHOICES, default=PLATFORM_ANDROID)
+    expo_push_token = models.CharField(max_length=512, unique=True)
+    app_version = models.CharField(max_length=32)
+    device_name = models.CharField(max_length=120, blank=True)
+    enabled = models.BooleanField(default=True)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "installation_id"],
+                name="uniq_mobile_device_user_install",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["tenant", "enabled"], name="mobdev_tenant_enabled_idx"),
+        ]
+
+    def __str__(self):
+        return f"MobileDevice {self.user_id}:{self.installation_id}"
+
+
+class MobileNotification(models.Model):
+    CATEGORY_NEW_ORDER = "new_order"
+    CATEGORY_ORDER_ATTENTION = "order_attention"
+    CATEGORY_STATUS_CHANGE = "status_change"
+    CATEGORY_ROUTING_ALERT = "routing_alert"
+    CATEGORY_INTEGRATION_ALERT = "integration_alert"
+    CATEGORY_CHOICES = [
+        (CATEGORY_NEW_ORDER, "New Order"),
+        (CATEGORY_ORDER_ATTENTION, "Order Attention"),
+        (CATEGORY_STATUS_CHANGE, "Status Change"),
+        (CATEGORY_ROUTING_ALERT, "Routing Alert"),
+        (CATEGORY_INTEGRATION_ALERT, "Integration Alert"),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="mobile_notifications")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mobile_notifications",
+    )
+    category = models.CharField(max_length=32, choices=CATEGORY_CHOICES)
+    title = models.CharField(max_length=160)
+    message = models.CharField(max_length=500)
+    destination = models.CharField(max_length=255, blank=True)
+    order = models.ForeignKey(
+        "ShiprocketOrder",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="mobile_notifications",
+    )
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [
+            models.Index(
+                fields=["tenant", "user", "is_read", "-created_at"],
+                name="mobile_notif_inbox_idx",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "user", "category", "order"],
+                condition=models.Q(order__isnull=False),
+                name="uniq_mobile_notif_user_order_cat",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}: {self.title}"
+
+
+class MobileNotificationPreference(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="mobile_notification_preferences",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mobile_notification_preferences",
+    )
+    category = models.CharField(max_length=32, choices=MobileNotification.CATEGORY_CHOICES)
+    enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "user", "category"],
+                name="uniq_mobile_notif_pref_user_cat",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.category}={self.enabled}"
+
+
 class Project(models.Model):
     tenant = models.ForeignKey(
         Tenant,
