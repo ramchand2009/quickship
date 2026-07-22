@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { DashboardMetricTone, DashboardResponse } from '../auth/types';
+import type { DashboardMetricTone, DashboardMoney, DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
 import StockScreen from '../stock/StockScreen';
@@ -40,6 +40,15 @@ function formatUpdatedAt(value?: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatMetricValue(value: number | DashboardMoney) {
+  if (typeof value === 'number') return String(value);
+  const amount = Number(value.amount);
+  const formattedAmount = Number.isFinite(amount)
+    ? amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : value.amount;
+  return `${value.currency === 'INR' ? '₹' : value.currency} ${formattedAmount}`;
 }
 
 function destinationParameter(destination: string, key: string) {
@@ -115,7 +124,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
               onPress={() => onNavigate(metric.destination)}
               style={({ pressed }) => [styles.metricCard, tone.card, pressed && styles.pressed]}
             >
-              <Text style={[styles.metricValue, tone.value]}>{metric.value}</Text>
+              <Text style={[styles.metricValue, typeof metric.value !== 'number' && styles.metricMoneyValue, tone.value]}>{formatMetricValue(metric.value)}</Text>
               <Text style={styles.metricLabel}>{metric.label}</Text>
               <Text style={styles.metricAction}>View details</Text>
             </Pressable>
@@ -273,6 +282,7 @@ const styles = StyleSheet.create({
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   metricCard: { width: '48%', minHeight: 148, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, padding: 16 },
   metricValue: { fontSize: 34, fontWeight: '900' },
+  metricMoneyValue: { fontSize: 24 },
   metricLabel: { color: '#29483D', fontSize: 14, fontWeight: '700', lineHeight: 19, marginTop: 5, flex: 1 },
   metricAction: { color: '#0B5D3B', fontSize: 12, fontWeight: '800', marginTop: 8 },
   alertHeading: { marginTop: 26, marginBottom: 12 },

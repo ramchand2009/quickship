@@ -2,14 +2,16 @@
 
 import hashlib
 import json
+from collections import Counter
+from decimal import Decimal
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Count, F, Q
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from core.models import Product, ShiprocketOrder, TenantMembership, TenantWooCommerceMappingRule
+from core.stock import summarize_order_profit
 
 
 ROUTING_ROLES = {
@@ -23,6 +25,17 @@ def _metric(key, label, value, destination, tone="neutral"):
         "key": key,
         "label": label,
         "value": max(0, int(value or 0)),
+        "destination": destination,
+        "tone": tone,
+    }
+
+
+def _money_metric(key, label, value, destination, tone="neutral"):
+    amount = Decimal(str(value or 0)).quantize(Decimal("0.01"))
+    return {
+        "key": key,
+        "label": label,
+        "value": {"amount": f"{amount:.2f}", "currency": "INR"},
         "destination": destination,
         "tone": tone,
     }
@@ -63,36 +76,70 @@ def build_mobile_dashboard(*, tenant, role, now=None):
         dashboard_order_date__gte=month_start,
         dashboard_order_date__lt=next_month_start,
     )
-    order_counts = monthly_orders.aggregate(
-        total=Count("pk"),
-        pending=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_NEW)),
-        accepted=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_ACCEPTED)),
-        shipped=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_SHIPPED)),
-        completed=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_COMPLETED)),
-        cancelled=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_CANCELLED)),
-        attention=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_DELIVERY_ISSUE)),
+    monthly_order_rows = list(
+        monthly_orders.only("tenant_id", "local_status", "total", "order_items")
     )
-    route_missing = (
-        (Q(smartbiz_product_id__isnull=True) | Q(smartbiz_product_id=""))
-        & Q(woocommerce_product_id="")
-        & Q(woocommerce_variation_id="")
+    status_counts = Counter(order.local_status for order in monthly_order_rows)
+    monthly_value_statuses = {
+        ShiprocketOrder.STATUS_ACCEPTED,
+        ShiprocketOrder.STATUS_PACKED,
+        ShiprocketOrder.STATUS_SHIPPED,
+        ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+        ShiprocketOrder.STATUS_DELIVERED,
+        ShiprocketOrder.STATUS_COMPLETED,
+    }
+    monthly_value_orders = [
+        order for order in monthly_order_rows if order.local_status in monthly_value_statuses
+    ]
+    products = list(
+        Product.objects.filter(tenant=tenant).only(
+            "name",
+            "sku",
+            "smartbiz_product_id",
+            "woocommerce_product_id",
+            "woocommerce_variation_id",
+            "actual_price",
+            "stock_quantity",
+            "reorder_level",
+            "is_active",
+        )
     )
-    product_counts = Product.objects.filter(tenant=tenant, is_active=True).aggregate(
-        low_stock=Count("pk", filter=Q(stock_quantity__lte=F("reorder_level"))),
-        routing_missing=Count("pk", filter=route_missing),
+    monthly_sales_total = sum(
+        (order.total or Decimal("0.00") for order in monthly_value_orders),
+        Decimal("0.00"),
+    )
+    monthly_profit_total = sum(
+        (
+            summarize_order_profit(order, products=products)["profit_amount"]
+            for order in monthly_value_orders
+        ),
+        Decimal("0.00"),
+    )
+    active_products = [product for product in products if product.is_active]
+    low_stock = sum(
+        1 for product in active_products if product.stock_quantity <= product.reorder_level
+    )
+    routing_missing = sum(
+        1
+        for product in active_products
+        if not product.smartbiz_product_id
+        and not product.woocommerce_product_id
+        and not product.woocommerce_variation_id
     )
 
-    pending = order_counts["pending"]
-    accepted = order_counts["accepted"]
-    attention = order_counts["attention"]
-    low_stock = product_counts["low_stock"]
+    pending = status_counts[ShiprocketOrder.STATUS_NEW]
+    accepted = status_counts[ShiprocketOrder.STATUS_ACCEPTED]
+    attention = status_counts[ShiprocketOrder.STATUS_DELIVERY_ISSUE]
     metrics = [
-        _metric("total_orders", "Total orders", order_counts["total"], order_destination()),
+        _metric("total_orders", "Total orders", len(monthly_order_rows), order_destination()),
         _metric("pending_orders", "Pending", pending, order_destination(ShiprocketOrder.STATUS_NEW), "attention" if pending else "positive"),
         _metric("accepted_orders", "Accepted", accepted, order_destination(ShiprocketOrder.STATUS_ACCEPTED)),
-        _metric("shipped_orders", "Shipped", order_counts["shipped"], order_destination(ShiprocketOrder.STATUS_SHIPPED)),
-        _metric("completed_orders", "Completed", order_counts["completed"], order_destination(ShiprocketOrder.STATUS_COMPLETED), "positive"),
-        _metric("cancelled_orders", "Cancelled", order_counts["cancelled"], order_destination(ShiprocketOrder.STATUS_CANCELLED), "critical" if order_counts["cancelled"] else "positive"),
+        _metric("shipped_orders", "Shipped", status_counts[ShiprocketOrder.STATUS_SHIPPED], order_destination(ShiprocketOrder.STATUS_SHIPPED)),
+        _metric("completed_orders", "Completed", status_counts[ShiprocketOrder.STATUS_COMPLETED], order_destination(ShiprocketOrder.STATUS_COMPLETED), "positive"),
+        _metric("cancelled_orders", "Cancelled", status_counts[ShiprocketOrder.STATUS_CANCELLED], order_destination(ShiprocketOrder.STATUS_CANCELLED), "critical" if status_counts[ShiprocketOrder.STATUS_CANCELLED] else "positive"),
+        _money_metric("total_sales", "Total sales", monthly_sales_total, order_destination(), "positive"),
+        _money_metric("total_profit", "Total profit", monthly_profit_total, order_destination(), "positive" if monthly_profit_total >= 0 else "critical"),
     ]
 
     routing_issues = 0
@@ -101,7 +148,7 @@ def build_mobile_dashboard(*, tenant, role, now=None):
             tenant=tenant,
             is_active=True,
         ).exists()
-        routing_issues = 0 if has_mapping_rule else product_counts["routing_missing"]
+        routing_issues = 0 if has_mapping_rule else routing_missing
 
     alerts = []
     if attention:

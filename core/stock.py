@@ -150,7 +150,7 @@ def _missing_order_item_identifier(item):
     )
 
 
-def summarize_order_profit(order):
+def summarize_order_profit(order, products=None):
     items = order.order_items if isinstance(order.order_items, list) else []
     revenue_total = Decimal("0.00")
     actual_cost_total = Decimal("0.00")
@@ -177,7 +177,12 @@ def summarize_order_profit(order):
         )
         revenue_total += unit_price * quantity
 
-        product, matched_identifier = find_product_for_order_item(item, tenant=getattr(order, "tenant", None))
+        tenant = None if products is not None else getattr(order, "tenant", None)
+        product, matched_identifier = find_product_for_order_item(
+            item,
+            tenant=tenant,
+            products=products,
+        )
         if not product:
             missing_identifiers.append(str(_missing_order_item_identifier(item)))
             continue
@@ -386,9 +391,65 @@ def find_product_by_lookup(raw_value, tenant=None):
     return None
 
 
-def find_product_for_order_item(item, tenant=None):
+def _find_product_for_order_item_from_products(item, products):
+    products = list(products or [])
+
+    def first_match(field, value, *, normalized_sku=False):
+        if not value:
+            return None
+        expected = normalize_sku(value) if normalized_sku else str(value).strip().casefold()
+        for product in products:
+            current = getattr(product, field, "")
+            current = normalize_sku(current) if normalized_sku else str(current or "").strip().casefold()
+            if current == expected:
+                return product
+        return None
+
+    sku = normalize_sku(item.get("sku"))
+    product = first_match("sku", sku, normalized_sku=True)
+    if product:
+        return product, sku
+
+    channel_sku = normalize_sku(item.get("channel_sku"))
+    product = first_match("sku", channel_sku, normalized_sku=True)
+    if product:
+        return product, channel_sku
+
+    for identifier in _order_item_identifier_candidates(item):
+        product = first_match("smartbiz_product_id", identifier)
+        if product:
+            return product, identifier
+        product = first_match("woocommerce_variation_id", identifier)
+        if product:
+            return product, identifier
+        for candidate in products:
+            parent_id = str(candidate.woocommerce_product_id or "").strip().casefold()
+            variation_id = str(candidate.woocommerce_variation_id or "").strip()
+            if parent_id == identifier.casefold() and not variation_id:
+                return candidate, identifier
+
+    product = first_match("smartbiz_product_id", sku)
+    if product:
+        return product, sku
+
+    name = str(item.get("name") or "").strip()
+    if name:
+        name_matches = [
+            product
+            for product in products
+            if str(product.name or "").strip().casefold() == name.casefold()
+        ]
+        if len(name_matches) == 1:
+            return name_matches[0], name
+
+    return None, ""
+
+
+def find_product_for_order_item(item, tenant=None, products=None):
     if not isinstance(item, dict):
         return None, ""
+    if products is not None:
+        return _find_product_for_order_item_from_products(item, products)
     queryset = _product_queryset_for_tenant(tenant)
 
     sku = normalize_sku(item.get("sku"))

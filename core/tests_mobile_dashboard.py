@@ -39,14 +39,15 @@ class MobileDashboardApiTests(TestCase):
         self.token, _ = issue_access_token(self.session)
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
-    def order(self, tenant, suffix, status):
+    def order(self, tenant, suffix, status, **values):
         return ShiprocketOrder.objects.create(
             tenant=tenant,
             shiprocket_order_id=f"DASH-{suffix}",
             local_status=status,
+            **values,
         )
 
-    def product(self, tenant, suffix, quantity, reorder=5, routed=False):
+    def product(self, tenant, suffix, quantity, reorder=5, routed=False, actual_price=None):
         return Product.objects.create(
             tenant=tenant,
             name=f"Product {suffix}",
@@ -54,11 +55,19 @@ class MobileDashboardApiTests(TestCase):
             stock_quantity=quantity,
             reorder_level=reorder,
             smartbiz_product_id=f"route-{suffix}" if routed else None,
+            actual_price=actual_price,
         )
 
     def test_dashboard_counts_only_active_tenant_and_returns_cache_metadata(self):
         self.order(self.tenant, "PENDING", ShiprocketOrder.STATUS_NEW)
-        self.order(self.tenant, "ACCEPTED", ShiprocketOrder.STATUS_ACCEPTED)
+        self.product(self.tenant, "PROFIT", 20, routed=True, actual_price="25.00")
+        self.order(
+            self.tenant,
+            "ACCEPTED",
+            ShiprocketOrder.STATUS_ACCEPTED,
+            total="175.00",
+            order_items=[{"sku": "DASH-SKU-PROFIT", "quantity": 1, "price": "75.00"}],
+        )
         self.order(self.tenant, "SHIPPED", ShiprocketOrder.STATUS_SHIPPED)
         self.order(self.tenant, "COMPLETED", ShiprocketOrder.STATUS_COMPLETED)
         self.order(self.tenant, "CANCELLED", ShiprocketOrder.STATUS_CANCELLED)
@@ -82,6 +91,8 @@ class MobileDashboardApiTests(TestCase):
         self.assertEqual(metrics["shipped_orders"], 1)
         self.assertEqual(metrics["completed_orders"], 1)
         self.assertEqual(metrics["cancelled_orders"], 1)
+        self.assertEqual(metrics["total_sales"], {"amount": "175.00", "currency": "INR"})
+        self.assertEqual(metrics["total_profit"], {"amount": "50.00", "currency": "INR"})
         self.assertIn("status=shipped", metric_rows["shipped_orders"]["destination"])
         self.assertIn("date_from=", metric_rows["shipped_orders"]["destination"])
         self.assertIn("date_to=", metric_rows["shipped_orders"]["destination"])
@@ -94,6 +105,8 @@ class MobileDashboardApiTests(TestCase):
                 "shipped_orders",
                 "completed_orders",
                 "cancelled_orders",
+                "total_sales",
+                "total_profit",
             },
         )
         alert_ids = {row["id"] for row in response.json()["data"]["alerts"]}
@@ -104,7 +117,7 @@ class MobileDashboardApiTests(TestCase):
         self.assertIn("ETag", response)
         self.assertEqual(response["Cache-Control"], "private, max-age=30")
 
-    def test_all_roles_receive_the_six_monthly_order_metrics(self):
+    def test_all_roles_receive_the_monthly_order_and_financial_metrics(self):
         expected_keys = {
             "total_orders",
             "pending_orders",
@@ -112,6 +125,8 @@ class MobileDashboardApiTests(TestCase):
             "shipped_orders",
             "completed_orders",
             "cancelled_orders",
+            "total_sales",
+            "total_profit",
         }
         for role in (
             TenantMembership.ROLE_VENDOR_OWNER,

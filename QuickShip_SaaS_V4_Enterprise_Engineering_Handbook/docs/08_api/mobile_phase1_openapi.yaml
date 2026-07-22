@@ -894,12 +894,14 @@ components:
       properties:
         key:
           type: string
-          enum: [total_orders, pending_orders, accepted_orders, shipped_orders, completed_orders, cancelled_orders]
+          enum: [total_orders, pending_orders, accepted_orders, shipped_orders, completed_orders, cancelled_orders, total_sales, total_profit]
         label:
           type: string
         value:
-          type: integer
-          minimum: 0
+          oneOf:
+            - type: integer
+              minimum: 0
+            - $ref: '#/components/schemas/Money'
         destination:
           type: string
         tone:
