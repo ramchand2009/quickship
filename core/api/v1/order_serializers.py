@@ -1,5 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from rest_framework import serializers
 
 from core.models import ShiprocketOrder, TenantMembership
@@ -11,6 +12,55 @@ FULL_ORDER_DETAIL_ROLES = {
     TenantMembership.ROLE_VENDOR_OWNER,
     TenantMembership.ROLE_VENDOR_OPERATOR,
 }
+
+
+class OrderStatusUpdateSerializer(serializers.Serializer):
+    target_status = serializers.ChoiceField(choices=ShiprocketOrder.STATUS_CHOICES)
+    expected_version = serializers.CharField(max_length=32)
+    customer_phone = serializers.CharField(required=False, allow_blank=True, max_length=32, trim_whitespace=True)
+    courier_name = serializers.CharField(required=False, allow_blank=True, max_length=160, trim_whitespace=True)
+    tracking_number = serializers.RegexField(
+        r"^[A-Za-z]{2}\d{9}[A-Za-z]{2}$",
+        required=False,
+        allow_blank=True,
+        max_length=13,
+    )
+    shipping_base_amount = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.00"),
+    )
+    cancellation_reason = serializers.ChoiceField(
+        required=False,
+        allow_blank=True,
+        choices=ShiprocketOrder.CANCELLATION_REASON_CHOICES,
+    )
+    cancellation_note = serializers.CharField(required=False, allow_blank=True, max_length=255, trim_whitespace=True)
+
+    def validate_expected_version(self, value):
+        if not str(value).isdigit():
+            raise serializers.ValidationError("Enter a valid order version.")
+        return str(value)
+
+    def validate_tracking_number(self, value):
+        return str(value or "").strip().upper()
+
+
+class PaymentReceivedSerializer(serializers.Serializer):
+    expected_version = serializers.CharField(max_length=32)
+    confirmed = serializers.BooleanField()
+
+    def validate_expected_version(self, value):
+        if not str(value).isdigit():
+            raise serializers.ValidationError("Enter a valid order version.")
+        return str(value)
+
+    def validate_confirmed(self, value):
+        if value is not True:
+            raise serializers.ValidationError("Confirm that payment was received.")
+        return value
 
 
 class OrderListQuerySerializer(serializers.Serializer):
@@ -232,6 +282,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
         return order.cancellation_note or None
 
     def get_allowed_actions(self, order):
+        if not settings.MOBILE_WRITE_API_ENABLED:
+            return []
         role = self.context.get("role")
         permissions = set(ROLE_PERMISSIONS.get(role, []))
         actions = []
@@ -254,7 +306,11 @@ class OrderDetailSerializer(OrderSummarySerializer):
                         "required_fields": required_fields,
                     }
                 )
-        if "orders.mark_payment_received" in permissions and order.payment_received_at is None:
+        if (
+            "orders.mark_payment_received" in permissions
+            and order.payment_received_at is None
+            and order.local_status in {ShiprocketOrder.STATUS_ACCEPTED, ShiprocketOrder.STATUS_PACKED}
+        ):
             actions.append(
                 {
                     "code": "mark_payment_received",

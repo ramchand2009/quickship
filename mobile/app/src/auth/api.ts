@@ -1,5 +1,11 @@
 import type { ApiErrorBody, AuthTokens, DashboardResponse, MobileSession, StoredAuth } from './types';
-import type { OrderDetailResponse, OrderListFilters, OrderListResponse } from '../orders/types';
+import type {
+  OrderDetailResponse,
+  OrderListFilters,
+  OrderListResponse,
+  OrderMutationResponse,
+  OrderStatusUpdate,
+} from '../orders/types';
 import type { ProductDetailResponse, ProductFilters, ProductListResponse, StockMovementResponse } from '../stock/types';
 
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:8000/api/v1').replace(/\/$/, '');
@@ -69,6 +75,32 @@ export async function orders(accessToken: string, filters: OrderListFilters = {}
 export async function orderDetail(accessToken: string, orderId: number): Promise<OrderDetailResponse> {
   return request<OrderDetailResponse>(`/orders/${orderId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function updateOrderStatus(
+  accessToken: string,
+  orderId: number,
+  values: OrderStatusUpdate,
+  idempotencyKey: string,
+): Promise<OrderMutationResponse> {
+  return request<OrderMutationResponse>(`/orders/${orderId}/status`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
+  });
+}
+
+export async function markOrderPaymentReceived(
+  accessToken: string,
+  orderId: number,
+  expectedVersion: string,
+  idempotencyKey: string,
+): Promise<OrderMutationResponse> {
+  return request<OrderMutationResponse>(`/orders/${orderId}/payment-received`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ expected_version: expectedVersion, confirmed: true }),
   });
 }
 

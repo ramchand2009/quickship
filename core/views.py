@@ -2830,7 +2830,8 @@ def order_management_undo_last_action(request):
             continue
 
         order.local_status = from_status
-        order.save(update_fields=["local_status", "updated_at"])
+        order.version += 1
+        order.save(update_fields=["local_status", "version", "updated_at"])
         reverted += 1
         log_order_activity(
             order=order,
@@ -2985,6 +2986,8 @@ def bulk_update_shiprocket_order_status(request):
 
         updated_order = form.save(commit=False)
         updated_order = _apply_status_timestamps(updated_order)
+        if previous_status != updated_order.local_status:
+            updated_order.version += 1
         updated_order.save()
         success_count += 1
         if len(success_samples) < 5:
@@ -8143,6 +8146,8 @@ def update_shiprocket_order_status(request, pk):
                 return redirect(detail_redirect_url)
 
         updated_order = _apply_status_timestamps(updated_order)
+        if previous_status != updated_order.local_status:
+            updated_order.version += 1
         updated_order.save()
         success_message = "Order moved to the selected tab."
         stock_result = {}
@@ -8414,7 +8419,8 @@ def mark_order_payment_received(request, pk):
         return redirect(redirect_url)
 
     order.payment_received_at = timezone.now()
-    order.save(update_fields=["payment_received_at", "updated_at"])
+    order.version += 1
+    order.save(update_fields=["payment_received_at", "version", "updated_at"])
     log_order_activity(
         order=order,
         event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
