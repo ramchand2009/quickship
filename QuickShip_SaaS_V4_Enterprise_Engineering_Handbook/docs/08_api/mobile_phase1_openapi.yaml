@@ -894,7 +894,7 @@ components:
       properties:
         key:
           type: string
-          enum: [pending_orders, accepted_orders, attention_orders, unread_notifications, low_stock, routing_health]
+          enum: [total_orders, pending_orders, accepted_orders, shipped_orders, completed_orders, cancelled_orders]
         label:
           type: string
         value:

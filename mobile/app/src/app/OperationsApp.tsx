@@ -90,7 +90,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (tab: AppTab) => void }) 
     >
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded data.</Text></View> : null}
       <View style={styles.sectionHeading}>
-        <Text style={styles.sectionTitle}>Today at a glance</Text>
+        <Text style={styles.sectionTitle}>This month's orders</Text>
         <Text style={styles.updatedText}>Updated {formatUpdatedAt(dashboard.meta.server_time) || 'recently'}</Text>
       </View>
       <View style={styles.metricGrid}>

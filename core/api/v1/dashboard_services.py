@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db.models import Count, F, Q
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from core.models import Product, ShiprocketOrder, TenantMembership, TenantWooCommerceMappingRule
@@ -46,9 +47,22 @@ def build_mobile_dashboard(*, tenant, role, now=None):
     cache_expires_at = bucket_time + timedelta(seconds=cache_seconds)
     alert_time = bucket_time.isoformat().replace("+00:00", "Z")
 
-    order_counts = ShiprocketOrder.objects.filter(tenant=tenant).aggregate(
+    local_generated_at = timezone.localtime(generated_at)
+    month_start = local_generated_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+    monthly_orders = ShiprocketOrder.objects.filter(tenant=tenant).annotate(
+        dashboard_order_date=Coalesce("order_date", "created_at")
+    ).filter(
+        dashboard_order_date__gte=month_start,
+        dashboard_order_date__lt=next_month_start,
+    )
+    order_counts = monthly_orders.aggregate(
+        total=Count("pk"),
         pending=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_NEW)),
         accepted=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_ACCEPTED)),
+        shipped=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_SHIPPED)),
+        completed=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_COMPLETED)),
+        cancelled=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_CANCELLED)),
         attention=Count("pk", filter=Q(local_status=ShiprocketOrder.STATUS_DELIVERY_ISSUE)),
     )
     route_missing = (
@@ -66,10 +80,12 @@ def build_mobile_dashboard(*, tenant, role, now=None):
     attention = order_counts["attention"]
     low_stock = product_counts["low_stock"]
     metrics = [
-        _metric("pending_orders", "Pending orders", pending, "/orders?status=new_order", "attention" if pending else "positive"),
-        _metric("accepted_orders", "Accepted orders", accepted, "/orders?status=order_accepted", "neutral"),
-        _metric("attention_orders", "Orders requiring attention", attention, "/orders?status=delivery_issue", "critical" if attention else "positive"),
-        _metric("low_stock", "Low-stock products", low_stock, "/products?stock_state=low", "critical" if low_stock else "positive"),
+        _metric("total_orders", "Total orders", order_counts["total"], "/orders"),
+        _metric("pending_orders", "Pending", pending, "/orders?status=new_order", "attention" if pending else "positive"),
+        _metric("accepted_orders", "Accepted", accepted, "/orders?status=order_accepted"),
+        _metric("shipped_orders", "Shipped", order_counts["shipped"], "/orders?status=shipped"),
+        _metric("completed_orders", "Completed", order_counts["completed"], "/orders?status=completed", "positive"),
+        _metric("cancelled_orders", "Cancelled", order_counts["cancelled"], "/orders?status=order_cancelled", "critical" if order_counts["cancelled"] else "positive"),
     ]
 
     routing_issues = 0
@@ -79,15 +95,6 @@ def build_mobile_dashboard(*, tenant, role, now=None):
             is_active=True,
         ).exists()
         routing_issues = 0 if has_mapping_rule else product_counts["routing_missing"]
-        metrics.append(
-            _metric(
-                "routing_health",
-                "Routing issues",
-                routing_issues,
-                "/products?routing_state=attention",
-                "attention" if routing_issues else "positive",
-            )
-        )
 
     alerts = []
     if attention:

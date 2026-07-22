@@ -1,8 +1,10 @@
 import uuid
+from datetime import timedelta
 
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from core.api.v1.session_services import create_mobile_session
 from core.api.v1.token_services import issue_access_token
@@ -57,7 +59,13 @@ class MobileDashboardApiTests(TestCase):
     def test_dashboard_counts_only_active_tenant_and_returns_cache_metadata(self):
         self.order(self.tenant, "PENDING", ShiprocketOrder.STATUS_NEW)
         self.order(self.tenant, "ACCEPTED", ShiprocketOrder.STATUS_ACCEPTED)
+        self.order(self.tenant, "SHIPPED", ShiprocketOrder.STATUS_SHIPPED)
+        self.order(self.tenant, "COMPLETED", ShiprocketOrder.STATUS_COMPLETED)
+        self.order(self.tenant, "CANCELLED", ShiprocketOrder.STATUS_CANCELLED)
         self.order(self.tenant, "ISSUE", ShiprocketOrder.STATUS_DELIVERY_ISSUE)
+        previous_month = self.order(self.tenant, "PREVIOUS", ShiprocketOrder.STATUS_NEW)
+        previous_month.order_date = timezone.now() - timedelta(days=40)
+        previous_month.save(update_fields=["order_date"])
         self.order(self.other_tenant, "OTHER", ShiprocketOrder.STATUS_NEW)
         self.product(self.tenant, "LOW", 2)
         self.product(self.tenant, "ROUTED", 20, routed=True)
@@ -67,29 +75,52 @@ class MobileDashboardApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         metrics = {row["key"]: row["value"] for row in response.json()["data"]["metrics"]}
+        self.assertEqual(metrics["total_orders"], 6)
         self.assertEqual(metrics["pending_orders"], 1)
         self.assertEqual(metrics["accepted_orders"], 1)
-        self.assertEqual(metrics["attention_orders"], 1)
-        self.assertEqual(metrics["low_stock"], 1)
-        self.assertEqual(metrics["routing_health"], 1)
+        self.assertEqual(metrics["shipped_orders"], 1)
+        self.assertEqual(metrics["completed_orders"], 1)
+        self.assertEqual(metrics["cancelled_orders"], 1)
+        self.assertEqual(
+            set(metrics),
+            {
+                "total_orders",
+                "pending_orders",
+                "accepted_orders",
+                "shipped_orders",
+                "completed_orders",
+                "cancelled_orders",
+            },
+        )
+        alert_ids = {row["id"] for row in response.json()["data"]["alerts"]}
+        self.assertIn("orders:delivery_issue", alert_ids)
+        self.assertIn("stock:low", alert_ids)
+        self.assertIn("routing:missing", alert_ids)
         self.assertIn("cache_expires_at", response.json()["meta"])
         self.assertIn("ETag", response)
         self.assertEqual(response["Cache-Control"], "private, max-age=30")
 
-    def test_role_matrix_hides_routing_health_from_viewer_and_warehouse(self):
-        expected_routing = {
-            TenantMembership.ROLE_VENDOR_OWNER: True,
-            TenantMembership.ROLE_VENDOR_OPERATOR: True,
-            TenantMembership.ROLE_VENDOR_VIEWER: False,
-            TenantMembership.ROLE_WAREHOUSE_OPERATOR: False,
+    def test_all_roles_receive_the_six_monthly_order_metrics(self):
+        expected_keys = {
+            "total_orders",
+            "pending_orders",
+            "accepted_orders",
+            "shipped_orders",
+            "completed_orders",
+            "cancelled_orders",
         }
-        for role, visible in expected_routing.items():
+        for role in (
+            TenantMembership.ROLE_VENDOR_OWNER,
+            TenantMembership.ROLE_VENDOR_OPERATOR,
+            TenantMembership.ROLE_VENDOR_VIEWER,
+            TenantMembership.ROLE_WAREHOUSE_OPERATOR,
+        ):
             with self.subTest(role=role):
                 self.membership.role = role
                 self.membership.save(update_fields=["role"])
                 response = self.client.get("/api/v1/dashboard", headers=self.headers)
                 keys = {row["key"] for row in response.json()["data"]["metrics"]}
-                self.assertEqual("routing_health" in keys, visible)
+                self.assertEqual(keys, expected_keys)
 
     def test_etag_returns_not_modified_without_leaking_cross_tenant_state(self):
         self.order(self.tenant, "CACHE", ShiprocketOrder.STATUS_NEW)
