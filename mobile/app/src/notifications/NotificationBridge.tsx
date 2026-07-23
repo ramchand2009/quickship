@@ -54,7 +54,6 @@ export default function NotificationBridge({
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 250, 150, 250],
           lightColor: '#0B5D3B',
-          sound: 'default',
         });
         const existing = await Notifications.getPermissionsAsync();
         const permission = existing.status === 'granted'

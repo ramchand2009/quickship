@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import * as api from '../auth/api';
@@ -29,13 +30,16 @@ function ProductCard({ product, onPress }: { product: ProductSummary; onPress: (
       )}
       <View style={styles.productCopy}>
         <Text numberOfLines={2} style={styles.productName}>{product.name}</Text>
-        <Text style={styles.productMeta}>{product.sku}{product.category ? ` · ${product.category}` : ''}</Text>
+        <Text numberOfLines={1} style={styles.productMeta}>{product.sku}{product.category ? ` · ${product.category}` : ''}</Text>
         <View style={styles.stockRow}>
-          <Text style={[styles.stockQuantity, critical && styles.stockCritical]}>{product.stock_quantity} available</Text>
-          <Text style={styles.reorderText}>Reorder at {product.reorder_level}</Text>
+          <View style={[styles.stockBadge, critical && styles.stockBadgeCritical]}>
+            <View style={[styles.stockDot, critical && styles.stockDotCritical]} />
+            <Text style={[styles.stockQuantity, critical && styles.stockCritical]}>{STOCK_LABELS[product.stock_state]}</Text>
+          </View>
+          <Text style={styles.reorderText}>{product.stock_quantity} available · Reorder {product.reorder_level}</Text>
         </View>
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <MaterialCommunityIcons color="#63766E" name="chevron-right" size={24} />
     </Pressable>
   );
 }
@@ -75,7 +79,10 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
 
   return (
     <ScrollView contentContainerStyle={styles.detailContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}>
-      <Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹ Back to stock</Text></Pressable>
+      <Pressable onPress={onBack} style={styles.backButton}>
+        <MaterialCommunityIcons color="#0B5D3B" name="arrow-left" size={21} />
+        <Text style={styles.backText}>Back to stock</Text>
+      </Pressable>
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded details.</Text></View> : null}
       <View style={styles.heroCard}>
         <Text style={styles.heroName}>{product.name}</Text>
@@ -153,18 +160,66 @@ export default function StockScreen() {
   if (loading && !products.length) return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /><Text style={styles.loadingText}>Loading stock...</Text></View>;
   if (error && !products.length) return <View style={styles.center}><Text style={styles.errorTitle}>Stock unavailable</Text><Text style={styles.errorMessage}>{error}</Text><Pressable onPress={() => void loadFirst()} style={styles.primaryButton}><Text style={styles.primaryText}>Try again</Text></Pressable></View>;
 
-  const header = <View><View style={styles.searchRow}><TextInput accessibilityLabel="Search stock" autoCapitalize="none" onChangeText={setDraftSearch} onSubmitEditing={() => setSearch(draftSearch.trim())} placeholder="Product, SKU, or barcode" placeholderTextColor="#82958D" returnKeyType="search" style={styles.searchInput} value={draftSearch} /><Pressable onPress={() => setSearch(draftSearch.trim())} style={styles.searchButton}><Text style={styles.searchButtonText}>Search</Text></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>{FILTERS.map((filter) => <Pressable key={filter.code} onPress={() => setStockState(filter.code)} style={[styles.filterChip, stockState === filter.code && styles.filterActive]}><Text style={[styles.filterText, stockState === filter.code && styles.filterTextActive]}>{filter.label}</Text></Pressable>)}</ScrollView>{error && products.length ? <View style={styles.warning}><Text style={styles.warningText}>{error}</Text></View> : null}<Text style={styles.resultText}>{products.length} product{products.length === 1 ? '' : 's'} loaded</Text></View>;
+  const attentionCount = products.filter((product) => product.stock_state !== 'in_stock').length;
+  const header = (
+    <View>
+      <View style={styles.inventorySummary}>
+        <View style={styles.summaryIcon}><MaterialCommunityIcons color="#14733D" name="package-variant-closed" size={26} /></View>
+        <View style={styles.summaryCopy}>
+          <Text style={styles.summaryValue}>{products.length}</Text>
+          <Text style={styles.summaryLabel}>Products loaded</Text>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryCopy}>
+          <Text style={[styles.summaryValue, attentionCount > 0 && styles.summaryAttention]}>{attentionCount}</Text>
+          <Text style={styles.summaryLabel}>Need attention</Text>
+        </View>
+      </View>
+      <View style={styles.searchRow}>
+        <TextInput
+          accessibilityLabel="Search stock"
+          autoCapitalize="none"
+          onChangeText={setDraftSearch}
+          onSubmitEditing={() => setSearch(draftSearch.trim())}
+          placeholder="Product, SKU, or barcode"
+          placeholderTextColor="#82958D"
+          returnKeyType="search"
+          style={styles.searchInput}
+          value={draftSearch}
+        />
+        <Pressable accessibilityLabel="Search stock" onPress={() => setSearch(draftSearch.trim())} style={styles.searchButton}>
+          <MaterialCommunityIcons color="#FFFFFF" name="magnify" size={23} />
+        </Pressable>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {FILTERS.map((filter) => (
+          <Pressable key={filter.code} onPress={() => setStockState(filter.code)} style={[styles.filterChip, stockState === filter.code && styles.filterActive]}>
+            <Text style={[styles.filterText, stockState === filter.code && styles.filterTextActive]}>{filter.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      {error && products.length ? <View style={styles.warning}><Text style={styles.warningText}>{error}</Text></View> : null}
+      <Text style={styles.resultText}>{products.length} product{products.length === 1 ? '' : 's'} loaded</Text>
+    </View>
+  );
 
   return <FlatList contentContainerStyle={styles.listContent} data={products} keyExtractor={(item) => String(item.id)} ListHeaderComponent={header} ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No matching products</Text><Text style={styles.emptyText}>Try another search or stock filter.</Text></View>} ListFooterComponent={nextCursor ? <Pressable disabled={loadingMore} onPress={() => void loadMore()} style={styles.loadMore}>{loadingMore ? <ActivityIndicator color="#0B5D3B" /> : <Text style={styles.loadMoreText}>Load more products</Text>}</Pressable> : products.length ? <Text style={styles.endText}>All matching products loaded</Text> : null} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadFirst(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />} renderItem={({ item }) => <ProductCard product={item} onPress={() => setSelectedId(item.id)} />} />;
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }, loadingText: { color: '#587066', marginTop: 14 }, listContent: { padding: 18, paddingBottom: 28 },
-  searchRow: { flexDirection: 'row', marginBottom: 12 }, searchInput: { flex: 1, minHeight: 48, backgroundColor: '#FFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, color: '#17352A' }, searchButton: { minWidth: 78, backgroundColor: '#0B5D3B', borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }, searchButtonText: { color: '#FFF', fontWeight: '800' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }, loadingText: { color: '#587066', marginTop: 14 }, listContent: { padding: 16, paddingBottom: 28 },
+  inventorySummary: { minHeight: 92, backgroundColor: '#FFFFFF', borderColor: '#DFE5E2', borderWidth: 1, borderRadius: 17, flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 13, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  summaryIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E8F5EB', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  summaryCopy: { flex: 1 },
+  summaryValue: { color: '#0B5D3B', fontSize: 23, fontWeight: '900' },
+  summaryAttention: { color: '#D98200' },
+  summaryLabel: { color: '#71867D', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  summaryDivider: { width: 1, height: 44, backgroundColor: '#E1E7E4', marginHorizontal: 12 },
+  searchRow: { flexDirection: 'row', marginBottom: 12 }, searchInput: { flex: 1, minHeight: 50, backgroundColor: '#FFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, color: '#17352A' }, searchButton: { width: 50, height: 50, backgroundColor: '#0B5D3B', borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   filterRow: { paddingBottom: 12, columnGap: 8 }, filterChip: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 20, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9 }, filterActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' }, filterText: { color: '#587066', fontSize: 13, fontWeight: '700' }, filterTextActive: { color: '#FFF' }, resultText: { color: '#71867D', fontSize: 12, marginBottom: 10 },
-  productCard: { backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 13, marginBottom: 11, flexDirection: 'row', alignItems: 'center' }, productImage: { width: 58, height: 58, borderRadius: 12, backgroundColor: '#EDF2EF' }, imageFallback: { width: 58, height: 58, borderRadius: 12, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 23, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockQuantity: { color: '#147348', fontSize: 12, fontWeight: '800', marginRight: 9 }, stockCritical: { color: '#B42318' }, reorderText: { color: '#82958D', fontSize: 11 }, chevron: { color: '#82958D', fontSize: 26 },
+  productCard: { minHeight: 98, backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 }, productImage: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#EDF2EF' }, imageFallback: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 24, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockBadge: { minHeight: 24, borderRadius: 12, backgroundColor: '#E7F6E8', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', marginRight: 7 }, stockBadgeCritical: { backgroundColor: '#FFF0E0' }, stockDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#147348', marginRight: 5 }, stockDotCritical: { backgroundColor: '#D98200' }, stockQuantity: { color: '#147348', fontSize: 10, fontWeight: '900' }, stockCritical: { color: '#A65A00' }, reorderText: { color: '#82958D', fontSize: 10, flex: 1 },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 }, warningText: { color: '#7A4A00' }, emptyState: { alignItems: 'center', paddingVertical: 48 }, emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' }, emptyText: { color: '#71867D', textAlign: 'center', marginTop: 7 }, loadMore: { minHeight: 50, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, loadMoreText: { color: '#0B5D3B', fontWeight: '800' }, endText: { color: '#82958D', textAlign: 'center', marginVertical: 14 }, pressed: { opacity: 0.65 },
   errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800' }, errorMessage: { color: '#587066', textAlign: 'center', marginTop: 8 }, primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: '#FFF', fontWeight: '800' },
-  detailContent: { padding: 18, paddingBottom: 32 }, backButton: { alignSelf: 'flex-start', paddingVertical: 8, marginBottom: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderRadius: 18, padding: 18, marginBottom: 22 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 },
+  detailContent: { padding: 18, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, borderRadius: 12, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 8, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderRadius: 18, padding: 18, marginBottom: 22 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 },
   movementRow: { flexDirection: 'row', paddingVertical: 5 }, divider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 }, deltaBadge: { width: 45, height: 34, borderRadius: 10, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center', marginRight: 11 }, deltaNegative: { backgroundColor: '#FDE8E7' }, deltaText: { color: '#147348', fontWeight: '900' }, deltaTextNegative: { color: '#B42318' }, movementCopy: { flex: 1 }, movementTitle: { color: '#29483D', fontWeight: '800' }, movementNote: { color: '#587066', marginTop: 3 }, movementTime: { color: '#82958D', fontSize: 11, marginTop: 5 },
 });

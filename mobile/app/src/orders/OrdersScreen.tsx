@@ -109,26 +109,37 @@ function normalizedContactPhone(value: string | null | undefined) {
 function OrderCard({ order, onPress }: { order: OrderSummary; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, pressed && styles.pressed]}>
-      <View style={styles.orderTopRow}>
-        <View style={styles.orderReferenceWrap}>
-          <Text style={styles.orderReference}>{order.reference}</Text>
-          <Text style={styles.orderSource}>{order.source.label} · {dateTime(order.order_date)}</Text>
-        </View>
-        <StatusPill order={order} />
+      <View style={styles.orderThumbnail}>
+        <MaterialCommunityIcons color="#14733D" name="shopping-outline" size={27} />
+        <Text style={styles.orderItemCount}>{order.item_count}</Text>
       </View>
-      <Text style={styles.customerName}>{order.customer_display_name || 'Customer unavailable'}</Text>
-      <View style={styles.orderBottomRow}>
-        <View style={styles.orderSummaryCopy}>
+      <View style={styles.orderCardBody}>
+        <View style={styles.orderTopRow}>
+          <View style={styles.orderReferenceWrap}>
+            <Text numberOfLines={1} style={styles.orderReference}>{order.reference}</Text>
+            <Text numberOfLines={1} style={styles.orderSource}>{order.source.label} · {dateTime(order.order_date)}</Text>
+          </View>
+          <StatusPill order={order} />
+        </View>
+        <View style={styles.customerRow}>
+          <MaterialCommunityIcons color="#71867D" name="account-outline" size={17} />
+          <Text numberOfLines={1} style={styles.customerName}>{order.customer_display_name || 'Customer unavailable'}</Text>
+        </View>
+        <View style={styles.orderBottomRow}>
           <View style={styles.orderMetaRow}>
             <Text style={styles.orderMeta}>{order.item_count} item{order.item_count === 1 ? '' : 's'}</Text>
             <PaymentPill order={order} />
           </View>
-          {order.status.code === 'shipped' && order.tracking_number ? (
-            <Text numberOfLines={1} selectable style={styles.trackingText}>Tracking: {order.tracking_number}</Text>
-          ) : null}
+          <Text style={styles.orderTotal}>{money(order.total)}</Text>
         </View>
-        <Text style={styles.orderTotal}>{money(order.total)}</Text>
+        {order.status.code === 'shipped' && order.tracking_number ? (
+          <View style={styles.trackingRow}>
+            <MaterialCommunityIcons color="#1769C2" name="truck-fast-outline" size={15} />
+            <Text numberOfLines={1} selectable style={styles.trackingText}>{order.tracking_number}</Text>
+          </View>
+        ) : null}
       </View>
+      <MaterialCommunityIcons color="#63766E" name="chevron-right" size={23} />
     </Pressable>
   );
 }
@@ -346,7 +357,10 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
         stickyHeaderIndices={[0]}
       >
-      <Pressable disabled={submittingAction} onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹ Back to orders</Text></Pressable>
+      <Pressable disabled={submittingAction} onPress={onBack} style={styles.backButton}>
+        <MaterialCommunityIcons color="#0B5D3B" name="arrow-left" size={21} />
+        <Text style={styles.backText}>Back to orders</Text>
+      </Pressable>
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded details.</Text></View> : null}
       {actionFeedback ? (
         <View accessibilityRole="alert" style={styles.successBanner}>
@@ -651,7 +665,9 @@ export default function OrdersScreen({
           style={styles.searchInput}
           value={draftSearch}
         />
-        <Pressable onPress={() => setSearch(draftSearch.trim())} style={styles.searchButton}><Text style={styles.searchButtonText}>Search</Text></Pressable>
+        <Pressable accessibilityLabel="Search" onPress={() => setSearch(draftSearch.trim())} style={styles.searchButton}>
+          <MaterialCommunityIcons color="#FFFFFF" name="magnify" size={23} />
+        </Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {STATUS_FILTERS.map((filter) => (
@@ -695,21 +711,24 @@ export default function OrdersScreen({
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   loadingText: { color: '#587066', marginTop: 14, fontWeight: '600' },
-  listContent: { padding: 18, paddingBottom: 28 },
+  listContent: { padding: 16, paddingBottom: 28 },
   scopeBanner: { backgroundColor: '#E4F3EB', borderRadius: 12, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 10 },
   scopeLabel: { color: '#0B5D3B', fontSize: 13, fontWeight: '800' },
   scopeDates: { color: '#587066', fontSize: 11, marginTop: 2 },
-  searchRow: { flexDirection: 'row', marginBottom: 12 },
-  searchInput: { flex: 1, minHeight: 48, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, color: '#17352A', fontSize: 15 },
-  searchButton: { minWidth: 78, minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  searchRow: { flexDirection: 'row', marginBottom: 13 },
+  searchInput: { flex: 1, minHeight: 50, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 15, color: '#17352A', fontSize: 15 },
+  searchButton: { width: 50, height: 50, backgroundColor: '#0B5D3B', borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   searchButtonText: { color: '#FFFFFF', fontWeight: '800' },
   filterRow: { paddingBottom: 12, columnGap: 8 },
   filterChip: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 20, backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 9 },
   filterChipActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' },
   filterText: { color: '#587066', fontSize: 13, fontWeight: '700' },
   filterTextActive: { color: '#FFFFFF' },
-  resultLabel: { color: '#71867D', fontSize: 12, fontWeight: '700', marginBottom: 10 },
-  orderCard: { backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 11 },
+  resultLabel: { color: '#71867D', fontSize: 12, fontWeight: '700', marginBottom: 10, marginLeft: 2 },
+  orderCard: { minHeight: 124, backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 17, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  orderThumbnail: { width: 57, height: 74, borderRadius: 13, backgroundColor: '#EDF6EF', alignItems: 'center', justifyContent: 'center' },
+  orderItemCount: { color: '#14733D', fontSize: 10, fontWeight: '900', marginTop: 2 },
+  orderCardBody: { flex: 1, marginLeft: 12 },
   orderTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   orderReferenceWrap: { flex: 1, paddingRight: 8 },
   orderReference: { color: '#17352A', fontSize: 16, fontWeight: '900' },
@@ -724,12 +743,13 @@ const styles = StyleSheet.create({
   paymentPillText: { fontSize: 10, fontWeight: '800' },
   paymentPillTextReceived: { color: '#147348' },
   paymentPillTextPending: { color: '#9A5B00' },
-  customerName: { color: '#29483D', fontSize: 15, fontWeight: '700', marginTop: 14 },
-  orderBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  orderSummaryCopy: { flex: 1, paddingRight: 12 },
+  customerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 9 },
+  customerName: { color: '#29483D', fontSize: 14, fontWeight: '700', marginLeft: 4, flex: 1 },
+  orderBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 9 },
   orderMetaRow: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
   orderMeta: { color: '#71867D', fontSize: 12 },
-  trackingText: { color: '#587066', fontSize: 12, fontWeight: '700', marginTop: 7 },
+  trackingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 7, columnGap: 5 },
+  trackingText: { color: '#1769C2', fontSize: 11, fontWeight: '800', flex: 1 },
   orderTotal: { color: '#17352A', fontSize: 16, fontWeight: '900' },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   warningText: { color: '#7A4A00', lineHeight: 19 },
@@ -745,7 +765,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontWeight: '800' },
   detailScreen: { flex: 1 },
   detailContent: { padding: 18, paddingBottom: 32 },
-  backButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center', marginBottom: 8 },
+  backButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, borderRadius: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 8, columnGap: 8 },
   backText: { color: '#0B5D3B', fontSize: 15, fontWeight: '800' },
   successBanner: { backgroundColor: '#E4F3EB', borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', columnGap: 9 },
   successBannerText: { color: '#147348', flex: 1, fontWeight: '800' },
