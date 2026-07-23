@@ -55,4 +55,5 @@ export type DashboardResponse = {
 
 export type ApiErrorBody = {
   error?: { code?: string; message?: string; fields?: Record<string, string[]>; retryable?: boolean };
+  meta?: { request_id?: string; server_time?: string };
 };

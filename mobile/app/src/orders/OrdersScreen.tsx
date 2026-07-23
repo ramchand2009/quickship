@@ -70,6 +70,15 @@ function dateTime(value: string | null | undefined) {
   return parsed.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function actionErrorMessage(reason: unknown) {
+  if (!(reason instanceof api.ApiError)) return 'Please try again.';
+  const fieldMessages = Object.entries(reason.fields)
+    .flatMap(([field, messages]) => messages.map((message) => `${field.replaceAll('_', ' ')}: ${message}`));
+  return [reason.message, ...fieldMessages, reason.requestId ? `Request ID: ${reason.requestId}` : '']
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 function StatusPill({ order }: { order: OrderSummary }) {
   return (
     <View style={[styles.statusPill, order.attention_required && styles.statusPillCritical]}>
@@ -142,6 +151,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [error, setError] = useState('');
   const [selectedAction, setSelectedAction] = useState<OrderAction | null>(null);
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [actionProgressLabel, setActionProgressLabel] = useState('Updating order...');
+  const [actionFeedback, setActionFeedback] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [courierName, setCourierName] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -165,27 +176,48 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (!actionFeedback) return undefined;
+    const timeout = setTimeout(() => setActionFeedback(''), 4500);
+    return () => clearTimeout(timeout);
+  }, [actionFeedback]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!submittingAction) onBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onBack, submittingAction]);
+
   const applyMutationResult = (updatedOrder: OrderDetail, warningMessages: string[]) => {
     setOrder(updatedOrder);
     setSelectedAction(null);
     if (warningMessages.length) {
+      setActionFeedback('Order updated with a warning.');
       Alert.alert('Order updated with a warning', warningMessages.join('\n'));
     } else {
-      Alert.alert('Order updated', 'The latest order details are now shown.');
+      setActionFeedback('Order updated successfully.');
     }
   };
 
   const handleMutationError = async (reason: unknown) => {
     if (reason instanceof api.ApiError && reason.status === 409) {
       await load(true);
-      Alert.alert('Order was refreshed', 'This order changed before your action was saved. Review it and try again.');
+      Alert.alert(
+        'Order was refreshed',
+        `This order changed before your action was saved. Review it and try again.${reason.requestId ? `\n\nRequest ID: ${reason.requestId}` : ''}`,
+      );
       return;
     }
-    Alert.alert('Action not completed', reason instanceof api.ApiError ? reason.message : 'Please try again.');
+    await load(true);
+    Alert.alert('Action not completed', actionErrorMessage(reason));
   };
 
   const submitStatusAction = async (action: OrderAction, values: Partial<OrderStatusUpdate> = {}) => {
     if (!order || !action.target_status || submittingAction) return;
+    setActionFeedback('');
+    setActionProgressLabel(`${actionLabel(action)}...`);
     setSubmittingAction(true);
     try {
       const response = await runAuthenticated((token) => api.updateOrderStatus(
@@ -207,6 +239,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   const submitPaymentReceived = async () => {
     if (!order || submittingAction) return;
+    setActionFeedback('');
+    setActionProgressLabel('Updating payment...');
     setSubmittingAction(true);
     try {
       const response = await runAuthenticated((token) => api.markOrderPaymentReceived(
@@ -306,13 +340,20 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.detailContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
-      stickyHeaderIndices={[0]}
-    >
-      <Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹ Back to orders</Text></Pressable>
+    <View style={styles.detailScreen}>
+      <ScrollView
+        contentContainerStyle={styles.detailContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
+        stickyHeaderIndices={[0]}
+      >
+      <Pressable disabled={submittingAction} onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹ Back to orders</Text></Pressable>
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded details.</Text></View> : null}
+      {actionFeedback ? (
+        <View accessibilityRole="alert" style={styles.successBanner}>
+          <MaterialCommunityIcons color="#147348" name="check-circle" size={21} />
+          <Text style={styles.successBannerText}>{actionFeedback}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.detailHero}>
         <View style={styles.orderTopRow}>
@@ -510,7 +551,17 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         </View>
       </Modal>
 
-    </ScrollView>
+      </ScrollView>
+      {submittingAction ? (
+        <View accessibilityViewIsModal style={styles.actionProgressOverlay}>
+          <View style={styles.actionProgressCard}>
+            <ActivityIndicator color="#0B5D3B" size="large" />
+            <Text style={styles.actionProgressTitle}>{actionProgressLabel}</Text>
+            <Text style={styles.actionProgressHint}>Please wait. Do not tap the action again.</Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -534,15 +585,6 @@ export default function OrdersScreen({
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (selectedOrderId === null) return undefined;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setSelectedOrderId(null);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [selectedOrderId]);
 
   const loadFirstPage = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -701,9 +743,16 @@ const styles = StyleSheet.create({
   errorMessage: { color: '#587066', lineHeight: 21, textAlign: 'center', marginTop: 8 },
   primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   primaryButtonText: { color: '#FFFFFF', fontWeight: '800' },
+  detailScreen: { flex: 1 },
   detailContent: { padding: 18, paddingBottom: 32 },
   backButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center', marginBottom: 8 },
   backText: { color: '#0B5D3B', fontSize: 15, fontWeight: '800' },
+  successBanner: { backgroundColor: '#E4F3EB', borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', columnGap: 9 },
+  successBannerText: { color: '#147348', flex: 1, fontWeight: '800' },
+  actionProgressOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15, 35, 28, 0.38)', alignItems: 'center', justifyContent: 'center', padding: 30, zIndex: 20 },
+  actionProgressCard: { width: '100%', maxWidth: 340, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 24, alignItems: 'center' },
+  actionProgressTitle: { color: '#17352A', fontSize: 17, fontWeight: '900', marginTop: 14, textAlign: 'center' },
+  actionProgressHint: { color: '#71867D', fontSize: 12, lineHeight: 18, marginTop: 6, textAlign: 'center' },
   detailHero: { backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22 },
   detailReference: { color: '#17352A', fontSize: 21, fontWeight: '900' },
   heroTotals: { borderTopColor: '#E4EAE7', borderTopWidth: 1, marginTop: 18, paddingTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
