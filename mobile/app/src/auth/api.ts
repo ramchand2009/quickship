@@ -80,8 +80,8 @@ export async function currentSession(accessToken: string): Promise<MobileSession
   return body.data;
 }
 
-export async function dashboard(accessToken: string): Promise<DashboardResponse> {
-  return request<DashboardResponse>('/dashboard', {
+export async function dashboard(accessToken: string, month?: string): Promise<DashboardResponse> {
+  return request<DashboardResponse>(`/dashboard${month ? `?month=${encodeURIComponent(month)}` : ''}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

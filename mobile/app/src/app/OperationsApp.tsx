@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -48,6 +49,14 @@ const METRIC_COLORS: Record<string, { foreground: string; background: string; bo
   cancelled_orders: { foreground: '#D92D3A', background: '#FFF1F2', border: '#FFC2C7' },
 };
 
+const METRIC_ORDER_STATUSES: Record<string, string> = {
+  pending_orders: 'new_order',
+  accepted_orders: 'order_accepted',
+  shipped_orders: 'shipped',
+  completed_orders: 'completed',
+  cancelled_orders: 'order_cancelled',
+};
+
 function formatUpdatedAt(value?: string) {
   if (!value) return '';
   const parsed = new Date(value);
@@ -57,19 +66,6 @@ function formatUpdatedAt(value?: string) {
 
 function formatMetricValue(value: number | string) {
   return String(value).replace(/^â‚¹\s*/, '₹');
-}
-
-function monthOrderFilters(): OrderListFilters {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const localDate = (value: Date) => {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  return { date_from: localDate(start), date_to: localDate(end) };
 }
 
 function formatMoney(order: OrderSummary) {
@@ -100,35 +96,53 @@ function orderIdFromDestination(destination: string) {
   return match ? Number(match[1]) : null;
 }
 
+function destinationWithOrderStatus(destination: string, status: string) {
+  const [path, query = ''] = destination.split('?', 2);
+  const remainingParameters = query
+    .split('&')
+    .filter(Boolean)
+    .filter((parameter) => !parameter.startsWith('status='));
+  return `${path}?status=${encodeURIComponent(status)}${remainingParameters.length ? `&${remainingParameters.join('&')}` : ''}`;
+}
+
 function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => void }) {
   const { runAuthenticated } = useAuth();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
-  const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const loadDashboard = useCallback(async (refresh = false) => {
-    if (refresh) setRefreshing(true); else setLoading(true);
-    setError('');
+  const loadDashboard = useCallback(async (refresh = false, silent = false) => {
+    if (!silent) {
+      if (refresh) setRefreshing(true); else setLoading(true);
+      setError('');
+    }
     try {
       setDashboard(await runAuthenticated(api.dashboard));
-      try {
-        const orders = await runAuthenticated((token) => api.orders(token, monthOrderFilters()));
-        setRecentOrders(orders.data.slice(0, 2));
-      } catch {
-        // The monthly summary remains usable when this optional preview fails.
-      }
     } catch (reason) {
-      setError(reason instanceof api.ApiError ? reason.message : 'Dashboard could not be loaded.');
+      if (!silent) setError(reason instanceof api.ApiError ? reason.message : 'Dashboard could not be loaded.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [runAuthenticated]);
 
   useEffect(() => {
     void loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    const refresh = () => void loadDashboard(false, true);
+    const interval = setInterval(refresh, 30000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
   }, [loadDashboard]);
 
   if (loading && !dashboard) {
@@ -157,10 +171,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
 
       <View style={styles.periodRow}>
         <Text style={styles.updatedText}>Updated {formatUpdatedAt(dashboard.meta.server_time) || 'recently'}</Text>
-        <View style={styles.periodPicker}>
-          <Text style={styles.periodPickerText}>This month</Text>
-          <MaterialCommunityIcons color="#375047" name="chevron-down" size={20} />
-        </View>
+        <Text style={styles.currentMonthText}>Current month</Text>
       </View>
 
       <View style={styles.financeCard}>
@@ -188,14 +199,18 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
             <Pressable
               accessibilityRole="button"
               key={metric.key}
-              onPress={() => onNavigate(metric.destination)}
+              onPress={() => onNavigate(
+                METRIC_ORDER_STATUSES[metric.key]
+                  ? destinationWithOrderStatus(metric.destination, METRIC_ORDER_STATUSES[metric.key])
+                  : metric.destination,
+              )}
               style={({ pressed }) => [styles.metricCard, pressed && styles.pressed]}
             >
               <View style={[styles.metricIcon, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <MaterialCommunityIcons color={colors.foreground} name={METRIC_ICONS[metric.key]} size={25} />
               </View>
               <View style={styles.metricCopy}>
-                <Text style={styles.metricLabel}>{metric.label}</Text>
+                <Text style={styles.metricLabel}>{metric.key === 'pending_orders' ? 'New' : metric.label}</Text>
                 <Text style={[styles.metricValue, { color: colors.foreground }]}>{formatMetricValue(metric.value)}</Text>
               </View>
               <MaterialCommunityIcons color="#52665E" name="chevron-right" size={22} />
@@ -218,54 +233,6 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
           <MaterialCommunityIcons color="#52665E" name="chevron-right" size={25} />
         </Pressable>
       ))}
-
-      <View style={styles.recentHeading}>
-        <Text style={styles.sectionTitle}>Recent orders</Text>
-        <Pressable onPress={() => onNavigate('/orders')} style={styles.viewAllButton}>
-          <Text style={styles.viewAllText}>View all</Text>
-          <MaterialCommunityIcons color="#0B5D3B" name="chevron-right" size={21} />
-        </Pressable>
-      </View>
-
-      {recentOrders.length ? recentOrders.map((order) => {
-        const paymentStyle = order.payment_state.code === 'received' || order.payment_state.code === 'paid'
-          ? styles.orderPillSuccess
-          : styles.orderPillAttention;
-        const orderStatusStyle = order.status.code === 'shipped'
-          ? styles.orderPillInfo
-          : order.status.code === 'cancelled'
-            ? styles.orderPillCritical
-            : styles.orderPillSuccess;
-        return (
-          <Pressable
-            key={order.id}
-            onPress={() => onNavigate(`/orders/${order.id}`)}
-            style={({ pressed }) => [styles.recentOrderCard, pressed && styles.pressed]}
-          >
-            <View style={styles.orderThumbnail}><MaterialCommunityIcons color="#14733D" name="package-variant" size={30} /></View>
-            <View style={styles.orderSummary}>
-              <Text numberOfLines={1} style={styles.orderReference}>{order.reference}</Text>
-              <View style={styles.orderCustomerRow}>
-                <MaterialCommunityIcons color="#6F7F78" name="account-outline" size={17} />
-                <Text numberOfLines={1} style={styles.orderCustomer}>{order.customer_display_name || 'Customer'}</Text>
-              </View>
-              <View style={styles.orderPills}>
-                <View style={[styles.orderPill, paymentStyle]}><Text style={styles.orderPillText}>{order.payment_state.label}</Text></View>
-                <View style={[styles.orderPill, orderStatusStyle]}><Text style={styles.orderPillText}>{order.status.label}</Text></View>
-              </View>
-            </View>
-            <View style={styles.orderPriceColumn}>
-              <Text style={styles.orderPrice}>{formatMoney(order)}</Text>
-              <MaterialCommunityIcons color="#52665E" name="chevron-right" size={24} />
-            </View>
-          </Pressable>
-        );
-      }) : (
-        <View style={styles.emptyRecentCard}>
-          <MaterialCommunityIcons color="#819189" name="package-variant-closed" size={28} />
-          <Text style={styles.emptyRecentText}>No orders found for this month.</Text>
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -328,7 +295,7 @@ function AccountScreen() {
       <View style={styles.appInfoCard}>
         <View style={styles.appMark}><Text style={styles.appMarkText}>M</Text></View>
         <View style={styles.appInfoCopy}>
-          <Text style={styles.appInfoName}>Mathukai Operations</Text>
+          <Text style={styles.appInfoName}>Mathukai Organic</Text>
           <Text style={styles.appInfoVersion}>Android · Version 1.0.0</Text>
         </View>
         <View style={styles.liveSessionBadge}><View style={styles.liveSessionDot} /><Text style={styles.liveSessionText}>Connected</Text></View>
@@ -357,6 +324,7 @@ export default function OperationsApp() {
   const [ordersInitialFilters, setOrdersInitialFilters] = useState<OrderListFilters>({});
   const [ordersInitialOrderId, setOrdersInitialOrderId] = useState<number | null>(null);
   const [ordersScreenKey, setOrdersScreenKey] = useState(0);
+  const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const refreshUnreadCount = useCallback(async () => {
@@ -368,6 +336,11 @@ export default function OperationsApp() {
       // The rest of the app remains usable when notification summary refresh fails.
     }
   }, [auth?.session.active_tenant, runAuthenticated]);
+
+  const handleNotificationReceived = useCallback(() => {
+    setLiveRefreshKey((current) => current + 1);
+    void refreshUnreadCount();
+  }, [refreshUnreadCount]);
 
   useEffect(() => { void refreshUnreadCount(); }, [refreshUnreadCount]);
 
@@ -424,9 +397,9 @@ export default function OperationsApp() {
       </View>
 
       <View style={styles.content}>
-        <NotificationBridge onDestination={openDestination} onNotificationReceived={refreshUnreadCount} />
-        {activeTab === 'dashboard' ? <DashboardScreen onNavigate={openDestination} /> : null}
-        {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={ordersScreenKey} /> : null}
+        <NotificationBridge onDestination={openDestination} onNotificationReceived={handleNotificationReceived} />
+        {activeTab === 'dashboard' ? <DashboardScreen key={`dashboard-${liveRefreshKey}`} onNavigate={openDestination} /> : null}
+        {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={`${ordersScreenKey}-${liveRefreshKey}`} /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
         {activeTab === 'notifications' ? <NotificationsScreen onOpenDestination={openDestination} onUnreadCountChange={setUnreadNotificationCount} /> : null}
@@ -461,9 +434,9 @@ export default function OperationsApp() {
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#F4F7F5' },
-  header: { minHeight: 112, backgroundColor: '#075C38', paddingHorizontal: 20, paddingVertical: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomLeftRadius: 22, borderBottomRightRadius: 22 },
+  header: { minHeight: 88, backgroundColor: '#075C38', paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomLeftRadius: 22, borderBottomRightRadius: 22 },
   headerEyebrow: { color: '#BFE2D2', fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-  headerTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '800', marginTop: 8 },
+  headerTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 5 },
   headerActions: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
   notificationButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#174E36', alignItems: 'center', justifyContent: 'center' },
   notificationBadge: { position: 'absolute', top: -4, right: -5, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#D92D20', borderColor: '#0B5D3B', borderWidth: 2, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
@@ -480,8 +453,19 @@ const styles = StyleSheet.create({
   sectionTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' },
   updatedText: { color: '#71867D', fontSize: 12 },
   periodRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  currentMonthText: { color: '#587066', fontSize: 12, fontWeight: '700' },
   periodPicker: { minHeight: 39, borderColor: '#C9D2CD', borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', columnGap: 5, backgroundColor: '#FFFFFF' },
   periodPickerText: { color: '#223B31', fontSize: 14, fontWeight: '700' },
+  monthModalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'center', padding: 26 },
+  monthModalDismissArea: { position: 'absolute', inset: 0 },
+  monthModalCard: { maxHeight: '72%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18 },
+  monthModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  monthModalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' },
+  monthModalClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' },
+  monthOption: { minHeight: 50, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  monthOptionSelected: { backgroundColor: '#EAF6EF' },
+  monthOptionText: { color: '#40564D', fontSize: 15, fontWeight: '700' },
+  monthOptionTextSelected: { color: '#0B5D3B', fontWeight: '900' },
   financeCard: { minHeight: 112, backgroundColor: '#FFFFFF', borderColor: '#DFE5E2', borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'stretch', shadowColor: '#17352A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2, marginBottom: 14 },
   financeMetric: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 3 },
   financeMetricBorder: { borderLeftColor: '#E2E7E4', borderLeftWidth: 1, paddingLeft: 12, marginLeft: 7 },

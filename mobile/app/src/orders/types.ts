@@ -63,6 +63,13 @@ export type OrderDetail = OrderSummary & {
   cancellation_note: string | null;
   allowed_actions: OrderAction[];
   activity: OrderActivity[];
+  shipping_label?: {
+    sender: {
+      name: string;
+      phone: string | null;
+      address: string | null;
+    };
+  };
 };
 
 export type OrderListFilters = {

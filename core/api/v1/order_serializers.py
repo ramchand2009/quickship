@@ -179,6 +179,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
     cancellation_note = serializers.SerializerMethodField()
     allowed_actions = serializers.SerializerMethodField()
     activity = serializers.SerializerMethodField()
+    shipping_label = serializers.SerializerMethodField()
 
     class Meta(OrderSummarySerializer.Meta):
         fields = OrderSummarySerializer.Meta.fields + [
@@ -191,6 +192,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "cancellation_note",
             "allowed_actions",
             "activity",
+            "shipping_label",
         ]
 
     def get_customer(self, order):
@@ -272,6 +274,28 @@ class OrderDetailSerializer(OrderSummarySerializer):
 
     def get_shipping_cost(self, order):
         return _money(order.shipping_base_amount)
+
+    def get_shipping_label(self, order):
+        tenant = self.context.get("tenant") or order.tenant
+        sender = tenant.sender_addresses.order_by("-updated_at", "-created_at").first()
+        return {
+            "sender": {
+                "name": sender.name if sender else tenant.name,
+                "phone": sender.phone if sender else None,
+                "address": ", ".join(
+                    value
+                    for value in [
+                        sender.address_1 if sender else "",
+                        sender.address_2 if sender else "",
+                        sender.city if sender else "",
+                        sender.state if sender else "",
+                        sender.pincode if sender else "",
+                        sender.country if sender else "",
+                    ]
+                    if value
+                ) or None,
+            },
+        }
 
     def get_cancellation_reason(self, order):
         return order.cancellation_reason or None

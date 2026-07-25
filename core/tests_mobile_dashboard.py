@@ -141,6 +141,44 @@ class MobileDashboardApiTests(TestCase):
                 keys = {row["key"] for row in response.json()["data"]["metrics"]}
                 self.assertEqual(keys, expected_keys)
 
+    def test_dashboard_can_select_a_calendar_month(self):
+        self.order(self.tenant, "CURRENT-MONTH", ShiprocketOrder.STATUS_NEW)
+        previous_date = timezone.now() - timedelta(days=40)
+        previous = self.order(
+            self.tenant,
+            "SELECTED-MONTH",
+            ShiprocketOrder.STATUS_COMPLETED,
+            total="250.00",
+            order_date=previous_date,
+        )
+        selected_month = timezone.localtime(previous.order_date).strftime("%Y-%m")
+
+        response = self.client.get(
+            "/api/v1/dashboard",
+            {"month": selected_month},
+            headers=self.headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        metrics = {row["key"]: row for row in payload["data"]["metrics"]}
+        self.assertEqual(metrics["total_orders"]["value"], 1)
+        self.assertEqual(metrics["completed_orders"]["value"], 1)
+        self.assertEqual(metrics["pending_orders"]["value"], 0)
+        self.assertTrue(metrics["total_sales"]["value"].endswith("250.00"))
+        self.assertEqual(payload["meta"]["period"]["month"], selected_month)
+        self.assertIn(payload["meta"]["period"]["date_from"], metrics["total_orders"]["destination"])
+        self.assertIn(payload["meta"]["period"]["date_to"], metrics["total_orders"]["destination"])
+
+    def test_dashboard_rejects_an_invalid_month(self):
+        response = self.client.get(
+            "/api/v1/dashboard",
+            {"month": "2026-13"},
+            headers=self.headers,
+        )
+
+        self.assertEqual(response.status_code, 400)
+
     def test_etag_returns_not_modified_without_leaking_cross_tenant_state(self):
         self.order(self.tenant, "CACHE", ShiprocketOrder.STATUS_NEW)
         first = self.client.get("/api/v1/dashboard", headers=self.headers)

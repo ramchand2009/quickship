@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.api.v1.session_services import create_mobile_session
 from core.api.v1.token_services import issue_access_token
-from core.models import OrderActivityLog, ShiprocketOrder, Tenant, TenantMembership
+from core.models import OrderActivityLog, SenderAddress, ShiprocketOrder, Tenant, TenantMembership
 
 
 @override_settings(MOBILE_API_ENABLED=True, MOBILE_READ_API_ENABLED=True)
@@ -238,6 +238,15 @@ class MobileOrderDetailApiTests(TestCase):
         return self.client.get(f"/api/v1/orders/{target.pk}", headers=self.headers)
 
     def test_owner_detail_matches_normalized_contract_and_excludes_raw_payload(self):
+        SenderAddress.objects.create(
+            tenant=self.tenant,
+            name="Mathukai Dispatch",
+            phone="9000000000",
+            address_1="1 Warehouse Road",
+            city="Chennai",
+            state="Tamil Nadu",
+            pincode="600001",
+        )
         response = self.get()
 
         self.assertEqual(response.status_code, 200)
@@ -249,6 +258,9 @@ class MobileOrderDetailApiTests(TestCase):
         self.assertEqual(data["items"][0]["total"], {"amount": "150.50", "currency": "INR"})
         self.assertEqual(data["courier_name"], "Safe Courier")
         self.assertEqual(data["shipping_cost"], {"amount": "20.00", "currency": "INR"})
+        self.assertEqual(data["shipping_label"]["sender"]["name"], "Mathukai Dispatch")
+        self.assertIn("1 Warehouse Road", data["shipping_label"]["sender"]["address"])
+        self.assertEqual(data["shipping_label"]["sender"]["phone"], "9000000000")
         self.assertEqual(data["activity"][0]["id"], self.activity.pk)
         self.assertEqual(data["activity"][0]["actor_display_name"], "operator@example.com")
         response_text = response.content.decode("utf-8")

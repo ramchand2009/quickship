@@ -77,7 +77,7 @@ def _serialize_result(*, tenant, order_id, role, effects, replayed=False):
     order, activity = mobile_order_detail(tenant=tenant, order_id=order_id)
     data = OrderDetailSerializer(
         order,
-        context={"role": role, "activity": activity},
+        context={"role": role, "activity": activity, "tenant": tenant},
     ).data
     return {"data": {"order": data, "effects": effects, "replayed": replayed}}
 

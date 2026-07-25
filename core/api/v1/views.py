@@ -13,6 +13,7 @@ from core.forms import LoginForm
 from core.models import MobileDevice, MobileNotification, MobileSession, Tenant, TenantMembership
 
 from .serializers import (
+    DashboardQuerySerializer,
     LoginRequestSerializer,
     LogoutRequestSerializer,
     RefreshRequestSerializer,
@@ -224,9 +225,12 @@ class MobileDashboardView(MobileReadEnabledMixin, APIView):
     throttle_scope = "mobile_read"
 
     def get(self, request):
+        query = DashboardQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
         dashboard = build_mobile_dashboard(
             tenant=request.tenant,
             role=request.tenant_membership.role,
+            month=query.validated_data.get("month"),
         )
         etag = dashboard.pop("etag")
         if request.headers.get("If-None-Match") == etag:
@@ -273,6 +277,7 @@ class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
             context={
                 "role": request.tenant_membership.role,
                 "activity": activity,
+                "tenant": request.tenant,
             },
         ).data
         return Response({"data": data})

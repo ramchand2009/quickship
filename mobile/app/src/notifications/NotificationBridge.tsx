@@ -52,6 +52,7 @@ export default function NotificationBridge({
           name: 'Orders and operations',
           description: 'New orders and important operational alerts',
           importance: Notifications.AndroidImportance.HIGH,
+          sound: 'default',
           vibrationPattern: [0, 250, 150, 250],
           lightColor: '#0B5D3B',
         });

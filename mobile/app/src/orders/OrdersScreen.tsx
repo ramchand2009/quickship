@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   BackHandler,
   FlatList,
   Linking,
@@ -24,10 +27,7 @@ const STATUS_FILTERS = [
   { code: '', label: 'All' },
   { code: 'new_order', label: 'New' },
   { code: 'order_accepted', label: 'Accepted' },
-  { code: 'order_packed', label: 'Packed' },
   { code: 'shipped', label: 'Shipped' },
-  { code: 'delivery_issue', label: 'Attention' },
-  { code: 'delivered', label: 'Delivered' },
   { code: 'completed', label: 'Completed' },
   { code: 'order_cancelled', label: 'Cancelled' },
 ];
@@ -39,6 +39,18 @@ const CANCELLATION_REASONS = [
   { code: 'address_issue', label: 'Address issue' },
   { code: 'courier_issue', label: 'Courier issue' },
   { code: 'other', label: 'Other' },
+];
+
+const COURIER_PARTNERS = [
+  'India Post',
+  'Delhivery',
+  'DTDC',
+  'Blue Dart',
+  'Xpressbees',
+  'Ecom Express',
+  'Shadowfax',
+  'Amazon Shipping',
+  'Self-Ship',
 ];
 
 const ACTION_LABELS: Record<string, string> = {
@@ -109,21 +121,13 @@ function normalizedContactPhone(value: string | null | undefined) {
 function OrderCard({ order, onPress }: { order: OrderSummary; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, pressed && styles.pressed]}>
-      <View style={styles.orderThumbnail}>
-        <MaterialCommunityIcons color="#14733D" name="shopping-outline" size={27} />
-        <Text style={styles.orderItemCount}>{order.item_count}</Text>
-      </View>
       <View style={styles.orderCardBody}>
         <View style={styles.orderTopRow}>
           <View style={styles.orderReferenceWrap}>
-            <Text numberOfLines={1} style={styles.orderReference}>{order.reference}</Text>
-            <Text numberOfLines={1} style={styles.orderSource}>{order.source.label} · {dateTime(order.order_date)}</Text>
+            <Text numberOfLines={1} style={styles.orderReference}>{order.customer_display_name || 'Customer unavailable'}</Text>
+            <Text numberOfLines={1} style={styles.orderSource}>Order {order.reference} · {dateTime(order.order_date)}</Text>
           </View>
           <StatusPill order={order} />
-        </View>
-        <View style={styles.customerRow}>
-          <MaterialCommunityIcons color="#71867D" name="account-outline" size={17} />
-          <Text numberOfLines={1} style={styles.customerName}>{order.customer_display_name || 'Customer unavailable'}</Text>
         </View>
         <View style={styles.orderBottomRow}>
           <View style={styles.orderMetaRow}>
@@ -142,6 +146,56 @@ function OrderCard({ order, onPress }: { order: OrderSummary; onPress: () => voi
       <MaterialCommunityIcons color="#63766E" name="chevron-right" size={23} />
     </Pressable>
   );
+}
+
+function escapeHtml(value: string | null | undefined) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function shippingLabelHtml(order: OrderDetail) {
+  const sender = order.shipping_label?.sender || {
+    name: 'Mathukai Organic',
+    phone: null,
+    address: null,
+  };
+  const payment = order.payment_state.code === 'received' || order.payment_state.code === 'paid'
+    ? 'PAID'
+    : `COLLECT ${escapeHtml(money(order.total))}`;
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+@page { size: 4in 6in; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0.18in; width: 4in; height: 6in; font-family: Arial, sans-serif; color: #111; }
+.label { height: 100%; border: 2px solid #111; padding: 0.14in; }
+.header { border-bottom: 2px solid #111; padding-bottom: 0.12in; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+.reference { font-size: 15px; font-weight: 700; }
+.meta { font-size: 11px; margin-top: 4px; }
+.box { border: 1.5px solid #111; margin-top: 0.14in; padding: 0.12in; }
+.eyebrow { font-size: 10px; font-weight: 700; margin-bottom: 8px; }
+.name { font-size: 18px; font-weight: 700; margin-bottom: 7px; }
+.address { font-size: 14px; line-height: 1.35; }
+.phone { font-size: 13px; font-weight: 700; margin-top: 8px; }
+.from .name { font-size: 14px; }
+.from .address { font-size: 12px; }
+.footer { display: flex; justify-content: space-between; border-top: 2px solid #111; margin-top: 0.14in; padding-top: 0.12in; font-size: 12px; font-weight: 700; }
+</style></head><body><div class="label">
+<div class="header"><h1>SHIPPING LABEL</h1><div class="reference">Order ${escapeHtml(order.reference)}</div>
+${order.courier_name ? `<div class="meta">Courier: ${escapeHtml(order.courier_name)}</div>` : ''}
+${order.tracking_number ? `<div class="meta">Tracking: ${escapeHtml(order.tracking_number)}</div>` : ''}</div>
+<div class="box"><div class="eyebrow">TO</div><div class="name">${escapeHtml(order.customer.name || 'Customer')}</div>
+<div class="address">${escapeHtml(order.customer.delivery_address || 'Delivery address unavailable')}</div>
+${order.customer.phone ? `<div class="phone">Phone: ${escapeHtml(order.customer.phone)}</div>` : ''}</div>
+<div class="box from"><div class="eyebrow">FROM</div><div class="name">${escapeHtml(sender.name)}</div>
+<div class="address">${escapeHtml(sender.address || 'Sender address unavailable')}</div>
+${sender.phone ? `<div class="phone">Phone: ${escapeHtml(sender.phone)}</div>` : ''}</div>
+<div class="footer"><span>${order.item_count} item${order.item_count === 1 ? '' : 's'}</span><span>${payment}</span></div>
+</div></body></html>`;
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -166,10 +220,14 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [actionFeedback, setActionFeedback] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [courierName, setCourierName] = useState('');
+  const [courierMenuOpen, setCourierMenuOpen] = useState(false);
+  const [customCourier, setCustomCourier] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [shippingCost, setShippingCost] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationNote, setCancellationNote] = useState('');
+  const [labelPreviewVisible, setLabelPreviewVisible] = useState(false);
+  const [labelBusy, setLabelBusy] = useState(false);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -284,6 +342,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     if (needsForm) {
       setCustomerPhone(order?.customer.phone || '');
       setCourierName(order?.courier_name || '');
+      setCustomCourier(Boolean(order?.courier_name && !COURIER_PARTNERS.includes(order.courier_name)));
+      setCourierMenuOpen(false);
       setTrackingNumber(order?.tracking_number || '');
       setShippingCost(order?.shipping_cost.amount === '0.00' ? '' : order?.shipping_cost.amount || '');
       setCancellationReason('');
@@ -348,6 +408,45 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     } catch {
       Alert.alert('Dialer unavailable', 'The phone dialer could not be opened on this device.');
     }
+  };
+  const printShippingLabel = async () => {
+    setLabelBusy(true);
+    try {
+      await Print.printAsync({ html: shippingLabelHtml(order) });
+    } catch {
+      Alert.alert('Printing unavailable', 'The Android print service could not open this label.');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
+  const shareShippingLabel = async () => {
+    setLabelBusy(true);
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert('Sharing unavailable', 'PDF sharing is not available on this device.');
+        return;
+      }
+      const pdf = await Print.printToFileAsync({
+        html: shippingLabelHtml(order),
+        width: 288,
+        height: 432,
+      });
+      await Sharing.shareAsync(pdf.uri, {
+        dialogTitle: `Shipping label ${order.reference}`,
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+    } catch {
+      Alert.alert('PDF unavailable', 'The shipping-label PDF could not be created.');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
+  const canPrintShippingLabel = ['order_accepted', 'order_packed'].includes(order.status.code);
+  const labelSender = order.shipping_label?.sender || {
+    name: 'Mathukai Organic',
+    phone: null,
+    address: null,
   };
 
   return (
@@ -464,7 +563,60 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Tracking number" value={order.tracking_number} />
         <DetailRow label="Shipping cost" value={money(order.shipping_cost)} />
         <DetailRow label="Order date" value={dateTime(order.order_date)} />
+        {canPrintShippingLabel ? (
+          <Pressable
+            onPress={() => setLabelPreviewVisible(true)}
+            style={({ pressed }) => [styles.labelButton, pressed && styles.pressed]}
+          >
+            <MaterialCommunityIcons color="#FFFFFF" name="printer-outline" size={21} />
+            <Text style={styles.labelButtonText}>View and print shipping label</Text>
+          </Pressable>
+        ) : null}
       </View>
+
+      <Modal animationType="slide" onRequestClose={() => !labelBusy && setLabelPreviewVisible(false)} visible={labelPreviewVisible}>
+        <View style={styles.labelPreviewScreen}>
+          <View style={styles.labelPreviewHeader}>
+            <Pressable disabled={labelBusy} onPress={() => setLabelPreviewVisible(false)} style={styles.modalClose}>
+              <MaterialCommunityIcons color="#587066" name="arrow-left" size={24} />
+            </Pressable>
+            <View style={styles.labelPreviewHeaderCopy}>
+              <Text style={styles.labelPreviewTitle}>Shipping label</Text>
+              <Text style={styles.labelPreviewSubtitle}>4 × 6 inches · {order.reference}</Text>
+            </View>
+          </View>
+          <ScrollView contentContainerStyle={styles.labelPreviewScroll}>
+            <View style={styles.labelSheet}>
+              <Text style={styles.labelSheetTitle}>SHIPPING LABEL</Text>
+              <Text style={styles.labelSheetReference}>Order {order.reference}</Text>
+              {order.courier_name ? <Text style={styles.labelSheetMeta}>Courier: {order.courier_name}</Text> : null}
+              {order.tracking_number ? <Text style={styles.labelSheetMeta}>Tracking: {order.tracking_number}</Text> : null}
+              <View style={styles.labelAddressBox}>
+                <Text style={styles.labelEyebrow}>TO</Text>
+                <Text style={styles.labelRecipient}>{order.customer.name || 'Customer'}</Text>
+                <Text style={styles.labelAddress}>{order.customer.delivery_address || 'Delivery address unavailable'}</Text>
+                {order.customer.phone ? <Text style={styles.labelPhone}>Phone: {order.customer.phone}</Text> : null}
+              </View>
+              <View style={styles.labelAddressBox}>
+                <Text style={styles.labelEyebrow}>FROM</Text>
+                <Text style={styles.labelSender}>{labelSender.name}</Text>
+                <Text style={styles.labelAddress}>{labelSender.address || 'Sender address unavailable'}</Text>
+                {labelSender.phone ? <Text style={styles.labelPhone}>Phone: {labelSender.phone}</Text> : null}
+              </View>
+            </View>
+          </ScrollView>
+          <View style={styles.labelActions}>
+            <Pressable disabled={labelBusy} onPress={() => void shareShippingLabel()} style={styles.shareLabelButton}>
+              <MaterialCommunityIcons color="#0B5D3B" name="share-variant-outline" size={21} />
+              <Text style={styles.shareLabelText}>Share PDF</Text>
+            </Pressable>
+            <Pressable disabled={labelBusy} onPress={() => void printShippingLabel()} style={styles.printLabelButton}>
+              {labelBusy ? <ActivityIndicator color="#FFFFFF" /> : <MaterialCommunityIcons color="#FFFFFF" name="printer" size={21} />}
+              <Text style={styles.printLabelText}>Print</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -499,7 +651,40 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                 <>
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Courier partner</Text>
-                    <TextInput onChangeText={setCourierName} placeholder="Example: India Post" placeholderTextColor="#82958D" style={styles.formInput} value={courierName} />
+                    <Pressable onPress={() => setCourierMenuOpen((current) => !current)} style={styles.courierSelect}>
+                      <Text style={[styles.courierSelectText, !courierName && styles.courierPlaceholder]}>
+                        {courierName || 'Select courier partner'}
+                      </Text>
+                      <MaterialCommunityIcons color="#587066" name={courierMenuOpen ? 'chevron-up' : 'chevron-down'} size={22} />
+                    </Pressable>
+                    {courierMenuOpen ? (
+                      <View style={styles.courierMenu}>
+                        {[...COURIER_PARTNERS, 'Other'].map((partner) => (
+                          <Pressable
+                            key={partner}
+                            onPress={() => {
+                              setCustomCourier(partner === 'Other');
+                              setCourierName(partner === 'Other' ? '' : partner);
+                              setCourierMenuOpen(false);
+                            }}
+                            style={styles.courierOption}
+                          >
+                            <Text style={styles.courierOptionText}>{partner}</Text>
+                            {courierName === partner ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={19} /> : null}
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+                    {customCourier ? (
+                      <TextInput
+                        autoFocus
+                        onChangeText={setCourierName}
+                        placeholder="Enter courier partner"
+                        placeholderTextColor="#82958D"
+                        style={[styles.formInput, styles.customCourierInput]}
+                        value={courierName}
+                      />
+                    ) : null}
                   </View>
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Tracking number</Text>
@@ -600,9 +785,11 @@ export default function OrdersScreen({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
-  const loadFirstPage = useCallback(async (refresh = false) => {
-    if (refresh) setRefreshing(true); else setLoading(true);
-    setError('');
+  const loadFirstPage = useCallback(async (refresh = false, silent = false) => {
+    if (!silent) {
+      if (refresh) setRefreshing(true); else setLoading(true);
+      setError('');
+    }
     try {
       const response = await runAuthenticated((token) => api.orders(token, {
         search,
@@ -613,14 +800,29 @@ export default function OrdersScreen({
       setOrders(response.data);
       setNextCursor(response.pagination.next_cursor);
     } catch (reason) {
-      setError(reason instanceof api.ApiError ? reason.message : 'Orders could not be loaded.');
+      if (!silent) setError(reason instanceof api.ApiError ? reason.message : 'Orders could not be loaded.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [dateFrom, dateTo, runAuthenticated, search, status]);
 
   useEffect(() => { void loadFirstPage(); }, [loadFirstPage]);
+
+  useEffect(() => {
+    if (selectedOrderId !== null) return undefined;
+    const refresh = () => void loadFirstPage(false, true);
+    const interval = setInterval(refresh, 15000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [loadFirstPage, selectedOrderId]);
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
@@ -725,10 +927,8 @@ const styles = StyleSheet.create({
   filterText: { color: '#587066', fontSize: 13, fontWeight: '700' },
   filterTextActive: { color: '#FFFFFF' },
   resultLabel: { color: '#71867D', fontSize: 12, fontWeight: '700', marginBottom: 10, marginLeft: 2 },
-  orderCard: { minHeight: 124, backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 17, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
-  orderThumbnail: { width: 57, height: 74, borderRadius: 13, backgroundColor: '#EDF6EF', alignItems: 'center', justifyContent: 'center' },
-  orderItemCount: { color: '#14733D', fontSize: 10, fontWeight: '900', marginTop: 2 },
-  orderCardBody: { flex: 1, marginLeft: 12 },
+  orderCard: { minHeight: 108, backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 17, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  orderCardBody: { flex: 1 },
   orderTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   orderReferenceWrap: { flex: 1, paddingRight: 8 },
   orderReference: { color: '#17352A', fontSize: 16, fontWeight: '900' },
@@ -743,8 +943,6 @@ const styles = StyleSheet.create({
   paymentPillText: { fontSize: 10, fontWeight: '800' },
   paymentPillTextReceived: { color: '#147348' },
   paymentPillTextPending: { color: '#9A5B00' },
-  customerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 9 },
-  customerName: { color: '#29483D', fontSize: 14, fontWeight: '700', marginLeft: 4, flex: 1 },
   orderBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 9 },
   orderMetaRow: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
   orderMeta: { color: '#71867D', fontSize: 12 },
@@ -795,6 +993,29 @@ const styles = StyleSheet.create({
   whatsAppButtonText: { color: '#FFFFFF', fontWeight: '800' },
   callButton: { flex: 1, minHeight: 48, backgroundColor: '#FFFFFF', borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
   callButtonText: { color: '#0B5D3B', fontWeight: '800' },
+  labelButton: { minHeight: 50, backgroundColor: '#0B5D3B', borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 9, marginTop: 5 },
+  labelButtonText: { color: '#FFFFFF', fontWeight: '900' },
+  labelPreviewScreen: { flex: 1, backgroundColor: '#EEF3F0' },
+  labelPreviewHeader: { minHeight: 76, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', columnGap: 12 },
+  labelPreviewHeaderCopy: { flex: 1 },
+  labelPreviewTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' },
+  labelPreviewSubtitle: { color: '#71867D', fontSize: 12, marginTop: 3 },
+  labelPreviewScroll: { padding: 18, alignItems: 'center' },
+  labelSheet: { width: '100%', maxWidth: 390, minHeight: 560, backgroundColor: '#FFFFFF', borderColor: '#17211D', borderWidth: 2, padding: 16 },
+  labelSheetTitle: { color: '#111111', fontSize: 23, fontWeight: '900' },
+  labelSheetReference: { color: '#111111', fontSize: 16, fontWeight: '900', borderBottomColor: '#111111', borderBottomWidth: 2, paddingBottom: 12, marginTop: 5, marginBottom: 6 },
+  labelSheetMeta: { color: '#111111', fontSize: 12, fontWeight: '800', marginTop: 3 },
+  labelAddressBox: { borderColor: '#111111', borderWidth: 1.5, padding: 13, marginTop: 14 },
+  labelEyebrow: { color: '#111111', fontSize: 10, fontWeight: '900', marginBottom: 7 },
+  labelRecipient: { color: '#111111', fontSize: 20, fontWeight: '900', marginBottom: 6 },
+  labelSender: { color: '#111111', fontSize: 16, fontWeight: '900', marginBottom: 6 },
+  labelAddress: { color: '#111111', fontSize: 14, lineHeight: 20 },
+  labelPhone: { color: '#111111', fontSize: 13, fontWeight: '900', marginTop: 8 },
+  labelActions: { backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, padding: 14, flexDirection: 'row', columnGap: 10 },
+  shareLabelButton: { flex: 1, minHeight: 52, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
+  shareLabelText: { color: '#0B5D3B', fontWeight: '900' },
+  printLabelButton: { flex: 1, minHeight: 52, backgroundColor: '#0B5D3B', borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
+  printLabelText: { color: '#FFFFFF', fontWeight: '900' },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   itemDivider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 },
   itemCopy: { flex: 1, paddingRight: 12 },
@@ -809,6 +1030,13 @@ const styles = StyleSheet.create({
   formGroup: { marginBottom: 16 },
   formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 },
   formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 },
+  courierSelect: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  courierSelectText: { color: '#17352A', fontSize: 15, flex: 1 },
+  courierPlaceholder: { color: '#82958D' },
+  courierMenu: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', marginTop: 7, overflow: 'hidden' },
+  courierOption: { minHeight: 44, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  courierOptionText: { color: '#29483D', fontSize: 14, fontWeight: '700' },
+  customCourierInput: { marginTop: 8 },
   formTextArea: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' },
   formHint: { color: '#71867D', fontSize: 11, marginTop: 6 },
   reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },

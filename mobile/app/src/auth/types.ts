@@ -48,6 +48,12 @@ export type DashboardResponse = {
   };
   meta: {
     cache_expires_at: string;
+    period?: {
+      month: string;
+      label: string;
+      date_from: string;
+      date_to: string;
+    };
     request_id?: string;
     server_time?: string;
   };

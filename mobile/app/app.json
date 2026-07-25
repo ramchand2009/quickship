@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mathukai Operations",
+    "name": "Mathukai Organic",
     "slug": "mathukai-operations",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,6 +13,7 @@
     "android": {
       "package": "com.mathukai.operations",
       "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,7 +39,8 @@
           "color": "#0B5D3B",
           "defaultChannel": "orders"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

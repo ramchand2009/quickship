@@ -11,6 +11,14 @@ class LoginRequestSerializer(serializers.Serializer):
     app_version = serializers.CharField(max_length=32, allow_blank=True)
 
 
+class DashboardQuerySerializer(serializers.Serializer):
+    month = serializers.RegexField(
+        regex=r"^\d{4}-(0[1-9]|1[0-2])$",
+        required=False,
+        help_text="Calendar month in YYYY-MM format.",
+    )
+
+
 class RefreshRequestSerializer(serializers.Serializer):
     refresh_token = serializers.CharField(min_length=32, max_length=512, write_only=True)
     installation_id = serializers.UUIDField()

@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections import Counter
 from decimal import Decimal
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.db.models.functions import Coalesce
@@ -52,7 +52,7 @@ def _alert(identifier, alert_type, title, message, destination, created_at):
     }
 
 
-def build_mobile_dashboard(*, tenant, role, now=None):
+def build_mobile_dashboard(*, tenant, role, now=None, month=None):
     generated_at = now or timezone.now()
     cache_seconds = settings.MOBILE_DASHBOARD_CACHE_SECONDS
     bucket_epoch = int(generated_at.timestamp()) // cache_seconds * cache_seconds
@@ -61,7 +61,14 @@ def build_mobile_dashboard(*, tenant, role, now=None):
     alert_time = bucket_time.isoformat().replace("+00:00", "Z")
 
     local_generated_at = timezone.localtime(generated_at)
-    month_start = local_generated_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if month:
+        year, month_number = (int(part) for part in month.split("-", 1))
+        month_start = timezone.make_aware(
+            datetime(year, month_number, 1),
+            timezone.get_current_timezone(),
+        )
+    else:
+        month_start = local_generated_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     next_month_start = (month_start + timedelta(days=32)).replace(day=1)
     month_end = next_month_start.date() - timedelta(days=1)
     month_query = f"date_from={month_start.date().isoformat()}&date_to={month_end.isoformat()}"
@@ -168,6 +175,14 @@ def build_mobile_dashboard(*, tenant, role, now=None):
     ).hexdigest()
     return {
         "data": data,
-        "meta": {"cache_expires_at": cache_expires_at.isoformat().replace("+00:00", "Z")},
+        "meta": {
+            "cache_expires_at": cache_expires_at.isoformat().replace("+00:00", "Z"),
+            "period": {
+                "month": month_start.strftime("%Y-%m"),
+                "label": month_start.strftime("%B %Y"),
+                "date_from": month_start.date().isoformat(),
+                "date_to": month_end.isoformat(),
+            },
+        },
         "etag": f'"{etag_digest}"',
     }
