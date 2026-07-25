@@ -471,8 +471,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       <View style={styles.detailHero}>
         <View style={styles.orderTopRow}>
           <View style={styles.orderReferenceWrap}>
-            <Text style={styles.detailReference}>{order.reference}</Text>
-            <Text style={styles.orderSource}>{order.source.label}</Text>
+            <Text style={styles.detailReference}>{order.customer.name || 'Customer unavailable'}</Text>
+            <Text style={styles.orderSource}>Order {order.reference}</Text>
           </View>
           <StatusPill order={order} />
         </View>
@@ -961,9 +961,9 @@ const styles = StyleSheet.create({
   errorMessage: { color: '#587066', lineHeight: 21, textAlign: 'center', marginTop: 8 },
   primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   primaryButtonText: { color: '#FFFFFF', fontWeight: '800' },
-  detailScreen: { flex: 1 },
-  detailContent: { padding: 18, paddingBottom: 32 },
-  backButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, borderRadius: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 8, columnGap: 8 },
+  detailScreen: { flex: 1, backgroundColor: '#F7FAF8' },
+  detailContent: { padding: 16, paddingBottom: 32 },
+  backButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, columnGap: 8 },
   backText: { color: '#0B5D3B', fontSize: 15, fontWeight: '800' },
   successBanner: { backgroundColor: '#E4F3EB', borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', columnGap: 9 },
   successBannerText: { color: '#147348', flex: 1, fontWeight: '800' },
@@ -971,13 +971,13 @@ const styles = StyleSheet.create({
   actionProgressCard: { width: '100%', maxWidth: 340, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 24, alignItems: 'center' },
   actionProgressTitle: { color: '#17352A', fontSize: 17, fontWeight: '900', marginTop: 14, textAlign: 'center' },
   actionProgressHint: { color: '#71867D', fontSize: 12, lineHeight: 18, marginTop: 6, textAlign: 'center' },
-  detailHero: { backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22 },
+  detailHero: { backgroundColor: '#FFFFFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   detailReference: { color: '#17352A', fontSize: 21, fontWeight: '900' },
   heroTotals: { borderTopColor: '#E4EAE7', borderTopWidth: 1, marginTop: 18, paddingTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   heroTotal: { color: '#17352A', fontSize: 24, fontWeight: '900' },
   paymentText: { color: '#587066', fontSize: 12, fontWeight: '700' },
   sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 },
-  sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 22 },
+  sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 },
   actionHelp: { color: '#71867D', fontSize: 12, lineHeight: 18, marginBottom: 12 },
   actionList: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   actionButton: { flexBasis: '48%', flexGrow: 1, minHeight: 50, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 13, backgroundColor: '#F4FAF7', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },

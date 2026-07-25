@@ -86,17 +86,17 @@ export default function IndexScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F7F5' },
-  page: { flex: 1, backgroundColor: '#F4F7F5' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7FAF8' },
+  page: { flex: 1, backgroundColor: '#F7FAF8' },
   workspacePage: { justifyContent: 'center', paddingHorizontal: 28 },
   keyboardArea: { flex: 1 },
-  loginContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 24 },
-  brand: { width: 150, height: 134, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 18 },
+  loginContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 22 },
+  brand: { width: 112, height: 100, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 14 },
   brandLogo: { width: '100%', height: '100%' },
   title: { color: '#17352A', fontSize: 30, fontWeight: '800', textAlign: 'center' },
   subtitle: { color: '#587066', fontSize: 16, lineHeight: 23, textAlign: 'center', marginTop: 9 },
-  form: { marginTop: 34, gap: 10 }, label: { color: '#29483D', fontSize: 14, fontWeight: '700', marginTop: 5 },
-  input: { backgroundColor: '#FFF', borderColor: '#C8D6D0', borderWidth: 1, borderRadius: 13, minHeight: 54, paddingHorizontal: 16, color: '#17352A', fontSize: 17 },
+  form: { marginTop: 28, gap: 10, backgroundColor: '#FFFFFF', borderColor: '#DCE6E1', borderWidth: 1, borderRadius: 20, padding: 18, shadowColor: '#17352A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }, label: { color: '#29483D', fontSize: 14, fontWeight: '700', marginTop: 5 },
+  input: { backgroundColor: '#FBFDFC', borderColor: '#C8D6D0', borderWidth: 1, borderRadius: 13, minHeight: 54, paddingHorizontal: 16, color: '#17352A', fontSize: 17 },
   error: { color: '#B42318', lineHeight: 20, marginTop: 4 },
   button: { backgroundColor: '#0B5D3B', borderRadius: 14, minHeight: 56, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   buttonMuted: { opacity: 0.6 }, buttonText: { color: '#FFF', fontSize: 17, fontWeight: '800' },

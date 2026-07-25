@@ -16,7 +16,7 @@ import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardResponse } from '../auth/types';
 import OrdersScreen from '../orders/OrdersScreen';
-import type { OrderListFilters, OrderSummary } from '../orders/types';
+import type { OrderListFilters } from '../orders/types';
 import NotificationBridge from '../notifications/NotificationBridge';
 import NotificationsScreen from '../notifications/NotificationsScreen';
 import StockScreen from '../stock/StockScreen';
@@ -68,14 +68,6 @@ function formatMetricValue(value: number | string) {
   return String(value).replace(/^â‚¹\s*/, '₹');
 }
 
-function formatMoney(order: OrderSummary) {
-  const amount = Number(order.total.amount || 0).toLocaleString('en-IN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-  return order.total.currency === 'INR' ? `₹${amount}` : `${order.total.currency} ${amount}`;
-}
-
 function destinationParameter(destination: string, key: string) {
   const query = destination.split('?', 2)[1] || '';
   const entry = query.split('&').find((part) => part.split('=', 1)[0] === key);
@@ -106,7 +98,7 @@ function destinationWithOrderStatus(destination: string, status: string) {
 }
 
 function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => void }) {
-  const { runAuthenticated } = useAuth();
+  const { auth, runAuthenticated } = useAuth();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -160,7 +152,16 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
   }
 
   const financeMetrics = dashboard.data.metrics.filter((metric) => metric.key === 'total_sales' || metric.key === 'total_profit');
-  const orderMetrics = dashboard.data.metrics.filter((metric) => METRIC_ICONS[metric.key]);
+  const totalOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'total_orders');
+  const newOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'pending_orders');
+  const pipelineMetrics = dashboard.data.metrics.filter((metric) => (
+    metric.key === 'accepted_orders'
+    || metric.key === 'shipped_orders'
+    || metric.key === 'completed_orders'
+    || metric.key === 'cancelled_orders'
+  ));
+  const firstName = (auth?.session.user.display_name || '').trim().split(/\s+/)[0];
+  const todayLabel = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <ScrollView
@@ -169,31 +170,73 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
     >
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded data.</Text></View> : null}
 
-      <View style={styles.periodRow}>
-        <Text style={styles.updatedText}>Updated {formatUpdatedAt(dashboard.meta.server_time) || 'recently'}</Text>
-        <Text style={styles.currentMonthText}>Current month</Text>
+      <View style={styles.dashboardIntro}>
+        <Text style={styles.dashboardGreeting}>Good morning{firstName ? `, ${firstName}` : ''}</Text>
+        <View style={styles.dashboardMetaRow}>
+          <Text style={styles.dashboardDate}>{todayLabel}</Text>
+          <Text style={styles.updatedText}>Updated {formatUpdatedAt(dashboard.meta.server_time) || 'recently'}</Text>
+        </View>
       </View>
 
-      <View style={styles.financeCard}>
-        {financeMetrics.map((metric, index) => (
+      <View style={styles.attentionCard}>
+        <Text style={styles.attentionHeading}>Needs your attention</Text>
+        {newOrdersMetric ? (
           <Pressable
-            key={metric.key}
-            onPress={() => onNavigate(metric.destination)}
-            style={({ pressed }) => [styles.financeMetric, index > 0 && styles.financeMetricBorder, pressed && styles.pressed]}
+            onPress={() => onNavigate(destinationWithOrderStatus(newOrdersMetric.destination, 'new_order'))}
+            style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
           >
-            <View style={styles.financeIcon}>
-              <MaterialCommunityIcons color="#14733D" name={metric.key === 'total_sales' ? 'finance' : 'currency-inr'} size={25} />
+            <View style={[styles.attentionIcon, styles.newOrderAttentionIcon]}>
+              <MaterialCommunityIcons color="#E68200" name="clock-outline" size={24} />
             </View>
-            <View style={styles.financeCopy}>
-              <Text style={styles.financeLabel}>{metric.key === 'total_profit' ? 'Profit' : metric.label}</Text>
-              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.financeValue}>{formatMetricValue(metric.value)}</Text>
+            <View style={styles.attentionCopy}>
+              <Text style={styles.attentionLabel}>New orders</Text>
             </View>
+            <Text style={styles.attentionValue}>{formatMetricValue(newOrdersMetric.value)}</Text>
+            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
+          </Pressable>
+        ) : null}
+        {dashboard.data.alerts.map((alert) => (
+          <Pressable
+            key={alert.id}
+            onPress={() => onNavigate(alert.destination)}
+            style={({ pressed }) => [styles.attentionRow, styles.attentionRowDivider, pressed && styles.pressed]}
+          >
+            <View style={styles.attentionIcon}>
+              <MaterialCommunityIcons color="#D98200" name="alert-outline" size={24} />
+            </View>
+            <View style={styles.attentionCopy}>
+              <Text style={styles.attentionLabel}>{alert.title}</Text>
+              <Text numberOfLines={1} style={styles.attentionHint}>{alert.message}</Text>
+            </View>
+            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
           </Pressable>
         ))}
       </View>
 
+      <Text style={[styles.sectionTitle, styles.monthHeading]}>This month</Text>
+      <View style={styles.performanceCard}>
+        {[...financeMetrics, ...(totalOrdersMetric ? [totalOrdersMetric] : [])].map((metric, index) => (
+          <Pressable
+            key={metric.key}
+            onPress={() => onNavigate(metric.destination)}
+            style={({ pressed }) => [styles.performanceMetric, index > 0 && styles.performanceMetricBorder, pressed && styles.pressed]}
+          >
+            <View style={styles.performanceIcon}>
+              <MaterialCommunityIcons
+                color="#14733D"
+                name={metric.key === 'total_sales' ? 'finance' : metric.key === 'total_profit' ? 'currency-inr' : 'clipboard-list-outline'}
+                size={22}
+              />
+            </View>
+            <Text style={styles.performanceLabel}>{metric.key === 'total_profit' ? 'Profit' : metric.key === 'total_orders' ? 'Orders' : 'Sales'}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.performanceValue}>{formatMetricValue(metric.value)}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Order pipeline</Text>
       <View style={styles.metricGrid}>
-        {orderMetrics.map((metric) => {
+        {pipelineMetrics.map((metric) => {
           const colors = METRIC_COLORS[metric.key] || METRIC_COLORS.total_orders;
           return (
             <Pressable
@@ -210,7 +253,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
                 <MaterialCommunityIcons color={colors.foreground} name={METRIC_ICONS[metric.key]} size={25} />
               </View>
               <View style={styles.metricCopy}>
-                <Text style={styles.metricLabel}>{metric.key === 'pending_orders' ? 'New' : metric.label}</Text>
+                <Text style={styles.metricLabel}>{metric.label}</Text>
                 <Text style={[styles.metricValue, { color: colors.foreground }]}>{formatMetricValue(metric.value)}</Text>
               </View>
               <MaterialCommunityIcons color="#52665E" name="chevron-right" size={22} />
@@ -218,21 +261,6 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
           );
         })}
       </View>
-
-      {dashboard.data.alerts.map((alert) => (
-        <Pressable
-          key={alert.id}
-          onPress={() => onNavigate(alert.destination)}
-          style={({ pressed }) => [styles.alertCard, pressed && styles.pressed]}
-        >
-          <View style={styles.alertIcon}><MaterialCommunityIcons color="#D98200" name="alert" size={23} /></View>
-          <View style={styles.alertCopy}>
-            <Text style={styles.alertTitle}>{alert.title}</Text>
-            <Text style={styles.alertMessage}>{alert.message}</Text>
-          </View>
-          <MaterialCommunityIcons color="#52665E" name="chevron-right" size={25} />
-        </Pressable>
-      ))}
     </ScrollView>
   );
 }
@@ -364,20 +392,23 @@ export default function OperationsApp() {
     setActiveTab(tab);
   }, []);
   const title = useMemo(() => {
-    if (activeTab === 'dashboard') {
-      const firstName = (auth?.session.user.display_name || '').trim().split(/\s+/)[0];
-      return `Good morning${firstName ? `, ${firstName}` : ''}`;
-    }
+    if (activeTab === 'dashboard') return 'Mathukai Organic';
     if (activeTab === 'notifications') return 'Notifications';
     return TABS.find((tab) => tab.key === activeTab)?.label || '';
-  }, [activeTab, auth?.session.user.display_name]);
+  }, [activeTab]);
+  const userInitial = (auth?.session.user.display_name || 'A').trim().slice(0, 1).toUpperCase();
 
   return (
     <SafeAreaView style={styles.app}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerEyebrow}>{auth?.session.active_tenant?.tenant_name}</Text>
-          <Text style={styles.headerTitle}>{title}</Text>
+        <View style={styles.headerBrand}>
+          <View style={styles.headerMark}>
+            <Text style={styles.headerMarkText}>M</Text>
+          </View>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headerEyebrow}>{auth?.session.active_tenant?.tenant_name}</Text>
+            <Text style={styles.headerTitle}>{title}</Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <Pressable
@@ -385,14 +416,16 @@ export default function OperationsApp() {
             onPress={() => setActiveTab('notifications')}
             style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}
           >
-            <MaterialCommunityIcons color="#FFFFFF" name={unreadNotificationCount ? 'bell' : 'bell-outline'} size={25} />
+            <MaterialCommunityIcons color="#0B5D3B" name={unreadNotificationCount ? 'bell' : 'bell-outline'} size={24} />
             {unreadNotificationCount ? (
               <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText}>{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</Text>
               </View>
             ) : null}
           </Pressable>
-          <View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
+          <Pressable onPress={() => setActiveTab('account')} style={({ pressed }) => [styles.headerAvatar, pressed && styles.pressed]}>
+            <Text style={styles.headerAvatarText}>{userInitial}</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -433,25 +466,51 @@ export default function OperationsApp() {
 }
 
 const styles = StyleSheet.create({
-  app: { flex: 1, backgroundColor: '#F4F7F5' },
-  header: { minHeight: 88, backgroundColor: '#075C38', paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomLeftRadius: 22, borderBottomRightRadius: 22 },
-  headerEyebrow: { color: '#BFE2D2', fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-  headerTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 5 },
+  app: { flex: 1, backgroundColor: '#F7FAF8' },
+  header: { minHeight: 76, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE6E1', borderBottomWidth: 1, paddingHorizontal: 16, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 5, elevation: 2 },
+  headerBrand: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  headerMark: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#E7F5EB', borderColor: '#B8DCC2', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  headerMarkText: { color: '#08733F', fontSize: 23, fontWeight: '900' },
+  headerCopy: { flex: 1, marginLeft: 10 },
+  headerEyebrow: { color: '#71867D', fontSize: 9, fontWeight: '900', letterSpacing: 0.7, textTransform: 'uppercase' },
+  headerTitle: { color: '#17352A', fontSize: 18, fontWeight: '900', marginTop: 2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
-  notificationButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#174E36', alignItems: 'center', justifyContent: 'center' },
-  notificationBadge: { position: 'absolute', top: -4, right: -5, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#D92D20', borderColor: '#0B5D3B', borderWidth: 2, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  notificationButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F3F8F5', borderColor: '#DCE6E1', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: { position: 'absolute', top: -4, right: -5, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#D92D20', borderColor: '#FFFFFF', borderWidth: 2, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
-  liveBadge: { backgroundColor: '#174E36', borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#65D49B', marginRight: 6 },
-  liveText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+  headerAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E5F1E9', alignItems: 'center', justifyContent: 'center' },
+  headerAvatarText: { color: '#17352A', fontSize: 16, fontWeight: '900' },
   content: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 28 },
+  scrollContent: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   loadingText: { color: '#587066', marginTop: 14, fontWeight: '600' },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
   warningText: { color: '#7A4A00', lineHeight: 19 },
   sectionTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' },
   updatedText: { color: '#71867D', fontSize: 12 },
+  dashboardIntro: { marginBottom: 18 },
+  dashboardGreeting: { color: '#17352A', fontSize: 25, fontWeight: '900', letterSpacing: -0.4 },
+  dashboardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
+  dashboardDate: { color: '#71867D', fontSize: 13 },
+  attentionCard: { backgroundColor: '#F1F9F4', borderColor: '#BBDCC5', borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  attentionHeading: { color: '#08733F', fontSize: 17, fontWeight: '900', marginBottom: 6 },
+  attentionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center' },
+  attentionRowDivider: { borderTopColor: '#D7E9DD', borderTopWidth: 1 },
+  attentionIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#FFF3D8', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  newOrderAttentionIcon: { backgroundColor: '#FFF5E7' },
+  attentionCopy: { flex: 1 },
+  attentionLabel: { color: '#29483D', fontSize: 14, fontWeight: '800' },
+  attentionHint: { color: '#71867D', fontSize: 11, marginTop: 3 },
+  attentionValue: { color: '#E68200', fontSize: 23, fontWeight: '900', marginHorizontal: 10 },
+  sectionHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  performanceCard: { minHeight: 128, backgroundColor: '#FFFFFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 5, flexDirection: 'row', shadowColor: '#17352A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 7, elevation: 2 },
+  performanceMetric: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  performanceMetricBorder: { borderLeftColor: '#E2E8E5', borderLeftWidth: 1 },
+  performanceIcon: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#E7F5EB', alignItems: 'center', justifyContent: 'center' },
+  performanceLabel: { color: '#64746D', fontSize: 11, fontWeight: '700', marginTop: 7 },
+  performanceValue: { color: '#08733F', fontSize: 18, fontWeight: '900', marginTop: 4, maxWidth: '100%' },
+  monthHeading: { marginBottom: 10 },
+  pipelineHeading: { marginTop: 22, marginBottom: 10 },
   periodRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   currentMonthText: { color: '#587066', fontSize: 12, fontWeight: '700' },
   periodPicker: { minHeight: 39, borderColor: '#C9D2CD', borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', columnGap: 5, backgroundColor: '#FFFFFF' },
@@ -511,13 +570,13 @@ const styles = StyleSheet.create({
   errorMessage: { color: '#587066', lineHeight: 21, textAlign: 'center', marginTop: 8 },
   retryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   retryText: { color: '#FFFFFF', fontWeight: '800' },
-  profileCard: { minHeight: 118, backgroundColor: '#075C38', borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.13, shadowRadius: 8, elevation: 3 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#075C38', fontSize: 27, fontWeight: '900' },
-  onlineBadge: { position: 'absolute', right: 1, bottom: 2, width: 15, height: 15, borderRadius: 8, backgroundColor: '#66D49B', borderColor: '#075C38', borderWidth: 3 },
+  profileCard: { minHeight: 118, backgroundColor: '#FFFFFF', borderColor: '#DCE6E1', borderWidth: 1, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
+  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E7F5EB', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#08733F', fontSize: 27, fontWeight: '900' },
+  onlineBadge: { position: 'absolute', right: 1, bottom: 2, width: 15, height: 15, borderRadius: 8, backgroundColor: '#48B77B', borderColor: '#FFFFFF', borderWidth: 3 },
   profileCopy: { flex: 1, marginLeft: 15 },
-  profileName: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
-  profileUsername: { color: '#C5E3D5', marginTop: 3 },
+  profileName: { color: '#17352A', fontSize: 20, fontWeight: '900' },
+  profileUsername: { color: '#71867D', marginTop: 3 },
   roleBadge: { alignSelf: 'flex-start', backgroundColor: '#E8F5EB', borderRadius: 13, paddingHorizontal: 9, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', columnGap: 5, marginTop: 9 },
   roleBadgeText: { color: '#14733D', fontSize: 10, fontWeight: '900' },
   accountSectionTitle: { color: '#17352A', fontSize: 16, fontWeight: '900', marginTop: 22, marginBottom: 10 },
