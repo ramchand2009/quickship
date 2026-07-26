@@ -7731,7 +7731,15 @@ def woocommerce_webhook(request):
         is_success=True,
         triggered_by="woocommerce_webhook",
     )
-    push_result = send_new_order_push_notification(order) if created else {"enabled": False, "sent": 0}
+    is_order_created_webhook = webhook_topic == "order.created" or (
+        webhook_resource == "order" and webhook_event == "created"
+    )
+    should_send_new_order_push = bool(created or is_order_created_webhook)
+    push_result = (
+        send_new_order_push_notification(order)
+        if should_send_new_order_push
+        else {"enabled": False, "sent": 0}
+    )
     return JsonResponse(
         {
             "ok": True,

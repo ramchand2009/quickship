@@ -3444,6 +3444,53 @@ class WooCommerceSyncTests(TestCase):
         self.assertEqual(order.customer_name, "Updated Buyer")
         self.assertEqual(str(order.total), "449.00")
 
+    @patch("core.views.send_new_order_push_notification")
+    def test_woocommerce_order_created_webhook_pushes_when_order_was_already_synced(self, mock_push):
+        vendor_tenant = Tenant.objects.create(name="Webhook Push Vendor", slug="webhook-push-vendor")
+        WooCommerceSettings.objects.create(tenant=vendor_tenant, webhook_secret="woo-secret")
+        existing_order = ShiprocketOrder.objects.create(
+            tenant=vendor_tenant,
+            source=ShiprocketOrder.SOURCE_WOOCOMMERCE,
+            shiprocket_order_id="WC-781",
+            channel_order_id="1781",
+            woocommerce_order_id="781",
+            customer_name="Already Synced",
+            total="399.00",
+        )
+        mock_push.return_value = {"enabled": True, "sent": 1, "mobile_sent": 1}
+        payload = {
+            "id": 781,
+            "number": "1781",
+            "order_key": "wc_order_webhook_already_synced",
+            "status": "processing",
+            "payment_method_title": "COD",
+            "total": "399.00",
+            "billing": {
+                "first_name": "Already",
+                "last_name": "Synced",
+                "phone": "9876543210",
+                "address_1": "Push notification road",
+                "postcode": "600001",
+            },
+            "shipping": {},
+            "line_items": [],
+        }
+        raw_body = json.dumps(payload).encode("utf-8")
+
+        response = self.client.post(
+            reverse("woocommerce_webhook"),
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_WC_WEBHOOK_SIGNATURE=_build_woocommerce_webhook_signature(raw_body, "woo-secret"),
+            HTTP_X_WC_WEBHOOK_TOPIC="order.created",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["created"])
+        self.assertEqual(response.json()["push_notifications"]["mobile_sent"], 1)
+        mock_push.assert_called_once()
+        self.assertEqual(mock_push.call_args.args[0].pk, existing_order.pk)
+
     def test_woocommerce_webhook_rejects_invalid_signature(self):
         WooCommerceSettings.objects.create(webhook_secret="woo-secret")
         response = self.client.post(
