@@ -12,6 +12,7 @@
     ],
     "android": {
       "package": "com.mathukai.operations",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
