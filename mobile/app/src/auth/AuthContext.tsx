@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 
 import * as api from './api';
 import {
@@ -25,56 +34,96 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: PropsWithChildren) {
   const [auth, setAuth] = useState<StoredAuth | null>(null);
   const [loading, setLoading] = useState(true);
+  const authRef = useRef<StoredAuth | null>(null);
+  const refreshPromiseRef = useRef<Promise<StoredAuth> | null>(null);
 
   const replaceAuth = useCallback(async (next: StoredAuth | null) => {
+    authRef.current = next;
     setAuth(next);
     if (next) await saveStoredAuth(next); else await clearStoredAuth();
   }, []);
 
-  const runAuthenticated = useCallback(async <T,>(operation: (accessToken: string) => Promise<T>) => {
-    if (!auth) throw new api.ApiError(401, 'authentication_required', 'Please sign in again.');
+  const refreshAuth = useCallback(async (current: StoredAuth) => {
+    if (refreshPromiseRef.current) return refreshPromiseRef.current;
+
+    const refreshPromise = (async () => {
+      const installationId = await getInstallationId();
+      const tokens = await api.refresh(current.tokens.refresh_token, installationId);
+      const session = await api.currentSession(tokens.access_token);
+      const refreshed = { tokens, session };
+
+      const latest = authRef.current;
+      if (latest && latest.tokens.refresh_token !== current.tokens.refresh_token) return latest;
+      if (!latest) {
+        throw new api.ApiError(401, 'authentication_required', 'Please sign in again.');
+      }
+      await replaceAuth(refreshed);
+      return refreshed;
+    })();
+    refreshPromiseRef.current = refreshPromise;
+
     try {
-      return await operation(auth.tokens.access_token);
+      return await refreshPromise;
+    } catch (error) {
+      if (error instanceof api.ApiError && error.status === 401) await replaceAuth(null);
+      throw error;
+    } finally {
+      if (refreshPromiseRef.current === refreshPromise) refreshPromiseRef.current = null;
+    }
+  }, [replaceAuth]);
+
+  const runAuthenticated = useCallback(async <T,>(operation: (accessToken: string) => Promise<T>) => {
+    const current = authRef.current;
+    if (!current) throw new api.ApiError(401, 'authentication_required', 'Please sign in again.');
+
+    try {
+      return await operation(current.tokens.access_token);
     } catch (error) {
       if (!(error instanceof api.ApiError) || error.status !== 401) throw error;
     }
 
-    let refreshed: StoredAuth;
+    const latest = authRef.current;
+    if (!latest) throw new api.ApiError(401, 'session_expired', 'Your session expired. Please sign in again.');
+    if (latest.tokens.access_token !== current.tokens.access_token) {
+      return operation(latest.tokens.access_token);
+    }
+
     try {
-      const installationId = await getInstallationId();
-      const tokens = await api.refresh(auth.tokens.refresh_token, installationId);
-      const session = await api.currentSession(tokens.access_token);
-      refreshed = { tokens, session };
-      await replaceAuth(refreshed);
+      const refreshed = await refreshAuth(latest);
+      return await operation(refreshed.tokens.access_token);
     } catch (error) {
       if (!(error instanceof api.ApiError) || error.status !== 401) throw error;
-      await replaceAuth(null);
       throw new api.ApiError(401, 'session_expired', 'Your session expired. Please sign in again.');
     }
-    return operation(refreshed.tokens.access_token);
-  }, [auth, replaceAuth]);
+  }, [refreshAuth]);
 
   useEffect(() => {
     void (async () => {
-      const stored = await loadStoredAuth();
-      if (!stored) return setLoading(false);
       try {
-        const session = await api.currentSession(stored.tokens.access_token);
-        await replaceAuth({ ...stored, session });
-      } catch (error) {
+        const stored = await loadStoredAuth();
+        if (!stored) return;
+        authRef.current = stored;
         try {
-          const installationId = await getInstallationId();
-          const tokens = await api.refresh(stored.tokens.refresh_token, installationId);
-          const session = await api.currentSession(tokens.access_token);
-          await replaceAuth({ tokens, session });
-        } catch {
-          await replaceAuth(null);
+          const session = await api.currentSession(stored.tokens.access_token);
+          await replaceAuth({ ...stored, session });
+        } catch (error) {
+          if (!(error instanceof api.ApiError) || error.status !== 401) {
+            await replaceAuth(stored);
+            return;
+          }
+          try {
+            await refreshAuth(stored);
+          } catch (refreshError) {
+            if (!(refreshError instanceof api.ApiError) || refreshError.status !== 401) {
+              await replaceAuth(stored);
+            }
+          }
         }
       } finally {
         setLoading(false);
       }
     })();
-  }, [replaceAuth]);
+  }, [refreshAuth, replaceAuth]);
 
   const value = useMemo<AuthContextValue>(() => ({
     auth,
@@ -84,19 +133,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await replaceAuth(await api.login(username.trim(), password, installationId));
     },
     chooseTenant: async (tenantId) => {
-      if (!auth) return;
-      await replaceAuth(await api.selectTenant(auth.tokens.access_token, auth.tokens.refresh_token, tenantId));
+      const current = authRef.current;
+      if (!current) return;
+      await replaceAuth(await api.selectTenant(
+        current.tokens.access_token,
+        current.tokens.refresh_token,
+        tenantId,
+      ));
     },
     runAuthenticated,
     signOut: async () => {
-      if (auth) {
+      const current = authRef.current;
+      if (current) {
         try {
           const pushDeviceId = await getPushDeviceId();
-          if (pushDeviceId) await api.disablePushDevice(auth.tokens.access_token, pushDeviceId);
+          if (pushDeviceId) await api.disablePushDevice(current.tokens.access_token, pushDeviceId);
         } catch { /* Push cleanup must not prevent API logout. */ }
         try {
           const installationId = await getInstallationId();
-          await api.logout(auth.tokens.access_token, auth.tokens.refresh_token, installationId);
+          await api.logout(current.tokens.access_token, current.tokens.refresh_token, installationId);
         } catch { /* Local sign-out must always succeed. */ }
       }
       await clearPushDeviceId();
