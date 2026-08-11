@@ -255,6 +255,8 @@ class MobileOrderDetailApiTests(TestCase):
         self.assertEqual(data["customer"]["phone"], "9876543210")
         self.assertEqual(data["customer"]["email"], "private@example.com")
         self.assertIn("10 Private Street", data["customer"]["delivery_address"])
+        self.assertEqual(data["customer"]["shipping_address"]["pincode"], "600001")
+        self.assertTrue(data["can_edit_shipping_address"])
         self.assertEqual(data["items"][0]["total"], {"amount": "150.50", "currency": "INR"})
         self.assertEqual(data["courier_name"], "Safe Courier")
         self.assertEqual(data["shipping_cost"], {"amount": "20.00", "currency": "INR"})
@@ -320,6 +322,8 @@ class MobileOrderDetailApiTests(TestCase):
                 self.assertEqual(customer["phone"], expected["phone"])
                 self.assertEqual(customer["email"], expected["email"])
                 self.assertEqual(customer["delivery_address"] is not None, expected["address"])
+                self.assertEqual(customer["shipping_address"] is not None, expected["address"])
+                self.assertEqual(data["can_edit_shipping_address"], expected["actions"])
                 self.assertEqual(bool(data["allowed_actions"]), expected["actions"])
                 self.assertEqual(data["activity"][0]["actor_display_name"], expected["actor"])
                 self.assertEqual(data["activity"][0]["description"], expected["description"])
@@ -371,4 +375,4 @@ class MobileOrderDetailApiTests(TestCase):
             response = self.get()
 
         self.assertEqual(response.status_code, 200)
-        self.assertLessEqual(len(queries), 5)
+        self.assertLessEqual(len(queries), 6)

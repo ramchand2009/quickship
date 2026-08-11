@@ -5,6 +5,7 @@ import type {
   OrderListResponse,
   OrderMutationResponse,
   OrderStatusUpdate,
+  ShippingAddressUpdate,
 } from '../orders/types';
 import type { ProductDetailResponse, ProductFilters, ProductListResponse, StockMovementResponse } from '../stock/types';
 import type {
@@ -193,6 +194,19 @@ export async function markOrderPaymentReceived(
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({ expected_version: expectedVersion, confirmed: true }),
+  });
+}
+
+export async function updateOrderShippingAddress(
+  accessToken: string,
+  orderId: number,
+  values: ShippingAddressUpdate,
+  idempotencyKey: string,
+): Promise<OrderMutationResponse> {
+  return request<OrderMutationResponse>(`/orders/${orderId}/shipping-address`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
   });
 }
 

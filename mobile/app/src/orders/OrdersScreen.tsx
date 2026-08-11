@@ -8,8 +8,10 @@ import {
   AppState,
   BackHandler,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -21,7 +23,7 @@ import {
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { Money, OrderAction, OrderDetail, OrderListFilters, OrderStatusUpdate, OrderSummary } from './types';
+import type { Money, OrderAction, OrderDetail, OrderListFilters, OrderStatusUpdate, OrderSummary, ShippingAddress } from './types';
 
 const STATUS_FILTERS = [
   { code: '', label: 'All' },
@@ -228,6 +230,17 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [cancellationNote, setCancellationNote] = useState('');
   const [labelPreviewVisible, setLabelPreviewVisible] = useState(false);
   const [labelBusy, setLabelBusy] = useState(false);
+  const [addressEditorVisible, setAddressEditorVisible] = useState(false);
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
+    address_1: '',
+    address_2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    country: '',
+  });
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -377,6 +390,57 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     void submitStatusAction(selectedAction, values);
   };
 
+  const openAddressEditor = () => {
+    if (!order?.customer.shipping_address) return;
+    setShippingAddress(order.customer.shipping_address);
+    setAddressError('');
+    setAddressEditorVisible(true);
+  };
+
+  const updateAddressField = (field: keyof ShippingAddress, value: string) => {
+    setShippingAddress((current) => ({ ...current, [field]: value }));
+  };
+
+  const submitShippingAddress = async () => {
+    if (!order || addressSaving) return;
+    if (!shippingAddress.address_1.trim() || !shippingAddress.city.trim() || !shippingAddress.state.trim() || shippingAddress.pincode.trim().length < 3) {
+      setAddressError('Complete address line 1, city, state, and a valid pincode.');
+      return;
+    }
+    setAddressSaving(true);
+    setAddressError('');
+    try {
+      const response = await runAuthenticated((token) => api.updateOrderShippingAddress(
+        token,
+        order.id,
+        {
+          ...shippingAddress,
+          address_1: shippingAddress.address_1.trim(),
+          address_2: shippingAddress.address_2.trim(),
+          city: shippingAddress.city.trim(),
+          state: shippingAddress.state.trim(),
+          pincode: shippingAddress.pincode.trim(),
+          country: shippingAddress.country.trim(),
+          expected_version: order.version,
+        },
+        newIdempotencyKey(),
+      ));
+      setOrder(response.data.order);
+      setAddressEditorVisible(false);
+      setActionFeedback('Shipping address updated successfully.');
+    } catch (reason) {
+      if (reason instanceof api.ApiError && reason.status === 409) {
+        setAddressEditorVisible(false);
+        await load(true);
+        Alert.alert('Order was refreshed', 'The order changed before the address was saved. Review it and try again.');
+      } else {
+        setAddressError(reason instanceof api.ApiError ? reason.message : 'The shipping address could not be updated.');
+      }
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
   if (loading && !order) return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /></View>;
   if (!order) return (
     <View style={styles.center}>
@@ -393,6 +457,12 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         || Boolean(courierName.trim() && /^[A-Za-z]{2}\d{9}[A-Za-z]{2}$/.test(trackingNumber.trim()) && shippingCost.trim()))
       && (selectedAction.target_status !== 'order_cancelled' || Boolean(cancellationReason))
     : false;
+  const addressFormReady = Boolean(
+    shippingAddress.address_1.trim()
+    && shippingAddress.city.trim()
+    && shippingAddress.state.trim()
+    && shippingAddress.pincode.trim().length >= 3
+  );
   const openWhatsApp = async () => {
     const customerName = order.customer.name || 'Customer';
     const message = `Hello ${customerName}, this is Mathukai regarding order ${order.reference}.`;
@@ -515,7 +585,15 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         </>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Customer</Text>
+      <View style={styles.sectionTitleRow}>
+        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Customer</Text>
+        {order.can_edit_shipping_address ? (
+          <Pressable onPress={openAddressEditor} style={({ pressed }) => [styles.editAddressButton, pressed && styles.pressed]}>
+            <MaterialCommunityIcons color="#0B5D3B" name="pencil-outline" size={17} />
+            <Text style={styles.editAddressText}>Edit address</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <View style={styles.sectionCard}>
         <DetailRow label="Name" value={order.customer.name} />
         <DetailRow label="Phone" value={order.customer.phone} />
@@ -543,6 +621,67 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
           </View>
         ) : null}
       </View>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => !addressSaving && setAddressEditorVisible(false)}
+        transparent
+        visible={addressEditorVisible}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.addressModal}>
+              <View style={styles.modalHeader}>
+                <View style={styles.addressModalTitleWrap}>
+                  <Text style={styles.modalTitle}>Edit shipping address</Text>
+                  <Text style={styles.addressModalHint}>This address will be used on the shipping label.</Text>
+                </View>
+                <Pressable disabled={addressSaving} onPress={() => setAddressEditorVisible(false)} style={styles.modalClose}>
+                  <MaterialCommunityIcons color="#587066" name="close" size={24} />
+                </Pressable>
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Address line 1 *</Text>
+                  <TextInput maxLength={255} onChangeText={(value) => updateAddressField('address_1', value)} placeholder="House number and street" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.address_1} />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Address line 2</Text>
+                  <TextInput maxLength={255} onChangeText={(value) => updateAddressField('address_2', value)} placeholder="Area or landmark (optional)" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.address_2} />
+                </View>
+                <View style={styles.addressFieldRow}>
+                  <View style={styles.addressFieldHalf}>
+                    <Text style={styles.formLabel}>City *</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateAddressField('city', value)} placeholder="City" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.city} />
+                  </View>
+                  <View style={styles.addressFieldHalf}>
+                    <Text style={styles.formLabel}>State *</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateAddressField('state', value)} placeholder="State" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.state} />
+                  </View>
+                </View>
+                <View style={styles.addressFieldRow}>
+                  <View style={styles.addressFieldHalf}>
+                    <Text style={styles.formLabel}>Pincode *</Text>
+                    <TextInput keyboardType="number-pad" maxLength={20} onChangeText={(value) => updateAddressField('pincode', value)} placeholder="Pincode" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.pincode} />
+                  </View>
+                  <View style={styles.addressFieldHalf}>
+                    <Text style={styles.formLabel}>Country</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateAddressField('country', value)} placeholder="India" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.country} />
+                  </View>
+                </View>
+                {addressError ? <Text accessibilityRole="alert" style={styles.addressError}>{addressError}</Text> : null}
+              </ScrollView>
+              <Pressable
+                disabled={!addressFormReady || addressSaving}
+                onPress={() => void submitShippingAddress()}
+                style={[styles.confirmActionButton, (!addressFormReady || addressSaving) && styles.disabledButton]}
+              >
+                {addressSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Save shipping address</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Text style={styles.sectionTitle}>Items ({order.items.length})</Text>
       <View style={styles.sectionCard}>
@@ -977,6 +1116,10 @@ const styles = StyleSheet.create({
   heroTotal: { color: '#17352A', fontSize: 24, fontWeight: '900' },
   paymentText: { color: '#587066', fontSize: 12, fontWeight: '700' },
   sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 },
+  sectionTitleRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sectionTitleInRow: { marginBottom: 0 },
+  editAddressButton: { minHeight: 36, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', columnGap: 6, backgroundColor: '#F4FAF7' },
+  editAddressText: { color: '#0B5D3B', fontSize: 12, fontWeight: '800' },
   sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 },
   actionHelp: { color: '#71867D', fontSize: 12, lineHeight: 18, marginBottom: 12 },
   actionList: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
@@ -1023,7 +1166,14 @@ const styles = StyleSheet.create({
   itemMeta: { color: '#71867D', fontSize: 12, marginTop: 4 },
   itemTotal: { color: '#17352A', fontWeight: '900' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' },
+  modalKeyboardView: { flex: 1 },
   actionModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
+  addressModal: { maxHeight: '92%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
+  addressModalTitleWrap: { flex: 1, paddingRight: 12 },
+  addressModalHint: { color: '#71867D', fontSize: 12, lineHeight: 18, marginTop: 4 },
+  addressFieldRow: { flexDirection: 'row', columnGap: 10, marginBottom: 16 },
+  addressFieldHalf: { flex: 1 },
+  addressError: { color: '#B42318', backgroundColor: '#FFF2F0', borderRadius: 10, padding: 11, lineHeight: 18, marginBottom: 14 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   modalTitle: { flex: 1, color: '#17352A', fontSize: 20, fontWeight: '900', paddingRight: 12 },
   modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' },

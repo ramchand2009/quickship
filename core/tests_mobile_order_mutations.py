@@ -55,6 +55,14 @@ class MobileOrderMutationApiTests(TestCase):
             headers={**self.headers, "Idempotency-Key": key},
         )
 
+    def patch_address(self, order, payload, key="address-key"):
+        return self.client.patch(
+            f"/api/v1/orders/{order.pk}/shipping-address",
+            payload,
+            content_type="application/json",
+            headers={**self.headers, "Idempotency-Key": key},
+        )
+
     def test_accept_is_versioned_and_same_idempotency_key_replays(self):
         order = self.order("ACCEPT")
         payload = {"target_status": ShiprocketOrder.STATUS_ACCEPTED, "expected_version": "1"}
@@ -193,3 +201,65 @@ class MobileOrderMutationApiTests(TestCase):
         self.assertEqual(response.status_code, 422)
         order.refresh_from_db()
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_ACCEPTED)
+
+    def test_shipping_address_update_is_versioned_and_audited(self):
+        order = self.order(
+            "ADDRESS",
+            shipping_address={
+                "address_1": "Old Road",
+                "city": "Chennai",
+                "state": "Tamil Nadu",
+                "pincode": "600001",
+                "country": "India",
+            },
+        )
+        payload = {
+            "expected_version": "1",
+            "address_1": "21 Organic Market Road",
+            "address_2": "Near Green Park",
+            "city": "Coimbatore",
+            "state": "Tamil Nadu",
+            "pincode": "641001",
+            "country": "India",
+        }
+
+        response = self.patch_address(order, payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]["order"]
+        self.assertEqual(data["version"], "2")
+        self.assertEqual(data["customer"]["shipping_address"]["city"], "Coimbatore")
+        self.assertIn("21 Organic Market Road", data["customer"]["delivery_address"])
+        order.refresh_from_db()
+        self.assertEqual(order.manual_shipping_pincode, "641001")
+        self.assertTrue(
+            OrderActivityLog.objects.filter(order=order, title="Shipping address updated").exists()
+        )
+
+    def test_shipping_address_update_respects_permissions_version_and_shipping_lock(self):
+        order = self.order("ADDRESS-GUARDS")
+        payload = {
+            "expected_version": "99",
+            "address_1": "21 Organic Market Road",
+            "address_2": "",
+            "city": "Coimbatore",
+            "state": "Tamil Nadu",
+            "pincode": "641001",
+            "country": "India",
+        }
+
+        stale = self.patch_address(order, payload, key="address-stale")
+        self.assertEqual(stale.status_code, 409)
+
+        self.membership.role = TenantMembership.ROLE_VENDOR_VIEWER
+        self.membership.save(update_fields=["role"])
+        payload["expected_version"] = "1"
+        forbidden = self.patch_address(order, payload, key="address-forbidden")
+        self.assertEqual(forbidden.status_code, 403)
+
+        self.membership.role = TenantMembership.ROLE_VENDOR_OWNER
+        self.membership.save(update_fields=["role"])
+        order.local_status = ShiprocketOrder.STATUS_SHIPPED
+        order.save(update_fields=["local_status"])
+        locked = self.patch_address(order, payload, key="address-locked")
+        self.assertEqual(locked.status_code, 422)

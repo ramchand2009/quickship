@@ -63,6 +63,27 @@ class PaymentReceivedSerializer(serializers.Serializer):
         return value
 
 
+class ShippingAddressUpdateSerializer(serializers.Serializer):
+    expected_version = serializers.CharField(max_length=32)
+    address_1 = serializers.CharField(max_length=255, trim_whitespace=True)
+    address_2 = serializers.CharField(required=False, allow_blank=True, max_length=255, trim_whitespace=True)
+    city = serializers.CharField(max_length=120, trim_whitespace=True)
+    state = serializers.CharField(max_length=120, trim_whitespace=True)
+    pincode = serializers.CharField(max_length=20, trim_whitespace=True)
+    country = serializers.CharField(required=False, allow_blank=True, max_length=120, trim_whitespace=True)
+
+    def validate_expected_version(self, value):
+        if not str(value).isdigit():
+            raise serializers.ValidationError("Enter a valid order version.")
+        return str(value)
+
+    def validate_pincode(self, value):
+        value = str(value or "").strip()
+        if len(value) < 3:
+            raise serializers.ValidationError("Enter a valid pincode.")
+        return value
+
+
 class OrderListQuerySerializer(serializers.Serializer):
     search = serializers.CharField(required=False, allow_blank=True, max_length=160, trim_whitespace=True)
     status = serializers.ChoiceField(required=False, choices=ShiprocketOrder.STATUS_CHOICES)
@@ -180,6 +201,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
     allowed_actions = serializers.SerializerMethodField()
     activity = serializers.SerializerMethodField()
     shipping_label = serializers.SerializerMethodField()
+    can_edit_shipping_address = serializers.SerializerMethodField()
 
     class Meta(OrderSummarySerializer.Meta):
         fields = OrderSummarySerializer.Meta.fields + [
@@ -193,6 +215,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "allowed_actions",
             "activity",
             "shipping_label",
+            "can_edit_shipping_address",
         ]
 
     def get_customer(self, order):
@@ -215,6 +238,10 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 "phone": phone,
                 "email": email,
                 "delivery_address": delivery_address,
+                "shipping_address": {
+                    key: str(address.get(key) or "").strip()
+                    for key in ["address_1", "address_2", "city", "state", "pincode", "country"]
+                },
                 "fields_masked": [],
             }
         if role == TenantMembership.ROLE_WAREHOUSE_OPERATOR:
@@ -223,6 +250,10 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 "phone": phone,
                 "email": None,
                 "delivery_address": delivery_address,
+                "shipping_address": {
+                    key: str(address.get(key) or "").strip()
+                    for key in ["address_1", "address_2", "city", "state", "pincode", "country"]
+                },
                 "fields_masked": ["email"],
             }
         return {
@@ -230,8 +261,12 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "phone": None,
             "email": None,
             "delivery_address": None,
+            "shipping_address": None,
             "fields_masked": ["name", "phone", "email", "delivery_address"],
         }
+
+    def get_can_edit_shipping_address(self, order):
+        return self.context.get("role") in FULL_ORDER_DETAIL_ROLES and not order.is_manual_edit_locked
 
     def get_items(self, order):
         serialized = []

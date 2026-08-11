@@ -178,42 +178,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
         </View>
       </View>
 
-      <View style={styles.attentionCard}>
-        <Text style={styles.attentionHeading}>Needs your attention</Text>
-        {newOrdersMetric ? (
-          <Pressable
-            onPress={() => onNavigate(destinationWithOrderStatus(newOrdersMetric.destination, 'new_order'))}
-            style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
-          >
-            <View style={[styles.attentionIcon, styles.newOrderAttentionIcon]}>
-              <MaterialCommunityIcons color="#E68200" name="clock-outline" size={24} />
-            </View>
-            <View style={styles.attentionCopy}>
-              <Text style={styles.attentionLabel}>New orders</Text>
-            </View>
-            <Text style={styles.attentionValue}>{formatMetricValue(newOrdersMetric.value)}</Text>
-            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
-          </Pressable>
-        ) : null}
-        {dashboard.data.alerts.map((alert) => (
-          <Pressable
-            key={alert.id}
-            onPress={() => onNavigate(alert.destination)}
-            style={({ pressed }) => [styles.attentionRow, styles.attentionRowDivider, pressed && styles.pressed]}
-          >
-            <View style={styles.attentionIcon}>
-              <MaterialCommunityIcons color="#D98200" name="alert-outline" size={24} />
-            </View>
-            <View style={styles.attentionCopy}>
-              <Text style={styles.attentionLabel}>{alert.title}</Text>
-              <Text numberOfLines={1} style={styles.attentionHint}>{alert.message}</Text>
-            </View>
-            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={[styles.sectionTitle, styles.monthHeading]}>This month</Text>
+      <Text style={[styles.sectionTitle, styles.monthHeading]}>This month summary</Text>
       <View style={styles.performanceCard}>
         {[...financeMetrics, ...(totalOrdersMetric ? [totalOrdersMetric] : [])].map((metric, index) => (
           <Pressable
@@ -260,6 +225,41 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
             </Pressable>
           );
         })}
+      </View>
+
+      <View style={styles.attentionCard}>
+        <Text style={styles.attentionHeading}>Needs your attention</Text>
+        {newOrdersMetric ? (
+          <Pressable
+            onPress={() => onNavigate(destinationWithOrderStatus(newOrdersMetric.destination, 'new_order'))}
+            style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
+          >
+            <View style={[styles.attentionIcon, styles.newOrderAttentionIcon]}>
+              <MaterialCommunityIcons color="#E68200" name="clock-outline" size={24} />
+            </View>
+            <View style={styles.attentionCopy}>
+              <Text style={styles.attentionLabel}>New orders</Text>
+            </View>
+            <Text style={styles.attentionValue}>{formatMetricValue(newOrdersMetric.value)}</Text>
+            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
+          </Pressable>
+        ) : null}
+        {dashboard.data.alerts.map((alert) => (
+          <Pressable
+            key={alert.id}
+            onPress={() => onNavigate(alert.destination)}
+            style={({ pressed }) => [styles.attentionRow, styles.attentionRowDivider, pressed && styles.pressed]}
+          >
+            <View style={styles.attentionIcon}>
+              <MaterialCommunityIcons color="#D98200" name="alert-outline" size={24} />
+            </View>
+            <View style={styles.attentionCopy}>
+              <Text style={styles.attentionLabel}>{alert.title}</Text>
+              <Text numberOfLines={1} style={styles.attentionHint}>{alert.message}</Text>
+            </View>
+            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
+          </Pressable>
+        ))}
       </View>
     </ScrollView>
   );
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   dashboardGreeting: { color: '#17352A', fontSize: 25, fontWeight: '900', letterSpacing: -0.4 },
   dashboardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
   dashboardDate: { color: '#71867D', fontSize: 13 },
-  attentionCard: { backgroundColor: '#F1F9F4', borderColor: '#BBDCC5', borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  attentionCard: { backgroundColor: '#F1F9F4', borderColor: '#BBDCC5', borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4, marginTop: 22, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   attentionHeading: { color: '#08733F', fontSize: 17, fontWeight: '900', marginBottom: 6 },
   attentionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center' },
   attentionRowDivider: { borderTopColor: '#D7E9DD', borderTopWidth: 1 },

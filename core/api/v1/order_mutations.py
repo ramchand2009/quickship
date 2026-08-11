@@ -331,3 +331,61 @@ def mark_payment_received(*, session, tenant, role, actor, order_id, idempotency
     except Exception:
         _delete_failed_receipt(receipt)
         raise
+
+
+def update_shipping_address(*, session, tenant, role, actor, order_id, idempotency_key, values):
+    request_hash = _fingerprint(operation="shipping_address", order_id=order_id, payload=values)
+    receipt, replay = _begin_receipt(
+        session=session,
+        tenant=tenant,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
+    )
+    if replay is not None:
+        return _serialize_result(
+            tenant=tenant,
+            order_id=order_id,
+            role=role,
+            effects=replay.get("effects") or [],
+            replayed=True,
+        )
+    try:
+        with transaction.atomic():
+            order = ShiprocketOrder.objects.select_for_update().filter(tenant=tenant, pk=order_id).first()
+            if order is None:
+                raise NotFound("The requested resource is unavailable.")
+            if str(order.version) != values["expected_version"]:
+                raise ConflictError(fields={"expected_version": ["Refresh the order and try again."]})
+            if order.is_manual_edit_locked:
+                raise BusinessRuleError("The shipping address cannot be changed after the order is shipped.")
+
+            field_map = {
+                "address_1": "manual_shipping_address_1",
+                "address_2": "manual_shipping_address_2",
+                "city": "manual_shipping_city",
+                "state": "manual_shipping_state",
+                "pincode": "manual_shipping_pincode",
+                "country": "manual_shipping_country",
+            }
+            for payload_field, model_field in field_map.items():
+                setattr(order, model_field, str(values.get(payload_field) or "").strip())
+            order.version += 1
+            order.save(update_fields=[*field_map.values(), "version", "updated_at"])
+            log_order_activity(
+                order=order,
+                event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                title="Shipping address updated",
+                description="The delivery address was updated from the mobile app.",
+                previous_status=order.local_status,
+                current_status=order.local_status,
+                metadata={"source": "mobile_api", "idempotency_key": idempotency_key},
+                is_success=True,
+                triggered_by=actor,
+            )
+
+        payload = _serialize_result(tenant=tenant, order_id=order_id, role=role, effects=[])
+        _complete_receipt(receipt, {"order_id": order_id, "effects": []})
+        return payload
+    except Exception:
+        _delete_failed_receipt(receipt)
+        raise

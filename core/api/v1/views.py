@@ -21,13 +21,14 @@ from .serializers import (
 )
 from .dashboard_services import build_mobile_dashboard
 from .permissions import HasActiveMobileTenant, HasMobileTenantRole
-from .order_mutations import mark_payment_received, update_order_status
+from .order_mutations import mark_payment_received, update_order_status, update_shipping_address
 from .order_serializers import (
     OrderDetailSerializer,
     OrderListQuerySerializer,
     OrderStatusUpdateSerializer,
     OrderSummarySerializer,
     PaymentReceivedSerializer,
+    ShippingAddressUpdateSerializer,
 )
 from .order_services import mobile_order_detail, mobile_order_queryset
 from .pagination import MobileCursorPagination
@@ -318,6 +319,29 @@ class MobileOrderPaymentReceivedView(MobileWriteEnabledMixin, APIView):
         serializer = PaymentReceivedSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = mark_payment_received(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            actor=request.user.get_username(),
+            order_id=order_id,
+            idempotency_key=self.idempotency_key(request),
+            values=serializer.validated_data,
+        )
+        return Response(payload)
+
+
+class MobileOrderShippingAddressView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def patch(self, request, order_id):
+        serializer = ShippingAddressUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = update_shipping_address(
             session=request.auth,
             tenant=request.tenant,
             role=request.tenant_membership.role,

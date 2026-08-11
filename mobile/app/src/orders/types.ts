@@ -22,7 +22,21 @@ export type OrderCustomer = {
   phone: string | null;
   email: string | null;
   delivery_address: string | null;
+  shipping_address: ShippingAddress | null;
   fields_masked: string[];
+};
+
+export type ShippingAddress = {
+  address_1: string;
+  address_2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+};
+
+export type ShippingAddressUpdate = ShippingAddress & {
+  expected_version: string;
 };
 
 export type OrderItem = {
@@ -70,6 +84,7 @@ export type OrderDetail = OrderSummary & {
       address: string | null;
     };
   };
+  can_edit_shipping_address: boolean;
 };
 
 export type OrderListFilters = {
