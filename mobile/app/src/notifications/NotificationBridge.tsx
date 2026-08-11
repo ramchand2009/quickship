@@ -55,6 +55,14 @@ export default function NotificationBridge({
           vibrationPattern: [0, 250, 150, 250],
           lightColor: '#0B5D3B',
         });
+        await Notifications.setNotificationChannelAsync('new-orders-voice-v1', {
+          name: 'New order voice alerts',
+          description: 'New order alerts with the Mathukai recorded voice',
+          importance: Notifications.AndroidImportance.HIGH,
+          sound: 'order_received_voice.wav',
+          vibrationPattern: [0, 250, 150, 250],
+          lightColor: '#0B5D3B',
+        });
         const existing = await Notifications.getPermissionsAsync();
         const permission = existing.status === 'granted'
           ? existing

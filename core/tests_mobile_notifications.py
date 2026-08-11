@@ -248,5 +248,8 @@ class MobileNotificationApiTests(TestCase):
 
         self.assertEqual(result["attempted"], 1)
         self.assertEqual(result["sent"], 0)
+        request_payload = json.loads(mocked_urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(request_payload[0]["sound"], "order_received_voice.wav")
+        self.assertEqual(request_payload[0]["channelId"], "new-orders-voice-v1")
         device.refresh_from_db()
         self.assertFalse(device.enabled)

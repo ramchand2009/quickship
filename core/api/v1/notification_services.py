@@ -115,14 +115,15 @@ def _expo_messages(notifications):
             enabled=True,
         )
         for device in user_devices:
+            is_new_order = notification.category == MobileNotification.CATEGORY_NEW_ORDER
             devices.append(device)
             messages.append(
                 {
                     "to": device.expo_push_token,
                     "title": notification.title,
                     "body": notification.message,
-                    "sound": "default",
-                    "channelId": "orders",
+                    "sound": "order_received_voice.wav" if is_new_order else "default",
+                    "channelId": "new-orders-voice-v1" if is_new_order else "orders",
                     "data": {
                         "notification_id": notification.pk,
                         "destination": notification.destination,

@@ -38,7 +38,10 @@
         "expo-notifications",
         {
           "color": "#0B5D3B",
-          "defaultChannel": "orders"
+          "defaultChannel": "orders",
+          "sounds": [
+            "./assets/sounds/order_received_voice.wav"
+          ]
         }
       ],
       "expo-sharing"
