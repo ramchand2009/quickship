@@ -3,6 +3,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
   ActivityIndicator,
   AppState,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -66,6 +67,14 @@ function formatUpdatedAt(value?: string) {
 
 function formatMetricValue(value: number | string) {
   return String(value).replace(/^â‚¹\s*/, '₹');
+}
+
+function greetingForCurrentTime() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  if (hour >= 17 && hour < 22) return 'Good evening';
+  return 'Hello';
 }
 
 function destinationParameter(destination: string, key: string) {
@@ -161,6 +170,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
     || metric.key === 'cancelled_orders'
   ));
   const firstName = (auth?.session.user.display_name || '').trim().split(/\s+/)[0];
+  const greeting = greetingForCurrentTime();
   const todayLabel = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
@@ -171,7 +181,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded data.</Text></View> : null}
 
       <View style={styles.dashboardIntro}>
-        <Text style={styles.dashboardGreeting}>Good morning{firstName ? `, ${firstName}` : ''}</Text>
+        <Text style={styles.dashboardGreeting}>{greeting}{firstName ? `, ${firstName}` : ''}</Text>
         <View style={styles.dashboardMetaRow}>
           <Text style={styles.dashboardDate}>{todayLabel}</Text>
           <Text style={styles.updatedText}>Updated {formatUpdatedAt(dashboard.meta.server_time) || 'recently'}</Text>
@@ -321,7 +331,9 @@ function AccountScreen() {
 
       <Text style={styles.accountSectionTitle}>Application</Text>
       <View style={styles.appInfoCard}>
-        <View style={styles.appMark}><Text style={styles.appMarkText}>M</Text></View>
+        <View style={styles.appMark}>
+          <Image accessibilityLabel="Mathukai Organic logo" resizeMode="contain" source={require('../../assets/images/mathukai-organic-logo-transparent.png')} style={styles.appMarkImage} />
+        </View>
         <View style={styles.appInfoCopy}>
           <Text style={styles.appInfoName}>Mathukai Organic</Text>
           <Text style={styles.appInfoVersion}>Android · Version 1.0.0</Text>
@@ -354,6 +366,7 @@ export default function OperationsApp() {
   const [ordersScreenKey, setOrdersScreenKey] = useState(0);
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [openingOrders, setOpeningOrders] = useState(false);
 
   const refreshUnreadCount = useCallback(async () => {
     if (!auth?.session.active_tenant) return;
@@ -383,14 +396,33 @@ export default function OperationsApp() {
     setActiveTab('orders');
   }, []);
 
-  const openTab = useCallback((tab: AppTab) => {
-    if (tab === 'orders') {
-      setOrdersInitialFilters({});
+  const openTab = useCallback(async (tab: AppTab) => {
+    if (tab !== 'orders') {
+      setActiveTab(tab);
+      return;
+    }
+    if (activeTab === 'orders' || openingOrders) return;
+
+    setOpeningOrders(true);
+    let preferredStatus = '';
+    try {
+      const newOrders = await runAuthenticated((token) => api.orders(token, { status: 'new_order' }));
+      if (newOrders.data.length > 0) {
+        preferredStatus = 'new_order';
+      } else {
+        const acceptedOrders = await runAuthenticated((token) => api.orders(token, { status: 'order_accepted' }));
+        if (acceptedOrders.data.length > 0) preferredStatus = 'order_accepted';
+      }
+    } catch {
+      // All orders is the safest fallback when queue counts are unavailable.
+    } finally {
+      setOrdersInitialFilters(preferredStatus ? { status: preferredStatus } : {});
       setOrdersInitialOrderId(null);
       setOrdersScreenKey((current) => current + 1);
+      setActiveTab('orders');
+      setOpeningOrders(false);
     }
-    setActiveTab(tab);
-  }, []);
+  }, [activeTab, openingOrders, runAuthenticated]);
   const title = useMemo(() => {
     if (activeTab === 'dashboard') return 'Mathukai Organic';
     if (activeTab === 'notifications') return 'Notifications';
@@ -403,7 +435,7 @@ export default function OperationsApp() {
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <View style={styles.headerMark}>
-            <Text style={styles.headerMarkText}>M</Text>
+            <Image accessibilityLabel="Mathukai Organic logo" resizeMode="contain" source={require('../../assets/images/mathukai-organic-logo-transparent.png')} style={styles.headerMarkImage} />
           </View>
           <View style={styles.headerCopy}>
             <Text style={styles.headerEyebrow}>{auth?.session.active_tenant?.tenant_name}</Text>
@@ -444,18 +476,23 @@ export default function OperationsApp() {
           return (
             <Pressable
               accessibilityRole="tab"
-              accessibilityState={{ selected }}
+              accessibilityState={{ busy: tab.key === 'orders' && openingOrders, selected }}
+              disabled={tab.key === 'orders' && openingOrders}
               key={tab.key}
-              onPress={() => openTab(tab.key)}
+              onPress={() => void openTab(tab.key)}
               style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
             >
               <View style={[styles.tabIndicator, selected && styles.tabIndicatorActive]} />
-              <MaterialCommunityIcons
-                color={selected ? '#0B5D3B' : '#71867D'}
-                name={selected ? tab.activeIcon : tab.icon}
-                size={25}
-                style={styles.tabIcon}
-              />
+              {tab.key === 'orders' && openingOrders ? (
+                <ActivityIndicator color="#0B5D3B" size="small" style={styles.tabIcon} />
+              ) : (
+                <MaterialCommunityIcons
+                  color={selected ? '#0B5D3B' : '#71867D'}
+                  name={selected ? tab.activeIcon : tab.icon}
+                  size={25}
+                  style={styles.tabIcon}
+                />
+              )}
               <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
             </Pressable>
           );
@@ -470,7 +507,7 @@ const styles = StyleSheet.create({
   header: { minHeight: 76, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE6E1', borderBottomWidth: 1, paddingHorizontal: 16, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 5, elevation: 2 },
   headerBrand: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   headerMark: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#E7F5EB', borderColor: '#B8DCC2', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerMarkText: { color: '#08733F', fontSize: 23, fontWeight: '900' },
+  headerMarkImage: { width: 40, height: 40 },
   headerCopy: { flex: 1, marginLeft: 10 },
   headerEyebrow: { color: '#71867D', fontSize: 9, fontWeight: '900', letterSpacing: 0.7, textTransform: 'uppercase' },
   headerTitle: { color: '#17352A', fontSize: 18, fontWeight: '900', marginTop: 2 },
@@ -588,8 +625,8 @@ const styles = StyleSheet.create({
   detailValue: { color: '#17352A', fontSize: 16, fontWeight: '800', marginTop: 5 },
   divider: { height: 1, backgroundColor: '#E4EAE7', marginVertical: 16 },
   appInfoCard: { minHeight: 78, backgroundColor: '#FFFFFF', borderColor: '#DFE5E2', borderWidth: 1, borderRadius: 17, padding: 13, flexDirection: 'row', alignItems: 'center' },
-  appMark: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#075C38', alignItems: 'center', justifyContent: 'center' },
-  appMarkText: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
+  appMark: { width: 52, height: 52, borderRadius: 14, backgroundColor: '#FFFFFF', borderColor: '#DCE6E1', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  appMarkImage: { width: 46, height: 46 },
   appInfoCopy: { flex: 1, marginLeft: 11 },
   appInfoName: { color: '#17352A', fontSize: 14, fontWeight: '900' },
   appInfoVersion: { color: '#71867D', fontSize: 11, marginTop: 4 },
