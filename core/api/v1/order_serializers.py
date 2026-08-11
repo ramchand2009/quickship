@@ -65,6 +65,7 @@ class PaymentReceivedSerializer(serializers.Serializer):
 
 class ShippingAddressUpdateSerializer(serializers.Serializer):
     expected_version = serializers.CharField(max_length=32)
+    name = serializers.CharField(max_length=160, trim_whitespace=True)
     address_1 = serializers.CharField(max_length=255, trim_whitespace=True)
     address_2 = serializers.CharField(required=False, allow_blank=True, max_length=255, trim_whitespace=True)
     city = serializers.CharField(max_length=120, trim_whitespace=True)
@@ -240,7 +241,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 "delivery_address": delivery_address,
                 "shipping_address": {
                     key: str(address.get(key) or "").strip()
-                    for key in ["address_1", "address_2", "city", "state", "pincode", "country"]
+                    for key in ["name", "address_1", "address_2", "city", "state", "pincode", "country"]
                 },
                 "fields_masked": [],
             }
@@ -252,7 +253,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 "delivery_address": delivery_address,
                 "shipping_address": {
                     key: str(address.get(key) or "").strip()
-                    for key in ["address_1", "address_2", "city", "state", "pincode", "country"]
+                    for key in ["name", "address_1", "address_2", "city", "state", "pincode", "country"]
                 },
                 "fields_masked": ["email"],
             }

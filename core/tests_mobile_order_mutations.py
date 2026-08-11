@@ -215,6 +215,7 @@ class MobileOrderMutationApiTests(TestCase):
         )
         payload = {
             "expected_version": "1",
+            "name": "Updated Customer",
             "address_1": "21 Organic Market Road",
             "address_2": "Near Green Park",
             "city": "Coimbatore",
@@ -228,18 +229,21 @@ class MobileOrderMutationApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()["data"]["order"]
         self.assertEqual(data["version"], "2")
+        self.assertEqual(data["customer"]["name"], "Updated Customer")
         self.assertEqual(data["customer"]["shipping_address"]["city"], "Coimbatore")
         self.assertIn("21 Organic Market Road", data["customer"]["delivery_address"])
         order.refresh_from_db()
+        self.assertEqual(order.manual_customer_name, "Updated Customer")
         self.assertEqual(order.manual_shipping_pincode, "641001")
         self.assertTrue(
-            OrderActivityLog.objects.filter(order=order, title="Shipping address updated").exists()
+            OrderActivityLog.objects.filter(order=order, title="Delivery details updated").exists()
         )
 
     def test_shipping_address_update_respects_permissions_version_and_shipping_lock(self):
         order = self.order("ADDRESS-GUARDS")
         payload = {
             "expected_version": "99",
+            "name": "Updated Customer",
             "address_1": "21 Organic Market Road",
             "address_2": "",
             "city": "Coimbatore",

@@ -360,6 +360,7 @@ def update_shipping_address(*, session, tenant, role, actor, order_id, idempoten
                 raise BusinessRuleError("The shipping address cannot be changed after the order is shipped.")
 
             field_map = {
+                "name": "manual_customer_name",
                 "address_1": "manual_shipping_address_1",
                 "address_2": "manual_shipping_address_2",
                 "city": "manual_shipping_city",
@@ -374,8 +375,8 @@ def update_shipping_address(*, session, tenant, role, actor, order_id, idempoten
             log_order_activity(
                 order=order,
                 event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
-                title="Shipping address updated",
-                description="The delivery address was updated from the mobile app.",
+                title="Delivery details updated",
+                description="The customer name and delivery address were updated from the mobile app.",
                 previous_status=order.local_status,
                 current_status=order.local_status,
                 metadata={"source": "mobile_api", "idempotency_key": idempotency_key},

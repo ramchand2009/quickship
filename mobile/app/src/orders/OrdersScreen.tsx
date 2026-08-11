@@ -234,6 +234,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [addressSaving, setAddressSaving] = useState(false);
   const [addressError, setAddressError] = useState('');
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
+    name: '',
     address_1: '',
     address_2: '',
     city: '',
@@ -266,11 +267,31 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (labelPreviewVisible) {
+        if (!labelBusy) setLabelPreviewVisible(false);
+        return true;
+      }
+      if (addressEditorVisible) {
+        if (!addressSaving) setAddressEditorVisible(false);
+        return true;
+      }
+      if (selectedAction) {
+        if (!submittingAction) setSelectedAction(null);
+        return true;
+      }
       if (!submittingAction) onBack();
       return true;
     });
     return () => subscription.remove();
-  }, [onBack, submittingAction]);
+  }, [
+    addressEditorVisible,
+    addressSaving,
+    labelBusy,
+    labelPreviewVisible,
+    onBack,
+    selectedAction,
+    submittingAction,
+  ]);
 
   const applyMutationResult = (updatedOrder: OrderDetail, warningMessages: string[]) => {
     setOrder(updatedOrder);
@@ -392,7 +413,10 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   const openAddressEditor = () => {
     if (!order?.customer.shipping_address) return;
-    setShippingAddress(order.customer.shipping_address);
+    setShippingAddress({
+      ...order.customer.shipping_address,
+      name: order.customer.shipping_address.name || order.customer.name || '',
+    });
     setAddressError('');
     setAddressEditorVisible(true);
   };
@@ -403,8 +427,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   const submitShippingAddress = async () => {
     if (!order || addressSaving) return;
-    if (!shippingAddress.address_1.trim() || !shippingAddress.city.trim() || !shippingAddress.state.trim() || shippingAddress.pincode.trim().length < 3) {
-      setAddressError('Complete address line 1, city, state, and a valid pincode.');
+    if (!shippingAddress.name.trim() || !shippingAddress.address_1.trim() || !shippingAddress.city.trim() || !shippingAddress.state.trim() || shippingAddress.pincode.trim().length < 3) {
+      setAddressError('Complete customer name, address line 1, city, state, and a valid pincode.');
       return;
     }
     setAddressSaving(true);
@@ -415,6 +439,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         order.id,
         {
           ...shippingAddress,
+          name: shippingAddress.name.trim(),
           address_1: shippingAddress.address_1.trim(),
           address_2: shippingAddress.address_2.trim(),
           city: shippingAddress.city.trim(),
@@ -427,7 +452,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       ));
       setOrder(response.data.order);
       setAddressEditorVisible(false);
-      setActionFeedback('Shipping address updated successfully.');
+      setActionFeedback('Delivery details updated successfully.');
+      await load(true);
     } catch (reason) {
       if (reason instanceof api.ApiError && reason.status === 409) {
         setAddressEditorVisible(false);
@@ -458,7 +484,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       && (selectedAction.target_status !== 'order_cancelled' || Boolean(cancellationReason))
     : false;
   const addressFormReady = Boolean(
-    shippingAddress.address_1.trim()
+    shippingAddress.name.trim()
+    && shippingAddress.address_1.trim()
     && shippingAddress.city.trim()
     && shippingAddress.state.trim()
     && shippingAddress.pincode.trim().length >= 3
@@ -590,7 +617,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         {order.can_edit_shipping_address ? (
           <Pressable onPress={openAddressEditor} style={({ pressed }) => [styles.editAddressButton, pressed && styles.pressed]}>
             <MaterialCommunityIcons color="#0B5D3B" name="pencil-outline" size={17} />
-            <Text style={styles.editAddressText}>Edit address</Text>
+            <Text style={styles.editAddressText}>Edit details</Text>
           </Pressable>
         ) : null}
       </View>
@@ -633,14 +660,18 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             <View style={styles.addressModal}>
               <View style={styles.modalHeader}>
                 <View style={styles.addressModalTitleWrap}>
-                  <Text style={styles.modalTitle}>Edit shipping address</Text>
-                  <Text style={styles.addressModalHint}>This address will be used on the shipping label.</Text>
+                  <Text style={styles.modalTitle}>Edit delivery details</Text>
+                  <Text style={styles.addressModalHint}>The name and address will be used on the shipping label.</Text>
                 </View>
                 <Pressable disabled={addressSaving} onPress={() => setAddressEditorVisible(false)} style={styles.modalClose}>
                   <MaterialCommunityIcons color="#587066" name="close" size={24} />
                 </Pressable>
               </View>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Customer name *</Text>
+                  <TextInput autoCapitalize="words" maxLength={160} onChangeText={(value) => updateAddressField('name', value)} placeholder="Customer name" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.name} />
+                </View>
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Address line 1 *</Text>
                   <TextInput maxLength={255} onChangeText={(value) => updateAddressField('address_1', value)} placeholder="House number and street" placeholderTextColor="#82958D" style={styles.formInput} value={shippingAddress.address_1} />
@@ -676,7 +707,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                 onPress={() => void submitShippingAddress()}
                 style={[styles.confirmActionButton, (!addressFormReady || addressSaving) && styles.disabledButton]}
               >
-                {addressSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Save shipping address</Text>}
+                {addressSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Save delivery details</Text>}
               </Pressable>
             </View>
           </View>
@@ -716,8 +747,16 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       <Modal animationType="slide" onRequestClose={() => !labelBusy && setLabelPreviewVisible(false)} visible={labelPreviewVisible}>
         <View style={styles.labelPreviewScreen}>
           <View style={styles.labelPreviewHeader}>
-            <Pressable disabled={labelBusy} onPress={() => setLabelPreviewVisible(false)} style={styles.modalClose}>
+            <Pressable
+              accessibilityLabel="Back to order details"
+              accessibilityRole="button"
+              disabled={labelBusy}
+              hitSlop={10}
+              onPress={() => setLabelPreviewVisible(false)}
+              style={({ pressed }) => [styles.labelBackButton, pressed && styles.pressed]}
+            >
               <MaterialCommunityIcons color="#587066" name="arrow-left" size={24} />
+              <Text style={styles.labelBackText}>Back</Text>
             </Pressable>
             <View style={styles.labelPreviewHeaderCopy}>
               <Text style={styles.labelPreviewTitle}>Shipping label</Text>
@@ -1140,6 +1179,8 @@ const styles = StyleSheet.create({
   labelButtonText: { color: '#FFFFFF', fontWeight: '900' },
   labelPreviewScreen: { flex: 1, backgroundColor: '#EEF3F0' },
   labelPreviewHeader: { minHeight: 76, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', columnGap: 12 },
+  labelBackButton: { minHeight: 44, borderRadius: 22, backgroundColor: '#F1F5F3', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', columnGap: 5 },
+  labelBackText: { color: '#29483D', fontSize: 14, fontWeight: '800' },
   labelPreviewHeaderCopy: { flex: 1 },
   labelPreviewTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' },
   labelPreviewSubtitle: { color: '#71867D', fontSize: 12, marginTop: 3 },
