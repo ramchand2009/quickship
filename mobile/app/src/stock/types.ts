@@ -23,6 +23,7 @@ export type ProductDetail = ProductSummary & {
     woocommerce_product_id: string | null;
     woocommerce_variation_id: string | null;
   };
+  can_adjust_stock: boolean;
 };
 
 export type StockMovement = {
@@ -46,4 +47,18 @@ export type ProductDetailResponse = { data: ProductDetail };
 export type StockMovementResponse = {
   data: StockMovement[];
   pagination: { next_cursor: string | null; has_more: boolean };
+};
+
+export type StockQuantityUpdate = {
+  expected_quantity: number;
+  target_quantity: number;
+  note?: string;
+};
+
+export type StockQuantityMutationResponse = {
+  data: {
+    product: ProductDetail;
+    movement: StockMovement | null;
+    replayed: boolean;
+  };
 };

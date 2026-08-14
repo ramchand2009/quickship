@@ -7,7 +7,14 @@ import type {
   OrderStatusUpdate,
   ShippingAddressUpdate,
 } from '../orders/types';
-import type { ProductDetailResponse, ProductFilters, ProductListResponse, StockMovementResponse } from '../stock/types';
+import type {
+  ProductDetailResponse,
+  ProductFilters,
+  ProductListResponse,
+  StockMovementResponse,
+  StockQuantityMutationResponse,
+  StockQuantityUpdate,
+} from '../stock/types';
 import type {
   MobileDevice,
   MobileNotification,
@@ -15,6 +22,7 @@ import type {
   NotificationListResponse,
   NotificationPreferencesResponse,
 } from '../notifications/types';
+import type { ExpenseCreate, ExpenseListResponse } from '../expenses/types';
 
 const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL
@@ -197,6 +205,14 @@ export async function markOrderPaymentReceived(
   });
 }
 
+export async function expenses(accessToken: string, month: string): Promise<ExpenseListResponse> {
+  return request<ExpenseListResponse>(`/expenses?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+}
+
+export async function createExpense(accessToken: string, values: ExpenseCreate, idempotencyKey: string) {
+  return request('/expenses', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(values) });
+}
+
 export async function updateOrderShippingAddress(
   accessToken: string,
   orderId: number,
@@ -229,6 +245,19 @@ export async function productDetail(accessToken: string, productId: number): Pro
 export async function stockMovements(accessToken: string, productId: number): Promise<StockMovementResponse> {
   return request<StockMovementResponse>(`/stock/movements?product_id=${productId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function updateStockQuantity(
+  accessToken: string,
+  productId: number,
+  values: StockQuantityUpdate,
+  idempotencyKey: string,
+): Promise<StockQuantityMutationResponse> {
+  return request<StockQuantityMutationResponse>(`/products/${productId}/stock`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
   });
 }
 

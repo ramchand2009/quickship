@@ -215,6 +215,7 @@ class MobileOrderDetailApiTests(TestCase):
             ],
             total="150.50",
             shipping_base_amount="20.00",
+            package_weight_kg="1.250",
             raw_payload={
                 "courier_name": "Safe Courier",
                 "consumer_secret": "must-never-leak",
@@ -259,6 +260,7 @@ class MobileOrderDetailApiTests(TestCase):
         self.assertTrue(data["can_edit_shipping_address"])
         self.assertEqual(data["items"][0]["total"], {"amount": "150.50", "currency": "INR"})
         self.assertEqual(data["courier_name"], "Safe Courier")
+        self.assertEqual(data["package_weight_kg"], "1.250")
         self.assertEqual(data["shipping_cost"], {"amount": "20.00", "currency": "INR"})
         self.assertEqual(data["shipping_label"]["sender"]["name"], "Mathukai Dispatch")
         self.assertIn("1 Warehouse Road", data["shipping_label"]["sender"]["address"])
@@ -347,7 +349,7 @@ class MobileOrderDetailApiTests(TestCase):
 
         self.assertEqual(
             shipped["required_fields"],
-            ["courier_name", "tracking_number", "shipping_base_amount"],
+            ["courier_name", "tracking_number", "package_weight_kg", "shipping_base_amount"],
         )
         self.assertTrue(cancelled["reason_required"])
         self.assertTrue(payment["confirmation_required"])

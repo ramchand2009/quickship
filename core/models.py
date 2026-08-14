@@ -831,6 +831,7 @@ class ShiprocketOrder(models.Model):
     cancellation_reason = models.CharField(max_length=32, choices=CANCELLATION_REASON_CHOICES, blank=True)
     cancellation_note = models.CharField(max_length=255, blank=True)
     tracking_number = models.CharField(max_length=128, blank=True)
+    package_weight_kg = models.DecimalField(max_digits=8, decimal_places=3, default=0)
     shipping_base_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     packed_at = models.DateTimeField(null=True, blank=True)
     shipped_at = models.DateTimeField(null=True, blank=True)

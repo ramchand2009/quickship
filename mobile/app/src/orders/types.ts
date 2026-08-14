@@ -72,6 +72,7 @@ export type OrderDetail = OrderSummary & {
   customer: OrderCustomer;
   items: OrderItem[];
   courier_name: string | null;
+  package_weight_kg: string | null;
   shipping_cost: Money;
   payment_received_at: string | null;
   cancellation_reason: string | null;
@@ -114,6 +115,7 @@ export type OrderStatusUpdate = {
   customer_phone?: string;
   courier_name?: string;
   tracking_number?: string;
+  package_weight_kg?: string;
   shipping_base_amount?: string;
   cancellation_reason?: string;
   cancellation_note?: string;

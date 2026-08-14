@@ -10,6 +10,7 @@ from django.utils import timezone
 from core.api.v1.session_services import create_mobile_session
 from core.api.v1.token_services import issue_access_token
 from core.models import (
+    MobileMutationReceipt,
     Product,
     ShiprocketOrder,
     StockMovement,
@@ -370,3 +371,116 @@ class MobileProductDetailAndMovementApiTests(TestCase):
 
         self.assertEqual(detail_post.status_code, 405)
         self.assertEqual(movement_post.status_code, 405)
+
+
+@override_settings(
+    MOBILE_API_ENABLED=True,
+    MOBILE_READ_API_ENABLED=True,
+    MOBILE_WRITE_API_ENABLED=True,
+)
+class MobileStockQuantityMutationApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="stock-owner")
+        self.tenant = Tenant.objects.create(name="Stock Tenant", slug="stock-tenant")
+        self.other_tenant = Tenant.objects.create(name="Other Stock", slug="other-stock")
+        self.membership = TenantMembership.objects.create(
+            user=self.user,
+            tenant=self.tenant,
+            role=TenantMembership.ROLE_VENDOR_OWNER,
+        )
+        session = create_mobile_session(
+            user=self.user,
+            installation_id=uuid.uuid4(),
+            app_version="1.0.0",
+            active_tenant=self.tenant,
+        )
+        token, _ = issue_access_token(session)
+        self.headers = {"Authorization": f"Bearer {token}"}
+        self.product = Product.objects.create(
+            tenant=self.tenant,
+            name="Organic Turmeric",
+            sku="STOCK-OWN",
+            stock_quantity=8,
+            reorder_level=3,
+        )
+        self.other_product = Product.objects.create(
+            tenant=self.other_tenant,
+            name="Other Product",
+            sku="STOCK-OTHER",
+            stock_quantity=5,
+        )
+
+    def update_stock(self, product, payload, *, key=None):
+        return self.client.post(
+            f"/api/v1/products/{product.pk}/stock",
+            payload,
+            content_type="application/json",
+            headers={
+                **self.headers,
+                "Idempotency-Key": key or str(uuid.uuid4()),
+            },
+        )
+
+    def test_owner_can_update_quantity_with_an_audited_idempotent_mutation(self):
+        key = str(uuid.uuid4())
+        payload = {
+            "expected_quantity": 8,
+            "target_quantity": 12,
+            "note": "Stock count correction",
+        }
+
+        response = self.update_stock(self.product, payload, key=key)
+        replay = self.update_stock(self.product, payload, key=key)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 12)
+        movement = StockMovement.objects.get(product=self.product)
+        self.assertEqual(movement.movement_type, StockMovement.TYPE_MANUAL_SET)
+        self.assertEqual(movement.quantity_before, 8)
+        self.assertEqual(movement.quantity_after, 12)
+        self.assertEqual(movement.quantity_delta, 4)
+        self.assertEqual(movement.notes, "Stock count correction")
+        self.assertEqual(movement.triggered_by, self.user.username)
+        self.assertEqual(response.json()["data"]["product"]["stock_quantity"], 12)
+        self.assertTrue(response.json()["data"]["product"]["can_adjust_stock"])
+        self.assertFalse(response.json()["data"]["replayed"])
+        self.assertTrue(replay.json()["data"]["replayed"])
+        self.assertEqual(MobileMutationReceipt.objects.count(), 1)
+
+    def test_stale_quantity_is_rejected_without_changing_stock(self):
+        response = self.update_stock(
+            self.product,
+            {"expected_quantity": 7, "target_quantity": 12},
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 8)
+        self.assertFalse(StockMovement.objects.filter(product=self.product).exists())
+
+    def test_update_is_tenant_scoped_and_restricted_by_role(self):
+        cross_tenant = self.update_stock(
+            self.other_product,
+            {"expected_quantity": 5, "target_quantity": 6},
+        )
+        self.assertEqual(cross_tenant.status_code, 404)
+
+        self.membership.role = TenantMembership.ROLE_VENDOR_VIEWER
+        self.membership.save(update_fields=["role"])
+        forbidden = self.update_stock(
+            self.product,
+            {"expected_quantity": 8, "target_quantity": 9},
+        )
+        self.assertEqual(forbidden.status_code, 403)
+
+    def test_negative_target_quantity_is_rejected(self):
+        response = self.update_stock(
+            self.product,
+            {"expected_quantity": 8, "target_quantity": -1},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 8)

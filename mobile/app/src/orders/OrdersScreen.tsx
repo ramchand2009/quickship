@@ -189,7 +189,8 @@ h1 { font-size: 20px; margin: 0 0 6px; }
 </style></head><body><div class="label">
 <div class="header"><h1>SHIPPING LABEL</h1><div class="reference">Order ${escapeHtml(order.reference)}</div>
 ${order.courier_name ? `<div class="meta">Courier: ${escapeHtml(order.courier_name)}</div>` : ''}
-${order.tracking_number ? `<div class="meta">Tracking: ${escapeHtml(order.tracking_number)}</div>` : ''}</div>
+${order.tracking_number ? `<div class="meta">Tracking: ${escapeHtml(order.tracking_number)}</div>` : ''}
+${order.package_weight_kg ? `<div class="meta">Weight: ${escapeHtml(order.package_weight_kg)} kg</div>` : ''}</div>
 <div class="box"><div class="eyebrow">TO</div><div class="name">${escapeHtml(order.customer.name || 'Customer')}</div>
 <div class="address">${escapeHtml(order.customer.delivery_address || 'Delivery address unavailable')}</div>
 ${order.customer.phone ? `<div class="phone">Phone: ${escapeHtml(order.customer.phone)}</div>` : ''}</div>
@@ -225,6 +226,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [courierMenuOpen, setCourierMenuOpen] = useState(false);
   const [customCourier, setCustomCourier] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState('');
+  const [packageWeightKg, setPackageWeightKg] = useState('');
   const [shippingCost, setShippingCost] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationNote, setCancellationNote] = useState('');
@@ -379,6 +381,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       setCustomCourier(Boolean(order?.courier_name && !COURIER_PARTNERS.includes(order.courier_name)));
       setCourierMenuOpen(false);
       setTrackingNumber(order?.tracking_number || '');
+      setPackageWeightKg(order?.package_weight_kg || '');
       setShippingCost(order?.shipping_cost.amount === '0.00' ? '' : order?.shipping_cost.amount || '');
       setCancellationReason('');
       setCancellationNote('');
@@ -402,6 +405,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     if (selectedAction.target_status === 'shipped') {
       values.courier_name = courierName.trim();
       values.tracking_number = trackingNumber.trim().toUpperCase();
+      values.package_weight_kg = packageWeightKg.trim();
       values.shipping_base_amount = shippingCost.trim();
     }
     if (selectedAction.target_status === 'order_cancelled') {
@@ -480,7 +484,12 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const actionFormReady = selectedAction
     ? (!selectedAction.required_fields.includes('customer_phone') || customerPhone.replace(/\D/g, '').length >= 10)
       && (selectedAction.target_status !== 'shipped'
-        || Boolean(courierName.trim() && /^[A-Za-z]{2}\d{9}[A-Za-z]{2}$/.test(trackingNumber.trim()) && shippingCost.trim()))
+        || Boolean(
+          courierName.trim()
+          && /^[A-Za-z]{2}\d{9}[A-Za-z]{2}$/.test(trackingNumber.trim())
+          && Number(packageWeightKg) > 0
+          && shippingCost.trim()
+        ))
       && (selectedAction.target_status !== 'order_cancelled' || Boolean(cancellationReason))
     : false;
   const addressFormReady = Boolean(
@@ -731,6 +740,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       <View style={styles.sectionCard}>
         <DetailRow label="Courier" value={order.courier_name} />
         <DetailRow label="Tracking number" value={order.tracking_number} />
+        <DetailRow label="Package weight" value={order.package_weight_kg ? `${order.package_weight_kg} kg` : null} />
         <DetailRow label="Shipping cost" value={money(order.shipping_cost)} />
         <DetailRow label="Order date" value={dateTime(order.order_date)} />
         {canPrintShippingLabel ? (
@@ -769,6 +779,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
               <Text style={styles.labelSheetReference}>Order {order.reference}</Text>
               {order.courier_name ? <Text style={styles.labelSheetMeta}>Courier: {order.courier_name}</Text> : null}
               {order.tracking_number ? <Text style={styles.labelSheetMeta}>Tracking: {order.tracking_number}</Text> : null}
+              {order.package_weight_kg ? <Text style={styles.labelSheetMeta}>Weight: {order.package_weight_kg} kg</Text> : null}
               <View style={styles.labelAddressBox}>
                 <Text style={styles.labelEyebrow}>TO</Text>
                 <Text style={styles.labelRecipient}>{order.customer.name || 'Customer'}</Text>
@@ -802,15 +813,21 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         transparent
         visible={selectedAction !== null}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.actionModal}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.actionModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedAction ? actionLabel(selectedAction) : ''}</Text>
               <Pressable disabled={submittingAction} onPress={() => setSelectedAction(null)} style={styles.modalClose}>
                 <MaterialCommunityIcons color="#587066" name="close" size={24} />
               </Pressable>
             </View>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              contentContainerStyle={styles.actionModalScroll}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               {selectedAction?.required_fields.includes('customer_phone') ? (
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Customer mobile</Text>
@@ -878,6 +895,19 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                     <Text style={styles.formHint}>Enter 2 letters, 9 digits, then 2 letters.</Text>
                   </View>
                   <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Package weight (kg)</Text>
+                    <TextInput
+                      keyboardType="decimal-pad"
+                      maxLength={8}
+                      onChangeText={setPackageWeightKg}
+                      placeholder="Example: 1.250"
+                      placeholderTextColor="#82958D"
+                      style={styles.formInput}
+                      value={packageWeightKg}
+                    />
+                    <Text style={styles.formHint}>Enter the packed shipment weight in kilograms.</Text>
+                  </View>
+                  <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Shipping cost</Text>
                     <TextInput keyboardType="decimal-pad" onChangeText={setShippingCost} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={shippingCost} />
                   </View>
@@ -924,8 +954,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             >
               {submittingAction ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Confirm {selectedAction ? actionLabel(selectedAction).toLowerCase() : 'action'}</Text>}
             </Pressable>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       </ScrollView>
@@ -1209,6 +1240,7 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' },
   modalKeyboardView: { flex: 1 },
   actionModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
+  actionModalScroll: { paddingBottom: 18 },
   addressModal: { maxHeight: '92%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },
   addressModalTitleWrap: { flex: 1, paddingRight: 12 },
   addressModalHint: { color: '#71867D', fontSize: 12, lineHeight: 18, marginTop: 4 },

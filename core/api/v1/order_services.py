@@ -98,6 +98,7 @@ def mobile_order_detail(*, tenant, order_id):
         "total",
         "order_date",
         "tracking_number",
+        "package_weight_kg",
         "shipping_base_amount",
         "cancellation_reason",
         "cancellation_note",

@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 
 from core.models import Product, StockMovement, TenantMembership, TenantWooCommerceMappingRule
@@ -106,9 +107,10 @@ class ProductDetailSerializer(ProductSummarySerializer):
     description = serializers.SerializerMethodField()
     prices = serializers.SerializerMethodField()
     routing = serializers.SerializerMethodField()
+    can_adjust_stock = serializers.SerializerMethodField()
 
     class Meta(ProductSummarySerializer.Meta):
-        fields = ProductSummarySerializer.Meta.fields + ["description", "prices", "routing"]
+        fields = ProductSummarySerializer.Meta.fields + ["description", "prices", "routing", "can_adjust_stock"]
 
     def get_description(self, product):
         return str(product.description or "").strip() or None
@@ -136,6 +138,22 @@ class ProductDetailSerializer(ProductSummarySerializer):
                 else None
             ),
         }
+
+    def get_can_adjust_stock(self, product):
+        return bool(
+            settings.MOBILE_WRITE_API_ENABLED
+            and self.context.get("role")
+            in {
+                TenantMembership.ROLE_VENDOR_OWNER,
+                TenantMembership.ROLE_VENDOR_OPERATOR,
+            }
+        )
+
+
+class StockQuantityUpdateSerializer(serializers.Serializer):
+    expected_quantity = serializers.IntegerField()
+    target_quantity = serializers.IntegerField(min_value=0, max_value=999999999)
+    note = serializers.CharField(required=False, allow_blank=True, max_length=255, trim_whitespace=True)
 
 
 class StockMovementQuerySerializer(serializers.Serializer):

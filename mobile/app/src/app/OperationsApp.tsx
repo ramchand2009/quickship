@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   AppState,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,18 +17,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardResponse } from '../auth/types';
+import ExpensesScreen from '../expenses/ExpensesScreen';
 import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
 import NotificationBridge from '../notifications/NotificationBridge';
 import NotificationsScreen from '../notifications/NotificationsScreen';
 import StockScreen from '../stock/StockScreen';
 
-type AppTab = 'dashboard' | 'orders' | 'stock' | 'account' | 'notifications';
+type AppTab = 'dashboard' | 'orders' | 'expenses' | 'stock' | 'account' | 'notifications';
 type TabIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
 const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIconName }[] = [
   { key: 'dashboard', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   { key: 'orders', label: 'Orders', icon: 'clipboard-text-outline', activeIcon: 'clipboard-text' },
+  { key: 'expenses', label: 'Expenses', icon: 'cash-minus', activeIcon: 'cash-minus' },
   { key: 'stock', label: 'Stock', icon: 'package-variant-closed', activeIcon: 'package-variant' },
   { key: 'account', label: 'Account', icon: 'account-circle-outline', activeIcon: 'account-circle' },
 ];
@@ -77,6 +80,21 @@ function greetingForCurrentTime() {
   return 'Hello';
 }
 
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function dashboardMonthOptions(count = 12) {
+  const current = new Date();
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(current.getFullYear(), current.getMonth() - index, 1);
+    return {
+      key: monthKey(date),
+      label: date.toLocaleDateString([], { month: 'long', year: 'numeric' }),
+    };
+  });
+}
+
 function destinationParameter(destination: string, key: string) {
   const query = destination.split('?', 2)[1] || '';
   const entry = query.split('&').find((part) => part.split('=', 1)[0] === key);
@@ -108,6 +126,9 @@ function destinationWithOrderStatus(destination: string, status: string) {
 
 function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => void }) {
   const { auth, runAuthenticated } = useAuth();
+  const monthOptions = useMemo(() => dashboardMonthOptions(), []);
+  const [selectedMonth, setSelectedMonth] = useState(() => monthKey(new Date()));
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -119,7 +140,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
       setError('');
     }
     try {
-      setDashboard(await runAuthenticated(api.dashboard));
+      setDashboard(await runAuthenticated((accessToken) => api.dashboard(accessToken, selectedMonth)));
     } catch (reason) {
       if (!silent) setError(reason instanceof api.ApiError ? reason.message : 'Dashboard could not be loaded.');
     } finally {
@@ -128,7 +149,7 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
         setRefreshing(false);
       }
     }
-  }, [runAuthenticated]);
+  }, [runAuthenticated, selectedMonth]);
 
   useEffect(() => {
     void loadDashboard();
@@ -173,11 +194,16 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
   const greeting = greetingForCurrentTime();
   const todayLabel = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
 
+  const selectedMonthLabel = monthOptions.find((option) => option.key === selectedMonth)?.label
+    || dashboard.meta.period?.label
+    || selectedMonth;
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadDashboard(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
-    >
+    <>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadDashboard(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
+      >
       {error ? <View style={styles.warning}><Text style={styles.warningText}>{error} Showing the last loaded data.</Text></View> : null}
 
       <View style={styles.dashboardIntro}>
@@ -188,7 +214,20 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
         </View>
       </View>
 
-      <Text style={[styles.sectionTitle, styles.monthHeading]}>This month summary</Text>
+      <View style={styles.periodRow}>
+        <Text style={styles.currentMonthText}>Viewing month</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Select dashboard month. Currently ${selectedMonthLabel}`}
+          onPress={() => setMonthPickerVisible(true)}
+          style={({ pressed }) => [styles.periodPicker, pressed && styles.pressed]}
+        >
+          <Text style={styles.periodPickerText}>{selectedMonthLabel}</Text>
+          <MaterialCommunityIcons color="#52665E" name="chevron-down" size={20} />
+        </Pressable>
+      </View>
+
+      <Text style={[styles.sectionTitle, styles.monthHeading]}>Monthly summary</Text>
       <View style={styles.performanceCard}>
         {[...financeMetrics, ...(totalOrdersMetric ? [totalOrdersMetric] : [])].map((metric, index) => (
           <Pressable
@@ -271,7 +310,58 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
           </Pressable>
         ))}
       </View>
-    </ScrollView>
+      </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setMonthPickerVisible(false)}
+        transparent
+        visible={monthPickerVisible}
+      >
+        <View style={styles.monthModalBackdrop}>
+          <Pressable
+            accessibilityLabel="Close month selection"
+            onPress={() => setMonthPickerVisible(false)}
+            style={styles.monthModalDismissArea}
+          />
+          <View style={styles.monthModalCard}>
+            <View style={styles.monthModalHeader}>
+              <Text style={styles.monthModalTitle}>Select month</Text>
+              <Pressable
+                accessibilityLabel="Close month selection"
+                onPress={() => setMonthPickerVisible(false)}
+                style={styles.monthModalClose}
+              >
+                <MaterialCommunityIcons color="#40564D" name="close" size={22} />
+              </Pressable>
+            </View>
+            <ScrollView>
+              {monthOptions.map((option) => {
+                const selected = option.key === selectedMonth;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={option.key}
+                    onPress={() => {
+                      setSelectedMonth(option.key);
+                      setMonthPickerVisible(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.monthOption,
+                      selected && styles.monthOptionSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={[styles.monthOptionText, selected && styles.monthOptionTextSelected]}>{option.label}</Text>
+                    {selected ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={21} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -465,6 +555,7 @@ export default function OperationsApp() {
         <NotificationBridge onDestination={openDestination} onNotificationReceived={handleNotificationReceived} />
         {activeTab === 'dashboard' ? <DashboardScreen key={`dashboard-${liveRefreshKey}`} onNavigate={openDestination} /> : null}
         {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={`${ordersScreenKey}-${liveRefreshKey}`} /> : null}
+        {activeTab === 'expenses' ? <ExpensesScreen /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
         {activeTab === 'notifications' ? <NotificationsScreen onOpenDestination={openDestination} onUnreadCountChange={setUnreadNotificationCount} /> : null}

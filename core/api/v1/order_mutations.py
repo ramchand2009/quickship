@@ -212,6 +212,7 @@ def update_order_status(*, session, tenant, role, actor, order_id, idempotency_k
                 required = {
                     "courier_name": values.get("courier_name"),
                     "tracking_number": values.get("tracking_number"),
+                    "package_weight_kg": values.get("package_weight_kg"),
                     "shipping_base_amount": values.get("shipping_base_amount"),
                 }
                 missing = {key: ["This field is required."] for key, value in required.items() if value in (None, "")}
@@ -219,6 +220,7 @@ def update_order_status(*, session, tenant, role, actor, order_id, idempotency_k
                     raise ValidationError(missing)
                 order.courier_name = values["courier_name"]
                 order.tracking_number = values["tracking_number"]
+                order.package_weight_kg = values["package_weight_kg"]
                 order.shipping_base_amount = values["shipping_base_amount"]
             if target_status == ShiprocketOrder.STATUS_CANCELLED:
                 if not values.get("cancellation_reason"):
@@ -234,6 +236,7 @@ def update_order_status(*, session, tenant, role, actor, order_id, idempotency_k
                 "manual_customer_phone",
                 "raw_payload",
                 "tracking_number",
+                "package_weight_kg",
                 "shipping_base_amount",
                 "cancellation_reason",
                 "cancellation_note",

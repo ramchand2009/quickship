@@ -20,6 +20,8 @@ from .serializers import (
     SelectTenantRequestSerializer,
 )
 from .dashboard_services import build_mobile_dashboard
+from .expense_serializers import ExpenseCreateSerializer, ExpenseQuerySerializer
+from .expense_services import create_mobile_expense, monthly_expenses
 from .permissions import HasActiveMobileTenant, HasMobileTenantRole
 from .order_mutations import mark_payment_received, update_order_status, update_shipping_address
 from .order_serializers import (
@@ -46,7 +48,9 @@ from .product_serializers import (
     ProductSummarySerializer,
     StockMovementQuerySerializer,
     StockMovementSerializer,
+    StockQuantityUpdateSerializer,
 )
+from .product_mutations import set_mobile_stock_quantity
 from .product_services import (
     mobile_product_detail,
     mobile_product_queryset,
@@ -241,6 +245,34 @@ class MobileDashboardView(MobileReadEnabledMixin, APIView):
         response["ETag"] = etag
         response["Cache-Control"] = f"private, max-age={settings.MOBILE_DASHBOARD_CACHE_SECONDS}"
         return response
+
+
+class MobileExpenseListCreateView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        query = ExpenseQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response(monthly_expenses(tenant=request.tenant, month=query.validated_data["month"]))
+
+    def post(self, request):
+        if not settings.MOBILE_WRITE_API_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        serializer = ExpenseCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        key = MobileWriteEnabledMixin().idempotency_key(request)
+        return Response(create_mobile_expense(
+            session=request.auth,
+            tenant=request.tenant,
+            actor=request.user.get_username(),
+            idempotency_key=key,
+            values=serializer.validated_data,
+        ), status=201)
 
 
 class MobileOrderListView(MobileReadEnabledMixin, APIView):
@@ -511,6 +543,29 @@ class MobileProductDetailView(MobileReadEnabledMixin, APIView):
             },
         ).data
         return Response({"data": data})
+
+
+class MobileProductStockView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def post(self, request, product_id):
+        serializer = StockQuantityUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = set_mobile_stock_quantity(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            actor=request.user.get_username(),
+            product_id=product_id,
+            idempotency_key=self.idempotency_key(request),
+            values=serializer.validated_data,
+        )
+        return Response(payload)
 
 
 class MobileStockMovementListView(MobileReadEnabledMixin, APIView):

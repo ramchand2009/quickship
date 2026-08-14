@@ -101,18 +101,24 @@ def start_mobile_session(*, user, installation_id, app_version, active_tenant=No
 ROLE_PERMISSIONS = {
     TenantMembership.ROLE_VENDOR_OWNER: [
         "dashboard.view",
+        "expenses.view",
+        "expenses.create",
         "orders.view",
         "orders.update_status",
         "orders.mark_payment_received",
         "stock.view",
+        "stock.adjust",
         "notifications.view",
     ],
     TenantMembership.ROLE_VENDOR_OPERATOR: [
         "dashboard.view",
+        "expenses.view",
+        "expenses.create",
         "orders.view",
         "orders.update_status",
         "orders.mark_payment_received",
         "stock.view",
+        "stock.adjust",
         "notifications.view",
     ],
     TenantMembership.ROLE_VENDOR_VIEWER: [

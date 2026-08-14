@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
@@ -20,6 +35,7 @@ const when = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
+const newIdempotencyKey = () => `android-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 
 function ProductCard({ product, onPress }: { product: ProductSummary; onPress: () => void }) {
   const critical = product.stock_state !== 'in_stock';
@@ -56,6 +72,11 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [quantityEditorVisible, setQuantityEditorVisible] = useState(false);
+  const [targetQuantity, setTargetQuantity] = useState('');
+  const [adjustmentNote, setAdjustmentNote] = useState('');
+  const [quantitySaving, setQuantitySaving] = useState(false);
+  const [quantityError, setQuantityError] = useState('');
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -77,7 +98,55 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
   if (loading && !product) return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /></View>;
   if (!product) return <View style={styles.center}><Text style={styles.errorTitle}>Product unavailable</Text><Text style={styles.errorMessage}>{error}</Text><Pressable onPress={onBack} style={styles.primaryButton}><Text style={styles.primaryText}>Back to stock</Text></Pressable></View>;
 
+  const openQuantityEditor = () => {
+    setTargetQuantity(String(product.stock_quantity));
+    setAdjustmentNote('');
+    setQuantityError('');
+    setQuantityEditorVisible(true);
+  };
+
+  const quantityReady = /^\d+$/.test(targetQuantity.trim()) && Number(targetQuantity) <= 999999999;
+  const submitQuantity = async () => {
+    if (!quantityReady || quantitySaving) return;
+    setQuantitySaving(true);
+    setQuantityError('');
+    try {
+      const response = await runAuthenticated((token) => api.updateStockQuantity(
+        token,
+        product.id,
+        {
+          expected_quantity: product.stock_quantity,
+          target_quantity: Number(targetQuantity),
+          note: adjustmentNote.trim(),
+        },
+        newIdempotencyKey(),
+      ));
+      setProduct(response.data.product);
+      if (response.data.movement) {
+        setMovements((current) => [response.data.movement as StockMovement, ...current]);
+      }
+      setQuantityEditorVisible(false);
+      Alert.alert(
+        'Stock updated',
+        response.data.movement
+          ? `Quantity changed from ${product.stock_quantity} to ${response.data.product.stock_quantity}.`
+          : `Stock is already ${response.data.product.stock_quantity}.`,
+      );
+    } catch (reason) {
+      if (reason instanceof api.ApiError && reason.status === 409) {
+        setQuantityEditorVisible(false);
+        await load(true);
+        Alert.alert('Stock was refreshed', 'The quantity changed before your update was saved. Review it and try again.');
+      } else {
+        setQuantityError(reason instanceof api.ApiError ? reason.message : 'Stock quantity could not be updated.');
+      }
+    } finally {
+      setQuantitySaving(false);
+    }
+  };
+
   return (
+    <>
     <ScrollView contentContainerStyle={styles.detailContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}>
       <Pressable onPress={onBack} style={styles.backButton}>
         <MaterialCommunityIcons color="#0B5D3B" name="arrow-left" size={21} />
@@ -91,6 +160,12 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
           <Text style={styles.quantityValue}>{product.stock_quantity}</Text>
           <View><Text style={styles.quantityLabel}>{STOCK_LABELS[product.stock_state]}</Text><Text style={styles.reorderText}>Reorder level {product.reorder_level}</Text></View>
         </View>
+        {product.can_adjust_stock ? (
+          <Pressable onPress={openQuantityEditor} style={({ pressed }) => [styles.adjustStockButton, pressed && styles.pressed]}>
+            <MaterialCommunityIcons color="#FFFFFF" name="pencil-outline" size={20} />
+            <Text style={styles.adjustStockText}>Update stock quantity</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <Text style={styles.sectionTitle}>Product information</Text>
@@ -119,6 +194,62 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
         )) : <Text style={styles.emptyText}>No stock movement history is available.</Text>}
       </View>
     </ScrollView>
+    <Modal
+      animationType="slide"
+      onRequestClose={() => !quantitySaving && setQuantityEditorVisible(false)}
+      transparent
+      visible={quantityEditorVisible}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.quantityModal}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleWrap}>
+                <Text style={styles.modalTitle}>Update stock quantity</Text>
+                <Text style={styles.modalSubtitle}>{product.name} · Currently {product.stock_quantity}</Text>
+              </View>
+              <Pressable disabled={quantitySaving} onPress={() => setQuantityEditorVisible(false)} style={styles.modalClose}>
+                <MaterialCommunityIcons color="#587066" name="close" size={24} />
+              </Pressable>
+            </View>
+            <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+              <Text style={styles.formLabel}>New quantity</Text>
+              <TextInput
+                autoFocus
+                keyboardType="number-pad"
+                maxLength={9}
+                onChangeText={setTargetQuantity}
+                placeholder="Enter available quantity"
+                placeholderTextColor="#82958D"
+                selectTextOnFocus
+                style={styles.formInput}
+                value={targetQuantity}
+              />
+              <Text style={styles.formHint}>This replaces the current available stock quantity.</Text>
+              <Text style={[styles.formLabel, styles.noteLabel]}>Reason or note (optional)</Text>
+              <TextInput
+                maxLength={255}
+                multiline
+                onChangeText={setAdjustmentNote}
+                placeholder="Example: Physical stock count"
+                placeholderTextColor="#82958D"
+                style={[styles.formInput, styles.noteInput]}
+                value={adjustmentNote}
+              />
+              {quantityError ? <Text accessibilityRole="alert" style={styles.quantityError}>{quantityError}</Text> : null}
+            </ScrollView>
+            <Pressable
+              disabled={!quantityReady || quantitySaving}
+              onPress={() => void submitQuantity()}
+              style={[styles.saveQuantityButton, (!quantityReady || quantitySaving) && styles.disabledButton]}
+            >
+              {quantitySaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Save quantity</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+    </>
   );
 }
 
@@ -220,6 +351,7 @@ const styles = StyleSheet.create({
   productCard: { minHeight: 98, backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 }, productImage: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#EDF2EF' }, imageFallback: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 24, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockBadge: { minHeight: 24, borderRadius: 12, backgroundColor: '#E7F6E8', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', marginRight: 7 }, stockBadgeCritical: { backgroundColor: '#FFF0E0' }, stockDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#147348', marginRight: 5 }, stockDotCritical: { backgroundColor: '#D98200' }, stockQuantity: { color: '#147348', fontSize: 10, fontWeight: '900' }, stockCritical: { color: '#A65A00' }, reorderText: { color: '#82958D', fontSize: 10, flex: 1 },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 }, warningText: { color: '#7A4A00' }, emptyState: { alignItems: 'center', paddingVertical: 48 }, emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' }, emptyText: { color: '#71867D', textAlign: 'center', marginTop: 7 }, loadMore: { minHeight: 50, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, loadMoreText: { color: '#0B5D3B', fontWeight: '800' }, endText: { color: '#82958D', textAlign: 'center', marginVertical: 14 }, pressed: { opacity: 0.65 },
   errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800' }, errorMessage: { color: '#587066', textAlign: 'center', marginTop: 8 }, primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: '#FFF', fontWeight: '800' },
-  detailContent: { padding: 16, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 10, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 },
+  detailContent: { padding: 16, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 10, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, adjustStockButton: { minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, adjustStockText: { color: '#FFFFFF', fontWeight: '900' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 },
   movementRow: { flexDirection: 'row', paddingVertical: 5 }, divider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 }, deltaBadge: { width: 45, height: 34, borderRadius: 10, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center', marginRight: 11 }, deltaNegative: { backgroundColor: '#FDE8E7' }, deltaText: { color: '#147348', fontWeight: '900' }, deltaTextNegative: { color: '#B42318' }, movementCopy: { flex: 1 }, movementTitle: { color: '#29483D', fontWeight: '800' }, movementNote: { color: '#587066', marginTop: 3 }, movementTime: { color: '#82958D', fontSize: 11, marginTop: 5 },
+  modalKeyboardView: { flex: 1 }, modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' }, quantityModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, modalTitleWrap: { flex: 1, paddingRight: 12 }, modalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, modalSubtitle: { color: '#71867D', fontSize: 12, marginTop: 4 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 }, formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 }, formHint: { color: '#71867D', fontSize: 11, marginTop: 6 }, noteLabel: { marginTop: 18 }, noteInput: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' }, quantityError: { color: '#B42318', backgroundColor: '#FFF2F0', borderRadius: 10, padding: 11, lineHeight: 18, marginTop: 14 }, saveQuantityButton: { minHeight: 52, borderRadius: 14, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', marginTop: 18 }, saveQuantityText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, disabledButton: { opacity: 0.42 },
 });

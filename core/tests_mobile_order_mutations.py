@@ -119,7 +119,7 @@ class MobileOrderMutationApiTests(TestCase):
         self.assertEqual(order.local_status, ShiprocketOrder.STATUS_NEW)
         self.assertEqual(MobileMutationReceipt.objects.count(), 0)
 
-    def test_shipped_requires_courier_tracking_and_cost(self):
+    def test_shipped_requires_courier_tracking_weight_and_cost(self):
         order = self.order("SHIP", status=ShiprocketOrder.STATUS_ACCEPTED)
 
         missing = self.post_status(
@@ -134,6 +134,7 @@ class MobileOrderMutationApiTests(TestCase):
                 "expected_version": "1",
                 "courier_name": "India Post",
                 "tracking_number": "AA123456789AA",
+                "package_weight_kg": "1.250",
                 "shipping_base_amount": "80.00",
             },
             key="ship-success",
@@ -144,6 +145,7 @@ class MobileOrderMutationApiTests(TestCase):
         self.assertEqual(shipped.status_code, 200)
         order.refresh_from_db()
         self.assertEqual(order.tracking_number, "AA123456789AA")
+        self.assertEqual(str(order.package_weight_kg), "1.250")
         self.assertEqual(str(order.shipping_base_amount), "80.00")
         self.assertIsNotNone(order.shipped_at)
 

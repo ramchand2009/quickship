@@ -32,6 +32,13 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
         decimal_places=2,
         min_value=Decimal("0.00"),
     )
+    package_weight_kg = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=8,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+    )
     cancellation_reason = serializers.ChoiceField(
         required=False,
         allow_blank=True,
@@ -196,6 +203,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
     items = serializers.SerializerMethodField()
     courier_name = serializers.SerializerMethodField()
     shipping_cost = serializers.SerializerMethodField()
+    package_weight_kg = serializers.SerializerMethodField()
     payment_received_at = serializers.DateTimeField(allow_null=True)
     cancellation_reason = serializers.SerializerMethodField()
     cancellation_note = serializers.SerializerMethodField()
@@ -210,6 +218,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "items",
             "courier_name",
             "shipping_cost",
+            "package_weight_kg",
             "payment_received_at",
             "cancellation_reason",
             "cancellation_note",
@@ -311,6 +320,10 @@ class OrderDetailSerializer(OrderSummarySerializer):
     def get_shipping_cost(self, order):
         return _money(order.shipping_base_amount)
 
+    def get_package_weight_kg(self, order):
+        weight = order.package_weight_kg or Decimal("0.000")
+        return f"{weight:.3f}" if weight > 0 else None
+
     def get_shipping_label(self, order):
         tenant = self.context.get("tenant") or order.tenant
         sender = tenant.sender_addresses.order_by("-updated_at", "-created_at").first()
@@ -355,7 +368,12 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 if target == ShiprocketOrder.STATUS_ACCEPTED and not order.resolved_customer_phone:
                     required_fields = ["customer_phone"]
                 elif target == ShiprocketOrder.STATUS_SHIPPED:
-                    required_fields = ["courier_name", "tracking_number", "shipping_base_amount"]
+                    required_fields = [
+                        "courier_name",
+                        "tracking_number",
+                        "package_weight_kg",
+                        "shipping_base_amount",
+                    ]
                 actions.append(
                     {
                         "code": "update_status",
