@@ -1,4 +1,4 @@
-from django.db.models import BigIntegerField, Case, F, Q, Value, When
+from django.db.models import BigIntegerField, Case, Count, F, Q, Value, When
 
 from core.models import Product, StockMovement, TenantWooCommerceMappingRule
 
@@ -12,6 +12,9 @@ def mobile_product_queryset(*, tenant, filters):
             | Q(sku__icontains=search)
             | Q(barcode__icontains=search)
         )
+    category = str(filters.get("category") or "").strip()
+    if category:
+        queryset = queryset.filter(category__iexact=category)
     stock_state = filters.get("stock_state")
     if stock_state == "out_of_stock":
         queryset = queryset.filter(stock_quantity__lte=0)
@@ -40,6 +43,21 @@ def mobile_product_queryset(*, tenant, filters):
         "created_at",
         "updated_at",
     )
+
+
+def mobile_product_inventory_summary(*, tenant):
+    queryset = Product.objects.filter(tenant=tenant)
+    counts = queryset.aggregate(
+        total_count=Count("pk"),
+        attention_count=Count("pk", filter=Q(stock_quantity__lte=F("reorder_level"))),
+    )
+    categories = list(
+        queryset.exclude(category="")
+        .order_by("category")
+        .values_list("category", flat=True)
+        .distinct()
+    )
+    return {**counts, "categories": categories}
 
 
 def mobile_product_routing_rules(*, tenant):

@@ -38,10 +38,11 @@ export type StockMovement = {
   created_at: string;
 };
 
-export type ProductFilters = { search?: string; stock_state?: string; cursor?: string };
+export type ProductFilters = { search?: string; stock_state?: string; category?: string; cursor?: string };
 export type ProductListResponse = {
   data: ProductSummary[];
   pagination: { next_cursor: string | null; has_more: boolean };
+  meta?: { total_count?: number; attention_count?: number; categories?: string[] };
 };
 export type ProductDetailResponse = { data: ProductDetail };
 export type StockMovementResponse = {

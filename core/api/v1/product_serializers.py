@@ -6,7 +6,7 @@ from core.models import Product, StockMovement, TenantMembership, TenantWooComme
 
 PRICE_VISIBILITY = {
     TenantMembership.ROLE_VENDOR_OWNER: {"actual", "regular", "sale"},
-    TenantMembership.ROLE_VENDOR_OPERATOR: {"regular", "sale"},
+    TenantMembership.ROLE_VENDOR_OPERATOR: {"actual", "regular", "sale"},
     TenantMembership.ROLE_VENDOR_VIEWER: {"regular", "sale"},
     TenantMembership.ROLE_WAREHOUSE_OPERATOR: set(),
 }
@@ -14,6 +14,7 @@ PRICE_VISIBILITY = {
 
 class ProductListQuerySerializer(serializers.Serializer):
     search = serializers.CharField(required=False, allow_blank=True, max_length=160, trim_whitespace=True)
+    category = serializers.CharField(required=False, allow_blank=True, max_length=120, trim_whitespace=True)
     stock_state = serializers.ChoiceField(
         required=False,
         choices=[

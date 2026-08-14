@@ -75,6 +75,20 @@ class MobileProductListApiTests(TestCase):
         self.assertNotIn("actual_price", row)
         self.assertNotIn("woocommerce_product_id", row)
 
+    def test_list_returns_full_inventory_counts_categories_and_category_filter(self):
+        self.product("ORGANIC", category="Organic", quantity=2, reorder=5)
+        self.product("SPICES", category="Spices", quantity=10, reorder=5)
+        for index in range(28):
+            self.product(f"EXTRA-{index}", category="Organic", quantity=10, reorder=5)
+
+        first_page = self.get({"page_size": 25}).json()
+        filtered = self.get({"category": "organic"}).json()
+
+        self.assertEqual(first_page["meta"]["total_count"], 30)
+        self.assertEqual(first_page["meta"]["attention_count"], 1)
+        self.assertEqual(first_page["meta"]["categories"], ["Organic", "Spices"])
+        self.assertTrue(all(row["category"] == "Organic" for row in filtered["data"]))
+
     def test_name_sku_and_barcode_search(self):
         named = self.product("NAME", name="Special Turmeric", barcode="111111")
         sku = self.product("SKU", barcode="222222")
@@ -214,7 +228,7 @@ class MobileProductDetailAndMovementApiTests(TestCase):
                 "routing_ids": True,
             },
             TenantMembership.ROLE_VENDOR_OPERATOR: {
-                "actual": False,
+                "actual": True,
                 "regular": True,
                 "sale": True,
                 "routing_ids": False,

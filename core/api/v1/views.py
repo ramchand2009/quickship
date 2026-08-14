@@ -53,6 +53,7 @@ from .product_serializers import (
 from .product_mutations import set_mobile_stock_quantity
 from .product_services import (
     mobile_product_detail,
+    mobile_product_inventory_summary,
     mobile_product_queryset,
     mobile_product_routing_rules,
     mobile_stock_movement_queryset,
@@ -524,7 +525,9 @@ class MobileProductListView(MobileReadEnabledMixin, APIView):
             many=True,
             context={"routing_rules": mobile_product_routing_rules(tenant=request.tenant)},
         ).data
-        return paginator.get_paginated_response(data)
+        response = paginator.get_paginated_response(data)
+        response.data["meta"] = mobile_product_inventory_summary(tenant=request.tenant)
+        return response
 
 
 class MobileProductDetailView(MobileReadEnabledMixin, APIView):
