@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.exceptions import NotFound
 
 from core.models import BusinessExpense
 
@@ -38,6 +39,48 @@ def create_mobile_expense(*, session, tenant, actor, idempotency_key, values):
             expense = BusinessExpense.objects.create(tenant=tenant, created_by=actor, **values)
         _complete_receipt(receipt, {"expense_id": expense.pk})
         return {"data": {"expense": ExpenseSerializer(expense).data, "replayed": False}}
+    except Exception:
+        _delete_failed_receipt(receipt)
+        raise
+
+
+def update_mobile_expense(*, session, tenant, actor, expense_id, idempotency_key, values):
+    request_hash = _fingerprint(operation="expense_update", order_id=expense_id, payload=values)
+    receipt, replay = _begin_receipt(session=session, tenant=tenant, idempotency_key=idempotency_key, request_hash=request_hash)
+    if replay is not None:
+        expense = BusinessExpense.objects.filter(tenant=tenant, pk=expense_id).first()
+        if expense is None:
+            raise NotFound("The requested resource is unavailable.")
+        return {"data": {"expense": ExpenseSerializer(expense).data, "replayed": True}}
+    try:
+        with transaction.atomic():
+            expense = BusinessExpense.objects.select_for_update().filter(tenant=tenant, pk=expense_id).first()
+            if expense is None:
+                raise NotFound("The requested resource is unavailable.")
+            for field, value in values.items():
+                setattr(expense, field, value)
+            expense.created_by = actor
+            expense.save(update_fields=[*values.keys(), "created_by"])
+        _complete_receipt(receipt, {"expense_id": expense.pk})
+        return {"data": {"expense": ExpenseSerializer(expense).data, "replayed": False}}
+    except Exception:
+        _delete_failed_receipt(receipt)
+        raise
+
+
+def delete_mobile_expense(*, session, tenant, expense_id, idempotency_key):
+    request_hash = _fingerprint(operation="expense_delete", order_id=expense_id, payload={})
+    receipt, replay = _begin_receipt(session=session, tenant=tenant, idempotency_key=idempotency_key, request_hash=request_hash)
+    if replay is not None:
+        return {"data": {"expense_id": expense_id, "deleted": True, "replayed": True}}
+    try:
+        with transaction.atomic():
+            expense = BusinessExpense.objects.select_for_update().filter(tenant=tenant, pk=expense_id).first()
+            if expense is None:
+                raise NotFound("The requested resource is unavailable.")
+            expense.delete()
+        _complete_receipt(receipt, {"expense_id": expense_id})
+        return {"data": {"expense_id": expense_id, "deleted": True, "replayed": False}}
     except Exception:
         _delete_failed_receipt(receipt)
         raise

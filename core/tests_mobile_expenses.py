@@ -35,3 +35,41 @@ class MobileExpenseApiTests(TestCase):
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(listed.json()["data"]["total"], "151.00")
         self.assertEqual(listed.json()["data"]["expenses"][0]["item_name"], "Packing tape")
+
+    def test_update_and_delete_are_tenant_scoped_and_idempotent(self):
+        expense = BusinessExpense.objects.create(
+            tenant=self.tenant, item_name="Old item", quantity=1, unit_price="10.00"
+        )
+        update_key = str(uuid.uuid4())
+        payload = {"item_name": "Updated item", "quantity": 3, "unit_price": "20.00", "remark": "Corrected"}
+        updated = self.client.patch(
+            f"/api/v1/expenses/{expense.pk}", payload, content_type="application/json",
+            headers={**self.headers, "Idempotency-Key": update_key},
+        )
+        replay = self.client.patch(
+            f"/api/v1/expenses/{expense.pk}", payload, content_type="application/json",
+            headers={**self.headers, "Idempotency-Key": update_key},
+        )
+        expense.refresh_from_db()
+        self.assertEqual(updated.status_code, 200)
+        self.assertTrue(replay.json()["data"]["replayed"])
+        self.assertEqual(expense.item_name, "Updated item")
+        self.assertEqual(expense.total_amount, Decimal("60.00"))
+
+        delete_key = str(uuid.uuid4())
+        deleted = self.client.delete(
+            f"/api/v1/expenses/{expense.pk}", headers={**self.headers, "Idempotency-Key": delete_key}
+        )
+        delete_replay = self.client.delete(
+            f"/api/v1/expenses/{expense.pk}", headers={**self.headers, "Idempotency-Key": delete_key}
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertTrue(delete_replay.json()["data"]["replayed"])
+        self.assertFalse(BusinessExpense.objects.filter(pk=expense.pk).exists())
+
+        other_tenant = Tenant.objects.create(name="Other Expense", slug="other-expense")
+        other = BusinessExpense.objects.create(tenant=other_tenant, item_name="Private", quantity=1, unit_price="5")
+        forbidden = self.client.delete(
+            f"/api/v1/expenses/{other.pk}", headers={**self.headers, "Idempotency-Key": str(uuid.uuid4())}
+        )
+        self.assertEqual(forbidden.status_code, 404)

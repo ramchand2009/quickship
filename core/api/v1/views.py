@@ -21,7 +21,7 @@ from .serializers import (
 )
 from .dashboard_services import build_mobile_dashboard
 from .expense_serializers import ExpenseCreateSerializer, ExpenseQuerySerializer
-from .expense_services import create_mobile_expense, monthly_expenses
+from .expense_services import create_mobile_expense, delete_mobile_expense, monthly_expenses, update_mobile_expense
 from .permissions import HasActiveMobileTenant, HasMobileTenantRole
 from .order_mutations import mark_payment_received, update_order_status, update_shipping_address
 from .order_serializers import (
@@ -274,6 +274,26 @@ class MobileExpenseListCreateView(MobileReadEnabledMixin, APIView):
             idempotency_key=key,
             values=serializer.validated_data,
         ), status=201)
+
+
+class MobileExpenseDetailView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [TenantMembership.ROLE_VENDOR_OWNER, TenantMembership.ROLE_VENDOR_OPERATOR]
+    throttle_scope = "mobile_write"
+
+    def patch(self, request, expense_id):
+        serializer = ExpenseCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(update_mobile_expense(
+            session=request.auth, tenant=request.tenant, actor=request.user.get_username(),
+            expense_id=expense_id, idempotency_key=self.idempotency_key(request), values=serializer.validated_data,
+        ))
+
+    def delete(self, request, expense_id):
+        return Response(delete_mobile_expense(
+            session=request.auth, tenant=request.tenant, expense_id=expense_id,
+            idempotency_key=self.idempotency_key(request),
+        ))
 
 
 class MobileOrderListView(MobileReadEnabledMixin, APIView):

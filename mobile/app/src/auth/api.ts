@@ -213,6 +213,14 @@ export async function createExpense(accessToken: string, values: ExpenseCreate, 
   return request('/expenses', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(values) });
 }
 
+export async function updateExpense(accessToken: string, expenseId: number, values: ExpenseCreate, idempotencyKey: string) {
+  return request(`/expenses/${expenseId}`, { method: 'PATCH', headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(values) });
+}
+
+export async function deleteExpense(accessToken: string, expenseId: number, idempotencyKey: string) {
+  return request(`/expenses/${expenseId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey } });
+}
+
 export async function updateOrderShippingAddress(
   accessToken: string,
   orderId: number,
