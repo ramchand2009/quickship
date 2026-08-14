@@ -265,6 +265,8 @@ export default function StockScreen() {
   const [stockState, setStockState] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   const [totalCount, setTotalCount] = useState(0);
   const [attentionCount, setAttentionCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -339,24 +341,40 @@ export default function StockScreen() {
           </Pressable>
         ))}
       </ScrollView>
-      {categories.length ? (
-        <View style={styles.categoryFilterBlock}>
-          <Text style={styles.categoryFilterLabel}>Category</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {[{ code: '', label: 'All categories' }, ...categories.map((value) => ({ code: value, label: value }))].map((filter) => (
-              <Pressable key={filter.code || 'all-categories'} onPress={() => setCategory(filter.code)} style={[styles.categoryChip, category === filter.code && styles.categoryChipActive]}>
-                <Text style={[styles.categoryChipText, category === filter.code && styles.categoryChipTextActive]}>{filter.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
+      <View style={styles.categoryFilterBlock}>
+        <Text style={styles.categoryFilterLabel}>Category</Text>
+        <Pressable onPress={() => setCategoryPickerVisible(true)} style={styles.categoryDropdown}>
+          <View style={styles.categoryDropdownCopy}>
+            <Text style={styles.categoryDropdownValue}>{category || 'All categories'}</Text>
+            <Text style={styles.categoryDropdownHint}>Filter inventory dashboard and products</Text>
+          </View>
+          <MaterialCommunityIcons color="#52665E" name="chevron-down" size={22} />
+        </Pressable>
+      </View>
       {error && products.length ? <View style={styles.warning}><Text style={styles.warningText}>{error}</Text></View> : null}
       <Text style={styles.resultText}>{products.length} matching product{products.length === 1 ? '' : 's'} loaded</Text>
     </View>
   );
 
-  return <FlatList contentContainerStyle={styles.listContent} data={products} keyExtractor={(item) => String(item.id)} ListHeaderComponent={header} ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No matching products</Text><Text style={styles.emptyText}>Try another search or stock filter.</Text></View>} ListFooterComponent={nextCursor ? <Pressable disabled={loadingMore} onPress={() => void loadMore()} style={styles.loadMore}>{loadingMore ? <ActivityIndicator color="#0B5D3B" /> : <Text style={styles.loadMoreText}>Load more products</Text>}</Pressable> : products.length ? <Text style={styles.endText}>All matching products loaded</Text> : null} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadFirst(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />} renderItem={({ item }) => <ProductCard product={item} onPress={() => setSelectedId(item.id)} />} />;
+  const visibleCategories = categories.filter((value) => value.toLocaleLowerCase().includes(categorySearch.trim().toLocaleLowerCase()));
+  return <>
+    <FlatList contentContainerStyle={styles.listContent} data={products} keyExtractor={(item) => String(item.id)} ListHeaderComponent={header} ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No matching products</Text><Text style={styles.emptyText}>Try another search or stock filter.</Text></View>} ListFooterComponent={nextCursor ? <Pressable disabled={loadingMore} onPress={() => void loadMore()} style={styles.loadMore}>{loadingMore ? <ActivityIndicator color="#0B5D3B" /> : <Text style={styles.loadMoreText}>Load more products</Text>}</Pressable> : products.length ? <Text style={styles.endText}>All matching products loaded</Text> : null} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadFirst(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />} renderItem={({ item }) => <ProductCard product={item} onPress={() => setSelectedId(item.id)} />} />
+    <Modal animationType="fade" transparent visible={categoryPickerVisible} onRequestClose={() => setCategoryPickerVisible(false)}>
+      <View style={styles.categoryModalBackdrop}>
+        <Pressable onPress={() => setCategoryPickerVisible(false)} style={styles.categoryModalDismiss} />
+        <View style={styles.categoryModalCard}>
+          <View style={styles.categoryModalHeader}><Text style={styles.categoryModalTitle}>Select category</Text><Pressable onPress={() => setCategoryPickerVisible(false)} style={styles.categoryModalClose}><MaterialCommunityIcons color="#52665E" name="close" size={23} /></Pressable></View>
+          {categories.length > 8 ? <TextInput autoCapitalize="none" onChangeText={setCategorySearch} placeholder="Search categories" placeholderTextColor="#82958D" style={styles.categorySearchInput} value={categorySearch} /> : null}
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {[{ code: '', label: 'All categories' }, ...visibleCategories.map((value) => ({ code: value, label: value }))].map((option) => {
+              const selected = category === option.code;
+              return <Pressable key={option.code || 'all-categories'} onPress={() => { setCategory(option.code); setCategorySearch(''); setCategoryPickerVisible(false); }} style={[styles.categoryOption, selected && styles.categoryOptionSelected]}><Text style={[styles.categoryOptionText, selected && styles.categoryOptionTextSelected]}>{option.label}</Text>{selected ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={21} /> : null}</Pressable>;
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  </>;
 }
 
 const styles = StyleSheet.create({
@@ -369,7 +387,7 @@ const styles = StyleSheet.create({
   summaryLabel: { color: '#71867D', fontSize: 11, fontWeight: '700', marginTop: 2 },
   summaryDivider: { width: 1, height: 44, backgroundColor: '#E1E7E4', marginHorizontal: 12 },
   searchRow: { flexDirection: 'row', marginBottom: 12 }, searchInput: { flex: 1, minHeight: 50, backgroundColor: '#FFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, color: '#17352A' }, searchButton: { width: 50, height: 50, backgroundColor: '#0B5D3B', borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  filterRow: { paddingBottom: 12, columnGap: 8 }, filterChip: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 20, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9 }, filterActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' }, filterText: { color: '#587066', fontSize: 13, fontWeight: '700' }, filterTextActive: { color: '#FFF' }, categoryFilterBlock: { marginTop: -2 }, categoryFilterLabel: { color: '#40564D', fontSize: 12, fontWeight: '800', marginBottom: 7 }, categoryChip: { borderColor: '#B9DDBF', borderWidth: 1, borderRadius: 18, backgroundColor: '#F2F9F4', paddingHorizontal: 13, paddingVertical: 8 }, categoryChipActive: { backgroundColor: '#14733D', borderColor: '#14733D' }, categoryChipText: { color: '#35634D', fontSize: 12, fontWeight: '700' }, categoryChipTextActive: { color: '#FFFFFF' }, resultText: { color: '#71867D', fontSize: 12, marginBottom: 10 },
+  filterRow: { paddingBottom: 12, columnGap: 8 }, filterChip: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 20, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9 }, filterActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' }, filterText: { color: '#587066', fontSize: 13, fontWeight: '700' }, filterTextActive: { color: '#FFF' }, categoryFilterBlock: { marginTop: -2, marginBottom: 12 }, categoryFilterLabel: { color: '#40564D', fontSize: 12, fontWeight: '800', marginBottom: 7 }, categoryDropdown: { minHeight: 58, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center' }, categoryDropdownCopy: { flex: 1 }, categoryDropdownValue: { color: '#29483D', fontSize: 14, fontWeight: '900' }, categoryDropdownHint: { color: '#82958D', fontSize: 10, marginTop: 3 }, categoryModalBackdrop: { flex: 1, backgroundColor: 'rgba(15,35,28,.52)', justifyContent: 'center', padding: 24 }, categoryModalDismiss: { position: 'absolute', inset: 0 }, categoryModalCard: { maxHeight: '76%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16 }, categoryModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, categoryModalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, categoryModalClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, categorySearchInput: { minHeight: 48, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, color: '#17352A', marginBottom: 10 }, categoryOption: { minHeight: 50, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categoryOptionSelected: { backgroundColor: '#EAF6EF', borderRadius: 10 }, categoryOptionText: { color: '#40564D', fontSize: 14, fontWeight: '700' }, categoryOptionTextSelected: { color: '#0B5D3B', fontWeight: '900' }, resultText: { color: '#71867D', fontSize: 12, marginBottom: 10 },
   productCard: { minHeight: 98, backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 }, productImage: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#EDF2EF' }, imageFallback: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 24, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockBadge: { minHeight: 24, borderRadius: 12, backgroundColor: '#E7F6E8', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', marginRight: 7 }, stockBadgeCritical: { backgroundColor: '#FFF0E0' }, stockDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#147348', marginRight: 5 }, stockDotCritical: { backgroundColor: '#D98200' }, stockQuantity: { color: '#147348', fontSize: 10, fontWeight: '900' }, stockCritical: { color: '#A65A00' }, reorderText: { color: '#82958D', fontSize: 10, flex: 1 },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 }, warningText: { color: '#7A4A00' }, emptyState: { alignItems: 'center', paddingVertical: 48 }, emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' }, emptyText: { color: '#71867D', textAlign: 'center', marginTop: 7 }, loadMore: { minHeight: 50, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, loadMoreText: { color: '#0B5D3B', fontWeight: '800' }, endText: { color: '#82958D', textAlign: 'center', marginVertical: 14 }, pressed: { opacity: 0.65 },
   errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800' }, errorMessage: { color: '#587066', textAlign: 'center', marginTop: 8 }, primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: '#FFF', fontWeight: '800' },

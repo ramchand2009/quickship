@@ -1,5 +1,7 @@
 """Views for the version 1 mobile API."""
 
+import hmac
+
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -9,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.access import active_tenant_memberships
+from core.chatbot_order_journey import record_chatbot_order_event, resolve_chatbot_tenant
 from core.forms import LoginForm
 from core.models import MobileDevice, MobileNotification, MobileSession, Tenant, TenantMembership
 
@@ -19,6 +22,7 @@ from .serializers import (
     RefreshRequestSerializer,
     SelectTenantRequestSerializer,
 )
+from .integration_serializers import ChatbotOrderJourneyEventSerializer
 from .dashboard_services import build_mobile_dashboard
 from .expense_serializers import ExpenseCreateSerializer, ExpenseQuerySerializer
 from .expense_services import create_mobile_expense, monthly_expenses
@@ -99,6 +103,74 @@ class MobileWriteEnabledMixin:
 
             raise ValidationError({"idempotency_key": ["Must be 128 characters or fewer."]})
         return key
+
+
+class ChatbotOrderJourneyEventView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "mobile_write"
+
+    def post(self, request):
+        configured_token = str(getattr(settings, "CHATBOT_ORDER_WEBHOOK_TOKEN", "") or "").strip()
+        if not configured_token:
+            return Response(
+                {"ok": False, "error": "Chatbot order webhook token is not configured."},
+                status=503,
+            )
+
+        supplied_token = (
+            str(request.headers.get("X-Chatbot-Token") or "").strip()
+            or str(request.headers.get("X-Integration-Token") or "").strip()
+        )
+        authorization = str(request.headers.get("Authorization") or "").strip()
+        if not supplied_token and authorization.lower().startswith("bearer "):
+            supplied_token = authorization[7:].strip()
+
+        if not supplied_token or not hmac.compare_digest(supplied_token, configured_token):
+            return Response({"ok": False, "error": "Unauthorized integration token."}, status=401)
+
+        serializer = ChatbotOrderJourneyEventSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        tenant = resolve_chatbot_tenant(
+            tenant_id=values.get("tenant_id"),
+            tenant_slug=values.get("tenant_slug"),
+        )
+        result = record_chatbot_order_event(
+            tenant=tenant,
+            event_type=values["event_type"],
+            phone_number=values.get("phone_number") or "",
+            customer_name=values.get("customer_name") or "",
+            external_session_id=values.get("external_session_id") or "",
+            external_customer_id=values.get("external_customer_id") or "",
+            external_order_id=values.get("external_order_id") or "",
+            stage_code=values.get("stage_code") or "",
+            stage_label=values.get("stage_label") or "",
+            stage_details=values.get("stage_details") or "",
+            reminder_message=values.get("reminder_message") or "",
+            source=values.get("source") or "n8n",
+            metadata=values.get("metadata") or {},
+            event_id=values.get("event_id") or "",
+            occurred_at=values.get("occurred_at"),
+        )
+        journey = result["journey"]
+        return Response(
+            {
+                "ok": True,
+                "data": {
+                    "journey_id": journey.pk,
+                    "created": bool(result.get("created")),
+                    "duplicate": bool(result.get("duplicate")),
+                    "status": journey.status,
+                    "current_stage": journey.current_stage,
+                    "current_stage_label": journey.current_stage_label,
+                    "reminder_due_at": journey.reminder_due_at,
+                    "order_received_at": journey.order_received_at,
+                    "phone_number": journey.phone_number,
+                    "tenant": {"id": tenant.pk, "slug": tenant.slug, "name": tenant.name},
+                },
+            }
+        )
 
 
 class MobileLoginView(MobileAuthEnabledMixin, APIView):
@@ -526,7 +598,10 @@ class MobileProductListView(MobileReadEnabledMixin, APIView):
             context={"routing_rules": mobile_product_routing_rules(tenant=request.tenant)},
         ).data
         response = paginator.get_paginated_response(data)
-        response.data["meta"] = mobile_product_inventory_summary(tenant=request.tenant)
+        response.data["meta"] = mobile_product_inventory_summary(
+            tenant=request.tenant,
+            category=query.validated_data.get("category"),
+        )
         return response
 
 

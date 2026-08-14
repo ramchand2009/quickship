@@ -87,6 +87,8 @@ class MobileProductListApiTests(TestCase):
         self.assertEqual(first_page["meta"]["total_count"], 30)
         self.assertEqual(first_page["meta"]["attention_count"], 1)
         self.assertEqual(first_page["meta"]["categories"], ["Organic", "Spices"])
+        self.assertEqual(filtered["meta"]["total_count"], 29)
+        self.assertEqual(filtered["meta"]["attention_count"], 1)
         self.assertTrue(all(row["category"] == "Organic" for row in filtered["data"]))
 
     def test_name_sku_and_barcode_search(self):

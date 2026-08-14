@@ -45,17 +45,20 @@ def mobile_product_queryset(*, tenant, filters):
     )
 
 
-def mobile_product_inventory_summary(*, tenant):
+def mobile_product_inventory_summary(*, tenant, category=""):
     queryset = Product.objects.filter(tenant=tenant)
-    counts = queryset.aggregate(
-        total_count=Count("pk"),
-        attention_count=Count("pk", filter=Q(stock_quantity__lte=F("reorder_level"))),
-    )
     categories = list(
         queryset.exclude(category="")
         .order_by("category")
         .values_list("category", flat=True)
         .distinct()
+    )
+    category = str(category or "").strip()
+    if category:
+        queryset = queryset.filter(category__iexact=category)
+    counts = queryset.aggregate(
+        total_count=Count("pk"),
+        attention_count=Count("pk", filter=Q(stock_quantity__lte=F("reorder_level"))),
     )
     return {**counts, "categories": categories}
 
