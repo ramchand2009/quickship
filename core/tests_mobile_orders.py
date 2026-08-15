@@ -262,6 +262,8 @@ class MobileOrderDetailApiTests(TestCase):
         self.assertEqual(data["courier_name"], "Safe Courier")
         self.assertEqual(data["package_weight_kg"], "1.250")
         self.assertEqual(data["shipping_cost"], {"amount": "20.00", "currency": "INR"})
+        self.assertEqual(data["shipping_gst"], {"amount": "3.60", "currency": "INR"})
+        self.assertEqual(data["shipping_total"], {"amount": "23.60", "currency": "INR"})
         self.assertEqual(data["shipping_label"]["sender"]["name"], "Mathukai Dispatch")
         self.assertIn("1 Warehouse Road", data["shipping_label"]["sender"]["address"])
         self.assertEqual(data["shipping_label"]["sender"]["phone"], "9000000000")

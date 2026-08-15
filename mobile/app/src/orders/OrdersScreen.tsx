@@ -73,8 +73,19 @@ function newIdempotencyKey() {
   return `android-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function money(value: Money) {
+function money(value: Money | null | undefined) {
+  if (!value) return 'Not available';
   return `${value.currency === 'INR' ? '₹' : value.currency} ${value.amount}`;
+}
+
+function parseMoneyAmount(value: string | null | undefined) {
+  if (!value) return 0;
+  const parsed = Number(String(value).replace(/,/g, '').trim());
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatInrAmount(value: number) {
+  return `₹ ${value.toFixed(2)}`;
 }
 
 function dateTime(value: string | null | undefined) {
@@ -175,6 +186,7 @@ function shippingLabelHtml(order: OrderDetail) {
 body { margin: 0; padding: 0.18in; width: 4in; height: 6in; font-family: Arial, sans-serif; color: #111; }
 .label { height: 100%; border: 2px solid #111; padding: 0.14in; }
 .header { border-bottom: 2px solid #111; padding-bottom: 0.12in; }
+.brand { font-size: 14px; font-weight: 800; letter-spacing: 0.8px; margin-bottom: 5px; }
 h1 { font-size: 20px; margin: 0 0 6px; }
 .reference { font-size: 15px; font-weight: 700; }
 .meta { font-size: 11px; margin-top: 4px; }
@@ -187,7 +199,7 @@ h1 { font-size: 20px; margin: 0 0 6px; }
 .from .address { font-size: 12px; }
 .footer { display: flex; justify-content: space-between; border-top: 2px solid #111; margin-top: 0.14in; padding-top: 0.12in; font-size: 12px; font-weight: 700; }
 </style></head><body><div class="label">
-<div class="header"><h1>SHIPPING LABEL</h1><div class="reference">Order ${escapeHtml(order.reference)}</div>
+<div class="header"><div class="brand">MATHUKAI ORGANIC</div><h1>SHIPPING LABEL</h1><div class="reference">Order ${escapeHtml(order.reference)}</div>
 ${order.courier_name ? `<div class="meta">Courier: ${escapeHtml(order.courier_name)}</div>` : ''}
 ${order.tracking_number ? `<div class="meta">Tracking: ${escapeHtml(order.tracking_number)}</div>` : ''}
 ${order.package_weight_kg ? `<div class="meta">Weight: ${escapeHtml(order.package_weight_kg)} kg</div>` : ''}</div>
@@ -267,10 +279,14 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     return () => clearTimeout(timeout);
   }, [actionFeedback]);
 
+  const closeShippingLabel = useCallback(() => {
+    setLabelPreviewVisible(false);
+  }, []);
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (labelPreviewVisible) {
-        if (!labelBusy) setLabelPreviewVisible(false);
+        closeShippingLabel();
         return true;
       }
       if (addressEditorVisible) {
@@ -288,7 +304,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   }, [
     addressEditorVisible,
     addressSaving,
-    labelBusy,
+    closeShippingLabel,
     labelPreviewVisible,
     onBack,
     selectedAction,
@@ -481,6 +497,12 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   );
 
   const contactPhone = normalizedContactPhone(order.customer.phone);
+  const shippingBaseAmount = parseMoneyAmount(order.shipping_cost?.amount);
+  const fallbackShippingGst = shippingBaseAmount * 0.18;
+  const fallbackShippingTotal = shippingBaseAmount + fallbackShippingGst;
+  const shippingInputBaseAmount = parseMoneyAmount(shippingCost);
+  const shippingInputGst = shippingInputBaseAmount * 0.18;
+  const shippingInputTotal = shippingInputBaseAmount + shippingInputGst;
   const actionFormReady = selectedAction
     ? (!selectedAction.required_fields.includes('customer_phone') || customerPhone.replace(/\D/g, '').length >= 10)
       && (selectedAction.target_status !== 'shipped'
@@ -741,7 +763,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Courier" value={order.courier_name} />
         <DetailRow label="Tracking number" value={order.tracking_number} />
         <DetailRow label="Package weight" value={order.package_weight_kg ? `${order.package_weight_kg} kg` : null} />
-        <DetailRow label="Shipping cost" value={money(order.shipping_cost)} />
+        <DetailRow label="Shipping charge" value={money(order.shipping_cost)} />
+        <DetailRow label="GST (18%)" value={order.shipping_gst ? money(order.shipping_gst) : formatInrAmount(fallbackShippingGst)} />
+        <DetailRow label="Total shipping amount" value={order.shipping_total ? money(order.shipping_total) : formatInrAmount(fallbackShippingTotal)} />
         <DetailRow label="Order date" value={dateTime(order.order_date)} />
         {canPrintShippingLabel ? (
           <Pressable
@@ -754,20 +778,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         ) : null}
       </View>
 
-      <Modal animationType="slide" onRequestClose={() => !labelBusy && setLabelPreviewVisible(false)} visible={labelPreviewVisible}>
+      <Modal animationType="slide" onRequestClose={closeShippingLabel} visible={labelPreviewVisible}>
         <View style={styles.labelPreviewScreen}>
           <View style={styles.labelPreviewHeader}>
-            <Pressable
-              accessibilityLabel="Back to order details"
-              accessibilityRole="button"
-              disabled={labelBusy}
-              hitSlop={10}
-              onPress={() => setLabelPreviewVisible(false)}
-              style={({ pressed }) => [styles.labelBackButton, pressed && styles.pressed]}
-            >
-              <MaterialCommunityIcons color="#587066" name="arrow-left" size={24} />
-              <Text style={styles.labelBackText}>Back</Text>
-            </Pressable>
             <View style={styles.labelPreviewHeaderCopy}>
               <Text style={styles.labelPreviewTitle}>Shipping label</Text>
               <Text style={styles.labelPreviewSubtitle}>4 × 6 inches · {order.reference}</Text>
@@ -775,6 +788,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
           </View>
           <ScrollView contentContainerStyle={styles.labelPreviewScroll}>
             <View style={styles.labelSheet}>
+              <Text style={styles.labelBrand}>MATHUKAI ORGANIC</Text>
               <Text style={styles.labelSheetTitle}>SHIPPING LABEL</Text>
               <Text style={styles.labelSheetReference}>Order {order.reference}</Text>
               {order.courier_name ? <Text style={styles.labelSheetMeta}>Courier: {order.courier_name}</Text> : null}
@@ -795,6 +809,15 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             </View>
           </ScrollView>
           <View style={styles.labelActions}>
+            <Pressable
+              accessibilityLabel="Back to order details"
+              accessibilityRole="button"
+              onPress={closeShippingLabel}
+              style={({ pressed }) => [styles.labelFooterBackButton, pressed && styles.pressed]}
+            >
+              <MaterialCommunityIcons color="#29483D" name="arrow-left" size={21} />
+              <Text style={styles.labelFooterBackText}>Back</Text>
+            </Pressable>
             <Pressable disabled={labelBusy} onPress={() => void shareShippingLabel()} style={styles.shareLabelButton}>
               <MaterialCommunityIcons color="#0B5D3B" name="share-variant-outline" size={21} />
               <Text style={styles.shareLabelText}>Share PDF</Text>
@@ -908,8 +931,20 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                     <Text style={styles.formHint}>Enter the packed shipment weight in kilograms.</Text>
                   </View>
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Shipping cost</Text>
+                    <Text style={styles.formLabel}>Shipping charge before GST</Text>
                     <TextInput keyboardType="decimal-pad" onChangeText={setShippingCost} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={shippingCost} />
+                    {shippingInputBaseAmount > 0 ? (
+                      <View style={styles.shippingTaxPreview}>
+                        <View style={styles.shippingTaxRow}>
+                          <Text style={styles.shippingTaxLabel}>GST (18%)</Text>
+                          <Text style={styles.shippingTaxValue}>{formatInrAmount(shippingInputGst)}</Text>
+                        </View>
+                        <View style={styles.shippingTaxRow}>
+                          <Text style={styles.shippingTaxTotalLabel}>Total shipping amount</Text>
+                          <Text style={styles.shippingTaxTotalValue}>{formatInrAmount(shippingInputTotal)}</Text>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 </>
               ) : null}
@@ -1210,13 +1245,12 @@ const styles = StyleSheet.create({
   labelButtonText: { color: '#FFFFFF', fontWeight: '900' },
   labelPreviewScreen: { flex: 1, backgroundColor: '#EEF3F0' },
   labelPreviewHeader: { minHeight: 76, backgroundColor: '#FFFFFF', borderBottomColor: '#DCE5E1', borderBottomWidth: 1, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', columnGap: 12 },
-  labelBackButton: { minHeight: 44, borderRadius: 22, backgroundColor: '#F1F5F3', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', columnGap: 5 },
-  labelBackText: { color: '#29483D', fontSize: 14, fontWeight: '800' },
   labelPreviewHeaderCopy: { flex: 1 },
   labelPreviewTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' },
   labelPreviewSubtitle: { color: '#71867D', fontSize: 12, marginTop: 3 },
   labelPreviewScroll: { padding: 18, alignItems: 'center' },
   labelSheet: { width: '100%', maxWidth: 390, minHeight: 560, backgroundColor: '#FFFFFF', borderColor: '#17211D', borderWidth: 2, padding: 16 },
+  labelBrand: { color: '#111111', fontSize: 14, fontWeight: '900', letterSpacing: 0.8, marginBottom: 5 },
   labelSheetTitle: { color: '#111111', fontSize: 23, fontWeight: '900' },
   labelSheetReference: { color: '#111111', fontSize: 16, fontWeight: '900', borderBottomColor: '#111111', borderBottomWidth: 2, paddingBottom: 12, marginTop: 5, marginBottom: 6 },
   labelSheetMeta: { color: '#111111', fontSize: 12, fontWeight: '800', marginTop: 3 },
@@ -1226,11 +1260,13 @@ const styles = StyleSheet.create({
   labelSender: { color: '#111111', fontSize: 16, fontWeight: '900', marginBottom: 6 },
   labelAddress: { color: '#111111', fontSize: 14, lineHeight: 20 },
   labelPhone: { color: '#111111', fontSize: 13, fontWeight: '900', marginTop: 8 },
-  labelActions: { backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, padding: 14, flexDirection: 'row', columnGap: 10 },
+  labelActions: { backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, padding: 10, flexDirection: 'row', columnGap: 7 },
+  labelFooterBackButton: { flex: 0.8, minHeight: 52, borderColor: '#B9C8C2', borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 5 },
+  labelFooterBackText: { color: '#29483D', fontSize: 13, fontWeight: '900' },
   shareLabelButton: { flex: 1, minHeight: 52, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
-  shareLabelText: { color: '#0B5D3B', fontWeight: '900' },
+  shareLabelText: { color: '#0B5D3B', fontSize: 13, fontWeight: '900' },
   printLabelButton: { flex: 1, minHeight: 52, backgroundColor: '#0B5D3B', borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
-  printLabelText: { color: '#FFFFFF', fontWeight: '900' },
+  printLabelText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   itemDivider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 },
   itemCopy: { flex: 1, paddingRight: 12 },
@@ -1253,6 +1289,12 @@ const styles = StyleSheet.create({
   formGroup: { marginBottom: 16 },
   formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 },
   formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 },
+  shippingTaxPreview: { backgroundColor: '#F4FAF7', borderColor: '#DCE9E3', borderWidth: 1, borderRadius: 12, marginTop: 10, padding: 12, rowGap: 8 },
+  shippingTaxRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 12 },
+  shippingTaxLabel: { color: '#587066', fontSize: 12, fontWeight: '800' },
+  shippingTaxValue: { color: '#29483D', fontSize: 13, fontWeight: '900' },
+  shippingTaxTotalLabel: { color: '#17352A', fontSize: 13, fontWeight: '900' },
+  shippingTaxTotalValue: { color: '#0B5D3B', fontSize: 16, fontWeight: '900' },
   courierSelect: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   courierSelectText: { color: '#17352A', fontSize: 15, flex: 1 },
   courierPlaceholder: { color: '#82958D' },

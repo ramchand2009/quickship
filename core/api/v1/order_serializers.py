@@ -203,6 +203,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
     items = serializers.SerializerMethodField()
     courier_name = serializers.SerializerMethodField()
     shipping_cost = serializers.SerializerMethodField()
+    shipping_gst = serializers.SerializerMethodField()
+    shipping_total = serializers.SerializerMethodField()
     package_weight_kg = serializers.SerializerMethodField()
     payment_received_at = serializers.DateTimeField(allow_null=True)
     cancellation_reason = serializers.SerializerMethodField()
@@ -218,6 +220,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "items",
             "courier_name",
             "shipping_cost",
+            "shipping_gst",
+            "shipping_total",
             "package_weight_kg",
             "payment_received_at",
             "cancellation_reason",
@@ -319,6 +323,12 @@ class OrderDetailSerializer(OrderSummarySerializer):
 
     def get_shipping_cost(self, order):
         return _money(order.shipping_base_amount)
+
+    def get_shipping_gst(self, order):
+        return _money(order.shipping_tax_amount)
+
+    def get_shipping_total(self, order):
+        return _money(order.shipping_total_amount)
 
     def get_package_weight_kg(self, order):
         weight = order.package_weight_kg or Decimal("0.000")

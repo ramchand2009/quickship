@@ -1129,7 +1129,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/OrderSummary'
         - type: object
-          required: [customer, items, courier_name, shipping_cost, allowed_actions, activity]
+          required: [customer, items, courier_name, shipping_cost, shipping_gst, shipping_total, allowed_actions, activity]
           properties:
             customer:
               $ref: '#/components/schemas/CustomerSummary'
@@ -1141,6 +1141,13 @@ components:
               type: [string, 'null']
             shipping_cost:
               $ref: '#/components/schemas/Money'
+              description: Shipping charge before GST.
+            shipping_gst:
+              $ref: '#/components/schemas/Money'
+              description: GST calculated at 18% of the shipping charge.
+            shipping_total:
+              $ref: '#/components/schemas/Money'
+              description: Shipping charge plus 18% GST.
             payment_received_at:
               type: [string, 'null']
               format: date-time

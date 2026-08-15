@@ -74,6 +74,8 @@ export type OrderDetail = OrderSummary & {
   courier_name: string | null;
   package_weight_kg: string | null;
   shipping_cost: Money;
+  shipping_gst: Money;
+  shipping_total: Money;
   payment_received_at: string | null;
   cancellation_reason: string | null;
   cancellation_note: string | null;
