@@ -58,6 +58,7 @@ from .product_services import (
     mobile_product_routing_rules,
     mobile_stock_movement_queryset,
 )
+from .report_services import build_product_sales_report
 from .session_services import serialize_mobile_session, start_mobile_session
 from .token_services import (
     InvalidRefreshToken,
@@ -246,6 +247,24 @@ class MobileDashboardView(MobileReadEnabledMixin, APIView):
         response["ETag"] = etag
         response["Cache-Control"] = f"private, max-age={settings.MOBILE_DASHBOARD_CACHE_SECONDS}"
         return response
+
+
+class MobileProductSalesReportView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+        TenantMembership.ROLE_VENDOR_VIEWER,
+    ]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        query = DashboardQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response(build_product_sales_report(
+            tenant=request.tenant,
+            month=query.validated_data.get("month"),
+        ))
 
 
 class MobileExpenseListCreateView(MobileReadEnabledMixin, APIView):

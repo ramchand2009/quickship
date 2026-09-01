@@ -23,6 +23,7 @@ import type {
   NotificationPreferencesResponse,
 } from '../notifications/types';
 import type { ExpenseCreate, ExpenseListResponse } from '../expenses/types';
+import type { ProductSalesReportResponse } from '../reports/types';
 
 const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL
@@ -91,6 +92,12 @@ export async function currentSession(accessToken: string): Promise<MobileSession
 
 export async function dashboard(accessToken: string, month?: string): Promise<DashboardResponse> {
   return request<DashboardResponse>(`/dashboard${month ? `?month=${encodeURIComponent(month)}` : ''}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function productSalesReport(accessToken: string, month?: string): Promise<ProductSalesReportResponse> {
+  return request<ProductSalesReportResponse>(`/reports/product-sales${month ? `?month=${encodeURIComponent(month)}` : ''}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

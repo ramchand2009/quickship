@@ -22,9 +22,10 @@ import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
 import NotificationBridge from '../notifications/NotificationBridge';
 import NotificationsScreen from '../notifications/NotificationsScreen';
+import ProductSalesReportScreen from '../reports/ProductSalesReportScreen';
 import StockScreen from '../stock/StockScreen';
 
-type AppTab = 'dashboard' | 'orders' | 'expenses' | 'stock' | 'account' | 'notifications';
+type AppTab = 'dashboard' | 'orders' | 'expenses' | 'stock' | 'account' | 'notifications' | 'reports';
 type TabIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
 const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIconName }[] = [
@@ -124,7 +125,7 @@ function destinationWithOrderStatus(destination: string, status: string) {
   return `${path}?status=${encodeURIComponent(status)}${remainingParameters.length ? `&${remainingParameters.join('&')}` : ''}`;
 }
 
-function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => void }) {
+function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (destination: string) => void; onOpenProductReport: (month: string) => void }) {
   const { auth, runAuthenticated } = useAuth();
   const monthOptions = useMemo(() => dashboardMonthOptions(), []);
   const [selectedMonth, setSelectedMonth] = useState(() => monthKey(new Date()));
@@ -247,6 +248,20 @@ function DashboardScreen({ onNavigate }: { onNavigate: (destination: string) => 
           </Pressable>
         ))}
       </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => onOpenProductReport(selectedMonth)}
+        style={({ pressed }) => [styles.reportLinkCard, pressed && styles.pressed]}
+      >
+        <View style={styles.reportLinkIcon}>
+          <MaterialCommunityIcons color="#0B5D3B" name="chart-box-outline" size={24} />
+        </View>
+        <View style={styles.reportLinkCopy}>
+          <Text style={styles.reportLinkTitle}>Product sales report</Text>
+          <Text style={styles.reportLinkText}>Qty, sales and profit product-wise</Text>
+        </View>
+        <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
+      </Pressable>
 
       <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Order pipeline</Text>
       <View style={styles.metricGrid}>
@@ -457,6 +472,7 @@ export default function OperationsApp() {
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [openingOrders, setOpeningOrders] = useState(false);
+  const [reportInitialMonth, setReportInitialMonth] = useState<string | undefined>(undefined);
 
   const refreshUnreadCount = useCallback(async () => {
     if (!auth?.session.active_tenant) return;
@@ -484,6 +500,11 @@ export default function OperationsApp() {
     setOrdersInitialFilters(orderFiltersFromDestination(destination));
     setOrdersScreenKey((current) => current + 1);
     setActiveTab('orders');
+  }, []);
+
+  const openProductReport = useCallback((month: string) => {
+    setReportInitialMonth(month);
+    setActiveTab('reports');
   }, []);
 
   const openTab = useCallback(async (tab: AppTab) => {
@@ -516,6 +537,7 @@ export default function OperationsApp() {
   const title = useMemo(() => {
     if (activeTab === 'dashboard') return 'Mathukai Organic';
     if (activeTab === 'notifications') return 'Notifications';
+    if (activeTab === 'reports') return 'Sales Report';
     return TABS.find((tab) => tab.key === activeTab)?.label || '';
   }, [activeTab]);
   const userInitial = (auth?.session.user.display_name || 'A').trim().slice(0, 1).toUpperCase();
@@ -553,12 +575,13 @@ export default function OperationsApp() {
 
       <View style={styles.content}>
         <NotificationBridge onDestination={openDestination} onNotificationReceived={handleNotificationReceived} />
-        {activeTab === 'dashboard' ? <DashboardScreen key={`dashboard-${liveRefreshKey}`} onNavigate={openDestination} /> : null}
+        {activeTab === 'dashboard' ? <DashboardScreen key={`dashboard-${liveRefreshKey}`} onNavigate={openDestination} onOpenProductReport={openProductReport} /> : null}
         {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={`${ordersScreenKey}-${liveRefreshKey}`} /> : null}
         {activeTab === 'expenses' ? <ExpensesScreen /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
         {activeTab === 'notifications' ? <NotificationsScreen onOpenDestination={openDestination} onUnreadCountChange={setUnreadNotificationCount} /> : null}
+        {activeTab === 'reports' ? <ProductSalesReportScreen initialMonth={reportInitialMonth} onBack={() => setActiveTab('dashboard')} /> : null}
       </View>
 
       <View style={styles.tabBar}>
@@ -637,6 +660,11 @@ const styles = StyleSheet.create({
   performanceIcon: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#E7F5EB', alignItems: 'center', justifyContent: 'center' },
   performanceLabel: { color: '#64746D', fontSize: 11, fontWeight: '700', marginTop: 7 },
   performanceValue: { color: '#08733F', fontSize: 18, fontWeight: '900', marginTop: 4, maxWidth: '100%' },
+  reportLinkCard: { minHeight: 68, backgroundColor: '#FFFFFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 16, padding: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 },
+  reportLinkIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#EAF6EF', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  reportLinkCopy: { flex: 1 },
+  reportLinkTitle: { color: '#17352A', fontSize: 15, fontWeight: '900' },
+  reportLinkText: { color: '#71867D', fontSize: 12, marginTop: 3, fontWeight: '700' },
   monthHeading: { marginBottom: 10 },
   pipelineHeading: { marginTop: 22, marginBottom: 10 },
   periodRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },

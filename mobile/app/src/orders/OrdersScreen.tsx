@@ -763,9 +763,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Courier" value={order.courier_name} />
         <DetailRow label="Tracking number" value={order.tracking_number} />
         <DetailRow label="Package weight" value={order.package_weight_kg ? `${order.package_weight_kg} kg` : null} />
-        <DetailRow label="Shipping charge" value={money(order.shipping_cost)} />
+        <DetailRow label="Shipping amount" value={order.shipping_total ? money(order.shipping_total) : formatInrAmount(fallbackShippingTotal)} />
+        <DetailRow label="Shipping charge before GST" value={money(order.shipping_cost)} />
         <DetailRow label="GST (18%)" value={order.shipping_gst ? money(order.shipping_gst) : formatInrAmount(fallbackShippingGst)} />
-        <DetailRow label="Total shipping amount" value={order.shipping_total ? money(order.shipping_total) : formatInrAmount(fallbackShippingTotal)} />
         <DetailRow label="Order date" value={dateTime(order.order_date)} />
         {canPrintShippingLabel ? (
           <Pressable
