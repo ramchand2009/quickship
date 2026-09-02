@@ -101,6 +101,7 @@ from .models import (
     ShiprocketOrder,
     StockMovement,
     Tenant,
+    TenantMembership,
     TenantWooCommerceMappingRule,
     VendorSettlement,
     WhatsAppNotificationLog,
