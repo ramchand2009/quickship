@@ -76,6 +76,7 @@ from .forms import (
     ShiprocketOrderTrackingUpdateForm,
     SignUpForm,
     SpecialStockIssueForm,
+    StaffAccountForm,
     StockAdjustmentForm,
     TenantWooCommerceMappingRuleForm,
     VendorProfileForm,
@@ -842,6 +843,30 @@ def _settings_tenant_for_request(request):
     if is_super_admin(getattr(request, "user", None)):
         return Tenant.get_default()
     return None
+
+
+def _staff_accounts_tenants_for_request(request):
+    user = getattr(request, "user", None)
+    if is_super_admin(user):
+        return Tenant.objects.filter(is_active=True).order_by("name")
+    tenant = get_active_tenant(request)
+    if tenant is not None and can_manage_vendor_settings(user, tenant):
+        return Tenant.objects.filter(pk=tenant.pk)
+    return Tenant.objects.none()
+
+
+def _selected_staff_accounts_tenant(request, tenants):
+    tenant_id = str(request.POST.get("tenant") or request.GET.get("tenant") or "").strip()
+    if tenant_id.isdigit():
+        tenant = tenants.filter(pk=int(tenant_id)).first()
+        if tenant is not None:
+            return tenant
+    default_tenant = _settings_tenant_for_request(request)
+    if default_tenant is not None:
+        tenant = tenants.filter(pk=default_tenant.pk).first()
+        if tenant is not None:
+            return tenant
+    return tenants.first()
 
 
 def _sender_address_for_tenant(tenant):
@@ -3687,6 +3712,8 @@ def _render_shipping_label_pdf_page(pdf_canvas, order, sender):
     if tracking_number:
         pdf_canvas.setFont("Helvetica-Bold", 9)
         pdf_canvas.drawRightString(content_x + content_width, header_meta_top - 0.18 * inch, f"Tracking: {tracking_number}")
+    pdf_canvas.setFont("Helvetica-Bold", 9)
+    pdf_canvas.drawRightString(content_x + content_width, header_meta_top - 0.36 * inch, "India Post Customer ID: 1828524916")
 
     section_gap = 0.14 * inch
     section_inner_width = content_width - 0.22 * inch
@@ -3976,6 +4003,107 @@ def ops_print_queue(request):
         }
     )
     return render(request, "core/print_queue.html", context)
+
+
+@login_required
+def staff_accounts(request):
+    tenants = _staff_accounts_tenants_for_request(request)
+    if not tenants.exists():
+        messages.error(request, "Your role cannot manage staff accounts.")
+        return redirect("order_management")
+
+    allow_tenant_choice = is_super_admin(request.user)
+    selected_tenant = _selected_staff_accounts_tenant(request, tenants)
+
+    def redirect_back():
+        url = reverse("staff_accounts")
+        if allow_tenant_choice and selected_tenant is not None:
+            url = f"{url}?tenant={selected_tenant.pk}"
+        return redirect(url)
+
+    form = StaffAccountForm(
+        tenants=tenants,
+        selected_tenant=selected_tenant,
+        allow_tenant_choice=allow_tenant_choice,
+    )
+
+    manageable_roles = {
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+        TenantMembership.ROLE_WAREHOUSE_OPERATOR,
+        TenantMembership.ROLE_VENDOR_VIEWER,
+    }
+
+    if request.method == "POST":
+        action = str(request.POST.get("form_action") or "").strip()
+        if action == "create_staff":
+            form = StaffAccountForm(
+                request.POST,
+                tenants=tenants,
+                selected_tenant=selected_tenant,
+                allow_tenant_choice=allow_tenant_choice,
+            )
+            if form.is_valid():
+                membership = form.save()
+                messages.success(request, f"Created staff account {membership.user.username}.")
+                selected_tenant = membership.tenant
+                return redirect_back()
+            messages.error(request, "Unable to create staff account. Check the form fields.")
+        elif action in {"activate_staff", "deactivate_staff", "reset_password"}:
+            membership_id = str(request.POST.get("membership_id") or "").strip()
+            membership = (
+                TenantMembership.objects.select_related("tenant", "user")
+                .filter(pk=int(membership_id), tenant__in=tenants)
+                .first()
+                if membership_id.isdigit()
+                else None
+            )
+            if membership is None or membership.role not in manageable_roles:
+                messages.error(request, "Staff account was not found.")
+                return redirect_back()
+            selected_tenant = membership.tenant
+            if action == "reset_password":
+                new_password = str(request.POST.get("new_password") or "")
+                if len(new_password) < 8:
+                    messages.error(request, "New password must be at least 8 characters.")
+                    return redirect_back()
+                membership.user.set_password(new_password)
+                membership.user.save(update_fields=["password"])
+                messages.success(request, f"Password reset for {membership.user.username}.")
+                return redirect_back()
+            membership.is_active = action == "activate_staff"
+            membership.save(update_fields=["is_active", "updated_at"])
+            if not membership.user.is_superuser and not membership.user.is_staff:
+                membership.user.is_active = membership.is_active
+                membership.user.save(update_fields=["is_active"])
+            status_label = "activated" if membership.is_active else "deactivated"
+            messages.success(request, f"{membership.user.username} {status_label}.")
+            return redirect_back()
+        else:
+            messages.error(request, "Invalid staff account action.")
+            return redirect_back()
+
+    staff_memberships = TenantMembership.objects.none()
+    if selected_tenant is not None:
+        staff_memberships = (
+            TenantMembership.objects.select_related("user", "tenant")
+            .filter(tenant=selected_tenant, role__in=manageable_roles)
+            .order_by("-is_active", "user__username")
+        )
+
+    return render(
+        request,
+        "core/staff_accounts.html",
+        {
+            "current": "staff_accounts",
+            "form": form,
+            "allow_tenant_choice": allow_tenant_choice,
+            "selected_tenant": selected_tenant,
+            "tenants": tenants,
+            "staff_memberships": staff_memberships,
+            "active_staff_count": staff_memberships.filter(is_active=True).count() if selected_tenant else 0,
+            "inactive_staff_count": staff_memberships.filter(is_active=False).count() if selected_tenant else 0,
+        },
+    )
 
 
 @login_required

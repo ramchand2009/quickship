@@ -253,6 +253,84 @@ class LoginForm(AuthenticationForm):
         return cleaned_data
 
 
+class StaffAccountForm(forms.Form):
+    username = forms.CharField(label="Username", max_length=150)
+    full_name = forms.CharField(label="Staff Name", max_length=150, required=False)
+    email = forms.EmailField(label="Email", required=False)
+    password1 = forms.CharField(label="Password", widget=forms.PasswordInput)
+    password2 = forms.CharField(label="Confirm Password", widget=forms.PasswordInput)
+    role = forms.ChoiceField(
+        label="Access Role",
+        choices=[
+            (TenantMembership.ROLE_VENDOR_OPERATOR, "Order Staff"),
+            (TenantMembership.ROLE_WAREHOUSE_OPERATOR, "Stock / Packing Staff"),
+            (TenantMembership.ROLE_VENDOR_VIEWER, "Viewer Only"),
+        ],
+    )
+    tenant = forms.ModelChoiceField(label="Workspace", queryset=Tenant.objects.none(), required=False)
+
+    def __init__(self, *args, tenants=None, selected_tenant=None, allow_tenant_choice=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.selected_tenant = selected_tenant
+        self.allow_tenant_choice = allow_tenant_choice
+        self.fields["tenant"].queryset = tenants if tenants is not None else Tenant.objects.none()
+        self.fields["tenant"].required = bool(allow_tenant_choice)
+        if selected_tenant and not allow_tenant_choice:
+            self.fields["tenant"].initial = selected_tenant
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form-control"
+        self.fields["role"].widget.attrs["class"] = "form-select form-control"
+        self.fields["tenant"].widget.attrs["class"] = "form-select form-control"
+        self.fields["username"].widget.attrs["placeholder"] = "Example: packingstaff"
+        self.fields["full_name"].widget.attrs["placeholder"] = "Example: Packing Staff"
+        self.fields["email"].widget.attrs["placeholder"] = "Optional"
+        self.fields["password1"].widget.attrs["placeholder"] = "Minimum 8 characters"
+        self.fields["password2"].widget.attrs["placeholder"] = "Repeat password"
+
+    def clean_username(self):
+        username = str(self.cleaned_data.get("username") or "").strip()
+        if not username:
+            raise forms.ValidationError("Enter a username.")
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username already exists.")
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1") or ""
+        password2 = cleaned_data.get("password2") or ""
+        if password1 and len(password1) < 8:
+            self.add_error("password1", "Password must be at least 8 characters.")
+        if password1 and password2 and password1 != password2:
+            self.add_error("password2", "Passwords do not match.")
+        if not self.allow_tenant_choice and not self.selected_tenant:
+            raise forms.ValidationError("No active workspace was found for this account.")
+        return cleaned_data
+
+    def save(self):
+        tenant = self.cleaned_data.get("tenant") if self.allow_tenant_choice else self.selected_tenant
+        full_name = str(self.cleaned_data.get("full_name") or "").strip()
+        first_name, _, last_name = full_name.partition(" ")
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=self.cleaned_data["username"],
+                email=str(self.cleaned_data.get("email") or "").strip(),
+                password=self.cleaned_data["password1"],
+                first_name=first_name,
+                last_name=last_name,
+                is_staff=False,
+                is_superuser=False,
+                is_active=True,
+            )
+            membership = TenantMembership.objects.create(
+                tenant=tenant,
+                user=user,
+                role=self.cleaned_data["role"],
+                is_active=True,
+            )
+        return membership
+
+
 class ShiprocketOrderManualUpdateForm(forms.ModelForm):
     class Meta:
         model = ShiprocketOrder

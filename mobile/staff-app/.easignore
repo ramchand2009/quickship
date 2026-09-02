@@ -1,0 +1,28 @@
+# Dependencies and generated native projects are recreated by EAS.
+node_modules/
+android/
+ios/
+
+# Local Expo, Metro, and build output.
+.expo/
+dist/
+web-build/
+.kotlin/
+.metro-health-check*
+*.tsbuildinfo
+*.log
+
+# Local environment and signing material.
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+
+# Editor and OS files.
+.DS_Store
+Thumbs.db

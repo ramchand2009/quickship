@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Mathukai Staff",
+    "slug": "mathukai-staff",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/mathukai-organic-logo-transparent.png",
+    "scheme": "mathukai-staff",
+    "userInterfaceStyle": "automatic",
+    "platforms": [
+      "android"
+    ],
+    "android": {
+      "package": "com.mathukai.staff",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/mathukai-organic-logo-transparent.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F7FAF8",
+          "image": "./assets/images/mathukai-organic-logo-transparent.png",
+          "imageWidth": 180
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}

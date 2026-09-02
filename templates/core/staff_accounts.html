@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Accounts | Mathukai{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-block">
+        <div class="row align-items-center">
+            <div class="col-md-12">
+                <div class="page-header-title">
+                    <h5 class="m-b-10">Staff Accounts</h5>
+                </div>
+                <ul class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}"><i class="feather icon-home"></i></a></li>
+                    <li class="breadcrumb-item">Staff Accounts</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Create Staff Login</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="create_staff">
+
+                    {% if allow_tenant_choice %}
+                        <div class="form-group">
+                            <label for="{{ form.tenant.id_for_label }}">{{ form.tenant.label }}</label>
+                            {{ form.tenant }}
+                            {% if form.tenant.errors %}
+                                <div class="text-danger small mt-1">{{ form.tenant.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+                        {{ form.username }}
+                        {% if form.username.errors %}
+                            <div class="text-danger small mt-1">{{ form.username.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.full_name.id_for_label }}">{{ form.full_name.label }}</label>
+                        {{ form.full_name }}
+                        {% if form.full_name.errors %}
+                            <div class="text-danger small mt-1">{{ form.full_name.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <div class="text-danger small mt-1">{{ form.email.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.role.id_for_label }}">{{ form.role.label }}</label>
+                        {{ form.role }}
+                        {% if form.role.errors %}
+                            <div class="text-danger small mt-1">{{ form.role.errors|join:", " }}</div>
+                        {% endif %}
+                        <div class="small text-muted mt-1">Order Staff is recommended for daily order processing.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.password1.id_for_label }}">{{ form.password1.label }}</label>
+                        {{ form.password1 }}
+                        {% if form.password1.errors %}
+                            <div class="text-danger small mt-1">{{ form.password1.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.password2.id_for_label }}">{{ form.password2.label }}</label>
+                        {{ form.password2 }}
+                        {% if form.password2.errors %}
+                            <div class="text-danger small mt-1">{{ form.password2.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors|join:", " }}</div>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary w-100">Create Staff Account</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3 class="mb-1">{{ active_staff_count }}</h3>
+                        <p class="text-muted mb-0">Active</p>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="mb-1">{{ inactive_staff_count }}</h3>
+                        <p class="text-muted mb-0">Inactive</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0">Staff List</h5>
+                    {% if selected_tenant %}
+                        <small class="text-muted">{{ selected_tenant.name }}</small>
+                    {% endif %}
+                </div>
+                {% if allow_tenant_choice %}
+                    <form method="get" class="d-flex align-items-center gap-2">
+                        <select name="tenant" class="form-select form-control" onchange="this.form.submit()">
+                            {% for tenant in tenants %}
+                                <option value="{{ tenant.pk }}" {% if selected_tenant and tenant.pk == selected_tenant.pk %}selected{% endif %}>{{ tenant.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if staff_memberships %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Staff</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th style="min-width: 250px;">Password Reset</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for membership in staff_memberships %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ membership.user.get_full_name|default:membership.user.username }}</strong>
+                                            <div class="small text-muted">{{ membership.user.username }}{% if membership.user.email %} · {{ membership.user.email }}{% endif %}</div>
+                                        </td>
+                                        <td>{{ membership.get_role_display }}</td>
+                                        <td>
+                                            {% if membership.is_active and membership.user.is_active %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <form method="post" class="d-flex gap-2">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="form_action" value="reset_password">
+                                                <input type="hidden" name="membership_id" value="{{ membership.pk }}">
+                                                <input type="password" name="new_password" class="form-control form-control-sm" placeholder="New password">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">Reset</button>
+                                            </form>
+                                        </td>
+                                        <td class="text-right">
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="membership_id" value="{{ membership.pk }}">
+                                                {% if membership.is_active and membership.user.is_active %}
+                                                    <input type="hidden" name="form_action" value="deactivate_staff">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                                                {% else %}
+                                                    <input type="hidden" name="form_action" value="activate_staff">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">Activate</button>
+                                                {% endif %}
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info mb-0">No staff accounts created yet.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>Access guide:</strong>
+            Order Staff can process orders. Stock / Packing Staff is for packing and stock work. Viewer Only can check information without making changes.
+        </div>
+    </div>
+</div>
+{% endblock %}
