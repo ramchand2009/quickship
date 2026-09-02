@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from rest_framework import serializers
 
-from core.models import ShiprocketOrder, TenantMembership
+from core.models import OrderActivityLog, ShiprocketOrder, TenantMembership
 
 from .session_services import ROLE_PERMISSIONS
 
@@ -92,6 +92,32 @@ class ShippingAddressUpdateSerializer(serializers.Serializer):
         return value
 
 
+class OrderIssueFlagSerializer(serializers.Serializer):
+    expected_version = serializers.CharField(max_length=32)
+    reason = serializers.ChoiceField(
+        choices=[
+            ("address_issue", "Address issue"),
+            ("payment_issue", "Payment issue"),
+            ("stock_issue", "Stock issue"),
+            ("courier_issue", "Courier issue"),
+            ("customer_unreachable", "Customer unreachable"),
+            ("other", "Other"),
+        ],
+    )
+    note = serializers.CharField(max_length=300, trim_whitespace=True)
+
+    def validate_expected_version(self, value):
+        if not str(value).isdigit():
+            raise serializers.ValidationError("Enter a valid order version.")
+        return str(value)
+
+    def validate_note(self, value):
+        value = str(value or "").strip()
+        if len(value) < 3:
+            raise serializers.ValidationError("Enter a short note for the issue.")
+        return value
+
+
 class OrderListQuerySerializer(serializers.Serializer):
     search = serializers.CharField(required=False, allow_blank=True, max_length=160, trim_whitespace=True)
     status = serializers.ChoiceField(required=False, choices=ShiprocketOrder.STATUS_CHOICES)
@@ -119,6 +145,7 @@ class OrderSummarySerializer(serializers.ModelSerializer):
     total = serializers.SerializerMethodField()
     tracking_number = serializers.SerializerMethodField()
     attention_required = serializers.SerializerMethodField()
+    issue_flag = serializers.SerializerMethodField()
     version = serializers.SerializerMethodField()
 
     class Meta:
@@ -135,6 +162,7 @@ class OrderSummarySerializer(serializers.ModelSerializer):
             "order_date",
             "tracking_number",
             "attention_required",
+            "issue_flag",
             "version",
             "updated_at",
         ]
@@ -183,6 +211,45 @@ class OrderSummarySerializer(serializers.ModelSerializer):
 
     def get_attention_required(self, order):
         return order.local_status == ShiprocketOrder.STATUS_DELIVERY_ISSUE
+
+    def get_issue_flag(self, order):
+        if order.local_status != ShiprocketOrder.STATUS_DELIVERY_ISSUE:
+            return None
+        latest_issue = (
+            OrderActivityLog.objects.filter(
+                order=order,
+                metadata__source="mobile_api",
+                metadata__action="flag_issue",
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if latest_issue is None:
+            return {
+                "reason": None,
+                "reason_label": "Needs attention",
+                "note": None,
+                "created_at": None,
+                "actor_display_name": None,
+            }
+        metadata = latest_issue.metadata if isinstance(latest_issue.metadata, dict) else {}
+        reason = metadata.get("reason") or None
+        reason_labels = {
+            "address_issue": "Address issue",
+            "payment_issue": "Payment issue",
+            "stock_issue": "Stock issue",
+            "courier_issue": "Courier issue",
+            "customer_unreachable": "Customer unreachable",
+            "other": "Other",
+        }
+        role = self.context.get("role")
+        return {
+            "reason": reason,
+            "reason_label": reason_labels.get(reason, "Needs attention"),
+            "note": latest_issue.description if role in FULL_ORDER_DETAIL_ROLES else None,
+            "created_at": latest_issue.created_at,
+            "actor_display_name": latest_issue.triggered_by if role in FULL_ORDER_DETAIL_ROLES else None,
+        }
 
     def get_version(self, order):
         return str(order.version)
@@ -407,6 +474,25 @@ class OrderDetailSerializer(OrderSummarySerializer):
                     "confirmation_required": True,
                     "reason_required": False,
                     "required_fields": [],
+                }
+            )
+        if (
+            "orders.update_status" in permissions
+            and order.local_status
+            not in {
+                ShiprocketOrder.STATUS_DELIVERED,
+                ShiprocketOrder.STATUS_COMPLETED,
+                ShiprocketOrder.STATUS_CANCELLED,
+            }
+        ):
+            actions.append(
+                {
+                    "code": "flag_issue",
+                    "label": "Flag issue",
+                    "target_status": None,
+                    "confirmation_required": True,
+                    "reason_required": True,
+                    "required_fields": ["issue_reason", "issue_note"],
                 }
             )
         return actions

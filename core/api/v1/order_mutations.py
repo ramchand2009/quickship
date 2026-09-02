@@ -23,6 +23,15 @@ from .exceptions import BusinessRuleError, ConflictError
 from .order_serializers import OrderDetailSerializer
 from .order_services import mobile_order_detail
 
+ISSUE_REASON_LABELS = {
+    "address_issue": "Address issue",
+    "payment_issue": "Payment issue",
+    "stock_issue": "Stock issue",
+    "courier_issue": "Courier issue",
+    "customer_unreachable": "Customer unreachable",
+    "other": "Other",
+}
+
 
 def _fingerprint(*, operation, order_id, payload):
     canonical = json.dumps(
@@ -383,6 +392,68 @@ def update_shipping_address(*, session, tenant, role, actor, order_id, idempoten
                 previous_status=order.local_status,
                 current_status=order.local_status,
                 metadata={"source": "mobile_api", "idempotency_key": idempotency_key},
+                is_success=True,
+                triggered_by=actor,
+            )
+
+        payload = _serialize_result(tenant=tenant, order_id=order_id, role=role, effects=[])
+        _complete_receipt(receipt, {"order_id": order_id, "effects": []})
+        return payload
+    except Exception:
+        _delete_failed_receipt(receipt)
+        raise
+
+
+def flag_order_issue(*, session, tenant, role, actor, order_id, idempotency_key, values):
+    request_hash = _fingerprint(operation="flag_issue", order_id=order_id, payload=values)
+    receipt, replay = _begin_receipt(
+        session=session,
+        tenant=tenant,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
+    )
+    if replay is not None:
+        return _serialize_result(
+            tenant=tenant,
+            order_id=order_id,
+            role=role,
+            effects=replay.get("effects") or [],
+            replayed=True,
+        )
+
+    try:
+        with transaction.atomic():
+            order = ShiprocketOrder.objects.select_for_update().filter(tenant=tenant, pk=order_id).first()
+            if order is None:
+                raise NotFound("The requested resource is unavailable.")
+            if str(order.version) != values["expected_version"]:
+                raise ConflictError(fields={"expected_version": ["Refresh the order and try again."]})
+            if order.local_status in {
+                ShiprocketOrder.STATUS_DELIVERED,
+                ShiprocketOrder.STATUS_COMPLETED,
+                ShiprocketOrder.STATUS_CANCELLED,
+            }:
+                raise BusinessRuleError("This order is already closed.")
+
+            previous_status = order.local_status
+            reason = values["reason"]
+            note = str(values.get("note") or "").strip()
+            order.local_status = ShiprocketOrder.STATUS_DELIVERY_ISSUE
+            order.version += 1
+            order.save(update_fields=["local_status", "version", "updated_at"])
+            log_order_activity(
+                order=order,
+                event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                title=f"Order issue flagged: {ISSUE_REASON_LABELS.get(reason, 'Needs attention')}",
+                description=note,
+                previous_status=previous_status,
+                current_status=order.local_status,
+                metadata={
+                    "source": "mobile_api",
+                    "action": "flag_issue",
+                    "reason": reason,
+                    "idempotency_key": idempotency_key,
+                },
                 is_success=True,
                 triggered_by=actor,
             )

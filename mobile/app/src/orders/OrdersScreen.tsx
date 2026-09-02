@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { Money, OrderAction, OrderDetail, OrderListFilters, OrderStatusUpdate, OrderSummary, ShippingAddress } from './types';
+import type { Money, OrderAction, OrderDetail, OrderIssueFlagUpdate, OrderListFilters, OrderStatusUpdate, OrderSummary, ShippingAddress } from './types';
 
 const STATUS_FILTERS = [
   { code: '', label: 'All' },
@@ -41,6 +41,15 @@ const CANCELLATION_REASONS = [
   { code: 'out_of_stock', label: 'Out of stock' },
   { code: 'address_issue', label: 'Address issue' },
   { code: 'courier_issue', label: 'Courier issue' },
+  { code: 'other', label: 'Other' },
+];
+
+const ISSUE_REASONS = [
+  { code: 'address_issue', label: 'Address issue' },
+  { code: 'payment_issue', label: 'Payment issue' },
+  { code: 'stock_issue', label: 'Stock issue' },
+  { code: 'courier_issue', label: 'Courier issue' },
+  { code: 'customer_unreachable', label: 'Customer unreachable' },
   { code: 'other', label: 'Other' },
 ];
 
@@ -69,6 +78,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 function actionLabel(action: OrderAction) {
   if (action.code === 'mark_payment_received') return 'Mark payment received';
+  if (action.code === 'flag_issue') return 'Flag issue';
   return ACTION_LABELS[action.target_status || ''] || action.label;
 }
 
@@ -247,6 +257,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [shippingCost, setShippingCost] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationNote, setCancellationNote] = useState('');
+  const [issueReason, setIssueReason] = useState('address_issue');
+  const [issueNote, setIssueNote] = useState('');
   const [labelPreviewVisible, setLabelPreviewVisible] = useState(false);
   const [labelBusy, setLabelBusy] = useState(false);
   const [addressEditorVisible, setAddressEditorVisible] = useState(false);
@@ -383,6 +395,31 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     }
   };
 
+  const submitIssueFlag = async () => {
+    if (!order || submittingAction) return;
+    const values: OrderIssueFlagUpdate = {
+      expected_version: order.version,
+      reason: issueReason,
+      note: issueNote.trim(),
+    };
+    setActionFeedback('');
+    setActionProgressLabel('Flagging issue...');
+    setSubmittingAction(true);
+    try {
+      const response = await runAuthenticated((token) => api.flagOrderIssue(
+        token,
+        order.id,
+        values,
+        newIdempotencyKey(),
+      ));
+      applyMutationResult(response.data.order, []);
+    } catch (reason) {
+      await handleMutationError(reason);
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   const openAction = (action: OrderAction) => {
     if (action.code === 'mark_payment_received') {
       Alert.alert(
@@ -393,6 +430,12 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
           { text: 'Payment received', onPress: () => void submitPaymentReceived() },
         ],
       );
+      return;
+    }
+    if (action.code === 'flag_issue') {
+      setIssueReason(order?.issue_flag?.reason || 'address_issue');
+      setIssueNote(order?.issue_flag?.note || '');
+      setSelectedAction(action);
       return;
     }
     const needsForm = action.required_fields.length > 0 || action.reason_required;
@@ -421,6 +464,10 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   const submitActionForm = () => {
     if (!selectedAction) return;
+    if (selectedAction.code === 'flag_issue') {
+      void submitIssueFlag();
+      return;
+    }
     const values: Partial<OrderStatusUpdate> = {};
     if (selectedAction.required_fields.includes('customer_phone')) values.customer_phone = customerPhone.trim();
     if (selectedAction.target_status === 'shipped') {
@@ -509,7 +556,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const shippingInputGst = shippingInputBaseAmount * 0.18;
   const shippingInputTotal = shippingInputBaseAmount + shippingInputGst;
   const actionFormReady = selectedAction
-    ? (!selectedAction.required_fields.includes('customer_phone') || customerPhone.replace(/\D/g, '').length >= 10)
+    ? (selectedAction.code !== 'flag_issue' || Boolean(issueReason && issueNote.trim().length >= 3))
+      && (!selectedAction.required_fields.includes('customer_phone') || customerPhone.replace(/\D/g, '').length >= 10)
       && (selectedAction.target_status !== 'shipped'
         || Boolean(
           courierName.trim()
@@ -615,6 +663,22 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         </View>
       </View>
 
+      {order.issue_flag ? (
+        <View style={styles.issueBanner}>
+          <MaterialCommunityIcons color="#B77900" name="alert-circle-outline" size={22} />
+          <View style={styles.issueBannerCopy}>
+            <Text style={styles.issueBannerTitle}>{order.issue_flag.reason_label}</Text>
+            {order.issue_flag.note ? <Text style={styles.issueBannerText}>{order.issue_flag.note}</Text> : null}
+            <Text style={styles.issueBannerMeta}>
+              {[
+                order.issue_flag.actor_display_name ? `Flagged by ${order.issue_flag.actor_display_name}` : '',
+                order.issue_flag.created_at ? dateTime(order.issue_flag.created_at) : '',
+              ].filter(Boolean).join(' · ') || 'Needs owner attention'}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       {order.allowed_actions.length ? (
         <>
           <Text style={styles.sectionTitle}>Order actions</Text>
@@ -623,23 +687,25 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             <View style={styles.actionList}>
               {order.allowed_actions.map((action) => {
                 const destructive = action.target_status === 'order_cancelled';
+                const issueAction = action.code === 'flag_issue';
                 return (
                   <Pressable
                     disabled={submittingAction}
-                    key={`${action.code}-${action.target_status || 'payment'}`}
+                    key={`${action.code}-${action.target_status || 'custom'}`}
                     onPress={() => openAction(action)}
                     style={({ pressed }) => [
                       styles.actionButton,
                       destructive && styles.destructiveActionButton,
+                      issueAction && styles.issueActionButton,
                       (pressed || submittingAction) && styles.pressed,
                     ]}
                   >
                     <MaterialCommunityIcons
-                      color={destructive ? '#B42318' : '#0B5D3B'}
-                      name={action.code === 'mark_payment_received' ? 'cash-check' : destructive ? 'close-circle-outline' : 'arrow-right-circle-outline'}
+                      color={destructive ? '#B42318' : issueAction ? '#B77900' : '#0B5D3B'}
+                      name={action.code === 'mark_payment_received' ? 'cash-check' : issueAction ? 'alert-circle-outline' : destructive ? 'close-circle-outline' : 'arrow-right-circle-outline'}
                       size={21}
                     />
-                    <Text style={[styles.actionButtonText, destructive && styles.destructiveActionText]}>{actionLabel(action)}</Text>
+                    <Text style={[styles.actionButtonText, destructive && styles.destructiveActionText, issueAction && styles.issueActionText]}>{actionLabel(action)}</Text>
                   </Pressable>
                 );
               })}
@@ -954,6 +1020,35 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                   </View>
                 </>
               ) : null}
+              {selectedAction?.code === 'flag_issue' ? (
+                <>
+                  <Text style={styles.formLabel}>Issue reason</Text>
+                  <View style={styles.reasonGrid}>
+                    {ISSUE_REASONS.map((reason) => (
+                      <Pressable
+                        key={reason.code}
+                        onPress={() => setIssueReason(reason.code)}
+                        style={[styles.reasonChip, issueReason === reason.code && styles.reasonChipActive]}
+                      >
+                        <Text style={[styles.reasonChipText, issueReason === reason.code && styles.reasonChipTextActive]}>{reason.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Note *</Text>
+                    <TextInput
+                      maxLength={300}
+                      multiline
+                      onChangeText={setIssueNote}
+                      placeholder="Example: Customer address is incomplete, please review before shipping."
+                      placeholderTextColor="#82958D"
+                      style={[styles.formInput, styles.formTextArea]}
+                      value={issueNote}
+                    />
+                    <Text style={styles.formHint}>This will move the order to Needs attention and save the note in activity.</Text>
+                  </View>
+                </>
+              ) : null}
               {selectedAction?.target_status === 'order_cancelled' ? (
                 <>
                   <Text style={styles.formLabel}>Cancellation reason</Text>
@@ -1226,6 +1321,11 @@ const styles = StyleSheet.create({
   heroTotals: { borderTopColor: '#E4EAE7', borderTopWidth: 1, marginTop: 18, paddingTop: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   heroTotal: { color: '#17352A', fontSize: 24, fontWeight: '900' },
   paymentText: { color: '#587066', fontSize: 12, fontWeight: '700' },
+  issueBanner: { backgroundColor: '#FFF8E7', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 16, padding: 14, marginTop: -10, marginBottom: 22, flexDirection: 'row', columnGap: 10 },
+  issueBannerCopy: { flex: 1 },
+  issueBannerTitle: { color: '#7A4A00', fontSize: 15, fontWeight: '900' },
+  issueBannerText: { color: '#4F3B17', fontSize: 13, lineHeight: 19, marginTop: 5 },
+  issueBannerMeta: { color: '#8A6A2A', fontSize: 11, fontWeight: '700', marginTop: 7 },
   sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 },
   sectionTitleRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   sectionTitleInRow: { marginBottom: 0 },
@@ -1238,6 +1338,8 @@ const styles = StyleSheet.create({
   actionButtonText: { color: '#0B5D3B', fontSize: 14, fontWeight: '800' },
   destructiveActionButton: { backgroundColor: '#FFF6F5', borderColor: '#F1C0BC' },
   destructiveActionText: { color: '#B42318' },
+  issueActionButton: { backgroundColor: '#FFF8E7', borderColor: '#F0D08D' },
+  issueActionText: { color: '#9A5B00' },
   detailRow: { marginBottom: 13 },
   detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   detailValue: { color: '#29483D', fontSize: 15, lineHeight: 21, fontWeight: '600', marginTop: 4 },

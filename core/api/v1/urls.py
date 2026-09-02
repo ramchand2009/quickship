@@ -12,6 +12,7 @@ from .views import (
     MobileLogoutView,
     MobileOrderListView,
     MobileOrderDetailView,
+    MobileOrderIssueFlagView,
     MobileOrderPaymentReceivedView,
     MobileOrderShippingAddressView,
     MobileOrderStatusView,
@@ -42,6 +43,7 @@ urlpatterns = [
     path("expenses/<int:expense_id>", MobileExpenseDetailView.as_view(), name="expense_detail"),
     path("orders", MobileOrderListView.as_view(), name="orders"),
     path("orders/<int:order_id>", MobileOrderDetailView.as_view(), name="order_detail"),
+    path("orders/<int:order_id>/issue", MobileOrderIssueFlagView.as_view(), name="order_issue"),
     path("orders/<int:order_id>/status", MobileOrderStatusView.as_view(), name="order_status"),
     path(
         "orders/<int:order_id>/payment-received",

@@ -13,8 +13,17 @@ export type OrderSummary = {
   order_date: string | null;
   tracking_number: string | null;
   attention_required: boolean;
+  issue_flag: OrderIssueFlag | null;
   version: string;
   updated_at: string;
+};
+
+export type OrderIssueFlag = {
+  reason: string | null;
+  reason_label: string;
+  note: string | null;
+  created_at: string | null;
+  actor_display_name: string | null;
 };
 
 export type OrderCustomer = {
@@ -60,7 +69,7 @@ export type OrderActivity = {
 };
 
 export type OrderAction = {
-  code: 'update_status' | 'mark_payment_received';
+  code: 'update_status' | 'mark_payment_received' | 'flag_issue';
   label: string;
   target_status: string | null;
   confirmation_required: boolean;
@@ -121,6 +130,12 @@ export type OrderStatusUpdate = {
   shipping_base_amount?: string;
   cancellation_reason?: string;
   cancellation_note?: string;
+};
+
+export type OrderIssueFlagUpdate = {
+  expected_version: string;
+  reason: string;
+  note: string;
 };
 
 export type MutationEffect = {

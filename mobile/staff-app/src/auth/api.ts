@@ -1,6 +1,7 @@
 import type { ApiErrorBody, AuthTokens, DashboardResponse, MobileSession, StoredAuth } from './types';
 import type {
   OrderDetailResponse,
+  OrderIssueFlagUpdate,
   OrderListFilters,
   OrderListResponse,
   OrderMutationResponse,
@@ -236,6 +237,19 @@ export async function updateOrderShippingAddress(
 ): Promise<OrderMutationResponse> {
   return request<OrderMutationResponse>(`/orders/${orderId}/shipping-address`, {
     method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
+  });
+}
+
+export async function flagOrderIssue(
+  accessToken: string,
+  orderId: number,
+  values: OrderIssueFlagUpdate,
+  idempotencyKey: string,
+): Promise<OrderMutationResponse> {
+  return request<OrderMutationResponse>(`/orders/${orderId}/issue`, {
+    method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(values),
   });
