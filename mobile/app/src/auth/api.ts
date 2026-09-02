@@ -25,6 +25,7 @@ import type {
 } from '../notifications/types';
 import type { ExpenseCreate, ExpenseListResponse } from '../expenses/types';
 import type { ProductSalesReportResponse } from '../reports/types';
+import type { CustomerDetailResponse, CustomerListResponse, CustomerOrderDetailResponse } from '../customers/types';
 
 const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL
@@ -115,6 +116,29 @@ export async function orders(accessToken: string, filters: OrderListFilters = {}
 
 export async function orderDetail(accessToken: string, orderId: number): Promise<OrderDetailResponse> {
   return request<OrderDetailResponse>(`/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function customers(accessToken: string, search = ''): Promise<CustomerListResponse> {
+  const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+  return request<CustomerListResponse>(`/customers${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function customerDetail(accessToken: string, customerKey: string): Promise<CustomerDetailResponse> {
+  return request<CustomerDetailResponse>(`/customers/${encodeURIComponent(customerKey)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function customerOrderDetail(
+  accessToken: string,
+  customerKey: string,
+  orderId: number,
+): Promise<CustomerOrderDetailResponse> {
+  return request<CustomerOrderDetailResponse>(`/customers/${encodeURIComponent(customerKey)}/orders/${orderId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

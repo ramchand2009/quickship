@@ -20,6 +20,7 @@ from .serializers import (
     SelectTenantRequestSerializer,
 )
 from .dashboard_services import build_mobile_dashboard
+from .customer_services import mobile_customer_detail, mobile_customer_list, mobile_customer_order_detail
 from .expense_serializers import ExpenseCreateSerializer, ExpenseQuerySerializer
 from .expense_services import create_mobile_expense, delete_mobile_expense, monthly_expenses, update_mobile_expense
 from .permissions import HasActiveMobileTenant, HasMobileTenantRole
@@ -446,6 +447,61 @@ class MobileOrderIssueFlagView(MobileWriteEnabledMixin, APIView):
             idempotency_key=self.idempotency_key(request),
             values=serializer.validated_data,
         )
+        return Response(payload)
+
+
+class MobileCustomerListView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        return Response(mobile_customer_list(
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            search=request.query_params.get("search", ""),
+        ))
+
+
+class MobileCustomerDetailView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_read"
+
+    def get(self, request, customer_key):
+        payload = mobile_customer_detail(
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            customer_key=customer_key,
+        )
+        if payload is None:
+            raise NotFound("The requested resource is unavailable.")
+        return Response(payload)
+
+
+class MobileCustomerOrderDetailView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_read"
+
+    def get(self, request, customer_key, order_id):
+        payload = mobile_customer_order_detail(
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            customer_key=customer_key,
+            order_id=order_id,
+        )
+        if payload is None:
+            raise NotFound("The requested resource is unavailable.")
         return Response(payload)
 
 

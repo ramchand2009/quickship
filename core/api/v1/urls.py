@@ -4,6 +4,9 @@ from django.urls import path
 
 from .views import (
     MobileCurrentSessionView,
+    MobileCustomerDetailView,
+    MobileCustomerListView,
+    MobileCustomerOrderDetailView,
     MobileDashboardView,
     MobileDeviceDetailView,
     MobileExpenseListCreateView,
@@ -37,6 +40,9 @@ urlpatterns = [
     path("auth/logout", MobileLogoutView.as_view(), name="auth_logout"),
     path("auth/me", MobileCurrentSessionView.as_view(), name="auth_me"),
     path("auth/select-tenant", MobileSelectTenantView.as_view(), name="auth_select_tenant"),
+    path("customers", MobileCustomerListView.as_view(), name="customers"),
+    path("customers/<str:customer_key>", MobileCustomerDetailView.as_view(), name="customer_detail"),
+    path("customers/<str:customer_key>/orders/<int:order_id>", MobileCustomerOrderDetailView.as_view(), name="customer_order_detail"),
     path("dashboard", MobileDashboardView.as_view(), name="dashboard"),
     path("reports/product-sales", MobileProductSalesReportView.as_view(), name="product_sales_report"),
     path("expenses", MobileExpenseListCreateView.as_view(), name="expenses"),

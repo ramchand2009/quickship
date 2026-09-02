@@ -105,6 +105,65 @@ def create_new_order_notifications(order):
     return created_notifications
 
 
+@transaction.atomic
+def mark_new_order_notifications_read(order):
+    """Remove accepted orders from the unread new-order bell count."""
+    return MobileNotification.objects.filter(
+        tenant=order.tenant,
+        order=order,
+        category=MobileNotification.CATEGORY_NEW_ORDER,
+        is_read=False,
+    ).update(is_read=True, read_at=timezone.now())
+
+
+@transaction.atomic
+def create_order_issue_notifications(order, *, reason_label, note, actor=None):
+    memberships = list(
+        TenantMembership.objects.select_related("user").filter(
+            tenant=order.tenant,
+            tenant__is_active=True,
+            user__is_active=True,
+            is_active=True,
+            role__in=[
+                TenantMembership.ROLE_VENDOR_OWNER,
+                TenantMembership.ROLE_VENDOR_OPERATOR,
+            ],
+        )
+    )
+    reference = order.channel_order_id or order.shiprocket_order_id
+    customer = order.display_shipping_address.get("name") or order.customer_name or "Customer"
+    note_text = str(note or "").strip()
+    title = "Order issue raised"
+    message = f"Order {reference} from {customer}: {reason_label}."
+    if note_text:
+        message = f"{message} {note_text}"
+    created_or_updated = []
+    for membership in memberships:
+        if actor and membership.user.get_username() == actor:
+            continue
+        if not notification_category_enabled(
+            user=membership.user,
+            tenant=order.tenant,
+            category=MobileNotification.CATEGORY_ORDER_ATTENTION,
+        ):
+            continue
+        notification, _created = MobileNotification.objects.update_or_create(
+            tenant=order.tenant,
+            user=membership.user,
+            category=MobileNotification.CATEGORY_ORDER_ATTENTION,
+            order=order,
+            defaults={
+                "title": title,
+                "message": message[:500],
+                "destination": f"/orders/{order.pk}",
+                "is_read": False,
+                "read_at": None,
+            },
+        )
+        created_or_updated.append(notification)
+    return created_or_updated
+
+
 def _expo_messages(notifications):
     messages = []
     devices = []
@@ -173,6 +232,18 @@ def send_expo_notifications(notifications):
 
 def deliver_new_order_notification(order):
     notifications = create_new_order_notifications(order)
+    result = send_expo_notifications(notifications)
+    result["notification_count"] = len(notifications)
+    return result
+
+
+def deliver_order_issue_notification(order, *, reason_label, note, actor=None):
+    notifications = create_order_issue_notifications(
+        order,
+        reason_label=reason_label,
+        note=note,
+        actor=actor,
+    )
     result = send_expo_notifications(notifications)
     result["notification_count"] = len(notifications)
     return result

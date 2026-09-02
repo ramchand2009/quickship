@@ -20,6 +20,7 @@ from core.whatsapp_queue import enqueue_whatsapp_notification
 from core.woocommerce import WooCommerceAPIError, update_order_status as update_woocommerce_order_status
 
 from .exceptions import BusinessRuleError, ConflictError
+from .notification_services import deliver_order_issue_notification, mark_new_order_notifications_read
 from .order_serializers import OrderDetailSerializer
 from .order_services import mobile_order_detail
 
@@ -284,6 +285,8 @@ def update_order_status(*, session, tenant, role, actor, order_id, idempotency_k
                 is_success=True,
                 triggered_by=actor,
             )
+            if target_status == ShiprocketOrder.STATUS_ACCEPTED:
+                mark_new_order_notifications_read(order)
 
         effects.extend(_status_side_effects(order, previous_status=previous_status, actor=actor))
         payload = _serialize_result(tenant=tenant, order_id=order_id, role=role, effects=effects)
@@ -458,6 +461,12 @@ def flag_order_issue(*, session, tenant, role, actor, order_id, idempotency_key,
                 triggered_by=actor,
             )
 
+        deliver_order_issue_notification(
+            order,
+            reason_label=ISSUE_REASON_LABELS.get(reason, "Needs attention"),
+            note=note,
+            actor=actor,
+        )
         payload = _serialize_result(tenant=tenant, order_id=order_id, role=role, effects=[])
         _complete_receipt(receipt, {"order_id": order_id, "effects": []})
         return payload

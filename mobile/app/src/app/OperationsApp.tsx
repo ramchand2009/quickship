@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardResponse } from '../auth/types';
+import CustomersScreen from '../customers/CustomersScreen';
 import ExpensesScreen from '../expenses/ExpensesScreen';
 import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
@@ -25,7 +26,7 @@ import NotificationsScreen from '../notifications/NotificationsScreen';
 import ProductSalesReportScreen from '../reports/ProductSalesReportScreen';
 import StockScreen from '../stock/StockScreen';
 
-type AppTab = 'dashboard' | 'orders' | 'expenses' | 'stock' | 'account' | 'notifications' | 'reports';
+type AppTab = 'dashboard' | 'orders' | 'expenses' | 'stock' | 'customers' | 'account' | 'notifications' | 'reports';
 type TabIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
 const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIconName }[] = [
@@ -33,7 +34,7 @@ const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIcon
   { key: 'orders', label: 'Orders', icon: 'clipboard-text-outline', activeIcon: 'clipboard-text' },
   { key: 'expenses', label: 'Expenses', icon: 'cash-minus', activeIcon: 'cash-minus' },
   { key: 'stock', label: 'Stock', icon: 'package-variant-closed', activeIcon: 'package-variant' },
-  { key: 'account', label: 'Account', icon: 'account-circle-outline', activeIcon: 'account-circle' },
+  { key: 'customers', label: 'Customers', icon: 'account-group-outline', activeIcon: 'account-group' },
 ];
 
 const METRIC_ICONS: Record<string, TabIconName> = {
@@ -538,6 +539,7 @@ export default function OperationsApp() {
     if (activeTab === 'dashboard') return 'Mathukai Organic';
     if (activeTab === 'notifications') return 'Notifications';
     if (activeTab === 'reports') return 'Sales Report';
+    if (activeTab === 'customers') return 'Customers';
     return TABS.find((tab) => tab.key === activeTab)?.label || '';
   }, [activeTab]);
   const userInitial = (auth?.session.user.display_name || 'A').trim().slice(0, 1).toUpperCase();
@@ -579,6 +581,7 @@ export default function OperationsApp() {
         {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={`${ordersScreenKey}-${liveRefreshKey}`} /> : null}
         {activeTab === 'expenses' ? <ExpensesScreen /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
+        {activeTab === 'customers' ? <CustomersScreen /> : null}
         {activeTab === 'account' ? <AccountScreen /> : null}
         {activeTab === 'notifications' ? <NotificationsScreen onOpenDestination={openDestination} onUnreadCountChange={setUnreadNotificationCount} /> : null}
         {activeTab === 'reports' ? <ProductSalesReportScreen initialMonth={reportInitialMonth} onBack={() => setActiveTab('dashboard')} /> : null}
