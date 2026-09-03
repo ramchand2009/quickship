@@ -57,6 +57,7 @@ class ProductSummarySerializer(serializers.ModelSerializer):
     barcode = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
+    prices = serializers.SerializerMethodField()
     stock_state = serializers.SerializerMethodField()
     route_ready = serializers.SerializerMethodField()
 
@@ -69,6 +70,7 @@ class ProductSummarySerializer(serializers.ModelSerializer):
             "barcode",
             "image_url",
             "category",
+            "prices",
             "stock_quantity",
             "reorder_level",
             "stock_state",
@@ -86,6 +88,14 @@ class ProductSummarySerializer(serializers.ModelSerializer):
 
     def get_category(self, product):
         return str(product.category or "").strip() or None
+
+    def get_prices(self, product):
+        visible = PRICE_VISIBILITY.get(self.context.get("role"), set())
+        return {
+            "actual": _price(product.actual_price) if "actual" in visible else None,
+            "regular": _price(product.regular_price) if "regular" in visible else None,
+            "sale": _price(product.sale_price) if "sale" in visible else None,
+        }
 
     def get_stock_state(self, product):
         if product.stock_quantity <= 0:
@@ -111,7 +121,7 @@ class ProductDetailSerializer(ProductSummarySerializer):
     can_adjust_stock = serializers.SerializerMethodField()
 
     class Meta(ProductSummarySerializer.Meta):
-        fields = ProductSummarySerializer.Meta.fields + ["description", "prices", "routing", "can_adjust_stock"]
+        fields = ProductSummarySerializer.Meta.fields + ["description", "routing", "can_adjust_stock"]
 
     def get_description(self, product):
         return str(product.description or "").strip() or None

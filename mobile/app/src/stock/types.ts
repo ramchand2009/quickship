@@ -7,6 +7,7 @@ export type ProductSummary = {
   barcode: string | null;
   image_url: string | null;
   category: string | null;
+  prices: { actual: Money | null; regular: Money | null; sale: Money | null };
   stock_quantity: number;
   reorder_level: number;
   stock_state: 'in_stock' | 'low_stock' | 'out_of_stock';

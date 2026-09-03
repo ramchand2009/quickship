@@ -20,9 +20,18 @@ from .serializers import (
     SelectTenantRequestSerializer,
 )
 from .dashboard_services import build_mobile_dashboard
-from .customer_services import mobile_customer_detail, mobile_customer_list, mobile_customer_order_detail
+from .customer_serializers import MobileCustomerProfileSerializer
+from .customer_services import (
+    create_mobile_customer_profile,
+    mobile_customer_detail,
+    mobile_customer_list,
+    mobile_customer_order_detail,
+    update_mobile_customer_profile,
+)
 from .expense_serializers import ExpenseCreateSerializer, ExpenseQuerySerializer
 from .expense_services import create_mobile_expense, delete_mobile_expense, monthly_expenses, update_mobile_expense
+from .manual_order_serializers import ManualOrderCreateSerializer
+from .manual_order_services import create_manual_mobile_order
 from .permissions import HasActiveMobileTenant, HasMobileTenantRole
 from .order_mutations import flag_order_issue, mark_payment_received, update_order_status, update_shipping_address
 from .order_serializers import (
@@ -339,6 +348,28 @@ class MobileOrderListView(MobileReadEnabledMixin, APIView):
         return paginator.get_paginated_response(data)
 
 
+class MobileManualOrderCreateView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def post(self, request):
+        serializer = ManualOrderCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = create_manual_mobile_order(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            actor=request.user.get_username(),
+            idempotency_key=self.idempotency_key(request),
+            values=serializer.validated_data,
+        )
+        return Response(payload, status=201)
+
+
 class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
     permission_classes = [HasActiveMobileTenant]
     throttle_scope = "mobile_read"
@@ -465,6 +496,20 @@ class MobileCustomerListView(MobileReadEnabledMixin, APIView):
             search=request.query_params.get("search", ""),
         ))
 
+    def post(self, request):
+        if not settings.MOBILE_WRITE_API_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        serializer = MobileCustomerProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            create_mobile_customer_profile(
+                tenant=request.tenant,
+                actor=request.user.get_username(),
+                values=serializer.validated_data,
+            ),
+            status=201,
+        )
+
 
 class MobileCustomerDetailView(MobileReadEnabledMixin, APIView):
     permission_classes = [HasMobileTenantRole]
@@ -479,6 +524,20 @@ class MobileCustomerDetailView(MobileReadEnabledMixin, APIView):
             tenant=request.tenant,
             role=request.tenant_membership.role,
             customer_key=customer_key,
+        )
+        if payload is None:
+            raise NotFound("The requested resource is unavailable.")
+        return Response(payload)
+
+    def patch(self, request, customer_key):
+        if not settings.MOBILE_WRITE_API_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        serializer = MobileCustomerProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = update_mobile_customer_profile(
+            tenant=request.tenant,
+            customer_key=customer_key,
+            values=serializer.validated_data,
         )
         if payload is None:
             raise NotFound("The requested resource is unavailable.")
@@ -642,7 +701,10 @@ class MobileProductListView(MobileReadEnabledMixin, APIView):
         data = ProductSummarySerializer(
             page,
             many=True,
-            context={"routing_rules": mobile_product_routing_rules(tenant=request.tenant)},
+            context={
+                "role": request.tenant_membership.role,
+                "routing_rules": mobile_product_routing_rules(tenant=request.tenant),
+            },
         ).data
         response = paginator.get_paginated_response(data)
         response.data["meta"] = mobile_product_inventory_summary(

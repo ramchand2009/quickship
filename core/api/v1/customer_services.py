@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from django.db.models.functions import Coalesce
 
-from core.models import ShiprocketOrder
+from core.models import MobileCustomerProfile, ShiprocketOrder
 
 from .order_serializers import OrderDetailSerializer, OrderSummarySerializer
 from .order_services import mobile_order_detail
@@ -37,6 +37,52 @@ def _address_line(address):
     )
 
 
+def _sender_payload(tenant):
+    sender = tenant.sender_addresses.order_by("-updated_at", "-created_at").first()
+    return {
+        "name": sender.name if sender else tenant.name,
+        "phone": sender.phone if sender else None,
+        "address": ", ".join(
+            value
+            for value in [
+                sender.address_1 if sender else "",
+                sender.address_2 if sender else "",
+                sender.city if sender else "",
+                sender.state if sender else "",
+                sender.pincode if sender else "",
+                sender.country if sender else "",
+            ]
+            if value
+        ) or None,
+    }
+
+
+def _customer_payload_from_profile(profile):
+    return {
+        "key": profile.customer_key,
+        "name": profile.name,
+        "phone": profile.phone or None,
+        "email": profile.email or None,
+        "address": profile.address_line or None,
+        "shipping_address": {
+            "name": profile.name,
+            "phone": profile.phone,
+            "email": profile.email,
+            "address_1": profile.address_1,
+            "address_2": profile.address_2,
+            "city": profile.city,
+            "state": profile.state,
+            "pincode": profile.pincode,
+            "country": profile.country,
+        },
+        "last_order_at": None,
+        "order_count": 0,
+        "total_spent": _money(Decimal("0.00")),
+        "latest_order_reference": None,
+        "source": "saved",
+    }
+
+
 def _customer_key(order):
     address = order.display_shipping_address
     phone = _normalize_phone(address.get("phone") or order.customer_phone)
@@ -60,10 +106,22 @@ def _customer_payload_from_order(order, key):
         "phone": str(address.get("phone") or "").strip() or None,
         "email": str(address.get("email") or "").strip() or None,
         "address": _address_line(address) or None,
+        "shipping_address": {
+            "name": name,
+            "phone": str(address.get("phone") or "").strip(),
+            "email": str(address.get("email") or "").strip(),
+            "address_1": str(address.get("address_1") or "").strip(),
+            "address_2": str(address.get("address_2") or "").strip(),
+            "city": str(address.get("city") or "").strip(),
+            "state": str(address.get("state") or "").strip(),
+            "pincode": str(address.get("pincode") or "").strip(),
+            "country": str(address.get("country") or "").strip(),
+        },
         "last_order_at": order.order_date or order.created_at,
         "order_count": 0,
         "total_spent": _money(Decimal("0.00")),
         "latest_order_reference": order.source_order_reference,
+        "source": "orders",
     }
 
 
@@ -111,6 +169,10 @@ def _base_customer_orders(tenant):
 def mobile_customer_list(*, tenant, role, search=""):
     search_text = _normalize_text(search)
     customers = OrderedDict()
+    for profile in MobileCustomerProfile.objects.filter(tenant=tenant).order_by("name", "-updated_at"):
+        customers[profile.customer_key] = _customer_payload_from_profile(profile)
+        customers[profile.customer_key]["_total"] = Decimal("0.00")
+
     for order in _base_customer_orders(tenant):
         key = _customer_key(order)
         if key not in customers:
@@ -135,7 +197,63 @@ def mobile_customer_list(*, tenant, role, search=""):
     return {"data": rows, "meta": {"count": len(rows)}}
 
 
+def create_mobile_customer_profile(*, tenant, actor, values):
+    profile = MobileCustomerProfile.objects.create(
+        tenant=tenant,
+        created_by=actor,
+        name=values["name"],
+        phone=values["phone"],
+        email=values.get("email") or "",
+        address_1=values["address_1"],
+        address_2=values.get("address_2") or "",
+        city=values["city"],
+        state=values["state"],
+        pincode=values["pincode"],
+        country=values.get("country") or "India",
+    )
+    return {"data": {"customer": _customer_payload_from_profile(profile), "sender": _sender_payload(tenant)}}
+
+
+def update_mobile_customer_profile(*, tenant, customer_key, values):
+    if not customer_key.startswith("saved:"):
+        return None
+    profile_id = customer_key.split(":", 1)[1]
+    profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+    if profile is None:
+        return None
+    for field in ["name", "phone", "address_1", "city", "state", "pincode"]:
+        setattr(profile, field, values[field])
+    for field in ["email", "address_2", "country"]:
+        setattr(profile, field, values.get(field) or ("India" if field == "country" else ""))
+    profile.save(update_fields=[
+        "name",
+        "phone",
+        "email",
+        "address_1",
+        "address_2",
+        "city",
+        "state",
+        "country",
+        "pincode",
+        "updated_at",
+    ])
+    return {"data": {"customer": _customer_payload_from_profile(profile), "orders": [], "sender": _sender_payload(tenant)}}
+
+
 def mobile_customer_detail(*, tenant, role, customer_key):
+    if customer_key.startswith("saved:"):
+        profile_id = customer_key.split(":", 1)[1]
+        profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+        if profile is None:
+            return None
+        return {
+            "data": {
+                "customer": _customer_payload_from_profile(profile),
+                "orders": [],
+                "sender": _sender_payload(tenant),
+            }
+        }
+
     matching_orders = [order for order in _base_customer_orders(tenant) if _customer_key(order) == customer_key]
     if not matching_orders:
         return None
@@ -147,7 +265,7 @@ def mobile_customer_detail(*, tenant, role, customer_key):
     customer["total_spent"] = _money(total)
 
     orders = OrderSummarySerializer(matching_orders[:100], many=True, context={"role": role}).data
-    return {"data": {"customer": customer, "orders": orders}}
+    return {"data": {"customer": customer, "orders": orders, "sender": _sender_payload(tenant)}}
 
 
 def mobile_customer_order_detail(*, tenant, role, customer_key, order_id):

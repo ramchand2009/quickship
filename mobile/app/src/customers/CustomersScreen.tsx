@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Print from 'expo-print';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,12 +20,44 @@ import {
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { CustomerSummary } from './types';
+import type { CustomerAddressInput, CustomerSummary, ShippingLabelSender } from './types';
 import type { Money, OrderDetail, OrderSummary } from '../orders/types';
+import type { ProductSummary } from '../stock/types';
+
+const INDIA_POST_CUSTOMER_ID = '1828524916';
+
+const EMPTY_CUSTOMER_FORM: CustomerAddressInput = {
+  name: '',
+  phone: '',
+  email: '',
+  address_1: '',
+  address_2: '',
+  city: '',
+  state: '',
+  pincode: '',
+  country: 'India',
+};
 
 function money(value: Money | null | undefined) {
   if (!value) return '₹ 0.00';
   return `${value.currency === 'INR' ? '₹' : value.currency} ${value.amount}`;
+}
+
+function newIdempotencyKey() {
+  return `android-manual-order-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function parseAmount(value: Money | null | undefined) {
+  const amount = Number(value?.amount || '0');
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function productUnitPrice(product: ProductSummary) {
+  return parseAmount(product.prices?.sale || product.prices?.regular);
+}
+
+function rupees(value: number) {
+  return `₹ ${value.toFixed(2)}`;
 }
 
 function dateLabel(value: string | null | undefined) {
@@ -34,6 +71,60 @@ function normalizePhone(value: string | null | undefined) {
   const digits = String(value || '').replace(/\D/g, '');
   if (!digits) return '';
   return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+function escapeHtml(value: string | null | undefined) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function customerShippingLabelHtml(customer: CustomerSummary, sender: ShippingLabelSender | null) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: 4in 6in; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; color: #151515; }
+    .label { width: 4in; height: 6in; padding: 0.18in; border: 2px solid #222; }
+    .brand { font-size: 14px; font-weight: 800; letter-spacing: 0.8px; }
+    h1 { font-size: 22px; margin: 8px 0 4px; }
+    .meta { font-size: 11px; font-weight: 700; margin-top: 4px; }
+    .line { border-top: 2px solid #222; margin: 12px 0 16px; }
+    .box { border: 1.5px solid #222; padding: 12px; margin-bottom: 12px; min-height: 1.08in; }
+    .eyebrow { font-size: 9px; font-weight: 900; margin-bottom: 8px; }
+    .name { font-size: 16px; font-weight: 900; margin-bottom: 8px; }
+    .address { font-size: 12px; line-height: 1.35; }
+    .phone { font-size: 12px; font-weight: 800; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="label">
+    <div class="brand">MATHUKAI ORGANIC</div>
+    <h1>SHIPPING LABEL</h1>
+    <div class="meta">Offline customer label</div>
+    <div class="meta">India Post Customer ID: ${INDIA_POST_CUSTOMER_ID}</div>
+    <div class="line"></div>
+    <div class="box">
+      <div class="eyebrow">TO</div>
+      <div class="name">${escapeHtml(customer.name || 'Customer')}</div>
+      <div class="address">${escapeHtml(customer.address || 'Address unavailable')}</div>
+      ${customer.phone ? `<div class="phone">Phone: ${escapeHtml(customer.phone)}</div>` : ''}
+    </div>
+    <div class="box">
+      <div class="eyebrow">FROM</div>
+      <div class="name">${escapeHtml(sender?.name || 'Mathukai Organic')}</div>
+      <div class="address">${escapeHtml(sender?.address || 'Sender address unavailable')}</div>
+      ${sender?.phone ? `<div class="phone">Phone: ${escapeHtml(sender.phone)}</div>` : ''}
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 function CustomerCard({ customer, onPress }: { customer: CustomerSummary; onPress: () => void }) {
@@ -95,6 +186,186 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
   );
 }
 
+function ManualOrderSheet({
+  customer,
+  visible,
+  onClose,
+  onCreated,
+}: {
+  customer: CustomerSummary;
+  visible: boolean;
+  onClose: () => void;
+  onCreated: (order: OrderDetail) => void;
+}) {
+  const { runAuthenticated } = useAuth();
+  const [search, setSearch] = useState('');
+  const [products, setProducts] = useState<ProductSummary[]>([]);
+  const [selectedItems, setSelectedItems] = useState<{ product: ProductSummary; quantity: number }[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadProducts = useCallback(async () => {
+    setLoadingProducts(true);
+    setError('');
+    try {
+      const response = await runAuthenticated((token) => api.products(token, { search }));
+      setProducts(response.data.slice(0, 25));
+    } catch (reason) {
+      setError(reason instanceof api.ApiError ? reason.message : 'Products could not be loaded.');
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, [runAuthenticated, search]);
+
+  useEffect(() => {
+    if (visible) void loadProducts();
+  }, [visible, loadProducts]);
+
+  const addProduct = (product: ProductSummary) => {
+    setSelectedItems((current) => {
+      const existing = current.find((item) => item.product.id === product.id);
+      if (existing) {
+        return current.map((item) => (
+          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        ));
+      }
+      return [...current, { product, quantity: 1 }];
+    });
+  };
+
+  const updateQuantity = (productId: number, quantityText: string) => {
+    const quantity = Math.max(1, Number.parseInt(quantityText.replace(/\D/g, ''), 10) || 1);
+    setSelectedItems((current) => current.map((item) => (
+      item.product.id === productId ? { ...item, quantity } : item
+    )));
+  };
+
+  const removeProduct = (productId: number) => {
+    setSelectedItems((current) => current.filter((item) => item.product.id !== productId));
+  };
+
+  const total = selectedItems.reduce((sum, item) => sum + productUnitPrice(item.product) * item.quantity, 0);
+  const canSave = selectedItems.length > 0 && !saving;
+
+  const sendWhatsApp = async (phone: string, message: string) => {
+    const digits = normalizePhone(phone);
+    if (!digits) return;
+    const url = `https://wa.me/91${digits}?text=${encodeURIComponent(message)}`;
+    await Linking.openURL(url).catch(() => {
+      Alert.alert('WhatsApp unavailable', 'The confirmation message is ready, but WhatsApp could not be opened.');
+    });
+  };
+
+  const createOrder = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await runAuthenticated((token) => api.createManualOrder(
+        token,
+        {
+          customer_key: customer.key,
+          items: selectedItems.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+        },
+        newIdempotencyKey(),
+      ));
+      setSelectedItems([]);
+      onCreated(response.data.order);
+      onClose();
+      await sendWhatsApp(response.data.whatsapp.phone, response.data.whatsapp.message);
+    } catch (reason) {
+      setError(reason instanceof api.ApiError ? reason.message : 'Manual order could not be created.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal animationType="slide" onRequestClose={() => !saving && onClose()} transparent visible={visible}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.formSheet}>
+            <View style={styles.formHeader}>
+              <View style={styles.sheetTitleCopy}>
+                <Text style={styles.formTitle}>Create manual order</Text>
+                <Text style={styles.formSubtitle}>{customer.name} · WhatsApp confirmation will open after save.</Text>
+              </View>
+              <Pressable disabled={saving} onPress={onClose} style={styles.closeButton}>
+                <MaterialCommunityIcons color="#587066" name="close" size={24} />
+              </Pressable>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.searchRow}>
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={setSearch}
+                  onSubmitEditing={() => void loadProducts()}
+                  placeholder="Search product or SKU"
+                  placeholderTextColor="#82958D"
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                  value={search}
+                />
+                <Pressable onPress={() => void loadProducts()} style={styles.searchButton}>
+                  <MaterialCommunityIcons color="#FFFFFF" name="magnify" size={23} />
+                </Pressable>
+              </View>
+              {error ? <Text style={styles.formError}>{error}</Text> : null}
+              {selectedItems.length ? (
+                <View style={styles.selectedCard}>
+                  <Text style={styles.selectedTitle}>Selected products</Text>
+                  {selectedItems.map((item) => (
+                    <View key={item.product.id} style={styles.selectedRow}>
+                      <View style={styles.selectedCopy}>
+                        <Text numberOfLines={1} style={styles.selectedName}>{item.product.name}</Text>
+                        <Text style={styles.selectedMeta}>{rupees(productUnitPrice(item.product))} each</Text>
+                      </View>
+                      <TextInput
+                        keyboardType="number-pad"
+                        onChangeText={(value) => updateQuantity(item.product.id, value)}
+                        style={styles.qtyInput}
+                        value={String(item.quantity)}
+                      />
+                      <Pressable onPress={() => removeProduct(item.product.id)} style={styles.removeItemButton}>
+                        <MaterialCommunityIcons color="#B42318" name="trash-can-outline" size={19} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <View style={styles.manualTotalRow}>
+                    <Text style={styles.manualTotalLabel}>Order total</Text>
+                    <Text style={styles.manualTotalValue}>{rupees(total)}</Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.emptyText}>Select products for this offline order.</Text>
+              )}
+              <Text style={styles.sectionTitle}>Products</Text>
+              {loadingProducts ? <ActivityIndicator color="#0B5D3B" /> : products.map((product) => (
+                <Pressable key={product.id} onPress={() => addProduct(product)} style={({ pressed }) => [styles.productPickRow, pressed && styles.pressed]}>
+                  <View style={styles.productPickIcon}>
+                    <MaterialCommunityIcons color="#0B5D3B" name="package-variant-closed" size={20} />
+                  </View>
+                  <View style={styles.productPickCopy}>
+                    <Text numberOfLines={1} style={styles.productPickName}>{product.name}</Text>
+                    <Text numberOfLines={1} style={styles.productPickMeta}>
+                      {product.sku || 'No SKU'} · {product.stock_quantity} available · {rupees(productUnitPrice(product))}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons color="#0B5D3B" name="plus-circle-outline" size={24} />
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable disabled={!canSave} onPress={() => void createOrder()} style={[styles.saveButton, !canSave && styles.disabledButton]}>
+              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Create order & send WhatsApp</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 function OrderDetailView({ order, onBack }: { order: OrderDetail; onBack: () => void }) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -150,7 +421,13 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
   const { runAuthenticated } = useAuth();
   const [customer, setCustomer] = useState<CustomerSummary | null>(null);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [sender, setSender] = useState<ShippingLabelSender | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
+  const [manualOrderVisible, setManualOrderVisible] = useState(false);
+  const [editVisible, setEditVisible] = useState(false);
+  const [editValues, setEditValues] = useState<CustomerAddressInput>(EMPTY_CUSTOMER_FORM);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -162,6 +439,7 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
       const response = await runAuthenticated((token) => api.customerDetail(token, customerKey));
       setCustomer(response.data.customer);
       setOrders(response.data.orders);
+      setSender(response.data.sender);
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Customer details could not be loaded.');
     } finally {
@@ -195,6 +473,67 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
   const phone = normalizePhone(customer.phone);
   const openCall = () => phone ? Linking.openURL(`tel:+91${phone}`).catch(() => undefined) : undefined;
   const openWhatsApp = () => phone ? Linking.openURL(`https://wa.me/91${phone}`).catch(() => undefined) : undefined;
+  const editReady = Boolean(
+    editValues.name.trim()
+    && editValues.phone.replace(/\D/g, '').length >= 10
+    && editValues.address_1.trim()
+    && editValues.city.trim()
+    && editValues.state.trim()
+    && editValues.pincode.trim().length >= 3
+  );
+  const openEdit = () => {
+    if (!customer.shipping_address) return;
+    setEditValues({
+      name: customer.shipping_address.name || customer.name,
+      phone: customer.shipping_address.phone || customer.phone || '',
+      email: customer.shipping_address.email || customer.email || '',
+      address_1: customer.shipping_address.address_1 || '',
+      address_2: customer.shipping_address.address_2 || '',
+      city: customer.shipping_address.city || '',
+      state: customer.shipping_address.state || '',
+      pincode: customer.shipping_address.pincode || '',
+      country: customer.shipping_address.country || 'India',
+    });
+    setEditError('');
+    setEditVisible(true);
+  };
+  const updateEdit = (field: keyof CustomerAddressInput, value: string) => {
+    setEditValues((current) => ({ ...current, [field]: value }));
+  };
+  const saveEdit = async () => {
+    if (!editReady || editSaving) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const payload: CustomerAddressInput = {
+        name: editValues.name.trim(),
+        phone: editValues.phone.trim(),
+        email: editValues.email?.trim() || '',
+        address_1: editValues.address_1.trim(),
+        address_2: editValues.address_2?.trim() || '',
+        city: editValues.city.trim(),
+        state: editValues.state.trim(),
+        pincode: editValues.pincode.trim(),
+        country: editValues.country?.trim() || 'India',
+      };
+      const response = await runAuthenticated((token) => api.updateCustomer(token, customerKey, payload));
+      setCustomer(response.data.customer);
+      setOrders(response.data.orders);
+      setSender(response.data.sender);
+      setEditVisible(false);
+    } catch (reason) {
+      setEditError(reason instanceof api.ApiError ? reason.message : 'Customer could not be updated.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+  const printShippingLabel = async () => {
+    try {
+      await Print.printAsync({ html: customerShippingLabelHtml(customer, sender) });
+    } catch {
+      Alert.alert('Print unavailable', 'The shipping label could not be opened for printing.');
+    }
+  };
 
   return (
     <ScrollView
@@ -215,6 +554,13 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
         </View>
       </View>
 
+      {customer.source === 'saved' ? (
+        <Pressable onPress={openEdit} style={({ pressed }) => [styles.editCustomerButton, pressed && styles.pressed]}>
+          <MaterialCommunityIcons color="#0B5D3B" name="pencil-outline" size={20} />
+          <Text style={styles.editCustomerText}>Edit customer details</Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.contactGrid}>
         <Pressable disabled={!phone} onPress={openCall} style={[styles.contactButton, !phone && styles.disabledCard]}>
           <MaterialCommunityIcons color="#0B5D3B" name="phone-outline" size={22} />
@@ -225,6 +571,19 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
           <Text style={styles.contactButtonText}>WhatsApp</Text>
         </Pressable>
       </View>
+
+      <Pressable onPress={() => void printShippingLabel()} style={({ pressed }) => [styles.printLabelButton, pressed && styles.pressed]}>
+        <MaterialCommunityIcons color="#FFFFFF" name="printer-outline" size={22} />
+        <Text style={styles.printLabelText}>Print shipping label</Text>
+      </Pressable>
+
+      <Pressable onPress={() => setManualOrderVisible(true)} style={({ pressed }) => [styles.manualOrderButton, pressed && styles.pressed]}>
+        <MaterialCommunityIcons color="#FFFFFF" name="cart-plus" size={22} />
+        <View style={styles.manualOrderCopy}>
+          <Text style={styles.manualOrderText}>Create manual order</Text>
+          <Text style={styles.manualOrderHint}>Select products, save, then send WhatsApp confirmation</Text>
+        </View>
+      </Pressable>
 
       <Text style={styles.sectionTitle}>Customer details</Text>
       <View style={styles.sectionCard}>
@@ -238,6 +597,69 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
       {orders.length ? orders.map((order) => (
         <OrderHistoryCard key={order.id} order={order} onPress={() => void openOrder(order.id)} />
       )) : <Text style={styles.emptyText}>No order history found.</Text>}
+
+      <Modal animationType="slide" onRequestClose={() => !editSaving && setEditVisible(false)} transparent visible={editVisible}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.formSheet}>
+              <View style={styles.formHeader}>
+                <View>
+                  <Text style={styles.formTitle}>Edit customer</Text>
+                  <Text style={styles.formSubtitle}>Updated details will be used for future labels.</Text>
+                </View>
+                <Pressable disabled={editSaving} onPress={() => setEditVisible(false)} style={styles.closeButton}>
+                  <MaterialCommunityIcons color="#587066" name="close" size={24} />
+                </Pressable>
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.inputLabel}>Customer name *</Text>
+                <TextInput autoCapitalize="words" maxLength={160} onChangeText={(value) => updateEdit('name', value)} placeholder="Customer name" placeholderTextColor="#82958D" style={styles.input} value={editValues.name} />
+                <Text style={styles.inputLabel}>Mobile number *</Text>
+                <TextInput keyboardType="phone-pad" maxLength={32} onChangeText={(value) => updateEdit('phone', value)} placeholder="10-digit mobile number" placeholderTextColor="#82958D" style={styles.input} value={editValues.phone} />
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput autoCapitalize="none" keyboardType="email-address" maxLength={254} onChangeText={(value) => updateEdit('email', value)} placeholder="Optional" placeholderTextColor="#82958D" style={styles.input} value={editValues.email} />
+                <Text style={styles.inputLabel}>Address line 1 *</Text>
+                <TextInput maxLength={255} onChangeText={(value) => updateEdit('address_1', value)} placeholder="House number and street" placeholderTextColor="#82958D" style={styles.input} value={editValues.address_1} />
+                <Text style={styles.inputLabel}>Address line 2</Text>
+                <TextInput maxLength={255} onChangeText={(value) => updateEdit('address_2', value)} placeholder="Area or landmark" placeholderTextColor="#82958D" style={styles.input} value={editValues.address_2} />
+                <View style={styles.formRow}>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>City *</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateEdit('city', value)} placeholder="City" placeholderTextColor="#82958D" style={styles.input} value={editValues.city} />
+                  </View>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>State *</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateEdit('state', value)} placeholder="State" placeholderTextColor="#82958D" style={styles.input} value={editValues.state} />
+                  </View>
+                </View>
+                <View style={styles.formRow}>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>Pincode *</Text>
+                    <TextInput keyboardType="number-pad" maxLength={20} onChangeText={(value) => updateEdit('pincode', value)} placeholder="Pincode" placeholderTextColor="#82958D" style={styles.input} value={editValues.pincode} />
+                  </View>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>Country</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateEdit('country', value)} placeholder="India" placeholderTextColor="#82958D" style={styles.input} value={editValues.country} />
+                  </View>
+                </View>
+                {editError ? <Text style={styles.formError}>{editError}</Text> : null}
+              </ScrollView>
+              <Pressable disabled={!editReady || editSaving} onPress={() => void saveEdit()} style={[styles.saveButton, (!editReady || editSaving) && styles.disabledButton]}>
+                {editSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Save changes</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+      <ManualOrderSheet
+        customer={customer}
+        visible={manualOrderVisible}
+        onClose={() => setManualOrderVisible(false)}
+        onCreated={(order) => {
+          setSelectedOrder(order);
+          void load(true);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -248,6 +670,10 @@ export default function CustomersScreen() {
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
+  const [formVisible, setFormVisible] = useState(false);
+  const [formValues, setFormValues] = useState<CustomerAddressInput>(EMPTY_CUSTOMER_FORM);
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -269,6 +695,51 @@ export default function CustomersScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const totalOrders = useMemo(() => customers.reduce((sum, customer) => sum + customer.order_count, 0), [customers]);
+  const formReady = Boolean(
+    formValues.name.trim()
+    && formValues.phone.replace(/\D/g, '').length >= 10
+    && formValues.address_1.trim()
+    && formValues.city.trim()
+    && formValues.state.trim()
+    && formValues.pincode.trim().length >= 3
+  );
+
+  const openAddCustomer = () => {
+    setFormValues(EMPTY_CUSTOMER_FORM);
+    setFormError('');
+    setFormVisible(true);
+  };
+
+  const updateForm = (field: keyof CustomerAddressInput, value: string) => {
+    setFormValues((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveCustomer = async () => {
+    if (!formReady || formSaving) return;
+    setFormSaving(true);
+    setFormError('');
+    try {
+      const payload: CustomerAddressInput = {
+        name: formValues.name.trim(),
+        phone: formValues.phone.trim(),
+        email: formValues.email?.trim() || '',
+        address_1: formValues.address_1.trim(),
+        address_2: formValues.address_2?.trim() || '',
+        city: formValues.city.trim(),
+        state: formValues.state.trim(),
+        pincode: formValues.pincode.trim(),
+        country: formValues.country?.trim() || 'India',
+      };
+      const response = await runAuthenticated((token) => api.createCustomer(token, payload));
+      setFormVisible(false);
+      setSelectedCustomerKey(response.data.customer.key);
+      await load(true);
+    } catch (reason) {
+      setFormError(reason instanceof api.ApiError ? reason.message : 'Customer could not be saved.');
+    } finally {
+      setFormSaving(false);
+    }
+  };
 
   if (selectedCustomerKey) return <CustomerDetailScreen customerKey={selectedCustomerKey} onBack={() => setSelectedCustomerKey(null)} />;
 
@@ -288,6 +759,10 @@ export default function CustomersScreen() {
             <Text style={styles.summaryLabel}>Orders shown</Text>
           </View>
         </View>
+        <Pressable onPress={openAddCustomer} style={({ pressed }) => [styles.addCustomerButton, pressed && styles.pressed]}>
+          <MaterialCommunityIcons color="#0B5D3B" name="account-plus-outline" size={21} />
+          <Text style={styles.addCustomerText}>Add offline customer</Text>
+        </Pressable>
       </View>
 
       <View style={styles.searchRow}>
@@ -319,15 +794,70 @@ export default function CustomersScreen() {
   );
 
   return (
-    <FlatList
-      contentContainerStyle={styles.listContent}
-      data={customers}
-      keyExtractor={(item) => item.key}
-      ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No customers found</Text><Text style={styles.emptyText}>Try another search.</Text></View>}
-      ListHeaderComponent={header}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
-      renderItem={({ item }) => <CustomerCard customer={item} onPress={() => setSelectedCustomerKey(item.key)} />}
-    />
+    <>
+      <FlatList
+        contentContainerStyle={styles.listContent}
+        data={customers}
+        keyExtractor={(item) => item.key}
+        ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No customers found</Text><Text style={styles.emptyText}>Try another search or add an offline customer.</Text></View>}
+        ListHeaderComponent={header}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
+        renderItem={({ item }) => <CustomerCard customer={item} onPress={() => setSelectedCustomerKey(item.key)} />}
+      />
+      <Modal animationType="slide" onRequestClose={() => !formSaving && setFormVisible(false)} transparent visible={formVisible}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.formSheet}>
+              <View style={styles.formHeader}>
+                <View>
+                  <Text style={styles.formTitle}>Add offline customer</Text>
+                  <Text style={styles.formSubtitle}>Save details for future shipping-label printing.</Text>
+                </View>
+                <Pressable disabled={formSaving} onPress={() => setFormVisible(false)} style={styles.closeButton}>
+                  <MaterialCommunityIcons color="#587066" name="close" size={24} />
+                </Pressable>
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.inputLabel}>Customer name *</Text>
+                <TextInput autoCapitalize="words" maxLength={160} onChangeText={(value) => updateForm('name', value)} placeholder="Customer name" placeholderTextColor="#82958D" style={styles.input} value={formValues.name} />
+                <Text style={styles.inputLabel}>Mobile number *</Text>
+                <TextInput keyboardType="phone-pad" maxLength={32} onChangeText={(value) => updateForm('phone', value)} placeholder="10-digit mobile number" placeholderTextColor="#82958D" style={styles.input} value={formValues.phone} />
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput autoCapitalize="none" keyboardType="email-address" maxLength={254} onChangeText={(value) => updateForm('email', value)} placeholder="Optional" placeholderTextColor="#82958D" style={styles.input} value={formValues.email} />
+                <Text style={styles.inputLabel}>Address line 1 *</Text>
+                <TextInput maxLength={255} onChangeText={(value) => updateForm('address_1', value)} placeholder="House number and street" placeholderTextColor="#82958D" style={styles.input} value={formValues.address_1} />
+                <Text style={styles.inputLabel}>Address line 2</Text>
+                <TextInput maxLength={255} onChangeText={(value) => updateForm('address_2', value)} placeholder="Area or landmark" placeholderTextColor="#82958D" style={styles.input} value={formValues.address_2} />
+                <View style={styles.formRow}>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>City *</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateForm('city', value)} placeholder="City" placeholderTextColor="#82958D" style={styles.input} value={formValues.city} />
+                  </View>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>State *</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateForm('state', value)} placeholder="State" placeholderTextColor="#82958D" style={styles.input} value={formValues.state} />
+                  </View>
+                </View>
+                <View style={styles.formRow}>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>Pincode *</Text>
+                    <TextInput keyboardType="number-pad" maxLength={20} onChangeText={(value) => updateForm('pincode', value)} placeholder="Pincode" placeholderTextColor="#82958D" style={styles.input} value={formValues.pincode} />
+                  </View>
+                  <View style={styles.formHalf}>
+                    <Text style={styles.inputLabel}>Country</Text>
+                    <TextInput maxLength={120} onChangeText={(value) => updateForm('country', value)} placeholder="India" placeholderTextColor="#82958D" style={styles.input} value={formValues.country} />
+                  </View>
+                </View>
+                {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+              </ScrollView>
+              <Pressable disabled={!formReady || formSaving} onPress={() => void saveCustomer()} style={[styles.saveButton, (!formReady || formSaving) && styles.disabledButton]}>
+                {formSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Save customer</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -345,6 +875,8 @@ const styles = StyleSheet.create({
   summaryDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.24)' },
   summaryValue: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' },
   summaryLabel: { color: '#D7EFE3', fontSize: 11, fontWeight: '800', marginTop: 3 },
+  addCustomerButton: { minHeight: 48, backgroundColor: '#FFFFFF', borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8, marginTop: 16 },
+  addCustomerText: { color: '#0B5D3B', fontSize: 15, fontWeight: '900' },
   searchRow: { flexDirection: 'row', marginBottom: 13 },
   searchInput: { flex: 1, minHeight: 50, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 15, color: '#17352A', fontSize: 15 },
   searchButton: { width: 50, height: 50, backgroundColor: '#0B5D3B', borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
@@ -374,11 +906,19 @@ const styles = StyleSheet.create({
   profileCopy: { flex: 1 },
   profileName: { color: '#17352A', fontSize: 21, fontWeight: '900' },
   profileMeta: { color: '#71867D', fontSize: 13, marginTop: 4 },
+  editCustomerButton: { minHeight: 46, backgroundColor: '#F4FAF7', borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8, marginBottom: 12 },
+  editCustomerText: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' },
   contactGrid: { flexDirection: 'row', columnGap: 10, marginBottom: 20 },
   contactButton: { flex: 1, minHeight: 50, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 14, backgroundColor: '#F4FAF7', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', columnGap: 8 },
   whatsAppButton: { backgroundColor: '#ECF9F1' },
   contactButtonText: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' },
   disabledCard: { opacity: 0.45 },
+  printLabelButton: { minHeight: 52, backgroundColor: '#0B5D3B', borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 9, marginBottom: 22 },
+  printLabelText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  manualOrderButton: { minHeight: 62, backgroundColor: '#104D34', borderRadius: 17, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, columnGap: 12, marginTop: -10, marginBottom: 22 },
+  manualOrderCopy: { flex: 1 },
+  manualOrderText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  manualOrderHint: { color: '#D7EFE3', fontSize: 11, fontWeight: '700', marginTop: 3 },
   sectionTitle: { color: '#17352A', fontSize: 19, fontWeight: '900', marginBottom: 10 },
   sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 20 },
   detailRow: { marginBottom: 13 },
@@ -410,4 +950,36 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' },
   emptyText: { color: '#71867D', lineHeight: 20, textAlign: 'center', marginTop: 7 },
+  modalKeyboardView: { flex: 1 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15, 35, 28, 0.46)' },
+  formSheet: { maxHeight: '90%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, paddingBottom: 28 },
+  formHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', columnGap: 14, marginBottom: 14 },
+  sheetTitleCopy: { flex: 1 },
+  formTitle: { color: '#17352A', fontSize: 22, fontWeight: '900' },
+  formSubtitle: { color: '#71867D', fontSize: 12, lineHeight: 18, marginTop: 3 },
+  closeButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F8F5', alignItems: 'center', justifyContent: 'center' },
+  inputLabel: { color: '#40564D', fontSize: 12, fontWeight: '900', marginBottom: 6 },
+  input: { minHeight: 50, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 13, color: '#17352A', fontSize: 15, paddingHorizontal: 13, marginBottom: 13, backgroundColor: '#FFFFFF' },
+  formRow: { flexDirection: 'row', columnGap: 10 },
+  formHalf: { flex: 1 },
+  formError: { color: '#B42318', fontSize: 13, lineHeight: 18, marginBottom: 12 },
+  saveButton: { minHeight: 52, borderRadius: 15, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  disabledButton: { opacity: 0.45 },
+  selectedCard: { backgroundColor: '#F4FAF7', borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 16, padding: 13, marginBottom: 18 },
+  selectedTitle: { color: '#17352A', fontSize: 15, fontWeight: '900', marginBottom: 9 },
+  selectedRow: { flexDirection: 'row', alignItems: 'center', columnGap: 9, paddingVertical: 7 },
+  selectedCopy: { flex: 1 },
+  selectedName: { color: '#17352A', fontSize: 14, fontWeight: '900' },
+  selectedMeta: { color: '#71867D', fontSize: 11, fontWeight: '700', marginTop: 3 },
+  qtyInput: { width: 52, minHeight: 42, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 12, color: '#17352A', fontSize: 16, fontWeight: '900', textAlign: 'center', backgroundColor: '#FFFFFF' },
+  removeItemButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF2F2' },
+  manualTotalRow: { borderTopColor: '#DCE5E1', borderTopWidth: 1, marginTop: 9, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between' },
+  manualTotalLabel: { color: '#40564D', fontSize: 13, fontWeight: '900' },
+  manualTotalValue: { color: '#0B5D3B', fontSize: 18, fontWeight: '900' },
+  productPickRow: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 15, padding: 12, marginBottom: 9, flexDirection: 'row', alignItems: 'center', columnGap: 10 },
+  productPickIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center' },
+  productPickCopy: { flex: 1 },
+  productPickName: { color: '#17352A', fontSize: 14, fontWeight: '900' },
+  productPickMeta: { color: '#71867D', fontSize: 11, marginTop: 3, fontWeight: '700' },
 });

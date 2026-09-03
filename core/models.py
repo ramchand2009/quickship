@@ -463,6 +463,56 @@ class SenderAddress(models.Model):
         )
 
 
+class MobileCustomerProfile(models.Model):
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="mobile_customer_profiles",
+        default=get_default_tenant_pk,
+    )
+    name = models.CharField(max_length=160)
+    phone = models.CharField(max_length=32, blank=True)
+    email = models.EmailField(blank=True)
+    address_1 = models.CharField(max_length=255, blank=True)
+    address_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    state = models.CharField(max_length=120, blank=True)
+    country = models.CharField(max_length=120, default="India", blank=True)
+    pincode = models.CharField(max_length=20, blank=True)
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "-updated_at"]
+        indexes = [
+            models.Index(fields=["tenant", "phone"], name="mobcust_tenant_phone_idx"),
+            models.Index(fields=["tenant", "name"], name="mobcust_tenant_name_idx"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def customer_key(self):
+        return f"saved:{self.pk}"
+
+    @property
+    def address_line(self):
+        return ", ".join(
+            value
+            for value in [
+                self.address_1,
+                self.address_2,
+                self.city,
+                self.state,
+                self.pincode,
+                self.country,
+            ]
+            if str(value or "").strip()
+        )
+
+
 class WhatsAppSettings(models.Model):
     tenant = models.ForeignKey(
         Tenant,
@@ -863,6 +913,8 @@ class ShiprocketOrder(models.Model):
 
     @property
     def source_label(self):
+        if self.source == "manual":
+            return "Manual"
         return dict(self.SOURCE_CHOICES).get(self.source, self.source or "Shiprocket")
 
     @property

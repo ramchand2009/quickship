@@ -25,7 +25,7 @@ import type {
 } from '../notifications/types';
 import type { ExpenseCreate, ExpenseListResponse } from '../expenses/types';
 import type { ProductSalesReportResponse } from '../reports/types';
-import type { CustomerDetailResponse, CustomerListResponse, CustomerOrderDetailResponse } from '../customers/types';
+import type { CustomerAddressInput, CustomerCreateResponse, CustomerDetailResponse, CustomerListResponse, CustomerOrderDetailResponse, ManualOrderCreateInput, ManualOrderCreateResponse } from '../customers/types';
 
 const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL
@@ -127,9 +127,32 @@ export async function customers(accessToken: string, search = ''): Promise<Custo
   });
 }
 
+export async function createCustomer(
+  accessToken: string,
+  values: CustomerAddressInput,
+): Promise<CustomerCreateResponse> {
+  return request<CustomerCreateResponse>('/customers', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(values),
+  });
+}
+
 export async function customerDetail(accessToken: string, customerKey: string): Promise<CustomerDetailResponse> {
   return request<CustomerDetailResponse>(`/customers/${encodeURIComponent(customerKey)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function updateCustomer(
+  accessToken: string,
+  customerKey: string,
+  values: CustomerAddressInput,
+): Promise<CustomerDetailResponse> {
+  return request<CustomerDetailResponse>(`/customers/${encodeURIComponent(customerKey)}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(values),
   });
 }
 
@@ -140,6 +163,18 @@ export async function customerOrderDetail(
 ): Promise<CustomerOrderDetailResponse> {
   return request<CustomerOrderDetailResponse>(`/customers/${encodeURIComponent(customerKey)}/orders/${orderId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function createManualOrder(
+  accessToken: string,
+  values: ManualOrderCreateInput,
+  idempotencyKey: string,
+): Promise<ManualOrderCreateResponse> {
+  return request<ManualOrderCreateResponse>('/manual-orders', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
   });
 }
 
