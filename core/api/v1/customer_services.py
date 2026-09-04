@@ -5,7 +5,9 @@ import re
 from collections import OrderedDict
 from decimal import Decimal
 
+from django.db.utils import OperationalError, ProgrammingError
 from django.db.models.functions import Coalesce
+from rest_framework.exceptions import ValidationError
 
 from core.models import MobileCustomerProfile, ShiprocketOrder
 
@@ -169,9 +171,12 @@ def _base_customer_orders(tenant):
 def mobile_customer_list(*, tenant, role, search=""):
     search_text = _normalize_text(search)
     customers = OrderedDict()
-    for profile in MobileCustomerProfile.objects.filter(tenant=tenant).order_by("name", "-updated_at"):
-        customers[profile.customer_key] = _customer_payload_from_profile(profile)
-        customers[profile.customer_key]["_total"] = Decimal("0.00")
+    try:
+        for profile in MobileCustomerProfile.objects.filter(tenant=tenant).order_by("name", "-updated_at"):
+            customers[profile.customer_key] = _customer_payload_from_profile(profile)
+            customers[profile.customer_key]["_total"] = Decimal("0.00")
+    except (OperationalError, ProgrammingError):
+        pass
 
     for order in _base_customer_orders(tenant):
         key = _customer_key(order)
@@ -198,19 +203,22 @@ def mobile_customer_list(*, tenant, role, search=""):
 
 
 def create_mobile_customer_profile(*, tenant, actor, values):
-    profile = MobileCustomerProfile.objects.create(
-        tenant=tenant,
-        created_by=actor,
-        name=values["name"],
-        phone=values["phone"],
-        email=values.get("email") or "",
-        address_1=values["address_1"],
-        address_2=values.get("address_2") or "",
-        city=values["city"],
-        state=values["state"],
-        pincode=values["pincode"],
-        country=values.get("country") or "India",
-    )
+    try:
+        profile = MobileCustomerProfile.objects.create(
+            tenant=tenant,
+            created_by=actor,
+            name=values["name"],
+            phone=values["phone"],
+            email=values.get("email") or "",
+            address_1=values["address_1"],
+            address_2=values.get("address_2") or "",
+            city=values["city"],
+            state=values["state"],
+            pincode=values["pincode"],
+            country=values.get("country") or "India",
+        )
+    except (OperationalError, ProgrammingError):
+        raise ValidationError("Customer setup is still completing. Please try again after the server migration finishes.")
     return {"data": {"customer": _customer_payload_from_profile(profile), "sender": _sender_payload(tenant)}}
 
 
@@ -218,7 +226,10 @@ def update_mobile_customer_profile(*, tenant, customer_key, values):
     if not customer_key.startswith("saved:"):
         return None
     profile_id = customer_key.split(":", 1)[1]
-    profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+    try:
+        profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+    except (OperationalError, ProgrammingError):
+        raise ValidationError("Customer setup is still completing. Please try again after the server migration finishes.")
     if profile is None:
         return None
     for field in ["name", "phone", "address_1", "city", "state", "pincode"]:
@@ -243,7 +254,10 @@ def update_mobile_customer_profile(*, tenant, customer_key, values):
 def mobile_customer_detail(*, tenant, role, customer_key):
     if customer_key.startswith("saved:"):
         profile_id = customer_key.split(":", 1)[1]
-        profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+        try:
+            profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+        except (OperationalError, ProgrammingError):
+            return None
         if profile is None:
             return None
         return {
