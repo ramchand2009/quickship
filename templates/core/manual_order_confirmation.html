@@ -27,15 +27,16 @@
         }
         .shell {
             width: 100%;
-            max-width: 430px;
+            max-width: none;
             margin: 0 auto;
             padding: max(10px, env(safe-area-inset-top)) 10px 22px;
         }
         .hero {
             background: linear-gradient(135deg, #075f3c, #0b7a4b);
-            border-radius: 22px;
+            border-radius: 0 0 22px 22px;
             color: #fff;
-            padding: 14px;
+            padding: max(14px, env(safe-area-inset-top)) 14px 14px;
+            margin: calc(-1 * max(10px, env(safe-area-inset-top))) -10px 0;
             box-shadow: 0 12px 24px rgba(7, 95, 60, 0.18);
         }
         .brand {
@@ -258,8 +259,6 @@
         }
         @media (max-width: 560px) {
             .grid, .form-row { grid-template-columns: 1fr; }
-            .shell { max-width: none; }
-            .hero { border-radius: 0 0 22px 22px; margin: calc(-1 * max(10px, env(safe-area-inset-top))) -10px 0; padding: max(14px, env(safe-area-inset-top)) 14px 14px; }
             .brand div div:last-child { display: none; }
             .status-card { margin-top: 10px; }
             .form-card { padding: 13px; }
