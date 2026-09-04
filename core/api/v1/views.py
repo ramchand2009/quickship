@@ -23,6 +23,7 @@ from .dashboard_services import build_mobile_dashboard
 from .customer_serializers import MobileCustomerProfileSerializer
 from .customer_services import (
     create_mobile_customer_profile,
+    _sender_payload,
     mobile_customer_detail,
     mobile_customer_list,
     mobile_customer_order_detail,
@@ -366,6 +367,7 @@ class MobileManualOrderCreateView(MobileWriteEnabledMixin, APIView):
             actor=request.user.get_username(),
             idempotency_key=self.idempotency_key(request),
             values=serializer.validated_data,
+            base_url=request.build_absolute_uri("/"),
         )
         return Response(payload, status=201)
 
@@ -542,6 +544,18 @@ class MobileCustomerDetailView(MobileReadEnabledMixin, APIView):
         if payload is None:
             raise NotFound("The requested resource is unavailable.")
         return Response(payload)
+
+
+class MobileShippingLabelSenderView(MobileReadEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_read"
+
+    def get(self, request):
+        return Response({"data": _sender_payload(request.tenant)})
 
 
 class MobileCustomerOrderDetailView(MobileReadEnabledMixin, APIView):

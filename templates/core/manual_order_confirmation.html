@@ -1,0 +1,383 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirm your Mathukai Organic order</title>
+    <style>
+        :root {
+            --green: #075f3c;
+            --green-2: #0b7a4b;
+            --mint: #eaf7ef;
+            --ink: #17352a;
+            --muted: #6d8178;
+            --line: #dce8e1;
+            --danger: #b42318;
+            --warn: #9a5b00;
+            --paper: #f6faf7;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top left, #e9f8ef 0, #f6faf7 42%, #ffffff 100%);
+            color: var(--ink);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .shell {
+            width: min(100%, 760px);
+            margin: 0 auto;
+            padding: 18px 14px 34px;
+        }
+        .hero {
+            background: linear-gradient(135deg, #075f3c, #0b7a4b);
+            border-radius: 28px;
+            color: #fff;
+            padding: 22px;
+            box-shadow: 0 18px 38px rgba(7, 95, 60, 0.2);
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #fff;
+            padding: 4px;
+            object-fit: contain;
+        }
+        .brand-text {
+            font-size: 13px;
+            font-weight: 900;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+        h1 {
+            font-size: clamp(26px, 7vw, 42px);
+            line-height: 1.05;
+            margin: 0 0 10px;
+            letter-spacing: -0.04em;
+        }
+        .hero p {
+            color: #d9f2e6;
+            line-height: 1.55;
+            margin: 0;
+            font-weight: 650;
+        }
+        .status-card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            padding: 16px;
+            margin-top: 14px;
+            box-shadow: 0 10px 26px rgba(23, 53, 42, 0.07);
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 7px 12px;
+            background: var(--mint);
+            color: var(--green);
+            font-size: 12px;
+            font-weight: 900;
+        }
+        .status-pill.warn { background: #fff4d8; color: var(--warn); }
+        .status-pill.danger { background: #fff1f0; color: var(--danger); }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .metric {
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px;
+        }
+        .metric-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 850;
+            margin-bottom: 6px;
+        }
+        .metric-value {
+            color: var(--green);
+            font-size: 24px;
+            font-weight: 950;
+        }
+        .section-title {
+            margin: 24px 4px 10px;
+            font-size: 20px;
+            font-weight: 950;
+            letter-spacing: -0.02em;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            overflow: hidden;
+            box-shadow: 0 8px 22px rgba(23, 53, 42, 0.06);
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 15px;
+            border-bottom: 1px solid var(--line);
+        }
+        .item:last-child { border-bottom: 0; }
+        .item-name {
+            font-weight: 900;
+            line-height: 1.35;
+        }
+        .item-meta {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 750;
+            margin-top: 4px;
+        }
+        .item-total {
+            font-weight: 950;
+            white-space: nowrap;
+        }
+        .form-card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            padding: 16px;
+            box-shadow: 0 8px 22px rgba(23, 53, 42, 0.06);
+        }
+        label {
+            display: block;
+            color: #40564d;
+            font-size: 12px;
+            font-weight: 900;
+            margin: 0 0 6px;
+        }
+        input, textarea {
+            width: 100%;
+            border: 1px solid #cad8d1;
+            border-radius: 14px;
+            min-height: 48px;
+            padding: 12px 13px;
+            color: var(--ink);
+            font: inherit;
+            font-weight: 650;
+            outline: none;
+            margin-bottom: 13px;
+            background: #fff;
+        }
+        textarea { min-height: 96px; resize: vertical; }
+        input:focus, textarea:focus {
+            border-color: var(--green-2);
+            box-shadow: 0 0 0 3px rgba(11, 122, 75, 0.12);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .error {
+            background: #fff1f0;
+            border: 1px solid #ffc9c4;
+            color: var(--danger);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 14px;
+            font-weight: 800;
+        }
+        .actions {
+            position: sticky;
+            bottom: 0;
+            margin: 18px -14px -34px;
+            padding: 13px 14px calc(13px + env(safe-area-inset-bottom));
+            background: rgba(246, 250, 247, 0.94);
+            backdrop-filter: blur(14px);
+            border-top: 1px solid var(--line);
+            display: grid;
+            gap: 10px;
+        }
+        button {
+            border: 0;
+            border-radius: 16px;
+            min-height: 52px;
+            padding: 12px 16px;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 950;
+            cursor: pointer;
+        }
+        .primary { background: var(--green); color: #fff; }
+        .secondary { background: #fff; color: var(--green); border: 1px solid #b8d5c8; }
+        .danger-action { background: #fff1f0; color: var(--danger); border: 1px solid #ffc9c4; }
+        .result {
+            text-align: center;
+            padding: 24px 14px;
+        }
+        .result-icon {
+            width: 66px;
+            height: 66px;
+            border-radius: 50%;
+            margin: 0 auto 14px;
+            display: grid;
+            place-items: center;
+            background: var(--mint);
+            color: var(--green);
+            font-size: 34px;
+            font-weight: 950;
+        }
+        .result h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .result p {
+            color: var(--muted);
+            line-height: 1.55;
+            margin: 8px auto 0;
+            max-width: 440px;
+            font-weight: 650;
+        }
+        @media (max-width: 560px) {
+            .grid, .form-row { grid-template-columns: 1fr; }
+            .hero { border-radius: 0 0 28px 28px; margin: -18px -14px 0; }
+            .status-card { margin-top: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <section class="hero">
+            <div class="brand">
+                <img class="logo" src="{% static 'assets/images/mathukai-logo.png' %}" alt="Mathukai Organic">
+                <div>
+                    <div class="brand-text">Mathukai Organic</div>
+                    <div style="color:#d9f2e6;font-size:12px;font-weight:750;">Secure order confirmation</div>
+                </div>
+            </div>
+            <h1>Review your order</h1>
+            <p>Please check your products and delivery address before we process your offline order.</p>
+        </section>
+
+        <section class="status-card">
+            {% if confirmation.status == "confirmed" %}
+                <span class="status-pill">Order confirmed</span>
+            {% elif confirmation.status == "change_requested" %}
+                <span class="status-pill warn">Change requested</span>
+            {% elif confirmation.status == "cancelled" %}
+                <span class="status-pill danger">Order cancelled</span>
+            {% elif not is_open %}
+                <span class="status-pill warn">Link closed</span>
+            {% else %}
+                <span class="status-pill">Awaiting your confirmation</span>
+            {% endif %}
+            <div class="grid">
+                <div class="metric">
+                    <div class="metric-label">Order</div>
+                    <div class="metric-value">{{ order.source_order_reference }}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Total amount</div>
+                    <div class="metric-value">₹ {{ order.total|floatformat:2 }}</div>
+                </div>
+            </div>
+        </section>
+
+        {% if action_result or not is_open %}
+            <section class="card result" style="margin-top:18px;">
+                {% if confirmation.status == "confirmed" %}
+                    <div class="result-icon">✓</div>
+                    <h2>Thank you, your order is confirmed.</h2>
+                    <p>Mathukai Organic will now process your order.</p>
+                {% elif confirmation.status == "change_requested" %}
+                    <div class="result-icon">!</div>
+                    <h2>Your change request was sent.</h2>
+                    <p>Our team will review it and contact you if needed.</p>
+                {% elif confirmation.status == "cancelled" %}
+                    <div class="result-icon">×</div>
+                    <h2>Your order was cancelled.</h2>
+                    <p>No further action is needed.</p>
+                {% else %}
+                    <div class="result-icon">!</div>
+                    <h2>This confirmation link is closed.</h2>
+                    <p>Please contact Mathukai Organic if you need help with this order.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        <h2 class="section-title">Products</h2>
+        <section class="card">
+            {% for item in items %}
+                <div class="item">
+                    <div>
+                        <div class="item-name">{{ item.name }}</div>
+                        <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
+                    </div>
+                    <div class="item-total">₹ {{ item.line_total|floatformat:2 }}</div>
+                </div>
+            {% empty %}
+                <div class="item">
+                    <div class="item-name">No products found</div>
+                </div>
+            {% endfor %}
+        </section>
+
+        <h2 class="section-title">Delivery details</h2>
+        <form method="post" class="form-card">
+            {% csrf_token %}
+            {% if form_error %}<div class="error">{{ form_error }}</div>{% endif %}
+
+            <label for="name">Name</label>
+            <input id="name" name="name" value="{{ address.name }}" autocomplete="name" {% if not is_open %}readonly{% endif %}>
+
+            <label for="phone">Mobile number</label>
+            <input id="phone" name="phone" value="{{ address.phone }}" inputmode="tel" autocomplete="tel" {% if not is_open %}readonly{% endif %}>
+
+            <label for="address_1">Address line 1</label>
+            <input id="address_1" name="address_1" value="{{ address.address_1 }}" autocomplete="address-line1" {% if not is_open %}readonly{% endif %}>
+
+            <label for="address_2">Address line 2</label>
+            <input id="address_2" name="address_2" value="{{ address.address_2 }}" autocomplete="address-line2" {% if not is_open %}readonly{% endif %}>
+
+            <div class="form-row">
+                <div>
+                    <label for="city">City</label>
+                    <input id="city" name="city" value="{{ address.city }}" autocomplete="address-level2" {% if not is_open %}readonly{% endif %}>
+                </div>
+                <div>
+                    <label for="state">State</label>
+                    <input id="state" name="state" value="{{ address.state }}" autocomplete="address-level1" {% if not is_open %}readonly{% endif %}>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="pincode">Pincode</label>
+                    <input id="pincode" name="pincode" value="{{ address.pincode }}" inputmode="numeric" autocomplete="postal-code" {% if not is_open %}readonly{% endif %}>
+                </div>
+                <div>
+                    <label for="country">Country</label>
+                    <input id="country" name="country" value="{{ address.country }}" autocomplete="country-name" {% if not is_open %}readonly{% endif %}>
+                </div>
+            </div>
+
+            {% if is_open %}
+                <label for="change_note">If changes are needed, tell us here</label>
+                <textarea id="change_note" name="change_note" placeholder="Example: Please change quantity to 2, or correct landmark..."></textarea>
+
+                <div class="actions">
+                    <button class="primary" type="submit" name="action" value="confirm">Confirm order</button>
+                    <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
+                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                </div>
+            {% endif %}
+        </form>
+    </main>
+</body>
+</html>

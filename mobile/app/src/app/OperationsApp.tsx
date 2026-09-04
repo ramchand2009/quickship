@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +24,7 @@ import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { DashboardResponse } from '../auth/types';
 import CustomersScreen from '../customers/CustomersScreen';
+import type { ShippingLabelSender } from '../customers/types';
 import ExpensesScreen from '../expenses/ExpensesScreen';
 import OrdersScreen from '../orders/OrdersScreen';
 import type { OrderListFilters } from '../orders/types';
@@ -62,6 +69,67 @@ const METRIC_ORDER_STATUSES: Record<string, string> = {
   completed_orders: 'completed',
   cancelled_orders: 'order_cancelled',
 };
+
+const INDIA_POST_CUSTOMER_ID = '1828524916';
+
+function escapeHtml(value?: string | null) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function standaloneShippingLabelHtml(
+  customer: { name: string; phone: string; address: string },
+  sender: ShippingLabelSender | null,
+) {
+  const senderName = sender?.name || 'Mathukai Organic';
+  const senderPhone = sender?.phone || '9940464659';
+  const senderAddress = sender?.address || 'Mathukai Organic';
+
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: 4in 6in; margin: 0; }
+      body { margin: 0; padding: 0; font-family: Arial, sans-serif; color: #111; }
+      .label { box-sizing: border-box; width: 4in; height: 6in; padding: 0.2in; border: 2px solid #111; }
+      .brand { font-size: 14px; font-weight: 800; letter-spacing: 0.8px; }
+      .title { margin-top: 8px; font-size: 23px; font-weight: 900; }
+      .customer-id { margin-top: 7px; font-size: 12px; font-weight: 800; }
+      .rule { margin: 13px 0; border-top: 2px solid #111; }
+      .box { border: 1.6px solid #111; padding: 12px; margin-bottom: 13px; }
+      .box-title { font-size: 9px; font-weight: 900; letter-spacing: 0.6px; margin-bottom: 10px; }
+      .name { font-size: 17px; font-weight: 900; margin-bottom: 8px; }
+      .address { font-size: 12px; line-height: 1.35; white-space: pre-line; }
+      .phone { margin-top: 8px; font-size: 12px; font-weight: 900; }
+    </style>
+  </head>
+  <body>
+    <div class="label">
+      <div class="brand">MATHUKAI ORGANIC</div>
+      <div class="title">SHIPPING LABEL</div>
+      <div class="customer-id">India Post Customer ID: ${INDIA_POST_CUSTOMER_ID}</div>
+      <div class="rule"></div>
+      <div class="box">
+        <div class="box-title">TO</div>
+        <div class="name">${escapeHtml(customer.name)}</div>
+        <div class="address">${escapeHtml(customer.address)}</div>
+        <div class="phone">Phone: ${escapeHtml(customer.phone)}</div>
+      </div>
+      <div class="box">
+        <div class="box-title">FROM</div>
+        <div class="name">${escapeHtml(senderName)}</div>
+        <div class="address">${escapeHtml(senderAddress)}</div>
+        <div class="phone">Phone: ${escapeHtml(senderPhone)}</div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
 
 function formatUpdatedAt(value?: string) {
   if (!value) return '';
@@ -382,85 +450,210 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
 }
 
 function AccountScreen() {
-  const { auth, signOut } = useAuth();
+  const { auth, runAuthenticated, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [labelVisible, setLabelVisible] = useState(false);
+  const [labelName, setLabelName] = useState('');
+  const [labelPhone, setLabelPhone] = useState('');
+  const [labelAddress, setLabelAddress] = useState('');
+  const [labelBusy, setLabelBusy] = useState(false);
+  const [labelSender, setLabelSender] = useState<ShippingLabelSender | null>(null);
   if (!auth?.session.active_tenant) return null;
+
+  const labelReady = labelName.trim().length > 1 && labelPhone.replace(/\D/g, '').length >= 10 && labelAddress.trim().length > 5;
 
   const signOutNow = async () => {
     setBusy(true);
     await signOut();
   };
 
+  const openLabelTool = async () => {
+    setLabelName('');
+    setLabelPhone('');
+    setLabelAddress('');
+    setLabelVisible(true);
+    try {
+      const response = await runAuthenticated((token) => api.shippingLabelSender(token));
+      setLabelSender(response.data);
+    } catch {
+      setLabelSender(null);
+    }
+  };
+
+  const createLabelPdf = async () => {
+    if (!labelReady || labelBusy) return;
+    setLabelBusy(true);
+    try {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert('Sharing unavailable', 'PDF sharing is not available on this device.');
+        return;
+      }
+      const pdf = await Print.printToFileAsync({
+        html: standaloneShippingLabelHtml(
+          { name: labelName.trim(), phone: labelPhone.trim(), address: labelAddress.trim() },
+          labelSender,
+        ),
+        width: 288,
+        height: 432,
+      });
+      await Sharing.shareAsync(pdf.uri, {
+        dialogTitle: 'Share shipping label PDF',
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+      setLabelVisible(false);
+    } catch {
+      Alert.alert('Label not created', 'Please check the customer details and try again.');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{auth.session.user.display_name.slice(0, 1).toUpperCase()}</Text>
-          <View style={styles.onlineBadge} />
-        </View>
-        <View style={styles.profileCopy}>
-          <Text style={styles.profileName}>{auth.session.user.display_name}</Text>
-          <Text style={styles.profileUsername}>@{auth.session.user.username}</Text>
-          <View style={styles.roleBadge}>
-            <MaterialCommunityIcons color="#14733D" name="shield-account-outline" size={14} />
-            <Text style={styles.roleBadgeText}>{auth.session.active_tenant.role_label}</Text>
+    <>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{auth.session.user.display_name.slice(0, 1).toUpperCase()}</Text>
+            <View style={styles.onlineBadge} />
+          </View>
+          <View style={styles.profileCopy}>
+            <Text style={styles.profileName}>{auth.session.user.display_name}</Text>
+            <Text style={styles.profileUsername}>@{auth.session.user.username}</Text>
+            <View style={styles.roleBadge}>
+              <MaterialCommunityIcons color="#14733D" name="shield-account-outline" size={14} />
+              <Text style={styles.roleBadgeText}>{auth.session.active_tenant.role_label}</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <Text style={styles.accountSectionTitle}>Workspace</Text>
-      <View style={styles.detailCard}>
-        <View style={styles.accountDetailRow}>
-          <View style={styles.accountDetailIcon}><MaterialCommunityIcons color="#14733D" name="store-outline" size={22} /></View>
-          <View style={styles.accountDetailCopy}>
-            <Text style={styles.detailLabel}>Business workspace</Text>
-            <Text style={styles.detailValue}>{auth.session.active_tenant.tenant_name}</Text>
+        <Text style={styles.accountSectionTitle}>Tools</Text>
+        <Pressable onPress={() => void openLabelTool()} style={({ pressed }) => [styles.accountToolCard, pressed && styles.pressed]}>
+          <View style={styles.accountToolIcon}>
+            <MaterialCommunityIcons color="#0B5D3B" name="file-pdf-box" size={27} />
+          </View>
+          <View style={styles.accountToolCopy}>
+            <Text style={styles.accountToolTitle}>Shipping Label PDF</Text>
+            <Text style={styles.accountToolText}>Paste customer address and create a 4×6 label PDF.</Text>
+          </View>
+          <MaterialCommunityIcons color="#587066" name="chevron-right" size={25} />
+        </Pressable>
+
+        <Text style={styles.accountSectionTitle}>Workspace</Text>
+        <View style={styles.detailCard}>
+          <View style={styles.accountDetailRow}>
+            <View style={styles.accountDetailIcon}><MaterialCommunityIcons color="#14733D" name="store-outline" size={22} /></View>
+            <View style={styles.accountDetailCopy}>
+              <Text style={styles.detailLabel}>Business workspace</Text>
+              <Text style={styles.detailValue}>{auth.session.active_tenant.tenant_name}</Text>
+            </View>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.accountDetailRow}>
+            <View style={styles.accountDetailIcon}><MaterialCommunityIcons color="#14733D" name="account-key-outline" size={22} /></View>
+            <View style={styles.accountDetailCopy}>
+              <Text style={styles.detailLabel}>Access role</Text>
+              <Text style={styles.detailValue}>{auth.session.active_tenant.role_label}</Text>
+            </View>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.accountDetailRow}>
+            <View style={styles.accountDetailIcon}><MaterialCommunityIcons color="#14733D" name="key-chain-variant" size={22} /></View>
+            <View style={styles.accountDetailCopy}>
+              <Text style={styles.detailLabel}>Granted permissions</Text>
+              <Text style={styles.detailValue}>{auth.session.permissions.length} active permissions</Text>
+            </View>
           </View>
         </View>
-        <View style={styles.divider} />
-        <View style={styles.accountDetailRow}>
-          <View style={styles.accountDetailIcon}><MaterialCommunityIcons color="#14733D" name="account-key-outline" size={22} /></View>
-          <View style={styles.accountDetailCopy}>
-            <Text style={styles.detailLabel}>Access role</Text>
-            <Text style={styles.detailValue}>{auth.session.active_tenant.role_label}</Text>
+
+        <Text style={styles.accountSectionTitle}>Application</Text>
+        <View style={styles.appInfoCard}>
+          <View style={styles.appMark}>
+            <Image accessibilityLabel="Mathukai Organic logo" resizeMode="contain" source={require('../../assets/images/mathukai-organic-logo-transparent.png')} style={styles.appMarkImage} />
           </View>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.accountDetailRow}>
-          <View style={styles.accountDetailIcon}><MaterialCommunityIcons color="#14733D" name="key-chain-variant" size={22} /></View>
-          <View style={styles.accountDetailCopy}>
-            <Text style={styles.detailLabel}>Granted permissions</Text>
-            <Text style={styles.detailValue}>{auth.session.permissions.length} active permissions</Text>
+          <View style={styles.appInfoCopy}>
+            <Text style={styles.appInfoName}>Mathukai Organic</Text>
+            <Text style={styles.appInfoVersion}>Android · Version 1.0.0</Text>
           </View>
+          <View style={styles.liveSessionBadge}><View style={styles.liveSessionDot} /><Text style={styles.liveSessionText}>Connected</Text></View>
         </View>
-      </View>
 
-      <Text style={styles.accountSectionTitle}>Application</Text>
-      <View style={styles.appInfoCard}>
-        <View style={styles.appMark}>
-          <Image accessibilityLabel="Mathukai Organic logo" resizeMode="contain" source={require('../../assets/images/mathukai-organic-logo-transparent.png')} style={styles.appMarkImage} />
+        <View style={styles.securityNote}>
+          <MaterialCommunityIcons color="#6B5B22" name="shield-check-outline" size={22} />
+          <Text style={styles.securityNoteText}>Your session is secured on this device. Sign out before sharing the device.</Text>
         </View>
-        <View style={styles.appInfoCopy}>
-          <Text style={styles.appInfoName}>Mathukai Organic</Text>
-          <Text style={styles.appInfoVersion}>Android · Version 1.0.0</Text>
-        </View>
-        <View style={styles.liveSessionBadge}><View style={styles.liveSessionDot} /><Text style={styles.liveSessionText}>Connected</Text></View>
-      </View>
 
-      <View style={styles.securityNote}>
-        <MaterialCommunityIcons color="#6B5B22" name="shield-check-outline" size={22} />
-        <Text style={styles.securityNoteText}>Your session is secured on this device. Sign out before sharing the device.</Text>
-      </View>
+        <Pressable disabled={busy} onPress={() => void signOutNow()} style={({ pressed }) => [styles.signOutButton, (pressed || busy) && styles.pressed]}>
+          {busy ? <ActivityIndicator color="#B42318" /> : (
+            <>
+              <MaterialCommunityIcons color="#B42318" name="logout" size={21} />
+              <Text style={styles.signOutText}>Sign out</Text>
+            </>
+          )}
+        </Pressable>
+      </ScrollView>
 
-      <Pressable disabled={busy} onPress={() => void signOutNow()} style={({ pressed }) => [styles.signOutButton, (pressed || busy) && styles.pressed]}>
-        {busy ? <ActivityIndicator color="#B42318" /> : (
-          <>
-            <MaterialCommunityIcons color="#B42318" name="logout" size={21} />
-            <Text style={styles.signOutText}>Sign out</Text>
-          </>
-        )}
-      </Pressable>
-    </ScrollView>
+      <Modal animationType="slide" onRequestClose={() => setLabelVisible(false)} transparent visible={labelVisible}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKeyboardView}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.labelFormSheet}>
+              <View style={styles.labelHeader}>
+                <View>
+                  <Text style={styles.labelTitle}>Shipping Label PDF</Text>
+                  <Text style={styles.labelSubtitle}>Paste the customer details received offline.</Text>
+                </View>
+                <Pressable onPress={() => setLabelVisible(false)} style={styles.labelCloseButton}>
+                  <MaterialCommunityIcons color="#587066" name="close" size={22} />
+                </Pressable>
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={styles.labelInputLabel}>Customer name</Text>
+                <TextInput
+                  autoCapitalize="words"
+                  onChangeText={setLabelName}
+                  placeholder="Customer name"
+                  placeholderTextColor="#92A29B"
+                  style={styles.labelInput}
+                  value={labelName}
+                />
+                <Text style={styles.labelInputLabel}>Mobile number</Text>
+                <TextInput
+                  keyboardType="phone-pad"
+                  onChangeText={setLabelPhone}
+                  placeholder="Mobile number"
+                  placeholderTextColor="#92A29B"
+                  style={styles.labelInput}
+                  value={labelPhone}
+                />
+                <Text style={styles.labelInputLabel}>Paste customer address</Text>
+                <TextInput
+                  multiline
+                  onChangeText={setLabelAddress}
+                  placeholder="Paste full delivery address"
+                  placeholderTextColor="#92A29B"
+                  style={[styles.labelInput, styles.labelTextarea]}
+                  textAlignVertical="top"
+                  value={labelAddress}
+                />
+                <Pressable
+                  disabled={!labelReady || labelBusy}
+                  onPress={() => void createLabelPdf()}
+                  style={({ pressed }) => [styles.labelCreateButton, (!labelReady || labelBusy) && styles.disabledButton, pressed && styles.pressed]}
+                >
+                  {labelBusy ? <ActivityIndicator color="#FFFFFF" /> : (
+                    <>
+                      <MaterialCommunityIcons color="#FFFFFF" name="file-pdf-box" size={20} />
+                      <Text style={styles.labelCreateText}>Create PDF</Text>
+                    </>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -739,6 +932,11 @@ const styles = StyleSheet.create({
   roleBadge: { alignSelf: 'flex-start', backgroundColor: '#E8F5EB', borderRadius: 13, paddingHorizontal: 9, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', columnGap: 5, marginTop: 9 },
   roleBadgeText: { color: '#14733D', fontSize: 10, fontWeight: '900' },
   accountSectionTitle: { color: '#17352A', fontSize: 16, fontWeight: '900', marginTop: 22, marginBottom: 10 },
+  accountToolCard: { minHeight: 82, backgroundColor: '#FFFFFF', borderColor: '#D6E5DD', borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 7, elevation: 1 },
+  accountToolIcon: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center' },
+  accountToolCopy: { flex: 1, marginLeft: 12, paddingRight: 8 },
+  accountToolTitle: { color: '#17352A', fontSize: 15, fontWeight: '900' },
+  accountToolText: { color: '#71867D', fontSize: 12, lineHeight: 17, marginTop: 4 },
   detailCard: { backgroundColor: '#FFFFFF', borderColor: '#DFE5E2', borderWidth: 1, borderRadius: 17, padding: 16 },
   accountDetailRow: { flexDirection: 'row', alignItems: 'center' },
   accountDetailIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#ECF7EE', alignItems: 'center', justifyContent: 'center' },
@@ -759,6 +957,19 @@ const styles = StyleSheet.create({
   securityNoteText: { color: '#6B5B22', fontSize: 12, lineHeight: 18, flex: 1, marginLeft: 9 },
   signOutButton: { minHeight: 52, borderColor: '#E5AAA5', borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8, marginTop: 18 },
   signOutText: { color: '#B42318', fontWeight: '800' },
+  modalKeyboardView: { flex: 1 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15, 35, 28, 0.46)' },
+  labelFormSheet: { maxHeight: '90%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, paddingBottom: 28 },
+  labelHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', columnGap: 14, marginBottom: 14 },
+  labelTitle: { color: '#17352A', fontSize: 22, fontWeight: '900' },
+  labelSubtitle: { color: '#71867D', fontSize: 12, lineHeight: 18, marginTop: 3 },
+  labelCloseButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F8F5', alignItems: 'center', justifyContent: 'center' },
+  labelInputLabel: { color: '#40564D', fontSize: 12, fontWeight: '900', marginBottom: 6 },
+  labelInput: { minHeight: 50, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 13, color: '#17352A', fontSize: 15, paddingHorizontal: 13, marginBottom: 13, backgroundColor: '#FFFFFF' },
+  labelTextarea: { minHeight: 130, paddingTop: 12, lineHeight: 20 },
+  labelCreateButton: { minHeight: 52, borderRadius: 15, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', columnGap: 8, marginTop: 4 },
+  labelCreateText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  disabledButton: { opacity: 0.45 },
   tabBar: { minHeight: 76, backgroundColor: '#FFFFFF', borderTopColor: '#DCE5E1', borderTopWidth: 1, flexDirection: 'row', paddingHorizontal: 6, shadowColor: '#17352A', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 5 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabIndicator: { width: 22, height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: 4 },

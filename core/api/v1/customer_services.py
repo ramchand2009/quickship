@@ -170,6 +170,7 @@ def _base_customer_orders(tenant):
 
 def mobile_customer_list(*, tenant, role, search=""):
     search_text = _normalize_text(search)
+    search_phone = _normalize_phone(search)
     customers = OrderedDict()
     try:
         for profile in MobileCustomerProfile.objects.filter(tenant=tenant).order_by("name", "-updated_at"):
@@ -194,7 +195,8 @@ def mobile_customer_list(*, tenant, role, search=""):
             str(customer.get(key) or "")
             for key in ["name", "phone", "email", "address", "latest_order_reference"]
         ))
-        if search_text and search_text not in haystack:
+        phone_haystack = _normalize_phone(customer.get("phone"))
+        if search_text and search_text not in haystack and (not search_phone or search_phone not in phone_haystack):
             continue
         rows.append(customer)
         if len(rows) >= 150:
@@ -210,11 +212,11 @@ def create_mobile_customer_profile(*, tenant, actor, values):
             name=values["name"],
             phone=values["phone"],
             email=values.get("email") or "",
-            address_1=values["address_1"],
+            address_1=values.get("address_1") or "",
             address_2=values.get("address_2") or "",
-            city=values["city"],
-            state=values["state"],
-            pincode=values["pincode"],
+            city=values.get("city") or "",
+            state=values.get("state") or "",
+            pincode=values.get("pincode") or "",
             country=values.get("country") or "India",
         )
     except (OperationalError, ProgrammingError):
@@ -232,8 +234,10 @@ def update_mobile_customer_profile(*, tenant, customer_key, values):
         raise ValidationError("Customer setup is still completing. Please try again after the server migration finishes.")
     if profile is None:
         return None
-    for field in ["name", "phone", "address_1", "city", "state", "pincode"]:
+    for field in ["name", "phone"]:
         setattr(profile, field, values[field])
+    for field in ["address_1", "city", "state", "pincode"]:
+        setattr(profile, field, values.get(field) or "")
     for field in ["email", "address_2", "country"]:
         setattr(profile, field, values.get(field) or ("India" if field == "country" else ""))
     profile.save(update_fields=[

@@ -75,6 +75,7 @@ export type ManualOrderCreateResponse = {
     whatsapp: {
       phone: string;
       message: string;
+      confirmation_url: string;
     };
     effects: { code: string; state: string; message: string | null }[];
     replayed: boolean;

@@ -25,7 +25,7 @@ import type {
 } from '../notifications/types';
 import type { ExpenseCreate, ExpenseListResponse } from '../expenses/types';
 import type { ProductSalesReportResponse } from '../reports/types';
-import type { CustomerAddressInput, CustomerCreateResponse, CustomerDetailResponse, CustomerListResponse, CustomerOrderDetailResponse, ManualOrderCreateInput, ManualOrderCreateResponse } from '../customers/types';
+import type { CustomerAddressInput, CustomerCreateResponse, CustomerDetailResponse, CustomerListResponse, CustomerOrderDetailResponse, ManualOrderCreateInput, ManualOrderCreateResponse, ShippingLabelSender } from '../customers/types';
 
 const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL
@@ -175,6 +175,12 @@ export async function createManualOrder(
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(values),
+  });
+}
+
+export async function shippingLabelSender(accessToken: string): Promise<{ data: ShippingLabelSender }> {
+  return request<{ data: ShippingLabelSender }>('/shipping-label/sender', {
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
 

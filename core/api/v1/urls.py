@@ -31,6 +31,7 @@ from .views import (
     MobileStockMovementListView,
     MobileRefreshView,
     MobileSelectTenantView,
+    MobileShippingLabelSenderView,
 )
 
 app_name = "mobile_api_v1"
@@ -49,6 +50,7 @@ urlpatterns = [
     path("expenses", MobileExpenseListCreateView.as_view(), name="expenses"),
     path("expenses/<int:expense_id>", MobileExpenseDetailView.as_view(), name="expense_detail"),
     path("manual-orders", MobileManualOrderCreateView.as_view(), name="manual_orders"),
+    path("shipping-label/sender", MobileShippingLabelSenderView.as_view(), name="shipping_label_sender"),
     path("orders", MobileOrderListView.as_view(), name="orders"),
     path("orders/<int:order_id>", MobileOrderDetailView.as_view(), name="order_detail"),
     path("orders/<int:order_id>/issue", MobileOrderIssueFlagView.as_view(), name="order_issue"),

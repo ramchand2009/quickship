@@ -62,5 +62,6 @@ export type StockQuantityMutationResponse = {
     product: ProductDetail;
     movement: StockMovement | null;
     replayed: boolean;
+    effects: { code: string; state: string; message: string | null }[];
   };
 };

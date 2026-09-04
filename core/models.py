@@ -513,6 +513,77 @@ class MobileCustomerProfile(models.Model):
         )
 
 
+class MobileOrderConfirmation(models.Model):
+    STATUS_AWAITING = "awaiting"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_CHANGE_REQUESTED = "change_requested"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_AWAITING, "Awaiting Confirmation"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_CHANGE_REQUESTED, "Change Requested"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="mobile_order_confirmations",
+        default=get_default_tenant_pk,
+    )
+    order = models.OneToOneField(
+        "ShiprocketOrder",
+        on_delete=models.CASCADE,
+        related_name="mobile_confirmation",
+    )
+    token = models.CharField(max_length=96, unique=True)
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_AWAITING)
+    customer_name = models.CharField(max_length=160, blank=True)
+    customer_phone = models.CharField(max_length=32, blank=True)
+    address_1 = models.CharField(max_length=255, blank=True)
+    address_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    state = models.CharField(max_length=120, blank=True)
+    pincode = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=120, default="India", blank=True)
+    change_note = models.TextField(blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    change_requested_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tenant", "status", "-created_at"], name="mobconfirm_status_idx"),
+            models.Index(fields=["token"], name="mobconfirm_token_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.order_id} | {self.status}"
+
+    @property
+    def is_open(self):
+        if self.status != self.STATUS_AWAITING:
+            return False
+        return not self.expires_at or self.expires_at >= timezone.now()
+
+    @property
+    def address_payload(self):
+        return {
+            "name": self.customer_name,
+            "phone": self.customer_phone,
+            "address_1": self.address_1,
+            "address_2": self.address_2,
+            "city": self.city,
+            "state": self.state,
+            "pincode": self.pincode,
+            "country": self.country,
+        }
+
+
 class WhatsAppSettings(models.Model):
     tenant = models.ForeignKey(
         Tenant,

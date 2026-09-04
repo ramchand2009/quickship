@@ -126,11 +126,13 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
         setMovements((current) => [response.data.movement as StockMovement, ...current]);
       }
       setQuantityEditorVisible(false);
+      const wooEffect = response.data.effects?.find((effect) => effect.code === 'woocommerce_sync');
+      const wooMessage = wooEffect?.message ? `\n\n${wooEffect.message}` : '';
       Alert.alert(
         'Stock updated',
-        response.data.movement
+        (response.data.movement
           ? `Quantity changed from ${product.stock_quantity} to ${response.data.product.stock_quantity}.`
-          : `Stock is already ${response.data.product.stock_quantity}.`,
+          : `Stock is already ${response.data.product.stock_quantity}.`) + wooMessage,
       );
     } catch (reason) {
       if (reason instanceof api.ApiError && reason.status === 409) {

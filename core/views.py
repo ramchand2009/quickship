@@ -92,6 +92,7 @@ from .models import (
     ContactMessage,
     DEFAULT_TENANT_SLUG,
     ExpensePerson,
+    MobileOrderConfirmation,
     OrderActivityLog,
     Product,
     ProductChangeRequest,
@@ -113,6 +114,7 @@ from .models import (
     WooCommerceSettings,
     WooCommerceSyncRun,
 )
+from .api.v1.notification_services import deliver_order_issue_notification
 from .stock import (
     apply_manual_stock_movement,
     build_packing_scan_requirements,
@@ -176,6 +178,199 @@ PWA_ASSET_VERSION = "20260513-1"
 PWA_CACHE_NAME = f"mathukai-pwa-{PWA_ASSET_VERSION}"
 PRODUCT_BARCODE_LABEL_WIDTH_MM = 50
 PRODUCT_BARCODE_LABEL_HEIGHT_MM = 25
+
+
+def _confirmation_order_items(order):
+    rows = []
+    for raw_item in order.order_items if isinstance(order.order_items, list) else []:
+        item = raw_item if isinstance(raw_item, dict) else {}
+        try:
+            quantity = max(1, int(item.get("quantity") or 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        try:
+            unit_price = Decimal(str(item.get("price") or item.get("unit_price") or "0"))
+        except (InvalidOperation, TypeError, ValueError):
+            unit_price = Decimal("0.00")
+        try:
+            line_total = Decimal(str(item.get("total"))) if item.get("total") is not None else unit_price * quantity
+        except (InvalidOperation, TypeError, ValueError):
+            line_total = unit_price * quantity
+        rows.append(
+            {
+                "name": str(item.get("name") or item.get("item_name") or "Item").strip(),
+                "sku": str(item.get("sku") or "").strip(),
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_total": line_total,
+            }
+        )
+    return rows
+
+
+def _confirmation_address_from_post(post_data, fallback):
+    return {
+        "name": str(post_data.get("name") or fallback.customer_name or "").strip(),
+        "phone": str(post_data.get("phone") or fallback.customer_phone or "").strip(),
+        "address_1": str(post_data.get("address_1") or fallback.address_1 or "").strip(),
+        "address_2": str(post_data.get("address_2") or fallback.address_2 or "").strip(),
+        "city": str(post_data.get("city") or fallback.city or "").strip(),
+        "state": str(post_data.get("state") or fallback.state or "").strip(),
+        "pincode": str(post_data.get("pincode") or fallback.pincode or "").strip(),
+        "country": str(post_data.get("country") or fallback.country or "India").strip() or "India",
+    }
+
+
+def _apply_confirmation_address(order, confirmation, address):
+    confirmation.customer_name = address["name"]
+    confirmation.customer_phone = address["phone"]
+    confirmation.address_1 = address["address_1"]
+    confirmation.address_2 = address["address_2"]
+    confirmation.city = address["city"]
+    confirmation.state = address["state"]
+    confirmation.pincode = address["pincode"]
+    confirmation.country = address["country"]
+
+    order.manual_customer_name = address["name"]
+    order.manual_customer_phone = address["phone"]
+    order.manual_shipping_address_1 = address["address_1"]
+    order.manual_shipping_address_2 = address["address_2"]
+    order.manual_shipping_city = address["city"]
+    order.manual_shipping_state = address["state"]
+    order.manual_shipping_pincode = address["pincode"]
+    order.manual_shipping_country = address["country"]
+    order.customer_name = address["name"]
+    order.customer_phone = address["phone"]
+    order.shipping_address = {**(order.shipping_address if isinstance(order.shipping_address, dict) else {}), **address}
+    order.billing_address = {**(order.billing_address if isinstance(order.billing_address, dict) else {}), **address}
+
+
+@require_http_methods(["GET", "POST"])
+@never_cache
+def manual_order_confirmation(request, token):
+    confirmation = get_object_or_404(
+        MobileOrderConfirmation.objects.select_related("order", "tenant"),
+        token=token,
+    )
+    order = confirmation.order
+    action_result = None
+    form_error = ""
+
+    if request.method == "POST" and confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW:
+        action = str(request.POST.get("action") or "").strip()
+        address = _confirmation_address_from_post(request.POST, confirmation)
+        missing = [
+            label
+            for key, label in [
+                ("name", "name"),
+                ("phone", "mobile number"),
+                ("address_1", "address"),
+                ("city", "city"),
+                ("state", "state"),
+                ("pincode", "pincode"),
+            ]
+            if not address.get(key)
+        ]
+        if missing:
+            form_error = "Please enter " + ", ".join(missing) + "."
+        else:
+            now = timezone.now()
+            with transaction.atomic():
+                confirmation = MobileOrderConfirmation.objects.select_for_update().get(pk=confirmation.pk)
+                order = ShiprocketOrder.objects.select_for_update().get(pk=order.pk)
+                _apply_confirmation_address(order, confirmation, address)
+                payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
+                if action == "confirm":
+                    confirmation.status = MobileOrderConfirmation.STATUS_CONFIRMED
+                    confirmation.confirmed_at = now
+                    payload = {**payload, "confirmation_status": "confirmed", "confirmed_at": now.isoformat()}
+                    action_result = "confirmed"
+                    log_order_activity(
+                        order=order,
+                        event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                        title="Customer confirmed offline order",
+                        description="Customer confirmed the order and delivery address from the confirmation link.",
+                        current_status=order.local_status,
+                        metadata={"source": "customer_confirmation_link", "action": "confirm"},
+                        is_success=True,
+                        triggered_by="customer",
+                    )
+                elif action == "request_change":
+                    note = str(request.POST.get("change_note") or "").strip()
+                    confirmation.status = MobileOrderConfirmation.STATUS_CHANGE_REQUESTED
+                    confirmation.change_note = note
+                    confirmation.change_requested_at = now
+                    payload = {
+                        **payload,
+                        "confirmation_status": "change_requested",
+                        "change_requested_at": now.isoformat(),
+                        "change_note": note,
+                    }
+                    action_result = "change_requested"
+                    log_order_activity(
+                        order=order,
+                        event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                        title="Customer requested order changes",
+                        description=note or "Customer requested changes from the confirmation link.",
+                        current_status=order.local_status,
+                        metadata={
+                            "source": "customer_confirmation_link",
+                            "action": "request_change",
+                            "reason": "customer_change_request",
+                        },
+                        is_success=True,
+                        triggered_by="customer",
+                    )
+                elif action == "cancel":
+                    confirmation.status = MobileOrderConfirmation.STATUS_CANCELLED
+                    confirmation.cancelled_at = now
+                    order.local_status = ShiprocketOrder.STATUS_CANCELLED
+                    order.cancellation_reason = ShiprocketOrder.CANCEL_REASON_CUSTOMER_REQUEST
+                    order.cancellation_note = "Customer cancelled from the confirmation link."
+                    payload = {
+                        **payload,
+                        "confirmation_status": "cancelled",
+                        "cancelled_at": now.isoformat(),
+                    }
+                    action_result = "cancelled"
+                    log_order_activity(
+                        order=order,
+                        event_type=OrderActivityLog.EVENT_STATUS_CHANGE,
+                        title="Customer cancelled offline order",
+                        description="Customer cancelled the order from the confirmation link.",
+                        previous_status=ShiprocketOrder.STATUS_NEW,
+                        current_status=order.local_status,
+                        metadata={"source": "customer_confirmation_link", "action": "cancel"},
+                        is_success=True,
+                        triggered_by="customer",
+                    )
+                else:
+                    form_error = "Please choose confirm, request change, or cancel."
+
+                if not form_error:
+                    order.raw_payload = payload
+                    confirmation.save()
+                    order.version += 1
+                    order.save()
+
+            if action_result == "change_requested":
+                deliver_order_issue_notification(
+                    order,
+                    reason_label="Customer requested change",
+                    note=confirmation.change_note or "Please review this offline order.",
+                    actor=None,
+                )
+
+    context = {
+        "confirmation": confirmation,
+        "order": order,
+        "items": _confirmation_order_items(order),
+        "address": confirmation.address_payload,
+        "form_error": form_error,
+        "action_result": action_result,
+        "is_open": confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW,
+    }
+    return render(request, "core/manual_order_confirmation.html", context)
 
 
 def _is_truthy(raw_value):

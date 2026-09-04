@@ -5,6 +5,7 @@ from rest_framework.exceptions import NotFound
 
 from core.models import Product
 from core.stock import set_manual_stock_quantity
+from core.woocommerce import WooCommerceAPIError, update_product as update_woocommerce_product
 
 from .exceptions import ConflictError
 from .order_mutations import _begin_receipt, _complete_receipt, _delete_failed_receipt, _fingerprint
@@ -54,11 +55,27 @@ def set_mobile_stock_quantity(
             )
             product.refresh_from_db()
 
+        effects = []
+        try:
+            update_woocommerce_product(product, extra_fields={"stock_quantity": product.stock_quantity})
+            effects.append({
+                "code": "woocommerce_sync",
+                "state": "completed",
+                "message": "WooCommerce stock quantity updated.",
+            })
+        except WooCommerceAPIError as exc:
+            effects.append({
+                "code": "woocommerce_sync",
+                "state": "warning",
+                "message": f"Saved locally, but WooCommerce stock sync failed: {exc}",
+            })
+
         _complete_receipt(
             receipt,
             {
                 "product_id": product_id,
                 "movement_id": movement.pk if movement else None,
+                "effects": effects,
             },
         )
         return _serialize_result(
@@ -67,13 +84,14 @@ def set_mobile_stock_quantity(
             product=product,
             movement=movement,
             replayed=False,
+            effects=effects,
         )
     except Exception:
         _delete_failed_receipt(receipt)
         raise
 
 
-def _serialize_result(*, tenant, role, product, movement, replayed):
+def _serialize_result(*, tenant, role, product, movement, replayed, effects=None):
     product_data = ProductDetailSerializer(
         product,
         context={
@@ -91,5 +109,6 @@ def _serialize_result(*, tenant, role, product, movement, replayed):
             "product": product_data,
             "movement": movement_data,
             "replayed": replayed,
+            "effects": effects or [],
         }
     }

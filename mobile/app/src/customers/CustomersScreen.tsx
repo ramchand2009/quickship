@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import * as Print from 'expo-print';
 import {
   ActivityIndicator,
   Alert,
@@ -20,11 +19,9 @@ import {
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { CustomerAddressInput, CustomerSummary, ShippingLabelSender } from './types';
+import type { CustomerAddressInput, CustomerSummary } from './types';
 import type { Money, OrderDetail, OrderSummary } from '../orders/types';
 import type { ProductSummary } from '../stock/types';
-
-const INDIA_POST_CUSTOMER_ID = '1828524916';
 
 const EMPTY_CUSTOMER_FORM: CustomerAddressInput = {
   name: '',
@@ -71,60 +68,6 @@ function normalizePhone(value: string | null | undefined) {
   const digits = String(value || '').replace(/\D/g, '');
   if (!digits) return '';
   return digits.length > 10 ? digits.slice(-10) : digits;
-}
-
-function escapeHtml(value: string | null | undefined) {
-  return String(value || '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function customerShippingLabelHtml(customer: CustomerSummary, sender: ShippingLabelSender | null) {
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <style>
-    @page { size: 4in 6in; margin: 0; }
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; font-family: Arial, sans-serif; color: #151515; }
-    .label { width: 4in; height: 6in; padding: 0.18in; border: 2px solid #222; }
-    .brand { font-size: 14px; font-weight: 800; letter-spacing: 0.8px; }
-    h1 { font-size: 22px; margin: 8px 0 4px; }
-    .meta { font-size: 11px; font-weight: 700; margin-top: 4px; }
-    .line { border-top: 2px solid #222; margin: 12px 0 16px; }
-    .box { border: 1.5px solid #222; padding: 12px; margin-bottom: 12px; min-height: 1.08in; }
-    .eyebrow { font-size: 9px; font-weight: 900; margin-bottom: 8px; }
-    .name { font-size: 16px; font-weight: 900; margin-bottom: 8px; }
-    .address { font-size: 12px; line-height: 1.35; }
-    .phone { font-size: 12px; font-weight: 800; margin-top: 8px; }
-  </style>
-</head>
-<body>
-  <div class="label">
-    <div class="brand">MATHUKAI ORGANIC</div>
-    <h1>SHIPPING LABEL</h1>
-    <div class="meta">Offline customer label</div>
-    <div class="meta">India Post Customer ID: ${INDIA_POST_CUSTOMER_ID}</div>
-    <div class="line"></div>
-    <div class="box">
-      <div class="eyebrow">TO</div>
-      <div class="name">${escapeHtml(customer.name || 'Customer')}</div>
-      <div class="address">${escapeHtml(customer.address || 'Address unavailable')}</div>
-      ${customer.phone ? `<div class="phone">Phone: ${escapeHtml(customer.phone)}</div>` : ''}
-    </div>
-    <div class="box">
-      <div class="eyebrow">FROM</div>
-      <div class="name">${escapeHtml(sender?.name || 'Mathukai Organic')}</div>
-      <div class="address">${escapeHtml(sender?.address || 'Sender address unavailable')}</div>
-      ${sender?.phone ? `<div class="phone">Phone: ${escapeHtml(sender.phone)}</div>` : ''}
-    </div>
-  </div>
-</body>
-</html>`;
 }
 
 function CustomerCard({ customer, onPress }: { customer: CustomerSummary; onPress: () => void }) {
@@ -289,7 +232,6 @@ function ManualOrderSheet({
             <View style={styles.formHeader}>
               <View style={styles.sheetTitleCopy}>
                 <Text style={styles.formTitle}>Create manual order</Text>
-                <Text style={styles.formSubtitle}>{customer.name} · WhatsApp confirmation will open after save.</Text>
               </View>
               <Pressable disabled={saving} onPress={onClose} style={styles.closeButton}>
                 <MaterialCommunityIcons color="#587066" name="close" size={24} />
@@ -338,7 +280,7 @@ function ManualOrderSheet({
                   </View>
                 </View>
               ) : (
-                <Text style={styles.emptyText}>Select products for this offline order.</Text>
+                <Text style={styles.emptyText}>Select products for this order.</Text>
               )}
               <Text style={styles.sectionTitle}>Products</Text>
               {loadingProducts ? <ActivityIndicator color="#0B5D3B" /> : products.map((product) => (
@@ -357,7 +299,7 @@ function ManualOrderSheet({
               ))}
             </ScrollView>
             <Pressable disabled={!canSave} onPress={() => void createOrder()} style={[styles.saveButton, !canSave && styles.disabledButton]}>
-              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Create order & send WhatsApp</Text>}
+              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Create order</Text>}
             </Pressable>
           </View>
         </View>
@@ -421,7 +363,6 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
   const { runAuthenticated } = useAuth();
   const [customer, setCustomer] = useState<CustomerSummary | null>(null);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [sender, setSender] = useState<ShippingLabelSender | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
   const [manualOrderVisible, setManualOrderVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
@@ -439,7 +380,6 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
       const response = await runAuthenticated((token) => api.customerDetail(token, customerKey));
       setCustomer(response.data.customer);
       setOrders(response.data.orders);
-      setSender(response.data.sender);
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Customer details could not be loaded.');
     } finally {
@@ -476,10 +416,6 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
   const editReady = Boolean(
     editValues.name.trim()
     && editValues.phone.replace(/\D/g, '').length >= 10
-    && editValues.address_1.trim()
-    && editValues.city.trim()
-    && editValues.state.trim()
-    && editValues.pincode.trim().length >= 3
   );
   const openEdit = () => {
     if (!customer.shipping_address) return;
@@ -519,7 +455,6 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
       const response = await runAuthenticated((token) => api.updateCustomer(token, customerKey, payload));
       setCustomer(response.data.customer);
       setOrders(response.data.orders);
-      setSender(response.data.sender);
       setEditVisible(false);
     } catch (reason) {
       setEditError(reason instanceof api.ApiError ? reason.message : 'Customer could not be updated.');
@@ -527,14 +462,6 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
       setEditSaving(false);
     }
   };
-  const printShippingLabel = async () => {
-    try {
-      await Print.printAsync({ html: customerShippingLabelHtml(customer, sender) });
-    } catch {
-      Alert.alert('Print unavailable', 'The shipping label could not be opened for printing.');
-    }
-  };
-
   return (
     <ScrollView
       contentContainerStyle={styles.scrollContent}
@@ -572,17 +499,9 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
         </Pressable>
       </View>
 
-      <Pressable onPress={() => void printShippingLabel()} style={({ pressed }) => [styles.printLabelButton, pressed && styles.pressed]}>
-        <MaterialCommunityIcons color="#FFFFFF" name="printer-outline" size={22} />
-        <Text style={styles.printLabelText}>Print shipping label</Text>
-      </Pressable>
-
       <Pressable onPress={() => setManualOrderVisible(true)} style={({ pressed }) => [styles.manualOrderButton, pressed && styles.pressed]}>
         <MaterialCommunityIcons color="#FFFFFF" name="cart-plus" size={22} />
-        <View style={styles.manualOrderCopy}>
-          <Text style={styles.manualOrderText}>Create manual order</Text>
-          <Text style={styles.manualOrderHint}>Select products, save, then send WhatsApp confirmation</Text>
-        </View>
+        <Text style={styles.manualOrderText}>Create manual order</Text>
       </Pressable>
 
       <Text style={styles.sectionTitle}>Customer details</Text>
@@ -618,23 +537,23 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
                 <TextInput keyboardType="phone-pad" maxLength={32} onChangeText={(value) => updateEdit('phone', value)} placeholder="10-digit mobile number" placeholderTextColor="#82958D" style={styles.input} value={editValues.phone} />
                 <Text style={styles.inputLabel}>Email</Text>
                 <TextInput autoCapitalize="none" keyboardType="email-address" maxLength={254} onChangeText={(value) => updateEdit('email', value)} placeholder="Optional" placeholderTextColor="#82958D" style={styles.input} value={editValues.email} />
-                <Text style={styles.inputLabel}>Address line 1 *</Text>
+                <Text style={styles.inputLabel}>Address line 1</Text>
                 <TextInput maxLength={255} onChangeText={(value) => updateEdit('address_1', value)} placeholder="House number and street" placeholderTextColor="#82958D" style={styles.input} value={editValues.address_1} />
                 <Text style={styles.inputLabel}>Address line 2</Text>
                 <TextInput maxLength={255} onChangeText={(value) => updateEdit('address_2', value)} placeholder="Area or landmark" placeholderTextColor="#82958D" style={styles.input} value={editValues.address_2} />
                 <View style={styles.formRow}>
                   <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>City *</Text>
+                    <Text style={styles.inputLabel}>City</Text>
                     <TextInput maxLength={120} onChangeText={(value) => updateEdit('city', value)} placeholder="City" placeholderTextColor="#82958D" style={styles.input} value={editValues.city} />
                   </View>
                   <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>State *</Text>
+                    <Text style={styles.inputLabel}>State</Text>
                     <TextInput maxLength={120} onChangeText={(value) => updateEdit('state', value)} placeholder="State" placeholderTextColor="#82958D" style={styles.input} value={editValues.state} />
                   </View>
                 </View>
                 <View style={styles.formRow}>
                   <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>Pincode *</Text>
+                    <Text style={styles.inputLabel}>Pincode</Text>
                     <TextInput keyboardType="number-pad" maxLength={20} onChangeText={(value) => updateEdit('pincode', value)} placeholder="Pincode" placeholderTextColor="#82958D" style={styles.input} value={editValues.pincode} />
                   </View>
                   <View style={styles.formHalf}>
@@ -672,6 +591,7 @@ export default function CustomersScreen() {
   const [search, setSearch] = useState('');
   const [formVisible, setFormVisible] = useState(false);
   const [formValues, setFormValues] = useState<CustomerAddressInput>(EMPTY_CUSTOMER_FORM);
+  const [formAddressMode, setFormAddressMode] = useState<'paste' | 'later'>('later');
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -698,14 +618,11 @@ export default function CustomersScreen() {
   const formReady = Boolean(
     formValues.name.trim()
     && formValues.phone.replace(/\D/g, '').length >= 10
-    && formValues.address_1.trim()
-    && formValues.city.trim()
-    && formValues.state.trim()
-    && formValues.pincode.trim().length >= 3
   );
 
   const openAddCustomer = () => {
     setFormValues(EMPTY_CUSTOMER_FORM);
+    setFormAddressMode('later');
     setFormError('');
     setFormVisible(true);
   };
@@ -723,11 +640,11 @@ export default function CustomersScreen() {
         name: formValues.name.trim(),
         phone: formValues.phone.trim(),
         email: formValues.email?.trim() || '',
-        address_1: formValues.address_1.trim(),
-        address_2: formValues.address_2?.trim() || '',
-        city: formValues.city.trim(),
-        state: formValues.state.trim(),
-        pincode: formValues.pincode.trim(),
+        address_1: formAddressMode === 'paste' ? formValues.address_1.trim() : '',
+        address_2: '',
+        city: '',
+        state: '',
+        pincode: '',
         country: formValues.country?.trim() || 'India',
       };
       const response = await runAuthenticated((token) => api.createCustomer(token, payload));
@@ -761,7 +678,7 @@ export default function CustomersScreen() {
         </View>
         <Pressable onPress={openAddCustomer} style={({ pressed }) => [styles.addCustomerButton, pressed && styles.pressed]}>
           <MaterialCommunityIcons color="#0B5D3B" name="account-plus-outline" size={21} />
-          <Text style={styles.addCustomerText}>Add offline customer</Text>
+          <Text style={styles.addCustomerText}>Add Customer</Text>
         </Pressable>
       </View>
 
@@ -799,7 +716,7 @@ export default function CustomersScreen() {
         contentContainerStyle={styles.listContent}
         data={customers}
         keyExtractor={(item) => item.key}
-        ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No customers found</Text><Text style={styles.emptyText}>Try another search or add an offline customer.</Text></View>}
+        ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No customers found</Text><Text style={styles.emptyText}>Try another search or add a customer.</Text></View>}
         ListHeaderComponent={header}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}
         renderItem={({ item }) => <CustomerCard customer={item} onPress={() => setSelectedCustomerKey(item.key)} />}
@@ -810,8 +727,7 @@ export default function CustomersScreen() {
             <View style={styles.formSheet}>
               <View style={styles.formHeader}>
                 <View>
-                  <Text style={styles.formTitle}>Add offline customer</Text>
-                  <Text style={styles.formSubtitle}>Save details for future shipping-label printing.</Text>
+                  <Text style={styles.formTitle}>Add Customer</Text>
                 </View>
                 <Pressable disabled={formSaving} onPress={() => setFormVisible(false)} style={styles.closeButton}>
                   <MaterialCommunityIcons color="#587066" name="close" size={24} />
@@ -824,30 +740,36 @@ export default function CustomersScreen() {
                 <TextInput keyboardType="phone-pad" maxLength={32} onChangeText={(value) => updateForm('phone', value)} placeholder="10-digit mobile number" placeholderTextColor="#82958D" style={styles.input} value={formValues.phone} />
                 <Text style={styles.inputLabel}>Email</Text>
                 <TextInput autoCapitalize="none" keyboardType="email-address" maxLength={254} onChangeText={(value) => updateForm('email', value)} placeholder="Optional" placeholderTextColor="#82958D" style={styles.input} value={formValues.email} />
-                <Text style={styles.inputLabel}>Address line 1 *</Text>
-                <TextInput maxLength={255} onChangeText={(value) => updateForm('address_1', value)} placeholder="House number and street" placeholderTextColor="#82958D" style={styles.input} value={formValues.address_1} />
-                <Text style={styles.inputLabel}>Address line 2</Text>
-                <TextInput maxLength={255} onChangeText={(value) => updateForm('address_2', value)} placeholder="Area or landmark" placeholderTextColor="#82958D" style={styles.input} value={formValues.address_2} />
-                <View style={styles.formRow}>
-                  <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>City *</Text>
-                    <TextInput maxLength={120} onChangeText={(value) => updateForm('city', value)} placeholder="City" placeholderTextColor="#82958D" style={styles.input} value={formValues.city} />
-                  </View>
-                  <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>State *</Text>
-                    <TextInput maxLength={120} onChangeText={(value) => updateForm('state', value)} placeholder="State" placeholderTextColor="#82958D" style={styles.input} value={formValues.state} />
-                  </View>
+                <Text style={styles.inputLabel}>Address option</Text>
+                <View style={styles.addressModeRow}>
+                  <Pressable onPress={() => setFormAddressMode('later')} style={[styles.addressModeButton, formAddressMode === 'later' && styles.addressModeButtonActive]}>
+                    <MaterialCommunityIcons color={formAddressMode === 'later' ? '#FFFFFF' : '#0B5D3B'} name="link-variant" size={18} />
+                    <Text style={[styles.addressModeText, formAddressMode === 'later' && styles.addressModeTextActive]}>Customer enters in link</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setFormAddressMode('paste')} style={[styles.addressModeButton, formAddressMode === 'paste' && styles.addressModeButtonActive]}>
+                    <MaterialCommunityIcons color={formAddressMode === 'paste' ? '#FFFFFF' : '#0B5D3B'} name="content-paste" size={18} />
+                    <Text style={[styles.addressModeText, formAddressMode === 'paste' && styles.addressModeTextActive]}>Paste address</Text>
+                  </Pressable>
                 </View>
-                <View style={styles.formRow}>
-                  <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>Pincode *</Text>
-                    <TextInput keyboardType="number-pad" maxLength={20} onChangeText={(value) => updateForm('pincode', value)} placeholder="Pincode" placeholderTextColor="#82958D" style={styles.input} value={formValues.pincode} />
+                {formAddressMode === 'later' ? (
+                  <View style={styles.addressLaterNote}>
+                    <Text style={styles.addressLaterText}>Only name and mobile will be saved. The customer must enter address before confirming the order.</Text>
                   </View>
-                  <View style={styles.formHalf}>
-                    <Text style={styles.inputLabel}>Country</Text>
-                    <TextInput maxLength={120} onChangeText={(value) => updateForm('country', value)} placeholder="India" placeholderTextColor="#82958D" style={styles.input} value={formValues.country} />
-                  </View>
-                </View>
+                ) : (
+                  <>
+                    <Text style={styles.inputLabel}>Paste full address</Text>
+                    <TextInput
+                      maxLength={600}
+                      multiline
+                      onChangeText={(value) => updateForm('address_1', value)}
+                      placeholder="Paste the customer address exactly as received"
+                      placeholderTextColor="#82958D"
+                      style={[styles.input, styles.pasteAddressInput]}
+                      textAlignVertical="top"
+                      value={formValues.address_1}
+                    />
+                  </>
+                )}
                 {formError ? <Text style={styles.formError}>{formError}</Text> : null}
               </ScrollView>
               <Pressable disabled={!formReady || formSaving} onPress={() => void saveCustomer()} style={[styles.saveButton, (!formReady || formSaving) && styles.disabledButton]}>
@@ -913,12 +835,8 @@ const styles = StyleSheet.create({
   whatsAppButton: { backgroundColor: '#ECF9F1' },
   contactButtonText: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' },
   disabledCard: { opacity: 0.45 },
-  printLabelButton: { minHeight: 52, backgroundColor: '#0B5D3B', borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 9, marginBottom: 22 },
-  printLabelText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   manualOrderButton: { minHeight: 62, backgroundColor: '#104D34', borderRadius: 17, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, columnGap: 12, marginTop: -10, marginBottom: 22 },
-  manualOrderCopy: { flex: 1 },
   manualOrderText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  manualOrderHint: { color: '#D7EFE3', fontSize: 11, fontWeight: '700', marginTop: 3 },
   sectionTitle: { color: '#17352A', fontSize: 19, fontWeight: '900', marginBottom: 10 },
   sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 20 },
   detailRow: { marginBottom: 13 },
@@ -960,8 +878,16 @@ const styles = StyleSheet.create({
   closeButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F8F5', alignItems: 'center', justifyContent: 'center' },
   inputLabel: { color: '#40564D', fontSize: 12, fontWeight: '900', marginBottom: 6 },
   input: { minHeight: 50, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 13, color: '#17352A', fontSize: 15, paddingHorizontal: 13, marginBottom: 13, backgroundColor: '#FFFFFF' },
+  pasteAddressInput: { minHeight: 110, paddingTop: 12, lineHeight: 20 },
   formRow: { flexDirection: 'row', columnGap: 10 },
   formHalf: { flex: 1 },
+  addressModeRow: { flexDirection: 'row', columnGap: 8, marginBottom: 12 },
+  addressModeButton: { flex: 1, minHeight: 48, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 14, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 6, paddingHorizontal: 8 },
+  addressModeButtonActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' },
+  addressModeText: { color: '#0B5D3B', fontSize: 11, fontWeight: '900', textAlign: 'center' },
+  addressModeTextActive: { color: '#FFFFFF' },
+  addressLaterNote: { backgroundColor: '#F4FAF7', borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 13 },
+  addressLaterText: { color: '#40564D', fontSize: 12, fontWeight: '700', lineHeight: 18 },
   formError: { color: '#B42318', fontSize: 13, lineHeight: 18, marginBottom: 12 },
   saveButton: { minHeight: 52, borderRadius: 15, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
