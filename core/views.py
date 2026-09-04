@@ -259,6 +259,7 @@ def manual_order_confirmation(request, token):
     form_error = ""
     action = str(request.POST.get("action") or "").strip() if request.method == "POST" else ""
     show_address_step = action == "continue_address"
+    show_change_step = action == "continue_change"
 
     if request.method == "POST" and confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW:
         address = _confirmation_address_from_post(request.POST, confirmation)
@@ -276,6 +277,8 @@ def manual_order_confirmation(request, token):
         ]
         if action == "continue_address":
             show_address_step = True
+        elif action == "continue_change":
+            show_change_step = True
         elif action == "confirm" and missing:
             form_error = "Please enter " + ", ".join(missing) + "."
             show_address_step = True
@@ -357,6 +360,7 @@ def manual_order_confirmation(request, token):
                 else:
                     form_error = "Please choose confirm, request change, or cancel."
                     show_address_step = False
+                    show_change_step = False
 
                 if not form_error:
                     order.raw_payload = payload
@@ -381,6 +385,7 @@ def manual_order_confirmation(request, token):
         "action_result": action_result,
         "is_open": confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW,
         "show_address_step": show_address_step,
+        "show_change_step": show_change_step,
     }
     return render(request, "core/manual_order_confirmation.html", context)
 

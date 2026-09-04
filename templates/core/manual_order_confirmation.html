@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Confirm your Mathukai Organic order</title>
     <style>
         :root {
@@ -23,68 +23,71 @@
             background: radial-gradient(circle at top left, #e9f8ef 0, #f6faf7 42%, #ffffff 100%);
             color: var(--ink);
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            min-height: 100vh;
         }
         .shell {
-            width: min(100%, 440px);
+            width: 100%;
+            max-width: 430px;
             margin: 0 auto;
-            padding: 12px 12px 26px;
+            padding: max(10px, env(safe-area-inset-top)) 10px 22px;
         }
         .hero {
             background: linear-gradient(135deg, #075f3c, #0b7a4b);
-            border-radius: 24px;
+            border-radius: 22px;
             color: #fff;
-            padding: 18px;
-            box-shadow: 0 18px 38px rgba(7, 95, 60, 0.2);
+            padding: 14px;
+            box-shadow: 0 12px 24px rgba(7, 95, 60, 0.18);
         }
         .brand {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 9px;
+            margin-bottom: 10px;
         }
         .logo {
-            width: 38px;
-            height: 38px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background: #fff;
-            padding: 4px;
+            padding: 3px;
             object-fit: contain;
         }
         .brand-text {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 900;
             letter-spacing: 0.12em;
             text-transform: uppercase;
             opacity: 0.9;
         }
         h1 {
-            font-size: clamp(25px, 8vw, 34px);
+            font-size: clamp(24px, 7.5vw, 30px);
             line-height: 1.05;
-            margin: 0 0 10px;
+            margin: 0 0 6px;
             letter-spacing: -0.04em;
         }
         .hero p {
             color: #d9f2e6;
-            line-height: 1.55;
+            font-size: 13px;
+            line-height: 1.35;
             margin: 0;
             font-weight: 650;
         }
         .status-card {
             background: #fff;
             border: 1px solid var(--line);
-            border-radius: 20px;
-            padding: 13px;
-            margin-top: 12px;
+            border-radius: 18px;
+            padding: 10px;
+            margin-top: 10px;
             box-shadow: 0 8px 20px rgba(23, 53, 42, 0.06);
         }
         .status-pill {
             display: inline-flex;
             align-items: center;
             border-radius: 999px;
-            padding: 7px 12px;
+            padding: 6px 10px;
             background: var(--mint);
             color: var(--green);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 900;
         }
         .status-pill.warn { background: #fff4d8; color: var(--warn); }
@@ -92,24 +95,24 @@
         .grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 12px;
-            margin-top: 14px;
+            gap: 8px;
+            margin-top: 9px;
         }
         .metric {
             background: var(--paper);
             border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 14px;
+            border-radius: 15px;
+            padding: 10px 12px;
         }
         .metric-label {
             color: var(--muted);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 850;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
         .metric-value {
             color: var(--green);
-            font-size: 21px;
+            font-size: 19px;
             font-weight: 950;
         }
         .step-note {
@@ -120,37 +123,39 @@
             font-weight: 700;
         }
         .section-title {
-            margin: 18px 4px 10px;
-            font-size: 18px;
+            margin: 14px 4px 8px;
+            font-size: 17px;
             font-weight: 950;
             letter-spacing: -0.02em;
         }
         .card {
             background: #fff;
             border: 1px solid var(--line);
-            border-radius: 22px;
+            border-radius: 18px;
             overflow: hidden;
             box-shadow: 0 8px 22px rgba(23, 53, 42, 0.06);
         }
         .item {
             display: flex;
             justify-content: space-between;
-            gap: 14px;
-            padding: 15px;
+            gap: 10px;
+            padding: 12px;
             border-bottom: 1px solid var(--line);
         }
         .item:last-child { border-bottom: 0; }
         .item-name {
             font-weight: 900;
             line-height: 1.35;
+            font-size: 14px;
         }
         .item-meta {
             color: var(--muted);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 750;
             margin-top: 4px;
         }
         .item-total {
+            font-size: 13px;
             font-weight: 950;
             white-space: nowrap;
         }
@@ -172,16 +177,16 @@
             width: 100%;
             border: 1px solid #cad8d1;
             border-radius: 14px;
-            min-height: 48px;
-            padding: 12px 13px;
+            min-height: 45px;
+            padding: 10px 12px;
             color: var(--ink);
             font: inherit;
             font-weight: 650;
             outline: none;
-            margin-bottom: 13px;
+            margin-bottom: 10px;
             background: #fff;
         }
-        textarea { min-height: 96px; resize: vertical; }
+        textarea { min-height: 78px; resize: vertical; }
         input:focus, textarea:focus {
             border-color: var(--green-2);
             box-shadow: 0 0 0 3px rgba(11, 122, 75, 0.12);
@@ -203,19 +208,19 @@
         .actions {
             position: sticky;
             bottom: 0;
-            margin: 18px -12px -26px;
-            padding: 13px 14px calc(13px + env(safe-area-inset-bottom));
+            margin: 14px -10px -22px;
+            padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
             background: rgba(246, 250, 247, 0.94);
             backdrop-filter: blur(14px);
             border-top: 1px solid var(--line);
             display: grid;
-            gap: 10px;
+            gap: 8px;
         }
         button {
             border: 0;
             border-radius: 16px;
-            min-height: 52px;
-            padding: 12px 16px;
+            min-height: 48px;
+            padding: 10px 14px;
             font: inherit;
             font-size: 15px;
             font-weight: 950;
@@ -253,10 +258,11 @@
         }
         @media (max-width: 560px) {
             .grid, .form-row { grid-template-columns: 1fr; }
-            .hero { border-radius: 0 0 24px 24px; margin: -12px -12px 0; }
-            .status-card { margin-top: 12px; }
-            .item { padding: 13px; }
-            .form-card { padding: 14px; }
+            .shell { max-width: none; }
+            .hero { border-radius: 0 0 22px 22px; margin: calc(-1 * max(10px, env(safe-area-inset-top))) -10px 0; padding: max(14px, env(safe-area-inset-top)) 14px 14px; }
+            .brand div div:last-child { display: none; }
+            .status-card { margin-top: 10px; }
+            .form-card { padding: 13px; }
         }
     </style>
 </head>
@@ -270,8 +276,8 @@
                     <div style="color:#d9f2e6;font-size:12px;font-weight:750;">Secure order confirmation</div>
                 </div>
             </div>
-            <h1>{% if show_address_step %}Add delivery address{% else %}Review your order{% endif %}</h1>
-            <p>{% if show_address_step %}Your products are ready. Please confirm where we should send this order.{% else %}First check the products and quantity. Address comes in the next step.{% endif %}</p>
+            <h1>{% if show_address_step %}Add delivery address{% elif show_change_step %}Request change{% else %}Review your order{% endif %}</h1>
+            <p>{% if show_address_step %}Your products are ready. Please confirm where we should send this order.{% elif show_change_step %}Tell us what needs to be corrected in this order.{% else %}First check the products and quantity. Address comes in the next step.{% endif %}</p>
         </section>
 
         <section class="status-card">
@@ -341,14 +347,22 @@
                 {% endfor %}
             </section>
 
-            {% if is_open and not show_address_step %}
-                <p class="step-note">If products or quantity need correction, request a change and we will update it.</p>
-                <label for="change_note_products" style="margin-top:14px;">Change request</label>
-                <textarea id="change_note_products" name="change_note" placeholder="Example: Please change quantity to 2, or remove one item..."></textarea>
-
+            {% if is_open and not show_address_step and not show_change_step %}
                 <div class="actions">
                     <button class="primary" type="submit" name="action" value="continue_address">Products are correct</button>
-                    <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
+                    <button class="secondary" type="submit" name="action" value="continue_change">Request change</button>
+                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                </div>
+            {% endif %}
+
+            {% if is_open and show_change_step %}
+                <p class="step-note">If product, quantity, or address needs correction, mention it here.</p>
+                <label for="change_note_products" style="margin-top:14px;">Change request</label>
+                <textarea id="change_note_products" name="change_note" placeholder="Example: Please change quantity to 2, or correct landmark..."></textarea>
+
+                <div class="actions">
+                    <button class="primary" type="submit" name="action" value="request_change">Send change request</button>
+                    <button class="secondary" type="submit" name="action" value="continue_address">Products are correct</button>
                     <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
                 </div>
             {% endif %}
