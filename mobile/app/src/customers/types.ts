@@ -65,6 +65,8 @@ export type ManualOrderCreateInput = {
   customer_key?: string;
   customer?: CustomerAddressInput;
   items: ManualOrderItemInput[];
+  shipping_mode?: 'free' | 'charged';
+  shipping_base_amount?: string;
   note?: string;
 };
 

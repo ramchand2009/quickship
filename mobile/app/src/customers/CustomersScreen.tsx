@@ -144,6 +144,8 @@ function ManualOrderSheet({
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [selectedItems, setSelectedItems] = useState<{ product: ProductSummary; quantity: number }[]>([]);
+  const [shippingMode, setShippingMode] = useState<'free' | 'charged'>('free');
+  const [shippingCost, setShippingCost] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -188,8 +190,10 @@ function ManualOrderSheet({
     setSelectedItems((current) => current.filter((item) => item.product.id !== productId));
   };
 
-  const total = selectedItems.reduce((sum, item) => sum + productUnitPrice(item.product) * item.quantity, 0);
-  const canSave = selectedItems.length > 0 && !saving;
+  const productsTotal = selectedItems.reduce((sum, item) => sum + productUnitPrice(item.product) * item.quantity, 0);
+  const shippingAmount = shippingMode === 'charged' ? Number.parseFloat(shippingCost.replace(/[^0-9.]/g, '')) || 0 : 0;
+  const total = productsTotal + shippingAmount;
+  const canSave = selectedItems.length > 0 && (shippingMode === 'free' || shippingAmount > 0) && !saving;
 
   const sendWhatsApp = async (phone: string, message: string) => {
     const digits = normalizePhone(phone);
@@ -210,10 +214,14 @@ function ManualOrderSheet({
         {
           customer_key: customer.key,
           items: selectedItems.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+          shipping_mode: shippingMode,
+          shipping_base_amount: shippingAmount.toFixed(2),
         },
         newIdempotencyKey(),
       ));
       setSelectedItems([]);
+      setShippingMode('free');
+      setShippingCost('');
       onCreated(response.data.order);
       onClose();
       await sendWhatsApp(response.data.whatsapp.phone, response.data.whatsapp.message);
@@ -274,6 +282,34 @@ function ManualOrderSheet({
                       </Pressable>
                     </View>
                   ))}
+                  <View style={styles.shippingChoiceBlock}>
+                    <Text style={styles.selectedTitle}>Shipping</Text>
+                    <View style={styles.shippingModeRow}>
+                      <Pressable onPress={() => setShippingMode('free')} style={[styles.shippingModeButton, shippingMode === 'free' && styles.shippingModeButtonActive]}>
+                        <MaterialCommunityIcons color={shippingMode === 'free' ? '#FFFFFF' : '#0B5D3B'} name="truck-check-outline" size={18} />
+                        <Text style={[styles.shippingModeText, shippingMode === 'free' && styles.shippingModeTextActive]}>Free</Text>
+                      </Pressable>
+                      <Pressable onPress={() => setShippingMode('charged')} style={[styles.shippingModeButton, shippingMode === 'charged' && styles.shippingModeButtonActive]}>
+                        <MaterialCommunityIcons color={shippingMode === 'charged' ? '#FFFFFF' : '#0B5D3B'} name="truck-fast-outline" size={18} />
+                        <Text style={[styles.shippingModeText, shippingMode === 'charged' && styles.shippingModeTextActive]}>Charged</Text>
+                      </Pressable>
+                    </View>
+                    {shippingMode === 'charged' ? (
+                      <>
+                        <TextInput
+                          keyboardType="decimal-pad"
+                          onChangeText={setShippingCost}
+                          placeholder="Shipping amount"
+                          placeholderTextColor="#82958D"
+                          style={styles.shippingCostInput}
+                          value={shippingCost}
+                        />
+                        <Text style={styles.selectedMeta}>Shipping added to total: {rupees(shippingAmount)}</Text>
+                      </>
+                    ) : (
+                      <Text style={styles.selectedMeta}>Shipping will show as Free in customer summary.</Text>
+                    )}
+                  </View>
                   <View style={styles.manualTotalRow}>
                     <Text style={styles.manualTotalLabel}>Order total</Text>
                     <Text style={styles.manualTotalValue}>{rupees(total)}</Text>
@@ -900,6 +936,13 @@ const styles = StyleSheet.create({
   selectedMeta: { color: '#71867D', fontSize: 11, fontWeight: '700', marginTop: 3 },
   qtyInput: { width: 52, minHeight: 42, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 12, color: '#17352A', fontSize: 16, fontWeight: '900', textAlign: 'center', backgroundColor: '#FFFFFF' },
   removeItemButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF2F2' },
+  shippingChoiceBlock: { borderTopColor: '#DCE5E1', borderTopWidth: 1, marginTop: 10, paddingTop: 12 },
+  shippingModeRow: { flexDirection: 'row', columnGap: 9, marginBottom: 10 },
+  shippingModeButton: { flex: 1, minHeight: 44, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 13, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 7 },
+  shippingModeButtonActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' },
+  shippingModeText: { color: '#0B5D3B', fontSize: 13, fontWeight: '900' },
+  shippingModeTextActive: { color: '#FFFFFF' },
+  shippingCostInput: { minHeight: 48, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 13, color: '#17352A', fontSize: 15, fontWeight: '800', paddingHorizontal: 13, marginBottom: 6, backgroundColor: '#FFFFFF' },
   manualTotalRow: { borderTopColor: '#DCE5E1', borderTopWidth: 1, marginTop: 9, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between' },
   manualTotalLabel: { color: '#40564D', fontSize: 13, fontWeight: '900' },
   manualTotalValue: { color: '#0B5D3B', fontSize: 18, fontWeight: '900' },

@@ -203,6 +203,8 @@ def _confirmation_order_items(order):
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "line_total": line_total,
+                "line_type": str(item.get("line_type") or "").strip(),
+                "shipping_label": str(item.get("shipping_label") or "").strip(),
             }
         )
     return rows
@@ -255,9 +257,10 @@ def manual_order_confirmation(request, token):
     order = confirmation.order
     action_result = None
     form_error = ""
+    action = str(request.POST.get("action") or "").strip() if request.method == "POST" else ""
+    show_address_step = action == "continue_address"
 
     if request.method == "POST" and confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW:
-        action = str(request.POST.get("action") or "").strip()
         address = _confirmation_address_from_post(request.POST, confirmation)
         missing = [
             label
@@ -271,16 +274,19 @@ def manual_order_confirmation(request, token):
             ]
             if not address.get(key)
         ]
-        if missing:
+        if action == "continue_address":
+            show_address_step = True
+        elif action == "confirm" and missing:
             form_error = "Please enter " + ", ".join(missing) + "."
+            show_address_step = True
         else:
             now = timezone.now()
             with transaction.atomic():
                 confirmation = MobileOrderConfirmation.objects.select_for_update().get(pk=confirmation.pk)
                 order = ShiprocketOrder.objects.select_for_update().get(pk=order.pk)
-                _apply_confirmation_address(order, confirmation, address)
                 payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
                 if action == "confirm":
+                    _apply_confirmation_address(order, confirmation, address)
                     confirmation.status = MobileOrderConfirmation.STATUS_CONFIRMED
                     confirmation.confirmed_at = now
                     payload = {**payload, "confirmation_status": "confirmed", "confirmed_at": now.isoformat()}
@@ -297,6 +303,8 @@ def manual_order_confirmation(request, token):
                     )
                 elif action == "request_change":
                     note = str(request.POST.get("change_note") or "").strip()
+                    if any(address.get(key) for key in ["name", "phone", "address_1", "address_2", "city", "state", "pincode"]):
+                        _apply_confirmation_address(order, confirmation, address)
                     confirmation.status = MobileOrderConfirmation.STATUS_CHANGE_REQUESTED
                     confirmation.change_note = note
                     confirmation.change_requested_at = now
@@ -322,6 +330,8 @@ def manual_order_confirmation(request, token):
                         triggered_by="customer",
                     )
                 elif action == "cancel":
+                    if any(address.get(key) for key in ["name", "phone", "address_1", "address_2", "city", "state", "pincode"]):
+                        _apply_confirmation_address(order, confirmation, address)
                     confirmation.status = MobileOrderConfirmation.STATUS_CANCELLED
                     confirmation.cancelled_at = now
                     order.local_status = ShiprocketOrder.STATUS_CANCELLED
@@ -346,6 +356,7 @@ def manual_order_confirmation(request, token):
                     )
                 else:
                     form_error = "Please choose confirm, request change, or cancel."
+                    show_address_step = False
 
                 if not form_error:
                     order.raw_payload = payload
@@ -369,6 +380,7 @@ def manual_order_confirmation(request, token):
         "form_error": form_error,
         "action_result": action_result,
         "is_open": confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW,
+        "show_address_step": show_address_step,
     }
     return render(request, "core/manual_order_confirmation.html", context)
 

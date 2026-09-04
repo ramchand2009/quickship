@@ -28,6 +28,18 @@ class ManualOrderCreateSerializer(serializers.Serializer):
     customer_key = serializers.CharField(required=False, allow_blank=True, max_length=120, trim_whitespace=True)
     customer = ManualOrderCustomerSerializer(required=False)
     items = ManualOrderItemSerializer(many=True)
+    shipping_mode = serializers.ChoiceField(
+        choices=["free", "charged"],
+        required=False,
+        default="free",
+    )
+    shipping_base_amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        default=0,
+    )
     note = serializers.CharField(required=False, allow_blank=True, max_length=255, trim_whitespace=True)
 
     def validate(self, attrs):
@@ -35,4 +47,8 @@ class ManualOrderCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError({"customer": ["Select a customer or enter new customer details."]})
         if not attrs.get("items"):
             raise serializers.ValidationError({"items": ["Select at least one product."]})
+        if attrs.get("shipping_mode") == "charged" and not attrs.get("shipping_base_amount"):
+            raise serializers.ValidationError({"shipping_base_amount": ["Enter the shipping charge, or choose free shipping."]})
+        if attrs.get("shipping_mode") == "free":
+            attrs["shipping_base_amount"] = 0
         return attrs

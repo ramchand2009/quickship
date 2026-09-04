@@ -25,26 +25,26 @@
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
         .shell {
-            width: min(100%, 760px);
+            width: min(100%, 440px);
             margin: 0 auto;
-            padding: 18px 14px 34px;
+            padding: 12px 12px 26px;
         }
         .hero {
             background: linear-gradient(135deg, #075f3c, #0b7a4b);
-            border-radius: 28px;
+            border-radius: 24px;
             color: #fff;
-            padding: 22px;
+            padding: 18px;
             box-shadow: 0 18px 38px rgba(7, 95, 60, 0.2);
         }
         .brand {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
         .logo {
-            width: 48px;
-            height: 48px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             background: #fff;
             padding: 4px;
@@ -58,7 +58,7 @@
             opacity: 0.9;
         }
         h1 {
-            font-size: clamp(26px, 7vw, 42px);
+            font-size: clamp(25px, 8vw, 34px);
             line-height: 1.05;
             margin: 0 0 10px;
             letter-spacing: -0.04em;
@@ -72,10 +72,10 @@
         .status-card {
             background: #fff;
             border: 1px solid var(--line);
-            border-radius: 22px;
-            padding: 16px;
-            margin-top: 14px;
-            box-shadow: 0 10px 26px rgba(23, 53, 42, 0.07);
+            border-radius: 20px;
+            padding: 13px;
+            margin-top: 12px;
+            box-shadow: 0 8px 20px rgba(23, 53, 42, 0.06);
         }
         .status-pill {
             display: inline-flex;
@@ -91,7 +91,7 @@
         .status-pill.danger { background: #fff1f0; color: var(--danger); }
         .grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr;
             gap: 12px;
             margin-top: 14px;
         }
@@ -109,12 +109,19 @@
         }
         .metric-value {
             color: var(--green);
-            font-size: 24px;
+            font-size: 21px;
             font-weight: 950;
         }
+        .step-note {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+            margin: 8px 4px 0;
+            font-weight: 700;
+        }
         .section-title {
-            margin: 24px 4px 10px;
-            font-size: 20px;
+            margin: 18px 4px 10px;
+            font-size: 18px;
             font-weight: 950;
             letter-spacing: -0.02em;
         }
@@ -196,7 +203,7 @@
         .actions {
             position: sticky;
             bottom: 0;
-            margin: 18px -14px -34px;
+            margin: 18px -12px -26px;
             padding: 13px 14px calc(13px + env(safe-area-inset-bottom));
             background: rgba(246, 250, 247, 0.94);
             backdrop-filter: blur(14px);
@@ -246,8 +253,10 @@
         }
         @media (max-width: 560px) {
             .grid, .form-row { grid-template-columns: 1fr; }
-            .hero { border-radius: 0 0 28px 28px; margin: -18px -14px 0; }
-            .status-card { margin-top: 14px; }
+            .hero { border-radius: 0 0 24px 24px; margin: -12px -12px 0; }
+            .status-card { margin-top: 12px; }
+            .item { padding: 13px; }
+            .form-card { padding: 14px; }
         }
     </style>
 </head>
@@ -261,8 +270,8 @@
                     <div style="color:#d9f2e6;font-size:12px;font-weight:750;">Secure order confirmation</div>
                 </div>
             </div>
-            <h1>Review your order</h1>
-            <p>Please check your products and delivery address before we process your offline order.</p>
+            <h1>{% if show_address_step %}Add delivery address{% else %}Review your order{% endif %}</h1>
+            <p>{% if show_address_step %}Your products are ready. Please confirm where we should send this order.{% else %}First check the products and quantity. Address comes in the next step.{% endif %}</p>
         </section>
 
         <section class="status-card">
@@ -278,10 +287,6 @@
                 <span class="status-pill">Awaiting your confirmation</span>
             {% endif %}
             <div class="grid">
-                <div class="metric">
-                    <div class="metric-label">Order</div>
-                    <div class="metric-value">{{ order.source_order_reference }}</div>
-                </div>
                 <div class="metric">
                     <div class="metric-label">Total amount</div>
                     <div class="metric-value">₹ {{ order.total|floatformat:2 }}</div>
@@ -311,71 +316,93 @@
             </section>
         {% endif %}
 
-        <h2 class="section-title">Products</h2>
-        <section class="card">
-            {% for item in items %}
-                <div class="item">
-                    <div>
-                        <div class="item-name">{{ item.name }}</div>
-                        <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
-                    </div>
-                    <div class="item-total">₹ {{ item.line_total|floatformat:2 }}</div>
-                </div>
-            {% empty %}
-                <div class="item">
-                    <div class="item-name">No products found</div>
-                </div>
-            {% endfor %}
-        </section>
-
-        <h2 class="section-title">Delivery details</h2>
-        <form method="post" class="form-card">
+        <form method="post">
             {% csrf_token %}
             {% if form_error %}<div class="error">{{ form_error }}</div>{% endif %}
 
-            <label for="name">Name</label>
-            <input id="name" name="name" value="{{ address.name }}" autocomplete="name" {% if not is_open %}readonly{% endif %}>
+            <h2 class="section-title">Products</h2>
+            <section class="card">
+                {% for item in items %}
+                    <div class="item">
+                        <div>
+                            <div class="item-name">{{ item.name }}</div>
+                            {% if item.line_type == "shipping" %}
+                                <div class="item-meta">{{ item.shipping_label|default:"Shipping" }}</div>
+                            {% else %}
+                                <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
+                            {% endif %}
+                        </div>
+                        <div class="item-total">₹ {{ item.line_total|floatformat:2 }}</div>
+                    </div>
+                {% empty %}
+                    <div class="item">
+                        <div class="item-name">No products found</div>
+                    </div>
+                {% endfor %}
+            </section>
 
-            <label for="phone">Mobile number</label>
-            <input id="phone" name="phone" value="{{ address.phone }}" inputmode="tel" autocomplete="tel" {% if not is_open %}readonly{% endif %}>
+            {% if is_open and not show_address_step %}
+                <p class="step-note">If products or quantity need correction, request a change and we will update it.</p>
+                <label for="change_note_products" style="margin-top:14px;">Change request</label>
+                <textarea id="change_note_products" name="change_note" placeholder="Example: Please change quantity to 2, or remove one item..."></textarea>
 
-            <label for="address_1">Address line 1</label>
-            <input id="address_1" name="address_1" value="{{ address.address_1 }}" autocomplete="address-line1" {% if not is_open %}readonly{% endif %}>
-
-            <label for="address_2">Address line 2</label>
-            <input id="address_2" name="address_2" value="{{ address.address_2 }}" autocomplete="address-line2" {% if not is_open %}readonly{% endif %}>
-
-            <div class="form-row">
-                <div>
-                    <label for="city">City</label>
-                    <input id="city" name="city" value="{{ address.city }}" autocomplete="address-level2" {% if not is_open %}readonly{% endif %}>
+                <div class="actions">
+                    <button class="primary" type="submit" name="action" value="continue_address">Products are correct</button>
+                    <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
+                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
                 </div>
-                <div>
-                    <label for="state">State</label>
-                    <input id="state" name="state" value="{{ address.state }}" autocomplete="address-level1" {% if not is_open %}readonly{% endif %}>
-                </div>
-            </div>
+            {% endif %}
 
-            <div class="form-row">
-                <div>
-                    <label for="pincode">Pincode</label>
-                    <input id="pincode" name="pincode" value="{{ address.pincode }}" inputmode="numeric" autocomplete="postal-code" {% if not is_open %}readonly{% endif %}>
-                </div>
-                <div>
-                    <label for="country">Country</label>
-                    <input id="country" name="country" value="{{ address.country }}" autocomplete="country-name" {% if not is_open %}readonly{% endif %}>
-                </div>
-            </div>
+            {% if show_address_step or not is_open %}
+                <h2 class="section-title">Delivery details</h2>
+                <section class="form-card">
+                    <label for="name">Name</label>
+                    <input id="name" name="name" value="{{ address.name }}" autocomplete="name" {% if not is_open %}readonly{% endif %}>
 
-            {% if is_open %}
-                <label for="change_note">If changes are needed, tell us here</label>
-                <textarea id="change_note" name="change_note" placeholder="Example: Please change quantity to 2, or correct landmark..."></textarea>
+                    <label for="phone">Mobile number</label>
+                    <input id="phone" name="phone" value="{{ address.phone }}" inputmode="tel" autocomplete="tel" {% if not is_open %}readonly{% endif %}>
 
+                    <label for="address_1">Address line 1</label>
+                    <input id="address_1" name="address_1" value="{{ address.address_1 }}" autocomplete="address-line1" {% if not is_open %}readonly{% endif %}>
+
+                    <label for="address_2">Address line 2</label>
+                    <input id="address_2" name="address_2" value="{{ address.address_2 }}" autocomplete="address-line2" {% if not is_open %}readonly{% endif %}>
+
+                    <div class="form-row">
+                        <div>
+                            <label for="city">City</label>
+                            <input id="city" name="city" value="{{ address.city }}" autocomplete="address-level2" {% if not is_open %}readonly{% endif %}>
+                        </div>
+                        <div>
+                            <label for="state">State</label>
+                            <input id="state" name="state" value="{{ address.state }}" autocomplete="address-level1" {% if not is_open %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div>
+                            <label for="pincode">Pincode</label>
+                            <input id="pincode" name="pincode" value="{{ address.pincode }}" inputmode="numeric" autocomplete="postal-code" {% if not is_open %}readonly{% endif %}>
+                        </div>
+                        <div>
+                            <label for="country">Country</label>
+                            <input id="country" name="country" value="{{ address.country }}" autocomplete="country-name" {% if not is_open %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    {% if is_open %}
+                        <label for="change_note">Address change note</label>
+                        <textarea id="change_note" name="change_note" placeholder="Example: Correct landmark, alternate phone number..."></textarea>
+                    {% endif %}
+                </section>
+
+                {% if is_open %}
                 <div class="actions">
                     <button class="primary" type="submit" name="action" value="confirm">Confirm order</button>
                     <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
                     <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
                 </div>
+                {% endif %}
             {% endif %}
         </form>
     </main>

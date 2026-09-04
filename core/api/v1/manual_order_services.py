@@ -25,6 +25,13 @@ def _price_for_product(product):
     return product.sale_price or product.regular_price or Decimal("0.00")
 
 
+def _decimal_money(value):
+    try:
+        return Decimal(str(value or "0")).quantize(Decimal("0.01"))
+    except Exception:
+        return Decimal("0.00")
+
+
 def _normalize_address(values):
     return {
         "name": str(values.get("name") or "").strip(),
@@ -177,6 +184,45 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                     }
                 )
 
+            shipping_amount = _decimal_money(values.get("shipping_base_amount"))
+            if shipping_amount > 0:
+                total += shipping_amount
+                order_items.append(
+                    {
+                        "product_id": None,
+                        "name": "Shipping charge",
+                        "sku": "SHIPPING",
+                        "quantity": 1,
+                        "price": f"{shipping_amount:.2f}",
+                        "unit_price": f"{shipping_amount:.2f}",
+                        "total": f"{shipping_amount:.2f}",
+                        "image_url": "",
+                        "source": "manual_mobile_order",
+                        "line_type": "shipping",
+                        "shipping_base_amount": f"{shipping_amount:.2f}",
+                        "shipping_gst_amount": "0.00",
+                        "shipping_label": "Shipping charge",
+                    }
+                )
+            else:
+                order_items.append(
+                    {
+                        "product_id": None,
+                        "name": "Shipping",
+                        "sku": "FREE-SHIPPING",
+                        "quantity": 1,
+                        "price": "0.00",
+                        "unit_price": "0.00",
+                        "total": "0.00",
+                        "image_url": "",
+                        "source": "manual_mobile_order",
+                        "line_type": "shipping",
+                        "shipping_base_amount": "0.00",
+                        "shipping_gst_amount": "0.00",
+                        "shipping_label": "Free shipping",
+                    }
+                )
+
             now = timezone.now()
             order = ShiprocketOrder.objects.create(
                 tenant=tenant,
@@ -188,6 +234,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                 customer_phone=address["phone"],
                 payment_method="offline",
                 total=total,
+                shipping_base_amount=shipping_amount,
                 order_date=now,
                 manual_customer_name=address["name"],
                 manual_customer_email=address["email"],
@@ -207,6 +254,9 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                     "confirmation_status": "awaiting_customer_confirmation",
                     "customer_key": customer.get("key"),
                     "note": values.get("note") or "",
+                    "shipping_mode": "charged" if shipping_amount > 0 else "free",
+                    "shipping_gst_amount": "0.00",
+                    "shipping_total_amount": f"{shipping_amount:.2f}",
                 },
             )
             sender = _sender_payload(tenant)
