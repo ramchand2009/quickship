@@ -46,6 +46,7 @@ const TABS: { key: AppTab; label: string; icon: TabIconName; activeIcon: TabIcon
 
 const METRIC_ICONS: Record<string, TabIconName> = {
   total_orders: 'clipboard-list-outline',
+  waiting_orders: 'timer-sand',
   pending_orders: 'clock-outline',
   accepted_orders: 'clipboard-check-outline',
   shipped_orders: 'truck-delivery-outline',
@@ -55,6 +56,7 @@ const METRIC_ICONS: Record<string, TabIconName> = {
 
 const METRIC_COLORS: Record<string, { foreground: string; background: string; border: string }> = {
   total_orders: { foreground: '#14733D', background: '#ECF7EE', border: '#B9DDBF' },
+  waiting_orders: { foreground: '#7A4A00', background: '#FFF9E9', border: '#EDD28B' },
   pending_orders: { foreground: '#E68200', background: '#FFF7E8', border: '#F3D28B' },
   accepted_orders: { foreground: '#14733D', background: '#ECF7EE', border: '#B9DDBF' },
   shipped_orders: { foreground: '#1769C2', background: '#EFF6FF', border: '#B6D7FF' },
@@ -63,6 +65,7 @@ const METRIC_COLORS: Record<string, { foreground: string; background: string; bo
 };
 
 const METRIC_ORDER_STATUSES: Record<string, string> = {
+  waiting_orders: 'waiting_order',
   pending_orders: 'new_order',
   accepted_orders: 'order_accepted',
   shipped_orders: 'shipped',
@@ -711,12 +714,17 @@ export default function OperationsApp() {
     setOpeningOrders(true);
     let preferredStatus = '';
     try {
-      const newOrders = await runAuthenticated((token) => api.orders(token, { status: 'new_order' }));
-      if (newOrders.data.length > 0) {
-        preferredStatus = 'new_order';
+      const waitingOrders = await runAuthenticated((token) => api.orders(token, { status: 'waiting_order' }));
+      if (waitingOrders.data.length > 0) {
+        preferredStatus = 'waiting_order';
       } else {
-        const acceptedOrders = await runAuthenticated((token) => api.orders(token, { status: 'order_accepted' }));
-        if (acceptedOrders.data.length > 0) preferredStatus = 'order_accepted';
+        const newOrders = await runAuthenticated((token) => api.orders(token, { status: 'new_order' }));
+        if (newOrders.data.length > 0) {
+          preferredStatus = 'new_order';
+        } else {
+          const acceptedOrders = await runAuthenticated((token) => api.orders(token, { status: 'order_accepted' }));
+          if (acceptedOrders.data.length > 0) preferredStatus = 'order_accepted';
+        }
       }
     } catch {
       // All orders is the safest fallback when queue counts are unavailable.

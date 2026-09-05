@@ -114,7 +114,7 @@ from .models import (
     WooCommerceSettings,
     WooCommerceSyncRun,
 )
-from .api.v1.notification_services import deliver_order_issue_notification
+from .api.v1.notification_services import deliver_new_order_notification, deliver_order_issue_notification
 from .stock import (
     apply_manual_stock_movement,
     build_packing_scan_requirements,
@@ -261,7 +261,8 @@ def manual_order_confirmation(request, token):
     show_address_step = action == "continue_address"
     show_change_step = action == "continue_change"
 
-    if request.method == "POST" and confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW:
+    confirmation_allowed_statuses = {ShiprocketOrder.STATUS_WAITING, ShiprocketOrder.STATUS_NEW}
+    if request.method == "POST" and confirmation.is_open and order.local_status in confirmation_allowed_statuses:
         address = _confirmation_address_from_post(request.POST, confirmation)
         missing = [
             label
@@ -289,7 +290,9 @@ def manual_order_confirmation(request, token):
                 order = ShiprocketOrder.objects.select_for_update().get(pk=order.pk)
                 payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
                 if action == "confirm":
+                    previous_status = order.local_status
                     _apply_confirmation_address(order, confirmation, address)
+                    order.local_status = ShiprocketOrder.STATUS_NEW
                     confirmation.status = MobileOrderConfirmation.STATUS_CONFIRMED
                     confirmation.confirmed_at = now
                     payload = {**payload, "confirmation_status": "confirmed", "confirmed_at": now.isoformat()}
@@ -298,8 +301,9 @@ def manual_order_confirmation(request, token):
                         order=order,
                         event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
                         title="Customer confirmed offline order",
-                        description="Customer confirmed the order and delivery address from the confirmation link.",
-                        current_status=order.local_status,
+                        description="Customer confirmed the order and delivery address from the confirmation link. Order moved to New.",
+                        previous_status=previous_status,
+                        current_status=ShiprocketOrder.STATUS_NEW,
                         metadata={"source": "customer_confirmation_link", "action": "confirm"},
                         is_success=True,
                         triggered_by="customer",
@@ -368,7 +372,9 @@ def manual_order_confirmation(request, token):
                     order.version += 1
                     order.save()
 
-            if action_result == "change_requested":
+            if action_result == "confirmed":
+                deliver_new_order_notification(order)
+            elif action_result == "change_requested":
                 deliver_order_issue_notification(
                     order,
                     reason_label="Customer requested change",
@@ -383,7 +389,7 @@ def manual_order_confirmation(request, token):
         "address": confirmation.address_payload,
         "form_error": form_error,
         "action_result": action_result,
-        "is_open": confirmation.is_open and order.local_status == ShiprocketOrder.STATUS_NEW,
+        "is_open": confirmation.is_open and order.local_status in confirmation_allowed_statuses,
         "show_address_step": show_address_step,
         "show_change_step": show_change_step,
     }

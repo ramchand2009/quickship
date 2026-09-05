@@ -28,6 +28,7 @@ import type { Money, OrderAction, OrderDetail, OrderIssueFlagUpdate, OrderListFi
 
 const STATUS_FILTERS = [
   { code: '', label: 'All' },
+  { code: 'waiting_order', label: 'Waiting' },
   { code: 'new_order', label: 'New' },
   { code: 'order_accepted', label: 'Accepted' },
   { code: 'shipped', label: 'Shipped' },

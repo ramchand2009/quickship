@@ -853,6 +853,7 @@ class ShiprocketOrder(models.Model):
         (SOURCE_SHIPROCKET, "Shiprocket"),
         (SOURCE_WOOCOMMERCE, "WooCommerce"),
     ]
+    STATUS_WAITING = "waiting_order"
     STATUS_NEW = "new_order"
     STATUS_ACCEPTED = "order_accepted"
     STATUS_PACKED = "order_packed"
@@ -869,6 +870,7 @@ class ShiprocketOrder(models.Model):
     CANCEL_REASON_COURIER_ISSUE = "courier_issue"
     CANCEL_REASON_OTHER = "other"
     STATUS_CHOICES = [
+        (STATUS_WAITING, "Waiting"),
         (STATUS_NEW, "New Order"),
         (STATUS_ACCEPTED, "Order Accepted"),
         (STATUS_PACKED, "Order Packed"),
@@ -888,6 +890,7 @@ class ShiprocketOrder(models.Model):
         (CANCEL_REASON_OTHER, "Other"),
     ]
     ALLOWED_STATUS_TRANSITIONS = {
+        STATUS_WAITING: [STATUS_CANCELLED],
         STATUS_NEW: [STATUS_ACCEPTED, STATUS_CANCELLED],
         STATUS_ACCEPTED: [STATUS_SHIPPED, STATUS_CANCELLED],
         STATUS_PACKED: [STATUS_SHIPPED, STATUS_CANCELLED],

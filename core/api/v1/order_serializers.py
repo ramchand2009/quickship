@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.db.models import Q
 from rest_framework import serializers
 
 from core.models import OrderActivityLog, ShiprocketOrder, TenantMembership
@@ -210,21 +211,27 @@ class OrderSummarySerializer(serializers.ModelSerializer):
         return str(order.tracking_number or "").strip() or None
 
     def get_attention_required(self, order):
-        return order.local_status == ShiprocketOrder.STATUS_DELIVERY_ISSUE
+        if order.local_status == ShiprocketOrder.STATUS_DELIVERY_ISSUE:
+            return True
+        return OrderActivityLog.objects.filter(
+            order=order,
+            metadata__source="customer_confirmation_link",
+            metadata__reason="customer_change_request",
+        ).exists()
 
     def get_issue_flag(self, order):
-        if order.local_status != ShiprocketOrder.STATUS_DELIVERY_ISSUE:
-            return None
         latest_issue = (
             OrderActivityLog.objects.filter(
+                Q(metadata__source="mobile_api", metadata__action="flag_issue")
+                | Q(metadata__source="customer_confirmation_link", metadata__reason="customer_change_request"),
                 order=order,
-                metadata__source="mobile_api",
-                metadata__action="flag_issue",
             )
             .order_by("-created_at")
             .first()
         )
         if latest_issue is None:
+            if order.local_status != ShiprocketOrder.STATUS_DELIVERY_ISSUE:
+                return None
             return {
                 "reason": None,
                 "reason_label": "Needs attention",
@@ -236,6 +243,7 @@ class OrderSummarySerializer(serializers.ModelSerializer):
         reason = metadata.get("reason") or None
         reason_labels = {
             "address_issue": "Address issue",
+            "customer_change_request": "Customer requested change",
             "payment_issue": "Payment issue",
             "stock_issue": "Stock issue",
             "courier_issue": "Courier issue",
@@ -245,7 +253,7 @@ class OrderSummarySerializer(serializers.ModelSerializer):
         role = self.context.get("role")
         return {
             "reason": reason,
-            "reason_label": reason_labels.get(reason, "Needs attention"),
+            "reason_label": reason_labels.get(reason, latest_issue.title or "Needs attention"),
             "note": latest_issue.description if role in FULL_ORDER_DETAIL_ROLES else None,
             "created_at": latest_issue.created_at,
             "actor_display_name": latest_issue.triggered_by if role in FULL_ORDER_DETAIL_ROLES else None,

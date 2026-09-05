@@ -227,7 +227,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
             order = ShiprocketOrder.objects.create(
                 tenant=tenant,
                 source="manual",
-                shiprocket_order_id=f"MO-{tenant.pk}-{now:%Y%m%d%H%M%S}-{secrets.token_hex(3).upper()}",
+                shiprocket_order_id=f"MO-TMP-{tenant.pk}-{secrets.token_hex(8).upper()}",
                 channel_order_id="Offline order",
                 customer_name=address["name"],
                 customer_email=address["email"],
@@ -245,7 +245,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                 manual_shipping_state=address["state"],
                 manual_shipping_country=address["country"],
                 manual_shipping_pincode=address["pincode"],
-                local_status=ShiprocketOrder.STATUS_NEW,
+                local_status=ShiprocketOrder.STATUS_WAITING,
                 shipping_address=address,
                 billing_address=address,
                 order_items=order_items,
@@ -259,6 +259,8 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                     "shipping_total_amount": f"{shipping_amount:.2f}",
                 },
             )
+            order.shiprocket_order_id = f"MO-{order.pk}"
+            order.save(update_fields=["shiprocket_order_id", "updated_at"])
             sender = _sender_payload(tenant)
             token = _new_confirmation_token()
             MobileOrderConfirmation.objects.create(

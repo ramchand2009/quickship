@@ -195,12 +195,12 @@ function ManualOrderSheet({
   const total = productsTotal + shippingAmount;
   const canSave = selectedItems.length > 0 && (shippingMode === 'free' || shippingAmount > 0) && !saving;
 
-  const sendWhatsApp = async (phone: string, message: string) => {
+  const sendWhatsApp = async (phone: string, confirmationUrl: string) => {
     const digits = normalizePhone(phone);
     if (!digits) return;
-    const url = `https://wa.me/91${digits}?text=${encodeURIComponent(message)}`;
+    const url = `https://wa.me/91${digits}?text=${encodeURIComponent(confirmationUrl)}`;
     await Linking.openURL(url).catch(() => {
-      Alert.alert('WhatsApp unavailable', 'The confirmation message is ready, but WhatsApp could not be opened.');
+      Alert.alert('WhatsApp unavailable', 'The confirmation link is ready, but WhatsApp could not be opened.');
     });
   };
 
@@ -224,7 +224,7 @@ function ManualOrderSheet({
       setShippingCost('');
       onCreated(response.data.order);
       onClose();
-      await sendWhatsApp(response.data.whatsapp.phone, response.data.whatsapp.message);
+      await sendWhatsApp(response.data.whatsapp.phone, response.data.whatsapp.confirmation_url);
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Manual order could not be created.');
     } finally {
