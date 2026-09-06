@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Clipboard from 'expo-clipboard';
 import {
   ActivityIndicator,
   Alert,
@@ -192,16 +193,14 @@ function ManualOrderSheet({
 
   const productsTotal = selectedItems.reduce((sum, item) => sum + productUnitPrice(item.product) * item.quantity, 0);
   const shippingAmount = shippingMode === 'charged' ? Number.parseFloat(shippingCost.replace(/[^0-9.]/g, '')) || 0 : 0;
+  const manualShippingGst = shippingAmount > 0 ? shippingAmount * 0.18 : 0;
+  const manualShippingBase = shippingAmount > 0 ? shippingAmount - manualShippingGst : 0;
   const total = productsTotal + shippingAmount;
   const canSave = selectedItems.length > 0 && (shippingMode === 'free' || shippingAmount > 0) && !saving;
 
-  const sendWhatsApp = async (phone: string, confirmationUrl: string) => {
-    const digits = normalizePhone(phone);
-    if (!digits) return;
-    const url = `https://wa.me/91${digits}?text=${encodeURIComponent(confirmationUrl)}`;
-    await Linking.openURL(url).catch(() => {
-      Alert.alert('WhatsApp unavailable', 'The confirmation link is ready, but WhatsApp could not be opened.');
-    });
+  const copyConfirmationLink = async (confirmationUrl: string) => {
+    await Clipboard.setStringAsync(confirmationUrl);
+    Alert.alert('Link copied', 'The order confirmation link is copied. You can share it manually.');
   };
 
   const createOrder = async () => {
@@ -224,7 +223,7 @@ function ManualOrderSheet({
       setShippingCost('');
       onCreated(response.data.order);
       onClose();
-      await sendWhatsApp(response.data.whatsapp.phone, response.data.whatsapp.confirmation_url);
+      await copyConfirmationLink(response.data.whatsapp.confirmation_url);
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Manual order could not be created.');
     } finally {
@@ -299,12 +298,14 @@ function ManualOrderSheet({
                         <TextInput
                           keyboardType="decimal-pad"
                           onChangeText={setShippingCost}
-                          placeholder="Shipping amount"
+                          placeholder="Total shipping amount including GST"
                           placeholderTextColor="#82958D"
                           style={styles.shippingCostInput}
                           value={shippingCost}
                         />
-                        <Text style={styles.selectedMeta}>Shipping added to total: {rupees(shippingAmount)}</Text>
+                        <Text style={styles.selectedMeta}>
+                          Shipping {rupees(manualShippingBase)} + GST {rupees(manualShippingGst)} = {rupees(shippingAmount)}
+                        </Text>
                       </>
                     ) : (
                       <Text style={styles.selectedMeta}>Shipping will show as Free in customer summary.</Text>

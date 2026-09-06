@@ -551,8 +551,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
 
   const contactPhone = normalizedContactPhone(order.customer.phone);
   const shippingBaseAmount = parseMoneyAmount(order.shipping_cost?.amount);
-  const fallbackShippingGst = shippingBaseAmount * 0.18;
-  const fallbackShippingTotal = shippingBaseAmount + fallbackShippingGst;
+  const shippingGstAmount = parseMoneyAmount(order.shipping_gst?.amount);
+  const shippingTotalAmount = parseMoneyAmount(order.shipping_total?.amount);
+  const hasShippingCharge = shippingBaseAmount > 0 || shippingGstAmount > 0 || shippingTotalAmount > 0;
   const shippingInputBaseAmount = parseMoneyAmount(shippingCost);
   const shippingInputGst = shippingInputBaseAmount * 0.18;
   const shippingInputTotal = shippingInputBaseAmount + shippingInputGst;
@@ -835,9 +836,15 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Courier" value={order.courier_name} />
         <DetailRow label="Tracking number" value={order.tracking_number} />
         <DetailRow label="Package weight" value={order.package_weight_kg ? `${order.package_weight_kg} kg` : null} />
-        <DetailRow label="Shipping amount" value={order.shipping_total ? money(order.shipping_total) : formatInrAmount(fallbackShippingTotal)} />
-        <DetailRow label="Shipping charge before GST" value={money(order.shipping_cost)} />
-        <DetailRow label="GST (18%)" value={order.shipping_gst ? money(order.shipping_gst) : formatInrAmount(fallbackShippingGst)} />
+        {hasShippingCharge ? (
+          <>
+            <DetailRow label="Shipping charge" value={money(order.shipping_cost)} />
+            <DetailRow label="GST charge" value={money(order.shipping_gst)} />
+            <DetailRow label="Total shipping charge" value={money(order.shipping_total)} />
+          </>
+        ) : (
+          <DetailRow label="Shipping charges" value="Free" />
+        )}
         <DetailRow label="Order date" value={dateTime(order.order_date)} />
         {canPrintShippingLabel ? (
           <Pressable
@@ -1009,11 +1016,11 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                     {shippingInputBaseAmount > 0 ? (
                       <View style={styles.shippingTaxPreview}>
                         <View style={styles.shippingTaxRow}>
-                          <Text style={styles.shippingTaxLabel}>GST (18%)</Text>
+                          <Text style={styles.shippingTaxLabel}>GST charge</Text>
                           <Text style={styles.shippingTaxValue}>{formatInrAmount(shippingInputGst)}</Text>
                         </View>
                         <View style={styles.shippingTaxRow}>
-                          <Text style={styles.shippingTaxTotalLabel}>Total shipping amount</Text>
+                          <Text style={styles.shippingTaxTotalLabel}>Total shipping charge</Text>
                           <Text style={styles.shippingTaxTotalValue}>{formatInrAmount(shippingInputTotal)}</Text>
                         </View>
                       </View>

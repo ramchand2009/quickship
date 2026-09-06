@@ -714,17 +714,12 @@ export default function OperationsApp() {
     setOpeningOrders(true);
     let preferredStatus = '';
     try {
-      const waitingOrders = await runAuthenticated((token) => api.orders(token, { status: 'waiting_order' }));
-      if (waitingOrders.data.length > 0) {
-        preferredStatus = 'waiting_order';
+      const newOrders = await runAuthenticated((token) => api.orders(token, { status: 'new_order' }));
+      if (newOrders.data.length > 0) {
+        preferredStatus = 'new_order';
       } else {
-        const newOrders = await runAuthenticated((token) => api.orders(token, { status: 'new_order' }));
-        if (newOrders.data.length > 0) {
-          preferredStatus = 'new_order';
-        } else {
-          const acceptedOrders = await runAuthenticated((token) => api.orders(token, { status: 'order_accepted' }));
-          if (acceptedOrders.data.length > 0) preferredStatus = 'order_accepted';
-        }
+        const acceptedOrders = await runAuthenticated((token) => api.orders(token, { status: 'order_accepted' }));
+        if (acceptedOrders.data.length > 0) preferredStatus = 'order_accepted';
       }
     } catch {
       // All orders is the safest fallback when queue counts are unavailable.

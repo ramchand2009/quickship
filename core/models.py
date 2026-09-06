@@ -1191,10 +1191,16 @@ class ShiprocketOrder(models.Model):
 
     @property
     def shipping_tax_amount(self):
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        if self.source == "manual" and payload.get("manual_order"):
+            return Decimal(str(payload.get("shipping_gst_amount") or "0.00"))
         return (self.shipping_base_amount or Decimal("0.00")) * Decimal("0.18")
 
     @property
     def shipping_total_amount(self):
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        if self.source == "manual" and payload.get("manual_order"):
+            return Decimal(str(payload.get("shipping_total_amount") or self.shipping_base_amount or "0.00"))
         return (self.shipping_base_amount or Decimal("0.00")) + self.shipping_tax_amount
 
 

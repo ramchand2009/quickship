@@ -1,8 +1,8 @@
 """Manual offline order creation for the mobile admin app."""
 
-import secrets
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
+import secrets
 
 from django.db import transaction
 from django.urls import reverse
@@ -30,6 +30,15 @@ def _decimal_money(value):
         return Decimal(str(value or "0")).quantize(Decimal("0.01"))
     except Exception:
         return Decimal("0.00")
+
+
+def _split_inclusive_gst(total_amount, *, rate=Decimal("0.18")):
+    total = _decimal_money(total_amount)
+    if total <= 0:
+        return Decimal("0.00"), Decimal("0.00"), Decimal("0.00")
+    gst = (total * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    base = (total - gst).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return base, gst, total
 
 
 def _normalize_address(values):
@@ -184,23 +193,25 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                     }
                 )
 
-            shipping_amount = _decimal_money(values.get("shipping_base_amount"))
-            if shipping_amount > 0:
-                total += shipping_amount
+            shipping_base_amount, shipping_gst_amount, shipping_total_amount = _split_inclusive_gst(
+                values.get("shipping_base_amount")
+            )
+            if shipping_total_amount > 0:
+                total += shipping_total_amount
                 order_items.append(
                     {
                         "product_id": None,
                         "name": "Shipping charge",
                         "sku": "SHIPPING",
                         "quantity": 1,
-                        "price": f"{shipping_amount:.2f}",
-                        "unit_price": f"{shipping_amount:.2f}",
-                        "total": f"{shipping_amount:.2f}",
+                        "price": f"{shipping_total_amount:.2f}",
+                        "unit_price": f"{shipping_total_amount:.2f}",
+                        "total": f"{shipping_total_amount:.2f}",
                         "image_url": "",
                         "source": "manual_mobile_order",
                         "line_type": "shipping",
-                        "shipping_base_amount": f"{shipping_amount:.2f}",
-                        "shipping_gst_amount": "0.00",
+                        "shipping_base_amount": f"{shipping_base_amount:.2f}",
+                        "shipping_gst_amount": f"{shipping_gst_amount:.2f}",
                         "shipping_label": "Shipping charge",
                     }
                 )
@@ -234,7 +245,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                 customer_phone=address["phone"],
                 payment_method="offline",
                 total=total,
-                shipping_base_amount=shipping_amount,
+                shipping_base_amount=shipping_base_amount,
                 order_date=now,
                 manual_customer_name=address["name"],
                 manual_customer_email=address["email"],
@@ -254,9 +265,9 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                     "confirmation_status": "awaiting_customer_confirmation",
                     "customer_key": customer.get("key"),
                     "note": values.get("note") or "",
-                    "shipping_mode": "charged" if shipping_amount > 0 else "free",
-                    "shipping_gst_amount": "0.00",
-                    "shipping_total_amount": f"{shipping_amount:.2f}",
+                    "shipping_mode": "charged" if shipping_total_amount > 0 else "free",
+                    "shipping_gst_amount": f"{shipping_gst_amount:.2f}",
+                    "shipping_total_amount": f"{shipping_total_amount:.2f}",
                 },
             )
             order.shiprocket_order_id = f"MO-{order.pk}"
