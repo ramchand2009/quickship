@@ -178,6 +178,19 @@ export async function createManualOrder(
   });
 }
 
+export async function updateManualOrder(
+  accessToken: string,
+  orderId: number,
+  values: ManualOrderCreateInput & { expected_version: string },
+  idempotencyKey: string,
+): Promise<ManualOrderCreateResponse> {
+  return request<ManualOrderCreateResponse>(`/manual-orders/${orderId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
+  });
+}
+
 export async function shippingLabelSender(accessToken: string): Promise<{ data: ShippingLabelSender }> {
   return request<{ data: ShippingLabelSender }>('/shipping-label/sender', {
     headers: { Authorization: `Bearer ${accessToken}` },

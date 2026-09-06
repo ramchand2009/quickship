@@ -52,3 +52,18 @@ class ManualOrderCreateSerializer(serializers.Serializer):
         if attrs.get("shipping_mode") == "free":
             attrs["shipping_base_amount"] = 0
         return attrs
+
+
+class ManualOrderUpdateSerializer(ManualOrderCreateSerializer):
+    customer_key = None
+    customer = None
+    expected_version = serializers.CharField(max_length=32)
+
+    def validate(self, attrs):
+        if not attrs.get("items"):
+            raise serializers.ValidationError({"items": ["Select at least one product."]})
+        if attrs.get("shipping_mode") == "charged" and not attrs.get("shipping_base_amount"):
+            raise serializers.ValidationError({"shipping_base_amount": ["Enter the shipping charge, or choose free shipping."]})
+        if attrs.get("shipping_mode") == "free":
+            attrs["shipping_base_amount"] = 0
+        return attrs

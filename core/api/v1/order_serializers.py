@@ -2,9 +2,10 @@ from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.db.models import Q
+from django.urls import reverse
 from rest_framework import serializers
 
-from core.models import OrderActivityLog, ShiprocketOrder, TenantMembership
+from core.models import MobileOrderConfirmation, OrderActivityLog, ShiprocketOrder, TenantMembership
 
 from .session_services import ROLE_PERMISSIONS
 
@@ -288,6 +289,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
     activity = serializers.SerializerMethodField()
     shipping_label = serializers.SerializerMethodField()
     can_edit_shipping_address = serializers.SerializerMethodField()
+    can_edit_manual_order = serializers.SerializerMethodField()
+    confirmation_url = serializers.SerializerMethodField()
 
     class Meta(OrderSummarySerializer.Meta):
         fields = OrderSummarySerializer.Meta.fields + [
@@ -305,6 +308,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "activity",
             "shipping_label",
             "can_edit_shipping_address",
+            "can_edit_manual_order",
+            "confirmation_url",
         ]
 
     def get_customer(self, order):
@@ -356,6 +361,24 @@ class OrderDetailSerializer(OrderSummarySerializer):
 
     def get_can_edit_shipping_address(self, order):
         return self.context.get("role") in FULL_ORDER_DETAIL_ROLES and not order.is_manual_edit_locked
+
+    def get_can_edit_manual_order(self, order):
+        return (
+            self.context.get("role") in FULL_ORDER_DETAIL_ROLES
+            and order.source == "manual"
+            and order.local_status == ShiprocketOrder.STATUS_WAITING
+        )
+
+    def get_confirmation_url(self, order):
+        if order.source != "manual":
+            return None
+        try:
+            confirmation = order.mobile_confirmation
+        except MobileOrderConfirmation.DoesNotExist:
+            return None
+        base = str(self.context.get("base_url") or "").rstrip("/")
+        path = reverse("manual_order_confirmation", kwargs={"token": confirmation.token})
+        return f"{base}{path}" if base else path
 
     def get_items(self, order):
         serialized = []

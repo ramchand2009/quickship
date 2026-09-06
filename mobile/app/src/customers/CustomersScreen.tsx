@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import * as Clipboard from 'expo-clipboard';
 import {
   ActivityIndicator,
   Alert,
@@ -198,11 +197,6 @@ function ManualOrderSheet({
   const total = productsTotal + shippingAmount;
   const canSave = selectedItems.length > 0 && (shippingMode === 'free' || shippingAmount > 0) && !saving;
 
-  const copyConfirmationLink = async (confirmationUrl: string) => {
-    await Clipboard.setStringAsync(confirmationUrl);
-    Alert.alert('Link copied', 'The order confirmation link is copied. You can share it manually.');
-  };
-
   const createOrder = async () => {
     if (!canSave) return;
     setSaving(true);
@@ -223,7 +217,7 @@ function ManualOrderSheet({
       setShippingCost('');
       onCreated(response.data.order);
       onClose();
-      await copyConfirmationLink(response.data.whatsapp.confirmation_url);
+      Alert.alert('Order created', 'Manual order created. Open the order to copy the confirmation link when you are ready.');
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Manual order could not be created.');
     } finally {

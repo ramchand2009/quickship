@@ -12,6 +12,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from core.activity import log_order_activity
 from core.models import MobileCustomerProfile, MobileOrderConfirmation, OrderActivityLog, Product, ShiprocketOrder
 
+from .exceptions import BusinessRuleError, ConflictError
 from .customer_services import _customer_payload_from_profile, _sender_payload, mobile_customer_detail
 from .order_mutations import _begin_receipt, _complete_receipt, _delete_failed_receipt, _fingerprint, _serialize_result
 
@@ -140,6 +141,85 @@ def _confirmation_url(*, base_url, token):
     return f"{base}{path}"
 
 
+def _build_manual_order_totals(*, tenant, values):
+    product_ids = [item["product_id"] for item in values["items"]]
+    products = {
+        product.pk: product
+        for product in Product.objects.filter(tenant=tenant, pk__in=product_ids, is_active=True)
+    }
+    order_items = []
+    total = Decimal("0.00")
+    for item in values["items"]:
+        product = products.get(item["product_id"])
+        if product is None:
+            raise ValidationError({"items": ["One of the selected products is unavailable."]})
+        quantity = int(item["quantity"])
+        unit_price = _price_for_product(product)
+        line_total = unit_price * quantity
+        total += line_total
+        order_items.append(
+            {
+                "product_id": product.pk,
+                "name": product.name,
+                "sku": product.sku,
+                "quantity": quantity,
+                "price": f"{unit_price:.2f}",
+                "unit_price": f"{unit_price:.2f}",
+                "total": f"{line_total:.2f}",
+                "image_url": product.image_url,
+                "source": "manual_mobile_order",
+            }
+        )
+
+    shipping_base_amount, shipping_gst_amount, shipping_total_amount = _split_inclusive_gst(
+        values.get("shipping_base_amount")
+    )
+    if shipping_total_amount > 0:
+        total += shipping_total_amount
+        order_items.append(
+            {
+                "product_id": None,
+                "name": "Shipping charge",
+                "sku": "SHIPPING",
+                "quantity": 1,
+                "price": f"{shipping_total_amount:.2f}",
+                "unit_price": f"{shipping_total_amount:.2f}",
+                "total": f"{shipping_total_amount:.2f}",
+                "image_url": "",
+                "source": "manual_mobile_order",
+                "line_type": "shipping",
+                "shipping_base_amount": f"{shipping_base_amount:.2f}",
+                "shipping_gst_amount": f"{shipping_gst_amount:.2f}",
+                "shipping_label": "Shipping charge",
+            }
+        )
+    else:
+        order_items.append(
+            {
+                "product_id": None,
+                "name": "Shipping",
+                "sku": "FREE-SHIPPING",
+                "quantity": 1,
+                "price": "0.00",
+                "unit_price": "0.00",
+                "total": "0.00",
+                "image_url": "",
+                "source": "manual_mobile_order",
+                "line_type": "shipping",
+                "shipping_base_amount": "0.00",
+                "shipping_gst_amount": "0.00",
+                "shipping_label": "Free shipping",
+            }
+        )
+    return {
+        "order_items": order_items,
+        "total": total,
+        "shipping_base_amount": shipping_base_amount,
+        "shipping_gst_amount": shipping_gst_amount,
+        "shipping_total_amount": shipping_total_amount,
+    }
+
+
 def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key, values, base_url=""):
     request_hash = _fingerprint(operation="manual_order", order_id="new", payload=values)
     receipt, replay_payload = _begin_receipt(
@@ -164,75 +244,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
             if not customer or not address:
                 raise NotFound("The selected customer is unavailable.")
 
-            product_ids = [item["product_id"] for item in values["items"]]
-            products = {
-                product.pk: product
-                for product in Product.objects.filter(tenant=tenant, pk__in=product_ids, is_active=True)
-            }
-            order_items = []
-            total = Decimal("0.00")
-            for item in values["items"]:
-                product = products.get(item["product_id"])
-                if product is None:
-                    raise ValidationError({"items": ["One of the selected products is unavailable."]})
-                quantity = int(item["quantity"])
-                unit_price = _price_for_product(product)
-                line_total = unit_price * quantity
-                total += line_total
-                order_items.append(
-                    {
-                        "product_id": product.pk,
-                        "name": product.name,
-                        "sku": product.sku,
-                        "quantity": quantity,
-                        "price": f"{unit_price:.2f}",
-                        "unit_price": f"{unit_price:.2f}",
-                        "total": f"{line_total:.2f}",
-                        "image_url": product.image_url,
-                        "source": "manual_mobile_order",
-                    }
-                )
-
-            shipping_base_amount, shipping_gst_amount, shipping_total_amount = _split_inclusive_gst(
-                values.get("shipping_base_amount")
-            )
-            if shipping_total_amount > 0:
-                total += shipping_total_amount
-                order_items.append(
-                    {
-                        "product_id": None,
-                        "name": "Shipping charge",
-                        "sku": "SHIPPING",
-                        "quantity": 1,
-                        "price": f"{shipping_total_amount:.2f}",
-                        "unit_price": f"{shipping_total_amount:.2f}",
-                        "total": f"{shipping_total_amount:.2f}",
-                        "image_url": "",
-                        "source": "manual_mobile_order",
-                        "line_type": "shipping",
-                        "shipping_base_amount": f"{shipping_base_amount:.2f}",
-                        "shipping_gst_amount": f"{shipping_gst_amount:.2f}",
-                        "shipping_label": "Shipping charge",
-                    }
-                )
-            else:
-                order_items.append(
-                    {
-                        "product_id": None,
-                        "name": "Shipping",
-                        "sku": "FREE-SHIPPING",
-                        "quantity": 1,
-                        "price": "0.00",
-                        "unit_price": "0.00",
-                        "total": "0.00",
-                        "image_url": "",
-                        "source": "manual_mobile_order",
-                        "line_type": "shipping",
-                        "shipping_base_amount": "0.00",
-                        "shipping_gst_amount": "0.00",
-                        "shipping_label": "Free shipping",
-                    }
-                )
+            totals = _build_manual_order_totals(tenant=tenant, values=values)
 
             now = timezone.now()
             order = ShiprocketOrder.objects.create(
@@ -244,8 +256,8 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                 customer_email=address["email"],
                 customer_phone=address["phone"],
                 payment_method="offline",
-                total=total,
-                shipping_base_amount=shipping_base_amount,
+                total=totals["total"],
+                shipping_base_amount=totals["shipping_base_amount"],
                 order_date=now,
                 manual_customer_name=address["name"],
                 manual_customer_email=address["email"],
@@ -259,15 +271,15 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                 local_status=ShiprocketOrder.STATUS_WAITING,
                 shipping_address=address,
                 billing_address=address,
-                order_items=order_items,
+                order_items=totals["order_items"],
                 raw_payload={
                     "manual_order": True,
                     "confirmation_status": "awaiting_customer_confirmation",
                     "customer_key": customer.get("key"),
                     "note": values.get("note") or "",
-                    "shipping_mode": "charged" if shipping_total_amount > 0 else "free",
-                    "shipping_gst_amount": f"{shipping_gst_amount:.2f}",
-                    "shipping_total_amount": f"{shipping_total_amount:.2f}",
+                    "shipping_mode": "charged" if totals["shipping_total_amount"] > 0 else "free",
+                    "shipping_gst_amount": f"{totals['shipping_gst_amount']:.2f}",
+                    "shipping_total_amount": f"{totals['shipping_total_amount']:.2f}",
                 },
             )
             order.shiprocket_order_id = f"MO-{order.pk}"
@@ -331,6 +343,103 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
             "confirmation_url": confirmation_url,
         }
         payload["data"]["order"]["source"] = {"code": "manual", "label": "Manual"}
+        _complete_receipt(receipt, payload)
+        return payload
+    except Exception:
+        _delete_failed_receipt(receipt)
+        raise
+
+
+def update_manual_mobile_order(*, session, tenant, role, actor, order_id, idempotency_key, values, base_url=""):
+    request_hash = _fingerprint(operation="manual_order_update", order_id=order_id, payload=values)
+    receipt, replay_payload = _begin_receipt(
+        session=session,
+        tenant=tenant,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
+    )
+    if replay_payload:
+        return replay_payload
+
+    try:
+        with transaction.atomic():
+            order = ShiprocketOrder.objects.select_for_update().filter(tenant=tenant, pk=order_id).first()
+            if order is None:
+                raise NotFound("The requested resource is unavailable.")
+            if order.source != "manual" or not (isinstance(order.raw_payload, dict) and order.raw_payload.get("manual_order")):
+                raise BusinessRuleError("Only manual orders can be edited here.")
+            if order.local_status != ShiprocketOrder.STATUS_WAITING:
+                raise BusinessRuleError("Manual orders can be edited only while they are waiting for customer confirmation.")
+            if str(order.version) != values["expected_version"]:
+                raise ConflictError(fields={"expected_version": ["Refresh the order and try again."]})
+
+            confirmation = MobileOrderConfirmation.objects.select_for_update().filter(order=order).first()
+            if confirmation is None:
+                raise BusinessRuleError("This manual order does not have a confirmation link.")
+
+            totals = _build_manual_order_totals(tenant=tenant, values=values)
+            previous_total = order.total
+            payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
+            payload = {
+                **payload,
+                "confirmation_status": "awaiting_customer_confirmation",
+                "manual_order_updated_at": timezone.now().isoformat(),
+                "note": values.get("note") or payload.get("note") or "",
+                "shipping_mode": "charged" if totals["shipping_total_amount"] > 0 else "free",
+                "shipping_gst_amount": f"{totals['shipping_gst_amount']:.2f}",
+                "shipping_total_amount": f"{totals['shipping_total_amount']:.2f}",
+            }
+
+            order.total = totals["total"]
+            order.shipping_base_amount = totals["shipping_base_amount"]
+            order.order_items = totals["order_items"]
+            order.raw_payload = payload
+            order.version += 1
+            order.save(update_fields=["total", "shipping_base_amount", "order_items", "raw_payload", "version", "updated_at"])
+
+            confirmation.status = MobileOrderConfirmation.STATUS_AWAITING
+            confirmation.change_note = ""
+            confirmation.confirmed_at = None
+            confirmation.change_requested_at = None
+            confirmation.cancelled_at = None
+            confirmation.expires_at = timezone.now() + timedelta(days=7)
+            confirmation.save(
+                update_fields=[
+                    "status",
+                    "change_note",
+                    "confirmed_at",
+                    "change_requested_at",
+                    "cancelled_at",
+                    "expires_at",
+                    "updated_at",
+                ]
+            )
+            confirmation_url = _confirmation_url(base_url=base_url, token=confirmation.token)
+            log_order_activity(
+                order=order,
+                event_type=OrderActivityLog.EVENT_MANUAL_UPDATE,
+                title="Manual offline order updated",
+                description="Manual order items or shipping charge were updated. Customer confirmation link is ready to share again.",
+                previous_status=ShiprocketOrder.STATUS_WAITING,
+                current_status=ShiprocketOrder.STATUS_WAITING,
+                metadata={
+                    "source": "mobile_api",
+                    "action": "manual_order_updated",
+                    "confirmation_status": "awaiting_customer_confirmation",
+                    "confirmation_url": confirmation_url,
+                    "previous_total": str(previous_total or "0.00"),
+                    "new_total": str(order.total or "0.00"),
+                },
+                is_success=True,
+                triggered_by=actor,
+            )
+
+        payload = _serialize_result(tenant=tenant, order_id=order.pk, role=role, effects=[])
+        payload["data"]["whatsapp"] = {
+            "phone": order.resolved_customer_phone,
+            "message": "",
+            "confirmation_url": confirmation_url,
+        }
         _complete_receipt(receipt, payload)
         return payload
     except Exception:

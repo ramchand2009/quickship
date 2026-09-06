@@ -31,8 +31,8 @@ from .customer_services import (
 )
 from .expense_serializers import ExpenseCreateSerializer, ExpenseQuerySerializer
 from .expense_services import create_mobile_expense, delete_mobile_expense, monthly_expenses, update_mobile_expense
-from .manual_order_serializers import ManualOrderCreateSerializer
-from .manual_order_services import create_manual_mobile_order
+from .manual_order_serializers import ManualOrderCreateSerializer, ManualOrderUpdateSerializer
+from .manual_order_services import create_manual_mobile_order, update_manual_mobile_order
 from .permissions import HasActiveMobileTenant, HasMobileTenantRole
 from .order_mutations import flag_order_issue, mark_payment_received, update_order_status, update_shipping_address
 from .order_serializers import (
@@ -372,6 +372,30 @@ class MobileManualOrderCreateView(MobileWriteEnabledMixin, APIView):
         return Response(payload, status=201)
 
 
+class MobileManualOrderDetailView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def patch(self, request, order_id):
+        serializer = ManualOrderUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = update_manual_mobile_order(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            actor=request.user.get_username(),
+            order_id=order_id,
+            idempotency_key=self.idempotency_key(request),
+            values=serializer.validated_data,
+            base_url=request.build_absolute_uri("/"),
+        )
+        return Response(payload)
+
+
 class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
     permission_classes = [HasActiveMobileTenant]
     throttle_scope = "mobile_read"
@@ -386,6 +410,7 @@ class MobileOrderDetailView(MobileReadEnabledMixin, APIView):
                 "role": request.tenant_membership.role,
                 "activity": activity,
                 "tenant": request.tenant,
+                "base_url": request.build_absolute_uri("/"),
             },
         ).data
         return Response({"data": data})

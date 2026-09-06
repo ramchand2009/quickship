@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import {
   ActivityIndicator,
   Alert,
@@ -36,6 +38,128 @@ const when = (value: string) => {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 const newIdempotencyKey = () => `android-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+
+const CODE128_PATTERNS = [
+  '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
+  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
+  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
+  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
+  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
+  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
+  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
+  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
+  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
+  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
+  '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
+] as const;
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const barcodeValue = (product: ProductDetail) => (product.barcode || product.sku || '').trim();
+
+const code128BarcodeSvg = (value: string) => {
+  const safeValue = value.split('').filter((character) => {
+    const code = character.charCodeAt(0);
+    return code >= 32 && code <= 126;
+  }).join('');
+  if (!safeValue) return '';
+
+  const codes = [104];
+  let checksum = 104;
+  safeValue.split('').forEach((character, index) => {
+    const code = character.charCodeAt(0) - 32;
+    codes.push(code);
+    checksum += code * (index + 1);
+  });
+  codes.push(checksum % 103, 106);
+
+  const quietZone = 10;
+  const height = 58;
+  let x = quietZone;
+  const bars: string[] = [];
+  codes.forEach((code) => {
+    const pattern = CODE128_PATTERNS[code];
+    pattern.split('').forEach((widthText, index) => {
+      const width = Number(widthText);
+      if (index % 2 === 0) {
+        bars.push(`<rect x="${x}" y="0" width="${width}" height="${height}" fill="#000"/>`);
+      }
+      x += width;
+    });
+  });
+  const totalWidth = x + quietZone;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${height}" preserveAspectRatio="none">${bars.join('')}</svg>`;
+};
+
+const barcodeLabelHtml = (product: ProductDetail) => {
+  const code = barcodeValue(product);
+  const title = product.name.trim().toUpperCase();
+  const barcodeSvg = code128BarcodeSvg(code);
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: 50mm 25mm; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { width: 50mm; height: 25mm; margin: 0; padding: 0; background: #fff; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #000; }
+    .label {
+      width: 50mm;
+      height: 25mm;
+      padding: 2.2mm 3mm 1.6mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #fff;
+    }
+    .title {
+      width: 100%;
+      font-size: 13px;
+      line-height: 1;
+      font-weight: 900;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: .2px;
+      margin-bottom: 1.4mm;
+    }
+    .barcode {
+      width: 44mm;
+      height: 10.2mm;
+      margin-bottom: .8mm;
+    }
+    .barcode svg { width: 100%; height: 100%; display: block; }
+    .code {
+      width: 100%;
+      font-size: 14px;
+      line-height: 1;
+      font-weight: 700;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: .8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="label">
+    <div class="title">${escapeHtml(title)}</div>
+    <div class="barcode">${barcodeSvg}</div>
+    <div class="code">${escapeHtml(code)}</div>
+  </div>
+</body>
+</html>`;
+};
 
 function ProductCard({ product, onPress }: { product: ProductSummary; onPress: () => void }) {
   const critical = product.stock_state !== 'in_stock';
@@ -77,6 +201,7 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
   const [adjustmentNote, setAdjustmentNote] = useState('');
   const [quantitySaving, setQuantitySaving] = useState(false);
   const [quantityError, setQuantityError] = useState('');
+  const [labelSaving, setLabelSaving] = useState(false);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -106,6 +231,38 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
   };
 
   const quantityReady = /^\d+$/.test(targetQuantity.trim()) && Number(targetQuantity) <= 999999999;
+  const canCreateBarcodeLabel = Boolean(barcodeValue(product));
+
+  const saveBarcodeLabel = async () => {
+    const code = barcodeValue(product);
+    if (!code || labelSaving) {
+      Alert.alert('Barcode unavailable', 'Add a barcode or SKU for this product before creating the label.');
+      return;
+    }
+    setLabelSaving(true);
+    try {
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert('Sharing unavailable', 'This mobile does not support saving or sharing PDF files from the app.');
+        return;
+      }
+      const pdf = await Print.printToFileAsync({
+        html: barcodeLabelHtml(product),
+        width: 142,
+        height: 71,
+      });
+      await Sharing.shareAsync(pdf.uri, {
+        dialogTitle: `${product.name} barcode label`,
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+    } catch {
+      Alert.alert('Label not created', 'The barcode label PDF could not be created. Please try again.');
+    } finally {
+      setLabelSaving(false);
+    }
+  };
+
   const submitQuantity = async () => {
     if (!quantityReady || quantitySaving) return;
     setQuantitySaving(true);
@@ -178,6 +335,22 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
         <DetailRow label="Routing" value={product.routing.ready ? 'Ready' : 'Needs attention'} />
         <DetailRow label="WooCommerce product" value={product.routing.woocommerce_product_id} />
         <DetailRow label="WooCommerce variation" value={product.routing.woocommerce_variation_id} />
+        <Pressable
+          disabled={!canCreateBarcodeLabel || labelSaving}
+          onPress={() => void saveBarcodeLabel()}
+          style={({ pressed }) => [
+            styles.barcodeLabelButton,
+            (!canCreateBarcodeLabel || labelSaving) && styles.disabledButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialCommunityIcons color="#0B5D3B" name="barcode" size={22} />
+          <View style={styles.barcodeLabelCopy}>
+            <Text style={styles.barcodeLabelTitle}>{labelSaving ? 'Creating label PDF...' : 'Save barcode label PDF'}</Text>
+            <Text style={styles.barcodeLabelHint}>50 × 25 mm original size for Label Expert</Text>
+          </View>
+          {labelSaving ? <ActivityIndicator color="#0B5D3B" /> : <MaterialCommunityIcons color="#63766E" name="share-variant-outline" size={21} />}
+        </Pressable>
       </View>
 
       {product.prices.actual || product.prices.regular || product.prices.sale ? <><Text style={styles.sectionTitle}>Prices</Text><View style={styles.sectionCard}><DetailRow label="Purchase price" value={money(product.prices.actual)} /><DetailRow label="Regular price" value={money(product.prices.regular)} /><DetailRow label="Sale price" value={money(product.prices.sale)} /></View></> : null}
@@ -393,7 +566,7 @@ const styles = StyleSheet.create({
   productCard: { minHeight: 98, backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 }, productImage: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#EDF2EF' }, imageFallback: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 24, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockBadge: { minHeight: 24, borderRadius: 12, backgroundColor: '#E7F6E8', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', marginRight: 7 }, stockBadgeCritical: { backgroundColor: '#FFF0E0' }, stockDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#147348', marginRight: 5 }, stockDotCritical: { backgroundColor: '#D98200' }, stockQuantity: { color: '#147348', fontSize: 10, fontWeight: '900' }, stockCritical: { color: '#A65A00' }, reorderText: { color: '#82958D', fontSize: 10, flex: 1 },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 }, warningText: { color: '#7A4A00' }, emptyState: { alignItems: 'center', paddingVertical: 48 }, emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' }, emptyText: { color: '#71867D', textAlign: 'center', marginTop: 7 }, loadMore: { minHeight: 50, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, loadMoreText: { color: '#0B5D3B', fontWeight: '800' }, endText: { color: '#82958D', textAlign: 'center', marginVertical: 14 }, pressed: { opacity: 0.65 },
   errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800' }, errorMessage: { color: '#587066', textAlign: 'center', marginTop: 8 }, primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: '#FFF', fontWeight: '800' },
-  detailContent: { padding: 16, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 10, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, adjustStockButton: { minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, adjustStockText: { color: '#FFFFFF', fontWeight: '900' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 },
+  detailContent: { padding: 16, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 10, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, adjustStockButton: { minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, adjustStockText: { color: '#FFFFFF', fontWeight: '900' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 }, barcodeLabelButton: { minHeight: 64, borderColor: '#BFD8CA', borderWidth: 1, borderRadius: 15, backgroundColor: '#F4FBF7', paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', columnGap: 11, marginTop: 2 }, barcodeLabelCopy: { flex: 1 }, barcodeLabelTitle: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' }, barcodeLabelHint: { color: '#71867D', fontSize: 11, marginTop: 3 },
   movementRow: { flexDirection: 'row', paddingVertical: 5 }, divider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 }, deltaBadge: { width: 45, height: 34, borderRadius: 10, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center', marginRight: 11 }, deltaNegative: { backgroundColor: '#FDE8E7' }, deltaText: { color: '#147348', fontWeight: '900' }, deltaTextNegative: { color: '#B42318' }, movementCopy: { flex: 1 }, movementTitle: { color: '#29483D', fontWeight: '800' }, movementNote: { color: '#587066', marginTop: 3 }, movementTime: { color: '#82958D', fontSize: 11, marginTop: 5 },
   modalKeyboardView: { flex: 1 }, modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' }, quantityModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }, quantityModalScroll: { paddingBottom: 22 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, modalTitleWrap: { flex: 1, paddingRight: 12 }, modalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, modalSubtitle: { color: '#71867D', fontSize: 12, marginTop: 4 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 }, formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 }, formHint: { color: '#71867D', fontSize: 11, marginTop: 6 }, noteLabel: { marginTop: 18 }, noteInput: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' }, quantityError: { color: '#B42318', backgroundColor: '#FFF2F0', borderRadius: 10, padding: 11, lineHeight: 18, marginTop: 14 }, saveQuantityButton: { minHeight: 52, borderRadius: 14, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', marginTop: 18 }, saveQuantityText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, disabledButton: { opacity: 0.42 },
 });

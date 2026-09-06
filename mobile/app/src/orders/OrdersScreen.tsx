@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Clipboard from 'expo-clipboard';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {
@@ -25,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { Money, OrderAction, OrderDetail, OrderIssueFlagUpdate, OrderListFilters, OrderStatusUpdate, OrderSummary, ShippingAddress } from './types';
+import type { ProductSummary } from '../stock/types';
 
 const STATUS_FILTERS = [
   { code: '', label: 'All' },
@@ -68,6 +70,14 @@ const COURIER_PARTNERS = [
 
 const INDIA_POST_CUSTOMER_ID = '1828524916';
 
+type ManualEditItem = {
+  productId: number;
+  name: string;
+  sku: string | null;
+  quantity: number;
+  unitPrice: number;
+};
+
 const ACTION_LABELS: Record<string, string> = {
   order_accepted: 'Accept order',
   shipped: 'Mark shipped',
@@ -100,6 +110,10 @@ function parseMoneyAmount(value: string | null | undefined) {
 
 function formatInrAmount(value: number) {
   return `₹ ${value.toFixed(2)}`;
+}
+
+function productUnitPrice(product: ProductSummary) {
+  return parseMoneyAmount(product.prices?.sale?.amount || product.prices?.regular?.amount);
 }
 
 function dateTime(value: string | null | undefined) {
@@ -274,6 +288,15 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     pincode: '',
     country: '',
   });
+  const [manualEditVisible, setManualEditVisible] = useState(false);
+  const [manualEditSearch, setManualEditSearch] = useState('');
+  const [manualEditProducts, setManualEditProducts] = useState<ProductSummary[]>([]);
+  const [manualEditItems, setManualEditItems] = useState<ManualEditItem[]>([]);
+  const [manualEditShippingMode, setManualEditShippingMode] = useState<'free' | 'charged'>('free');
+  const [manualEditShippingCost, setManualEditShippingCost] = useState('');
+  const [manualEditLoading, setManualEditLoading] = useState(false);
+  const [manualEditSaving, setManualEditSaving] = useState(false);
+  const [manualEditError, setManualEditError] = useState('');
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -311,6 +334,10 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         if (!addressSaving) setAddressEditorVisible(false);
         return true;
       }
+      if (manualEditVisible) {
+        if (!manualEditSaving) setManualEditVisible(false);
+        return true;
+      }
       if (selectedAction) {
         if (!submittingAction) setSelectedAction(null);
         return true;
@@ -324,6 +351,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     addressSaving,
     closeShippingLabel,
     labelPreviewVisible,
+    manualEditSaving,
+    manualEditVisible,
     onBack,
     selectedAction,
     submittingAction,
@@ -540,6 +569,106 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     }
   };
 
+  const loadManualEditProducts = async () => {
+    setManualEditLoading(true);
+    setManualEditError('');
+    try {
+      const response = await runAuthenticated((token) => api.products(token, { search: manualEditSearch }));
+      setManualEditProducts(response.data.slice(0, 25));
+    } catch (reason) {
+      setManualEditError(reason instanceof api.ApiError ? reason.message : 'Products could not be loaded.');
+    } finally {
+      setManualEditLoading(false);
+    }
+  };
+
+  const openManualOrderEditor = async () => {
+    if (!order?.can_edit_manual_order) return;
+    const editableItems = order.items
+      .filter((item) => item.product_id !== null)
+      .map((item) => {
+        const quantity = Math.max(1, item.quantity || 1);
+        const lineTotal = parseMoneyAmount(item.total?.amount);
+        return {
+          productId: item.product_id as number,
+          name: item.name,
+          sku: item.sku,
+          quantity,
+          unitPrice: quantity > 0 ? lineTotal / quantity : lineTotal,
+        };
+      });
+    setManualEditItems(editableItems);
+    const shippingTotal = parseMoneyAmount(order.shipping_total?.amount);
+    setManualEditShippingMode(shippingTotal > 0 ? 'charged' : 'free');
+    setManualEditShippingCost(shippingTotal > 0 ? shippingTotal.toFixed(2) : '');
+    setManualEditSearch('');
+    setManualEditProducts([]);
+    setManualEditError('');
+    setManualEditVisible(true);
+    await loadManualEditProducts();
+  };
+
+  const addManualEditProduct = (product: ProductSummary) => {
+    setManualEditItems((current) => {
+      const existing = current.find((item) => item.productId === product.id);
+      if (existing) {
+        return current.map((item) => item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...current, { productId: product.id, name: product.name, sku: product.sku, quantity: 1, unitPrice: productUnitPrice(product) }];
+    });
+  };
+
+  const updateManualEditQuantity = (productId: number, value: string) => {
+    const quantity = Math.max(1, Number.parseInt(value.replace(/\D/g, ''), 10) || 1);
+    setManualEditItems((current) => current.map((item) => item.productId === productId ? { ...item, quantity } : item));
+  };
+
+  const removeManualEditItem = (productId: number) => {
+    setManualEditItems((current) => current.filter((item) => item.productId !== productId));
+  };
+
+  const submitManualOrderEdit = async () => {
+    if (!order || manualEditSaving || !manualEditItems.length) return;
+    setManualEditSaving(true);
+    setManualEditError('');
+    const shippingAmount = manualEditShippingMode === 'charged'
+      ? Number.parseFloat(manualEditShippingCost.replace(/[^0-9.]/g, '')) || 0
+      : 0;
+    try {
+      const response = await runAuthenticated((token) => api.updateManualOrder(
+        token,
+        order.id,
+        {
+          expected_version: order.version,
+          items: manualEditItems.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+          shipping_mode: manualEditShippingMode,
+          shipping_base_amount: shippingAmount.toFixed(2),
+        },
+        newIdempotencyKey(),
+      ));
+      setOrder(response.data.order);
+      setManualEditVisible(false);
+      setActionFeedback('Manual order updated. Copy the confirmation link when you are ready.');
+      await load(true);
+    } catch (reason) {
+      if (reason instanceof api.ApiError && reason.status === 409) {
+        setManualEditVisible(false);
+        await load(true);
+        Alert.alert('Order was refreshed', 'The order changed before your edit was saved. Review it and try again.');
+      } else {
+        setManualEditError(reason instanceof api.ApiError ? reason.message : 'Manual order could not be updated.');
+      }
+    } finally {
+      setManualEditSaving(false);
+    }
+  };
+
+  const copyConfirmationLink = async () => {
+    if (!order?.confirmation_url) return;
+    await Clipboard.setStringAsync(order.confirmation_url);
+    Alert.alert('Link copied', 'The updated confirmation link is copied.');
+  };
+
   if (loading && !order) return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /></View>;
   if (!order) return (
     <View style={styles.center}>
@@ -557,6 +686,13 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const shippingInputBaseAmount = parseMoneyAmount(shippingCost);
   const shippingInputGst = shippingInputBaseAmount * 0.18;
   const shippingInputTotal = shippingInputBaseAmount + shippingInputGst;
+  const manualEditShippingAmount = manualEditShippingMode === 'charged'
+    ? Number.parseFloat(manualEditShippingCost.replace(/[^0-9.]/g, '')) || 0
+    : 0;
+  const manualEditShippingGst = manualEditShippingAmount > 0 ? manualEditShippingAmount * 0.18 : 0;
+  const manualEditShippingBase = manualEditShippingAmount > 0 ? manualEditShippingAmount - manualEditShippingGst : 0;
+  const manualEditProductsTotal = manualEditItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const manualEditReady = manualEditItems.length > 0 && (manualEditShippingMode === 'free' || manualEditShippingAmount > 0) && !manualEditSaving;
   const actionFormReady = selectedAction
     ? (selectedAction.code !== 'flag_issue' || Boolean(issueReason && issueNote.trim().length >= 3))
       && (!selectedAction.required_fields.includes('customer_phone') || customerPhone.replace(/\D/g, '').length >= 10)
@@ -679,6 +815,29 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             </Text>
           </View>
         </View>
+      ) : null}
+
+      {(order.can_edit_manual_order || order.confirmation_url) ? (
+        <>
+          <Text style={styles.sectionTitle}>Manual order tools</Text>
+          <View style={styles.sectionCard}>
+            <Text style={styles.actionHelp}>Update the Waiting order if needed, then copy the latest customer confirmation link manually.</Text>
+            <View style={styles.actionList}>
+              {order.can_edit_manual_order ? (
+                <Pressable onPress={() => void openManualOrderEditor()} style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+                  <MaterialCommunityIcons color="#0B5D3B" name="pencil-outline" size={21} />
+                  <Text style={styles.actionButtonText}>Edit manual order</Text>
+                </Pressable>
+              ) : null}
+              {order.confirmation_url ? (
+                <Pressable onPress={() => void copyConfirmationLink()} style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+                  <MaterialCommunityIcons color="#0B5D3B" name="content-copy" size={21} />
+                  <Text style={styles.actionButtonText}>Copy confirmation link</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        </>
       ) : null}
 
       {order.allowed_actions.length ? (
@@ -908,6 +1067,100 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             </Pressable>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => !manualEditSaving && setManualEditVisible(false)}
+        transparent
+        visible={manualEditVisible}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.actionModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit manual order</Text>
+                <Pressable disabled={manualEditSaving} onPress={() => setManualEditVisible(false)} style={styles.modalClose}>
+                  <MaterialCommunityIcons color="#587066" name="close" size={24} />
+                </Pressable>
+              </View>
+              <ScrollView contentContainerStyle={styles.actionModalScroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+                <Text style={styles.formLabel}>Products</Text>
+                {manualEditItems.length ? manualEditItems.map((item) => (
+                  <View key={item.productId} style={styles.manualEditItemRow}>
+                    <View style={styles.manualEditItemCopy}>
+                      <Text numberOfLines={1} style={styles.itemName}>{item.name}</Text>
+                      <Text style={styles.itemMeta}>{formatInrAmount(item.unitPrice)} each{item.sku ? ` · SKU ${item.sku}` : ''}</Text>
+                    </View>
+                    <TextInput
+                      keyboardType="number-pad"
+                      onChangeText={(value) => updateManualEditQuantity(item.productId, value)}
+                      style={styles.manualEditQuantityInput}
+                      value={String(item.quantity)}
+                    />
+                    <Pressable onPress={() => removeManualEditItem(item.productId)} style={styles.manualEditRemoveButton}>
+                      <MaterialCommunityIcons color="#B42318" name="trash-can-outline" size={19} />
+                    </Pressable>
+                  </View>
+                )) : <Text style={styles.emptyText}>Add at least one product.</Text>}
+
+                <View style={styles.searchRow}>
+                  <TextInput
+                    autoCapitalize="none"
+                    onChangeText={setManualEditSearch}
+                    onSubmitEditing={() => void loadManualEditProducts()}
+                    placeholder="Search product to add"
+                    placeholderTextColor="#82958D"
+                    returnKeyType="search"
+                    style={styles.searchInput}
+                    value={manualEditSearch}
+                  />
+                  <Pressable onPress={() => void loadManualEditProducts()} style={styles.searchButton}>
+                    <MaterialCommunityIcons color="#FFFFFF" name="magnify" size={22} />
+                  </Pressable>
+                </View>
+                {manualEditLoading ? <ActivityIndicator color="#0B5D3B" /> : manualEditProducts.slice(0, 8).map((product) => (
+                  <Pressable key={product.id} onPress={() => addManualEditProduct(product)} style={({ pressed }) => [styles.manualEditProductRow, pressed && styles.pressed]}>
+                    <View style={styles.manualEditItemCopy}>
+                      <Text numberOfLines={1} style={styles.itemName}>{product.name}</Text>
+                      <Text style={styles.itemMeta}>{formatInrAmount(productUnitPrice(product))} each · Stock {product.stock_quantity}</Text>
+                    </View>
+                    <MaterialCommunityIcons color="#0B5D3B" name="plus-circle-outline" size={22} />
+                  </Pressable>
+                ))}
+
+                <Text style={styles.formLabel}>Shipping</Text>
+                <View style={styles.reasonGrid}>
+                  <Pressable onPress={() => setManualEditShippingMode('free')} style={[styles.reasonChip, manualEditShippingMode === 'free' && styles.reasonChipActive]}>
+                    <Text style={[styles.reasonChipText, manualEditShippingMode === 'free' && styles.reasonChipTextActive]}>Free</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setManualEditShippingMode('charged')} style={[styles.reasonChip, manualEditShippingMode === 'charged' && styles.reasonChipActive]}>
+                    <Text style={[styles.reasonChipText, manualEditShippingMode === 'charged' && styles.reasonChipTextActive]}>Charged</Text>
+                  </Pressable>
+                </View>
+                {manualEditShippingMode === 'charged' ? (
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Total shipping amount including GST</Text>
+                    <TextInput keyboardType="decimal-pad" onChangeText={setManualEditShippingCost} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={manualEditShippingCost} />
+                    <Text style={styles.formHint}>
+                      Shipping {formatInrAmount(manualEditShippingBase)} + GST {formatInrAmount(manualEditShippingGst)} = {formatInrAmount(manualEditShippingAmount)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.formHint}>Shipping will show as Free.</Text>
+                )}
+                <View style={styles.manualEditTotalBox}>
+                  <Text style={styles.shippingTaxTotalLabel}>Updated total</Text>
+                  <Text style={styles.shippingTaxTotalValue}>{formatInrAmount(manualEditProductsTotal + manualEditShippingAmount)}</Text>
+                </View>
+                {manualEditError ? <Text accessibilityRole="alert" style={styles.addressError}>{manualEditError}</Text> : null}
+              </ScrollView>
+              <Pressable disabled={!manualEditReady} onPress={() => void submitManualOrderEdit()} style={[styles.confirmActionButton, !manualEditReady && styles.disabledButton]}>
+                {manualEditSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Save updated order</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -1389,6 +1642,12 @@ const styles = StyleSheet.create({
   itemName: { color: '#29483D', fontSize: 15, fontWeight: '800' },
   itemMeta: { color: '#71867D', fontSize: 12, marginTop: 4 },
   itemTotal: { color: '#17352A', fontWeight: '900' },
+  manualEditItemRow: { minHeight: 62, borderColor: '#E0E8E4', borderWidth: 1, borderRadius: 13, padding: 10, marginBottom: 9, flexDirection: 'row', alignItems: 'center', columnGap: 8 },
+  manualEditProductRow: { minHeight: 58, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', columnGap: 8 },
+  manualEditItemCopy: { flex: 1 },
+  manualEditQuantityInput: { width: 58, minHeight: 42, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 10, color: '#17352A', fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  manualEditRemoveButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FFF1F0', alignItems: 'center', justifyContent: 'center' },
+  manualEditTotalBox: { backgroundColor: '#F4FAF7', borderColor: '#DCE9E3', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' },
   modalKeyboardView: { flex: 1 },
   actionModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 22 },

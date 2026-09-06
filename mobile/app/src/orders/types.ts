@@ -98,6 +98,8 @@ export type OrderDetail = OrderSummary & {
     };
   };
   can_edit_shipping_address: boolean;
+  can_edit_manual_order: boolean;
+  confirmation_url: string | null;
 };
 
 export type OrderListFilters = {
