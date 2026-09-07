@@ -118,6 +118,26 @@
         .page-intro {
             padding: 4px 2px 0;
         }
+        .page-title-row {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+        .back-arrow {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 0;
+            background: var(--mint);
+            color: var(--green);
+            display: inline-grid;
+            place-items: center;
+            min-height: 38px;
+            padding: 0;
+            font-size: 22px;
+            line-height: 1;
+            flex: 0 0 auto;
+        }
         h1 {
             font-size: clamp(24px, 7.5vw, 30px);
             line-height: 1.05;
@@ -407,10 +427,19 @@
         {% endif %}
 
         <section class="page-intro">
-            <h1>{% if show_address_step %}Add delivery address{% elif show_change_step %}Request change{% else %}Review your order{% endif %}</h1>
+            <div class="page-title-row">
+                {% if show_address_step and is_open %}
+                    <form method="post" style="margin:0;">
+                        {% csrf_token %}
+                        <button class="back-arrow" type="submit" name="action" value="review_products" aria-label="Back to products">‹</button>
+                    </form>
+                {% endif %}
+                <h1>{% if show_address_step %}Add delivery address{% elif show_change_step %}Request change{% else %}Review your order{% endif %}</h1>
+            </div>
             <p>{% if show_address_step %}Your products are ready. Please confirm where we should send this order.{% elif show_change_step %}Tell us what needs to be corrected in this order.{% else %}First check the products and quantity. Address comes in the next step.{% endif %}</p>
         </section>
 
+        {% if not is_open %}
         <section class="status-card">
             {% if confirmation.status == "confirmed" %}
                 <span class="status-pill">Order confirmed</span>
@@ -430,6 +459,7 @@
                 </div>
             </div>
         </section>
+        {% endif %}
 
         {% if action_result or not is_open %}
             <section class="card result" style="margin-top:18px;">
@@ -568,19 +598,8 @@
 
             {% if is_open %}
                 <div class="actions">
-                    <div class="bottom-total">
-                        <div>
-                            <div class="bottom-total-label">Total amount</div>
-                            <div class="bottom-total-value">₹ {{ order.total|floatformat:2 }}</div>
-                        </div>
-                        <div class="bottom-total-label">Step 2 of 2</div>
-                    </div>
-                    <button class="link-button" type="submit" name="action" value="review_products">Back to products</button>
                     <button class="primary" type="submit" name="action" value="confirm">Confirm order</button>
-                    <div class="action-pair">
-                        <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
-                        <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
-                    </div>
+                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
                 </div>
                 {% endif %}
             {% endif %}
