@@ -276,7 +276,10 @@ def manual_order_confirmation(request, token):
             ]
             if not address.get(key)
         ]
-        if action == "continue_address":
+        if action == "review_products":
+            show_address_step = False
+            show_change_step = False
+        elif action == "continue_address":
             show_address_step = True
         elif action == "continue_change":
             show_change_step = True

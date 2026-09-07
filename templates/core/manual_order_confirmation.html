@@ -258,6 +258,14 @@
         .primary { background: var(--green); color: #fff; }
         .secondary { background: #fff; color: var(--green); border: 1px solid #b8d5c8; }
         .danger-action { background: #fff1f0; color: var(--danger); border: 1px solid #ffc9c4; }
+        .link-button {
+            width: 100%;
+            background: transparent;
+            color: var(--green);
+            border: 0;
+            min-height: 38px;
+            font-size: 13px;
+        }
         .result {
             text-align: center;
             padding: 24px 14px;
@@ -445,8 +453,9 @@
                     {% endif %}
                 </section>
 
-                {% if is_open %}
+            {% if is_open %}
                 <div class="actions">
+                    <button class="link-button" type="submit" name="action" value="review_products">Back to products</button>
                     <button class="primary" type="submit" name="action" value="confirm">Confirm order</button>
                     <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
                     <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
