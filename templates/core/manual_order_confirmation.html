@@ -53,8 +53,9 @@
             height: 66px;
             border-radius: 50%;
             background: #fff;
-            padding: 5px;
+            padding: 8px;
             object-fit: contain;
+            object-position: center;
         }
         .brand-text {
             font-size: clamp(20px, 6vw, 28px);
@@ -117,26 +118,6 @@
         }
         .page-intro {
             padding: 4px 2px 0;
-        }
-        .page-title-row {
-            display: flex;
-            align-items: center;
-            gap: 9px;
-        }
-        .back-arrow {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            border: 0;
-            background: var(--mint);
-            color: var(--green);
-            display: inline-grid;
-            place-items: center;
-            min-height: 38px;
-            padding: 0;
-            font-size: 22px;
-            line-height: 1;
-            flex: 0 0 auto;
         }
         h1 {
             font-size: clamp(24px, 7.5vw, 30px);
@@ -234,6 +215,59 @@
             font-size: 17px;
             font-weight: 950;
             letter-spacing: -0.02em;
+        }
+        .section-title-row {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 14px 4px 8px;
+        }
+        .section-title-row .section-title {
+            margin: 0;
+        }
+        .review-total {
+            color: var(--green);
+            font-size: 18px;
+            font-weight: 950;
+            white-space: nowrap;
+        }
+        .review-total span {
+            display: block;
+            color: var(--muted);
+            font-size: 10px;
+            font-weight: 850;
+            text-align: right;
+            margin-bottom: 2px;
+        }
+        .customer-strip {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 10px 12px;
+            margin: 12px 0 2px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            box-shadow: 0 6px 18px rgba(23, 53, 42, 0.05);
+        }
+        .customer-label {
+            color: var(--muted);
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .customer-value {
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 950;
+            margin-top: 3px;
+            line-height: 1.25;
+        }
+        .customer-phone {
+            text-align: right;
+            white-space: nowrap;
         }
         .card {
             background: #fff;
@@ -399,10 +433,79 @@
             .status-card { margin-top: 10px; }
             .form-card { padding: 13px; }
         }
+        .address-mode {
+            padding-bottom: 96px;
+        }
+        .address-mode .topbar {
+            min-height: 68px;
+            padding-top: max(8px, env(safe-area-inset-top));
+            padding-bottom: 8px;
+        }
+        .address-mode .logo {
+            width: 50px;
+            height: 50px;
+            padding: 7px;
+        }
+        .address-mode .brand-text {
+            font-size: clamp(18px, 5.2vw, 23px);
+        }
+        .address-mode .brand-subtitle {
+            font-size: 10px;
+        }
+        .address-mode .stepper {
+            padding: 10px 18px 8px;
+            margin-bottom: 9px;
+        }
+        .address-mode .step {
+            gap: 4px;
+            font-size: 11px;
+        }
+        .address-mode .step-dot {
+            width: 30px;
+            height: 30px;
+            font-size: 14px;
+            border-width: 2px;
+        }
+        .address-mode .step:first-child::after {
+            top: 13px;
+            height: 3px;
+        }
+        .address-mode h1 {
+            font-size: clamp(22px, 6.2vw, 26px);
+            margin-bottom: 4px;
+        }
+        .address-mode .page-intro p {
+            font-size: 12px;
+        }
+        .address-mode .section-title {
+            margin: 10px 4px 6px;
+            font-size: 15px;
+        }
+        .address-mode .form-card {
+            border-radius: 17px;
+            padding: 11px;
+        }
+        .address-mode label {
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        .address-mode input {
+            min-height: 39px;
+            border-radius: 11px;
+            padding: 8px 10px;
+            margin-bottom: 7px;
+            font-size: 14px;
+        }
+        .address-mode .form-row {
+            gap: 8px;
+        }
+        .address-mode .actions {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <main class="shell">
+    <main class="shell {% if show_address_step and is_open %}address-mode{% endif %}">
         <header class="topbar">
             <div class="brand">
                 <img class="logo" src="{% static 'assets/images/mathukai-logo.png' %}" alt="Mathukai Organic">
@@ -427,15 +530,7 @@
         {% endif %}
 
         <section class="page-intro">
-            <div class="page-title-row">
-                {% if show_address_step and is_open %}
-                    <form method="post" style="margin:0;">
-                        {% csrf_token %}
-                        <button class="back-arrow" type="submit" name="action" value="review_products" aria-label="Back to products">‹</button>
-                    </form>
-                {% endif %}
-                <h1>{% if show_address_step %}Add delivery address{% elif show_change_step %}Request change{% else %}Review your order{% endif %}</h1>
-            </div>
+            <h1>{% if show_address_step %}Add delivery address{% elif show_change_step %}Request change{% else %}Review your order{% endif %}</h1>
             <p>{% if show_address_step %}Your products are ready. Please confirm where we should send this order.{% elif show_change_step %}Tell us what needs to be corrected in this order.{% else %}First check the products and quantity. Address comes in the next step.{% endif %}</p>
         </section>
 
@@ -487,14 +582,25 @@
             {% csrf_token %}
             {% if form_error %}<div class="error">{{ form_error }}</div>{% endif %}
 
-            {% if show_address_step and is_open %}
-                <section class="step-card">
-                    <div class="step-eyebrow">Step 2 of 2</div>
-                    <div class="step-card-title">Products verified</div>
-                    <div class="step-card-text">Now enter the delivery address and confirm the order.</div>
-                </section>
-            {% else %}
-                <h2 class="section-title">Products</h2>
+            {% if not show_address_step or not is_open %}
+                {% if is_open and not show_change_step %}
+                    <section class="customer-strip">
+                        <div>
+                            <div class="customer-label">Customer</div>
+                            <div class="customer-value">{{ address.name|default:order.customer_name|default:"Customer" }}</div>
+                        </div>
+                        <div class="customer-phone">
+                            <div class="customer-label">Mobile</div>
+                            <div class="customer-value">{{ address.phone|default:order.customer_phone|default:"-" }}</div>
+                        </div>
+                    </section>
+                {% endif %}
+                <div class="section-title-row">
+                    <h2 class="section-title">Products</h2>
+                    {% if is_open and not show_change_step %}
+                        <div class="review-total"><span>Total</span>₹ {{ order.total|floatformat:2 }}</div>
+                    {% endif %}
+                </div>
                 <section class="card">
                     {% for item in items %}
                         <div class="item">
@@ -590,16 +696,15 @@
                         </div>
                     </div>
 
-                    {% if is_open %}
-                        <label for="change_note">Address change note</label>
-                        <textarea id="change_note" name="change_note" placeholder="Example: Correct landmark, alternate phone number..."></textarea>
-                    {% endif %}
                 </section>
 
             {% if is_open %}
                 <div class="actions">
                     <button class="primary" type="submit" name="action" value="confirm">Confirm order</button>
-                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    <div class="action-pair">
+                        <button class="secondary" type="submit" name="action" value="review_products">Back</button>
+                        <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    </div>
                 </div>
                 {% endif %}
             {% endif %}
