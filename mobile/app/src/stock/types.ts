@@ -25,6 +25,7 @@ export type ProductDetail = ProductSummary & {
     woocommerce_variation_id: string | null;
   };
   can_adjust_stock: boolean;
+  can_edit_product: boolean;
 };
 
 export type StockMovement = {
@@ -64,4 +65,18 @@ export type StockQuantityMutationResponse = {
     replayed: boolean;
     effects: { code: string; state: string; message: string | null }[];
   };
+};
+
+export type ProductUpdate = {
+  expected_updated_at: string;
+  name: string;
+  sku: string;
+  barcode?: string | null;
+  category?: string;
+  description?: string;
+  actual_price?: string | null;
+  regular_price?: string | null;
+  sale_price?: string | null;
+  reorder_level: number;
+  is_active: boolean;
 };

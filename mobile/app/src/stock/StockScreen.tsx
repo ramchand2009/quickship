@@ -33,6 +33,7 @@ const FILTERS = [
 
 const STOCK_LABELS = { in_stock: 'In stock', low_stock: 'Low stock', out_of_stock: 'Out of stock' };
 const money = (value: Money | null) => value ? `${value.currency === 'INR' ? '₹' : value.currency} ${value.amount}` : '';
+const priceDraft = (value: Money | null) => value?.amount ?? '';
 const when = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -202,6 +203,21 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
   const [quantitySaving, setQuantitySaving] = useState(false);
   const [quantityError, setQuantityError] = useState('');
   const [labelSaving, setLabelSaving] = useState(false);
+  const [productEditorVisible, setProductEditorVisible] = useState(false);
+  const [productSaving, setProductSaving] = useState(false);
+  const [productError, setProductError] = useState('');
+  const [productDraft, setProductDraft] = useState({
+    name: '',
+    sku: '',
+    barcode: '',
+    category: '',
+    description: '',
+    actual_price: '',
+    regular_price: '',
+    sale_price: '',
+    reorder_level: '',
+    is_active: true,
+  });
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -230,7 +246,36 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
     setQuantityEditorVisible(true);
   };
 
+  const openProductEditor = () => {
+    setProductDraft({
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode ?? '',
+      category: product.category ?? '',
+      description: product.description ?? '',
+      actual_price: priceDraft(product.prices.actual),
+      regular_price: priceDraft(product.prices.regular),
+      sale_price: priceDraft(product.prices.sale),
+      reorder_level: String(product.reorder_level),
+      is_active: product.is_active,
+    });
+    setProductError('');
+    setProductEditorVisible(true);
+  };
+
+  const updateProductDraft = (key: keyof typeof productDraft, value: string | boolean) => {
+    setProductDraft((current) => ({ ...current, [key]: value }));
+  };
+
   const quantityReady = /^\d+$/.test(targetQuantity.trim()) && Number(targetQuantity) <= 999999999;
+  const priceReady = (value: string) => value.trim() === '' || /^\d+(\.\d{0,2})?$/.test(value.trim());
+  const productReady = Boolean(productDraft.name.trim())
+    && Boolean(productDraft.sku.trim())
+    && /^\d+$/.test(productDraft.reorder_level.trim())
+    && Number(productDraft.reorder_level) <= 999999999
+    && priceReady(productDraft.actual_price)
+    && priceReady(productDraft.regular_price)
+    && priceReady(productDraft.sale_price);
   const canCreateBarcodeLabel = Boolean(barcodeValue(product));
 
   const saveBarcodeLabel = async () => {
@@ -304,6 +349,48 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
     }
   };
 
+  const submitProduct = async () => {
+    if (!productReady || productSaving) return;
+    setProductSaving(true);
+    setProductError('');
+    const optionalPrice = (value: string) => value.trim() ? Number(value.trim()).toFixed(2) : null;
+    try {
+      const response = await runAuthenticated((token) => api.updateProduct(
+        token,
+        product.id,
+        {
+          expected_updated_at: product.updated_at,
+          name: productDraft.name.trim(),
+          sku: productDraft.sku.trim(),
+          barcode: productDraft.barcode.trim() || null,
+          category: productDraft.category.trim(),
+          description: productDraft.description.trim(),
+          actual_price: optionalPrice(productDraft.actual_price),
+          regular_price: optionalPrice(productDraft.regular_price),
+          sale_price: optionalPrice(productDraft.sale_price),
+          reorder_level: Number(productDraft.reorder_level),
+          is_active: productDraft.is_active,
+        },
+        newIdempotencyKey(),
+      ));
+      setProduct(response.data.product);
+      setProductEditorVisible(false);
+      const wooEffect = response.data.effects?.find((effect) => effect.code === 'woocommerce_sync');
+      const wooMessage = wooEffect?.message ? `\n\n${wooEffect.message}` : '';
+      Alert.alert('Product updated', `Product details saved.${wooMessage}`);
+    } catch (reason) {
+      if (reason instanceof api.ApiError && reason.status === 409) {
+        setProductEditorVisible(false);
+        await load(true);
+        Alert.alert('Product was refreshed', 'The product changed before your update was saved. Review it and try again.');
+      } else {
+        setProductError(reason instanceof api.ApiError ? reason.message : 'Product details could not be updated.');
+      }
+    } finally {
+      setProductSaving(false);
+    }
+  };
+
   return (
     <>
     <ScrollView contentContainerStyle={styles.detailContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />}>
@@ -323,6 +410,12 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
           <Pressable onPress={openQuantityEditor} style={({ pressed }) => [styles.adjustStockButton, pressed && styles.pressed]}>
             <MaterialCommunityIcons color="#FFFFFF" name="pencil-outline" size={20} />
             <Text style={styles.adjustStockText}>Update stock quantity</Text>
+          </Pressable>
+        ) : null}
+        {product.can_edit_product ? (
+          <Pressable onPress={openProductEditor} style={({ pressed }) => [styles.editProductButton, pressed && styles.pressed]}>
+            <MaterialCommunityIcons color="#0B5D3B" name="store-edit-outline" size={20} />
+            <Text style={styles.editProductText}>Edit product details</Text>
           </Pressable>
         ) : null}
       </View>
@@ -422,6 +515,103 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
                 style={[styles.saveQuantityButton, (!quantityReady || quantitySaving) && styles.disabledButton]}
               >
                 {quantitySaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Save quantity</Text>}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+    <Modal
+      animationType="slide"
+      onRequestClose={() => !productSaving && setProductEditorVisible(false)}
+      transparent
+      visible={productEditorVisible}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.productModal}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleWrap}>
+                <Text style={styles.modalTitle}>Edit product</Text>
+                <Text style={styles.modalSubtitle}>Update product master details</Text>
+              </View>
+              <Pressable disabled={productSaving} onPress={() => setProductEditorVisible(false)} style={styles.modalClose}>
+                <MaterialCommunityIcons color="#587066" name="close" size={24} />
+              </Pressable>
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.quantityModalScroll}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.formLabel}>Product name</Text>
+              <TextInput maxLength={160} onChangeText={(value) => updateProductDraft('name', value)} placeholder="Product name" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.name} />
+
+              <View style={styles.twoColumnRow}>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>SKU</Text>
+                  <TextInput autoCapitalize="characters" maxLength={120} onChangeText={(value) => updateProductDraft('sku', value)} placeholder="SKU" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.sku} />
+                </View>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Barcode</Text>
+                  <TextInput autoCapitalize="characters" maxLength={120} onChangeText={(value) => updateProductDraft('barcode', value)} placeholder="Barcode" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.barcode} />
+                </View>
+              </View>
+
+              <Text style={[styles.formLabel, styles.noteLabel]}>Category</Text>
+              <TextInput maxLength={120} onChangeText={(value) => updateProductDraft('category', value)} placeholder="Category" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.category} />
+
+              <View style={styles.twoColumnRow}>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Purchase price</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={(value) => updateProductDraft('actual_price', value)} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.actual_price} />
+                </View>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Regular price</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={(value) => updateProductDraft('regular_price', value)} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.regular_price} />
+                </View>
+              </View>
+
+              <View style={styles.twoColumnRow}>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Sale price</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={(value) => updateProductDraft('sale_price', value)} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.sale_price} />
+                </View>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Reorder level</Text>
+                  <TextInput keyboardType="number-pad" maxLength={9} onChangeText={(value) => updateProductDraft('reorder_level', value)} placeholder="0" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.reorder_level} />
+                </View>
+              </View>
+
+              <Text style={[styles.formLabel, styles.noteLabel]}>Description</Text>
+              <TextInput
+                maxLength={5000}
+                multiline
+                onChangeText={(value) => updateProductDraft('description', value)}
+                placeholder="Product description"
+                placeholderTextColor="#82958D"
+                style={[styles.formInput, styles.noteInput]}
+                value={productDraft.description}
+              />
+
+              <Pressable onPress={() => updateProductDraft('is_active', !productDraft.is_active)} style={styles.activeToggleRow}>
+                <View style={[styles.activeToggleIcon, productDraft.is_active && styles.activeToggleOn]}>
+                  <MaterialCommunityIcons color={productDraft.is_active ? '#FFFFFF' : '#71867D'} name={productDraft.is_active ? 'check' : 'close'} size={18} />
+                </View>
+                <View style={styles.activeToggleCopy}>
+                  <Text style={styles.activeToggleTitle}>{productDraft.is_active ? 'Product active' : 'Product inactive'}</Text>
+                  <Text style={styles.activeToggleHint}>Inactive products are saved as draft in WooCommerce.</Text>
+                </View>
+              </Pressable>
+
+              {productError ? <Text accessibilityRole="alert" style={styles.quantityError}>{productError}</Text> : null}
+              <Pressable
+                disabled={!productReady || productSaving}
+                onPress={() => void submitProduct()}
+                style={[styles.saveQuantityButton, (!productReady || productSaving) && styles.disabledButton]}
+              >
+                {productSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Save product</Text>}
               </Pressable>
             </ScrollView>
           </View>
@@ -566,7 +756,7 @@ const styles = StyleSheet.create({
   productCard: { minHeight: 98, backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 }, productImage: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#EDF2EF' }, imageFallback: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 24, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockBadge: { minHeight: 24, borderRadius: 12, backgroundColor: '#E7F6E8', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', marginRight: 7 }, stockBadgeCritical: { backgroundColor: '#FFF0E0' }, stockDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#147348', marginRight: 5 }, stockDotCritical: { backgroundColor: '#D98200' }, stockQuantity: { color: '#147348', fontSize: 10, fontWeight: '900' }, stockCritical: { color: '#A65A00' }, reorderText: { color: '#82958D', fontSize: 10, flex: 1 },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 }, warningText: { color: '#7A4A00' }, emptyState: { alignItems: 'center', paddingVertical: 48 }, emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' }, emptyText: { color: '#71867D', textAlign: 'center', marginTop: 7 }, loadMore: { minHeight: 50, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, loadMoreText: { color: '#0B5D3B', fontWeight: '800' }, endText: { color: '#82958D', textAlign: 'center', marginVertical: 14 }, pressed: { opacity: 0.65 },
   errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800' }, errorMessage: { color: '#587066', textAlign: 'center', marginTop: 8 }, primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: '#FFF', fontWeight: '800' },
-  detailContent: { padding: 16, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 10, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, adjustStockButton: { minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, adjustStockText: { color: '#FFFFFF', fontWeight: '900' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 }, barcodeLabelButton: { minHeight: 64, borderColor: '#BFD8CA', borderWidth: 1, borderRadius: 15, backgroundColor: '#F4FBF7', paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', columnGap: 11, marginTop: 2 }, barcodeLabelCopy: { flex: 1 }, barcodeLabelTitle: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' }, barcodeLabelHint: { color: '#71867D', fontSize: 11, marginTop: 3 },
+  detailContent: { padding: 16, paddingBottom: 32 }, backButton: { minHeight: 46, backgroundColor: '#FFFFFF', borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginBottom: 10, columnGap: 8 }, backText: { color: '#0B5D3B', fontWeight: '800' }, heroCard: { backgroundColor: '#FFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 22, shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }, heroName: { color: '#17352A', fontSize: 22, fontWeight: '900' }, heroSku: { color: '#71867D', marginTop: 5 }, quantityPanel: { backgroundColor: '#E4F3EB', borderRadius: 14, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center' }, quantityValue: { color: '#0B5D3B', fontSize: 34, fontWeight: '900', marginRight: 14 }, quantityLabel: { color: '#174E36', fontWeight: '800' }, adjustStockButton: { minHeight: 48, backgroundColor: '#0B5D3B', borderRadius: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, adjustStockText: { color: '#FFFFFF', fontWeight: '900' }, editProductButton: { minHeight: 48, backgroundColor: '#F4FBF7', borderColor: '#BFD8CA', borderWidth: 1, borderRadius: 13, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, editProductText: { color: '#0B5D3B', fontWeight: '900' }, sectionTitle: { color: '#17352A', fontSize: 18, fontWeight: '800', marginBottom: 10 }, sectionCard: { backgroundColor: '#FFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 }, detailRow: { marginBottom: 13 }, detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }, detailValue: { color: '#29483D', marginTop: 4, lineHeight: 20 }, barcodeLabelButton: { minHeight: 64, borderColor: '#BFD8CA', borderWidth: 1, borderRadius: 15, backgroundColor: '#F4FBF7', paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', columnGap: 11, marginTop: 2 }, barcodeLabelCopy: { flex: 1 }, barcodeLabelTitle: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' }, barcodeLabelHint: { color: '#71867D', fontSize: 11, marginTop: 3 },
   movementRow: { flexDirection: 'row', paddingVertical: 5 }, divider: { borderTopColor: '#E7ECEA', borderTopWidth: 1, paddingTop: 13, marginTop: 7 }, deltaBadge: { width: 45, height: 34, borderRadius: 10, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center', marginRight: 11 }, deltaNegative: { backgroundColor: '#FDE8E7' }, deltaText: { color: '#147348', fontWeight: '900' }, deltaTextNegative: { color: '#B42318' }, movementCopy: { flex: 1 }, movementTitle: { color: '#29483D', fontWeight: '800' }, movementNote: { color: '#587066', marginTop: 3 }, movementTime: { color: '#82958D', fontSize: 11, marginTop: 5 },
-  modalKeyboardView: { flex: 1 }, modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' }, quantityModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }, quantityModalScroll: { paddingBottom: 22 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, modalTitleWrap: { flex: 1, paddingRight: 12 }, modalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, modalSubtitle: { color: '#71867D', fontSize: 12, marginTop: 4 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 }, formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 }, formHint: { color: '#71867D', fontSize: 11, marginTop: 6 }, noteLabel: { marginTop: 18 }, noteInput: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' }, quantityError: { color: '#B42318', backgroundColor: '#FFF2F0', borderRadius: 10, padding: 11, lineHeight: 18, marginTop: 14 }, saveQuantityButton: { minHeight: 52, borderRadius: 14, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', marginTop: 18 }, saveQuantityText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, disabledButton: { opacity: 0.42 },
+  modalKeyboardView: { flex: 1 }, modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 35, 28, 0.52)', justifyContent: 'flex-end' }, quantityModal: { maxHeight: '88%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }, productModal: { maxHeight: '93%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }, quantityModalScroll: { paddingBottom: 22 }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, modalTitleWrap: { flex: 1, paddingRight: 12 }, modalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, modalSubtitle: { color: '#71867D', fontSize: 12, marginTop: 4 }, modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 }, formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 }, formHint: { color: '#71867D', fontSize: 11, marginTop: 6 }, noteLabel: { marginTop: 18 }, noteInput: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' }, twoColumnRow: { flexDirection: 'row', columnGap: 10, marginTop: 16 }, twoColumnField: { flex: 1 }, activeToggleRow: { minHeight: 64, borderColor: '#DCE5E1', borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FBF9' }, activeToggleIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#E6ECE9', alignItems: 'center', justifyContent: 'center', marginRight: 11 }, activeToggleOn: { backgroundColor: '#0B5D3B' }, activeToggleCopy: { flex: 1 }, activeToggleTitle: { color: '#17352A', fontWeight: '900' }, activeToggleHint: { color: '#71867D', fontSize: 11, marginTop: 3 }, quantityError: { color: '#B42318', backgroundColor: '#FFF2F0', borderRadius: 10, padding: 11, lineHeight: 18, marginTop: 14 }, saveQuantityButton: { minHeight: 52, borderRadius: 14, backgroundColor: '#0B5D3B', alignItems: 'center', justifyContent: 'center', marginTop: 18 }, saveQuantityText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, disabledButton: { opacity: 0.42 },
 });

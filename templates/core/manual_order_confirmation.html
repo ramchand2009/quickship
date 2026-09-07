@@ -123,6 +123,34 @@
             margin: 8px 4px 0;
             font-weight: 700;
         }
+        .step-card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 13px;
+            margin-top: 12px;
+            box-shadow: 0 8px 22px rgba(23, 53, 42, 0.06);
+        }
+        .step-eyebrow {
+            color: var(--green);
+            font-size: 11px;
+            font-weight: 950;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            margin-bottom: 5px;
+        }
+        .step-card-title {
+            color: var(--ink);
+            font-size: 16px;
+            font-weight: 950;
+            margin-bottom: 4px;
+        }
+        .step-card-text {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.45;
+        }
         .section-title {
             margin: 14px 4px 8px;
             font-size: 17px;
@@ -325,30 +353,38 @@
             {% csrf_token %}
             {% if form_error %}<div class="error">{{ form_error }}</div>{% endif %}
 
-            <h2 class="section-title">Products</h2>
-            <section class="card">
-                {% for item in items %}
-                    <div class="item">
-                        <div>
-                            <div class="item-name">{{ item.name }}</div>
-                            {% if item.line_type == "shipping" %}
-                                <div class="item-meta">{{ item.shipping_label|default:"Shipping" }}</div>
-                            {% else %}
-                                <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
-                            {% endif %}
+            {% if show_address_step and is_open %}
+                <section class="step-card">
+                    <div class="step-eyebrow">Step 2 of 2</div>
+                    <div class="step-card-title">Products verified</div>
+                    <div class="step-card-text">Now enter the delivery address and confirm the order.</div>
+                </section>
+            {% else %}
+                <h2 class="section-title">Products</h2>
+                <section class="card">
+                    {% for item in items %}
+                        <div class="item">
+                            <div>
+                                <div class="item-name">{{ item.name }}</div>
+                                {% if item.line_type == "shipping" %}
+                                    <div class="item-meta">{{ item.shipping_label|default:"Shipping" }}</div>
+                                {% else %}
+                                    <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
+                                {% endif %}
+                            </div>
+                            <div class="item-total">₹ {{ item.line_total|floatformat:2 }}</div>
                         </div>
-                        <div class="item-total">₹ {{ item.line_total|floatformat:2 }}</div>
-                    </div>
-                {% empty %}
-                    <div class="item">
-                        <div class="item-name">No products found</div>
-                    </div>
-                {% endfor %}
-            </section>
+                    {% empty %}
+                        <div class="item">
+                            <div class="item-name">No products found</div>
+                        </div>
+                    {% endfor %}
+                </section>
+            {% endif %}
 
             {% if is_open and not show_address_step and not show_change_step %}
                 <div class="actions">
-                    <button class="primary" type="submit" name="action" value="continue_address">Products are correct</button>
+                    <button class="primary" type="submit" name="action" value="continue_address">Continue to address</button>
                     <button class="secondary" type="submit" name="action" value="continue_change">Request change</button>
                     <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
                 </div>
@@ -361,7 +397,7 @@
 
                 <div class="actions">
                     <button class="primary" type="submit" name="action" value="request_change">Send change request</button>
-                    <button class="secondary" type="submit" name="action" value="continue_address">Products are correct</button>
+                    <button class="secondary" type="submit" name="action" value="continue_address">Continue to address</button>
                     <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
                 </div>
             {% endif %}

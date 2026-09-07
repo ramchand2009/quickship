@@ -12,6 +12,7 @@ import type {
   ProductDetailResponse,
   ProductFilters,
   ProductListResponse,
+  ProductUpdate,
   StockMovementResponse,
   StockQuantityMutationResponse,
   StockQuantityUpdate,
@@ -346,6 +347,19 @@ export async function products(accessToken: string, filters: ProductFilters = {}
 export async function productDetail(accessToken: string, productId: number): Promise<ProductDetailResponse> {
   return request<ProductDetailResponse>(`/products/${productId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function updateProduct(
+  accessToken: string,
+  productId: number,
+  values: ProductUpdate,
+  idempotencyKey: string,
+): Promise<StockQuantityMutationResponse> {
+  return request<StockQuantityMutationResponse>(`/products/${productId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
   });
 }
 

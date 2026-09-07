@@ -119,9 +119,10 @@ class ProductDetailSerializer(ProductSummarySerializer):
     prices = serializers.SerializerMethodField()
     routing = serializers.SerializerMethodField()
     can_adjust_stock = serializers.SerializerMethodField()
+    can_edit_product = serializers.SerializerMethodField()
 
     class Meta(ProductSummarySerializer.Meta):
-        fields = ProductSummarySerializer.Meta.fields + ["description", "routing", "can_adjust_stock"]
+        fields = ProductSummarySerializer.Meta.fields + ["description", "routing", "can_adjust_stock", "can_edit_product"]
 
     def get_description(self, product):
         return str(product.description or "").strip() or None
@@ -159,6 +160,30 @@ class ProductDetailSerializer(ProductSummarySerializer):
                 TenantMembership.ROLE_VENDOR_OPERATOR,
             }
         )
+
+    def get_can_edit_product(self, product):
+        return bool(
+            settings.MOBILE_WRITE_API_ENABLED
+            and self.context.get("role")
+            in {
+                TenantMembership.ROLE_VENDOR_OWNER,
+                TenantMembership.ROLE_VENDOR_OPERATOR,
+            }
+        )
+
+
+class ProductUpdateSerializer(serializers.Serializer):
+    expected_updated_at = serializers.DateTimeField()
+    name = serializers.CharField(max_length=160, trim_whitespace=True)
+    sku = serializers.CharField(max_length=120, trim_whitespace=True)
+    barcode = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=120, trim_whitespace=True)
+    category = serializers.CharField(required=False, allow_blank=True, max_length=120, trim_whitespace=True)
+    description = serializers.CharField(required=False, allow_blank=True, max_length=5000, trim_whitespace=True)
+    actual_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2, min_value=0)
+    regular_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2, min_value=0)
+    sale_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2, min_value=0)
+    reorder_level = serializers.IntegerField(min_value=0, max_value=999999999)
+    is_active = serializers.BooleanField(required=False)
 
 
 class StockQuantityUpdateSerializer(serializers.Serializer):

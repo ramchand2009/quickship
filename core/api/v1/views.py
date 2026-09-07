@@ -58,11 +58,12 @@ from .product_serializers import (
     ProductDetailSerializer,
     ProductListQuerySerializer,
     ProductSummarySerializer,
+    ProductUpdateSerializer,
     StockMovementQuerySerializer,
     StockMovementSerializer,
     StockQuantityUpdateSerializer,
 )
-from .product_mutations import set_mobile_stock_quantity
+from .product_mutations import set_mobile_stock_quantity, update_mobile_product
 from .product_services import (
     mobile_product_detail,
     mobile_product_inventory_summary,
@@ -769,6 +770,26 @@ class MobileProductDetailView(MobileReadEnabledMixin, APIView):
             },
         ).data
         return Response({"data": data})
+
+    def patch(self, request, product_id):
+        if not settings.MOBILE_API_ENABLED or not settings.MOBILE_WRITE_API_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        if request.tenant_membership.role not in {
+            TenantMembership.ROLE_VENDOR_OWNER,
+            TenantMembership.ROLE_VENDOR_OPERATOR,
+        }:
+            self.permission_denied(request)
+        serializer = ProductUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = update_mobile_product(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            product_id=product_id,
+            idempotency_key=MobileWriteEnabledMixin.idempotency_key(self, request),
+            values=serializer.validated_data,
+        )
+        return Response(payload)
 
 
 class MobileProductStockView(MobileWriteEnabledMixin, APIView):
