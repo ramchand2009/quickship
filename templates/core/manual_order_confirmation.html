@@ -9,6 +9,7 @@
         :root {
             --green: #075f3c;
             --green-2: #0b7a4b;
+            --olive: #2f3e15;
             --mint: #eaf7ef;
             --ink: #17352a;
             --muted: #6d8178;
@@ -29,36 +30,93 @@
             width: 100%;
             max-width: none;
             margin: 0 auto;
-            padding: max(10px, env(safe-area-inset-top)) 10px 22px;
+            padding: 0 10px 118px;
         }
-        .hero {
-            background: linear-gradient(135deg, #075f3c, #0b7a4b);
-            border-radius: 0 0 22px 22px;
+        .topbar {
+            background: var(--olive);
             color: #fff;
-            padding: max(14px, env(safe-area-inset-top)) 14px 14px;
-            margin: calc(-1 * max(10px, env(safe-area-inset-top))) -10px 0;
-            box-shadow: 0 12px 24px rgba(7, 95, 60, 0.18);
+            min-height: 86px;
+            padding: max(12px, env(safe-area-inset-top)) 14px 12px;
+            margin: 0 -10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 5px 16px rgba(47, 62, 21, 0.2);
         }
         .brand {
             display: flex;
             align-items: center;
-            gap: 9px;
-            margin-bottom: 10px;
+            gap: 12px;
         }
         .logo {
-            width: 32px;
-            height: 32px;
+            width: 66px;
+            height: 66px;
             border-radius: 50%;
             background: #fff;
-            padding: 3px;
+            padding: 5px;
             object-fit: contain;
         }
         .brand-text {
-            font-size: 11px;
+            font-size: clamp(20px, 6vw, 28px);
             font-weight: 900;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
+            letter-spacing: -0.02em;
             opacity: 0.9;
+        }
+        .brand-subtitle {
+            color: #d9f2e6;
+            font-size: 11px;
+            font-weight: 750;
+            margin-top: 2px;
+        }
+        .stepper {
+            background: #fff;
+            border-bottom: 1px solid var(--line);
+            margin: 0 -10px 14px;
+            padding: 16px 18px 14px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+        .step {
+            position: relative;
+            display: grid;
+            justify-items: center;
+            gap: 7px;
+            color: #9aa4a0;
+            font-size: 13px;
+            font-weight: 900;
+        }
+        .step:first-child::after {
+            content: "";
+            position: absolute;
+            top: 17px;
+            left: 50%;
+            right: -50%;
+            height: 4px;
+            background: {% if show_address_step or confirmation.status == "confirmed" %}var(--green-2){% else %}#dfe6e2{% endif %};
+            z-index: 0;
+        }
+        .step-dot {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: #fff;
+            border: 3px solid #cfd8d3;
+            color: #9aa4a0;
+            font-size: 18px;
+            position: relative;
+            z-index: 1;
+        }
+        .step.active, .step.done { color: var(--ink); }
+        .step.active .step-dot, .step.done .step-dot {
+            background: var(--green-2);
+            border-color: var(--green-2);
+            color: #fff;
+        }
+        .page-intro {
+            padding: 4px 2px 0;
         }
         h1 {
             font-size: clamp(24px, 7.5vw, 30px);
@@ -66,8 +124,8 @@
             margin: 0 0 6px;
             letter-spacing: -0.04em;
         }
-        .hero p {
-            color: #d9f2e6;
+        .page-intro p {
+            color: var(--muted);
             font-size: 13px;
             line-height: 1.35;
             margin: 0;
@@ -245,6 +303,29 @@
             display: grid;
             gap: 8px;
         }
+        .bottom-total {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 2px;
+        }
+        .bottom-total-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 850;
+        }
+        .bottom-total-value {
+            color: #07120d;
+            font-size: 22px;
+            font-weight: 950;
+            margin-top: 2px;
+        }
+        .action-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
         button {
             border: 0;
             border-radius: 16px;
@@ -295,7 +376,6 @@
         }
         @media (max-width: 560px) {
             .grid, .form-row { grid-template-columns: 1fr; }
-            .brand div div:last-child { display: none; }
             .status-card { margin-top: 10px; }
             .form-card { padding: 13px; }
         }
@@ -303,14 +383,30 @@
 </head>
 <body>
     <main class="shell">
-        <section class="hero">
+        <header class="topbar">
             <div class="brand">
                 <img class="logo" src="{% static 'assets/images/mathukai-logo.png' %}" alt="Mathukai Organic">
                 <div>
                     <div class="brand-text">Mathukai Organic</div>
-                    <div style="color:#d9f2e6;font-size:12px;font-weight:750;">Secure order confirmation</div>
+                    <div class="brand-subtitle">Secure order confirmation</div>
                 </div>
             </div>
+        </header>
+
+        {% if is_open %}
+            <section class="stepper" aria-label="Order confirmation steps">
+                <div class="step {% if show_address_step %}done{% else %}active{% endif %}">
+                    <div class="step-dot">{% if show_address_step %}✓{% else %}1{% endif %}</div>
+                    <div>Products</div>
+                </div>
+                <div class="step {% if show_address_step %}active{% endif %}">
+                    <div class="step-dot">2</div>
+                    <div>Address</div>
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="page-intro">
             <h1>{% if show_address_step %}Add delivery address{% elif show_change_step %}Request change{% else %}Review your order{% endif %}</h1>
             <p>{% if show_address_step %}Your products are ready. Please confirm where we should send this order.{% elif show_change_step %}Tell us what needs to be corrected in this order.{% else %}First check the products and quantity. Address comes in the next step.{% endif %}</p>
         </section>
@@ -392,9 +488,18 @@
 
             {% if is_open and not show_address_step and not show_change_step %}
                 <div class="actions">
+                    <div class="bottom-total">
+                        <div>
+                            <div class="bottom-total-label">Total amount</div>
+                            <div class="bottom-total-value">₹ {{ order.total|floatformat:2 }}</div>
+                        </div>
+                        <div class="bottom-total-label">Step 1 of 2</div>
+                    </div>
                     <button class="primary" type="submit" name="action" value="continue_address">Continue to address</button>
-                    <button class="secondary" type="submit" name="action" value="continue_change">Request change</button>
-                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    <div class="action-pair">
+                        <button class="secondary" type="submit" name="action" value="continue_change">Request change</button>
+                        <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    </div>
                 </div>
             {% endif %}
 
@@ -404,9 +509,17 @@
                 <textarea id="change_note_products" name="change_note" placeholder="Example: Please change quantity to 2, or correct landmark..."></textarea>
 
                 <div class="actions">
+                    <div class="bottom-total">
+                        <div>
+                            <div class="bottom-total-label">Total amount</div>
+                            <div class="bottom-total-value">₹ {{ order.total|floatformat:2 }}</div>
+                        </div>
+                    </div>
                     <button class="primary" type="submit" name="action" value="request_change">Send change request</button>
-                    <button class="secondary" type="submit" name="action" value="continue_address">Continue to address</button>
-                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    <div class="action-pair">
+                        <button class="secondary" type="submit" name="action" value="continue_address">Continue to address</button>
+                        <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    </div>
                 </div>
             {% endif %}
 
@@ -455,10 +568,19 @@
 
             {% if is_open %}
                 <div class="actions">
+                    <div class="bottom-total">
+                        <div>
+                            <div class="bottom-total-label">Total amount</div>
+                            <div class="bottom-total-value">₹ {{ order.total|floatformat:2 }}</div>
+                        </div>
+                        <div class="bottom-total-label">Step 2 of 2</div>
+                    </div>
                     <button class="link-button" type="submit" name="action" value="review_products">Back to products</button>
                     <button class="primary" type="submit" name="action" value="confirm">Confirm order</button>
-                    <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
-                    <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    <div class="action-pair">
+                        <button class="secondary" type="submit" name="action" value="request_change">Request change</button>
+                        <button class="danger-action" type="submit" name="action" value="cancel">Cancel order</button>
+                    </div>
                 </div>
                 {% endif %}
             {% endif %}
