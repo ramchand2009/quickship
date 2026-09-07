@@ -223,6 +223,64 @@ def _confirmation_address_from_post(post_data, fallback):
     }
 
 
+INDIA_STATE_OPTIONS = [
+    "Andaman and Nicobar Islands",
+    "Andhra Pradesh",
+    "Arunachal Pradesh",
+    "Assam",
+    "Bihar",
+    "Chandigarh",
+    "Chhattisgarh",
+    "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi",
+    "Goa",
+    "Gujarat",
+    "Haryana",
+    "Himachal Pradesh",
+    "Jammu and Kashmir",
+    "Jharkhand",
+    "Karnataka",
+    "Kerala",
+    "Ladakh",
+    "Lakshadweep",
+    "Madhya Pradesh",
+    "Maharashtra",
+    "Manipur",
+    "Meghalaya",
+    "Mizoram",
+    "Nagaland",
+    "Odisha",
+    "Puducherry",
+    "Punjab",
+    "Rajasthan",
+    "Sikkim",
+    "Tamil Nadu",
+    "Telangana",
+    "Tripura",
+    "Uttar Pradesh",
+    "Uttarakhand",
+    "West Bengal",
+]
+
+
+def _validate_confirmation_address(address):
+    errors = []
+    phone_digits = re.sub(r"\D+", "", address.get("phone") or "")
+    if not address.get("name") or len(address["name"]) < 2:
+        errors.append("enter the customer name")
+    if not re.fullmatch(r"(?:91)?[6-9]\d{9}", phone_digits):
+        errors.append("enter a valid 10 digit mobile number")
+    if not address.get("address_1") or len(address["address_1"]) < 5:
+        errors.append("enter the complete address")
+    if not address.get("city") or len(address["city"]) < 2:
+        errors.append("enter the city")
+    if address.get("state") not in INDIA_STATE_OPTIONS:
+        errors.append("select a valid state")
+    if not re.fullmatch(r"[1-9]\d{5}", address.get("pincode") or ""):
+        errors.append("enter a valid 6 digit pincode")
+    return errors
+
+
 def _apply_confirmation_address(order, confirmation, address):
     confirmation.customer_name = address["name"]
     confirmation.customer_phone = address["phone"]
@@ -264,18 +322,7 @@ def manual_order_confirmation(request, token):
     confirmation_allowed_statuses = {ShiprocketOrder.STATUS_WAITING, ShiprocketOrder.STATUS_NEW}
     if request.method == "POST" and confirmation.is_open and order.local_status in confirmation_allowed_statuses:
         address = _confirmation_address_from_post(request.POST, confirmation)
-        missing = [
-            label
-            for key, label in [
-                ("name", "name"),
-                ("phone", "mobile number"),
-                ("address_1", "address"),
-                ("city", "city"),
-                ("state", "state"),
-                ("pincode", "pincode"),
-            ]
-            if not address.get(key)
-        ]
+        address_errors = _validate_confirmation_address(address)
         if action == "review_products":
             show_address_step = False
             show_change_step = False
@@ -283,8 +330,8 @@ def manual_order_confirmation(request, token):
             show_address_step = True
         elif action == "continue_change":
             show_change_step = True
-        elif action == "confirm" and missing:
-            form_error = "Please enter " + ", ".join(missing) + "."
+        elif action == "confirm" and address_errors:
+            form_error = "Please " + ", ".join(address_errors) + "."
             show_address_step = True
         else:
             now = timezone.now()
@@ -395,6 +442,7 @@ def manual_order_confirmation(request, token):
         "is_open": confirmation.is_open and order.local_status in confirmation_allowed_statuses,
         "show_address_step": show_address_step,
         "show_change_step": show_change_step,
+        "india_states": INDIA_STATE_OPTIONS,
     }
     return render(request, "core/manual_order_confirmation.html", context)
 
