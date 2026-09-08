@@ -231,13 +231,22 @@
             background: #fff;
             border: 1px solid var(--line);
             border-radius: 16px;
-            padding: 10px 12px;
+            padding: 12px;
             margin: 12px 0 2px;
             box-shadow: 0 6px 18px rgba(23, 53, 42, 0.05);
+            display: grid;
+            gap: 3px;
+        }
+        .customer-eyebrow {
+            color: var(--green);
+            font-size: 11px;
+            font-weight: 950;
+            text-transform: uppercase;
+            letter-spacing: .08em;
         }
         .customer-name {
             color: var(--ink);
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 950;
             line-height: 1.25;
         }
@@ -245,7 +254,12 @@
             color: var(--muted);
             font-size: 13px;
             font-weight: 800;
-            margin-top: 3px;
+        }
+        .customer-note {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 750;
+            margin-top: 2px;
         }
         .order-total-row {
             display: flex;
@@ -595,8 +609,10 @@
             {% if not show_address_step or not is_open %}
                 {% if is_open and not show_change_step %}
                     <section class="customer-strip">
+                        <div class="customer-eyebrow">Delivering to</div>
                         <div class="customer-name">{{ address.name|default:order.customer_name|default:"Customer" }}</div>
                         <div class="customer-phone">{{ address.phone|default:order.customer_phone|default:"-" }}</div>
+                        <div class="customer-note">Address will be confirmed next.</div>
                     </section>
                 {% endif %}
                 <div class="section-title-row">
