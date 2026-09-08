@@ -258,8 +258,6 @@ def update_order_status(*, session, tenant, role, actor, order_id, idempotency_k
 
             previous_status = order.local_status
             target_status = values["target_status"]
-            if target_status == ShiprocketOrder.STATUS_PACKED:
-                raise BusinessRuleError("Packing is available in Phase 2.")
             if target_status not in ShiprocketOrder.ALLOWED_STATUS_TRANSITIONS.get(previous_status, []):
                 raise BusinessRuleError("This status change is not available for the order.")
 
