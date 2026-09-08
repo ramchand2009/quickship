@@ -203,8 +203,10 @@ def _confirmation_order_items(order):
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "line_total": line_total,
+                "display_total": abs(line_total),
                 "line_type": str(item.get("line_type") or "").strip(),
                 "shipping_label": str(item.get("shipping_label") or "").strip(),
+                "discount_label": str(item.get("discount_label") or "").strip(),
             }
         )
     return rows
@@ -5280,6 +5282,14 @@ def product_image_media(request, filename):
     image_path = (media_dir / filename).resolve()
     if media_dir not in image_path.parents or not image_path.exists() or not image_path.is_file():
         raise Http404("Product image not found.")
+    return FileResponse(image_path.open("rb"))
+
+
+def packing_image_media(request, filename):
+    media_dir = (settings.MEDIA_ROOT / "packing-images").resolve()
+    image_path = (media_dir / filename).resolve()
+    if media_dir not in image_path.parents or not image_path.exists() or not image_path.is_file():
+        raise Http404("Packing image not found.")
     return FileResponse(image_path.open("rb"))
 
 

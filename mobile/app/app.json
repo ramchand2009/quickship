@@ -42,7 +42,14 @@
           ]
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Mathukai Organic to choose packing photos.",
+          "cameraPermission": "Allow Mathukai Organic to capture packing photos."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

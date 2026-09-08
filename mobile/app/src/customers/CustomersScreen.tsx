@@ -146,6 +146,7 @@ function ManualOrderSheet({
   const [selectedItems, setSelectedItems] = useState<{ product: ProductSummary; quantity: number }[]>([]);
   const [shippingMode, setShippingMode] = useState<'free' | 'charged'>('free');
   const [shippingCost, setShippingCost] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -192,10 +193,13 @@ function ManualOrderSheet({
 
   const productsTotal = selectedItems.reduce((sum, item) => sum + productUnitPrice(item.product) * item.quantity, 0);
   const shippingAmount = shippingMode === 'charged' ? Number.parseFloat(shippingCost.replace(/[^0-9.]/g, '')) || 0 : 0;
+  const discountValue = Number.parseFloat(discountAmount.replace(/[^0-9.]/g, '')) || 0;
   const manualShippingGst = shippingAmount > 0 ? shippingAmount * 0.18 : 0;
   const manualShippingBase = shippingAmount > 0 ? shippingAmount - manualShippingGst : 0;
-  const total = productsTotal + shippingAmount;
-  const canSave = selectedItems.length > 0 && (shippingMode === 'free' || shippingAmount > 0) && !saving;
+  const totalBeforeDiscount = productsTotal + shippingAmount;
+  const discountValid = discountValue <= totalBeforeDiscount;
+  const total = Math.max(0, totalBeforeDiscount - discountValue);
+  const canSave = selectedItems.length > 0 && (shippingMode === 'free' || shippingAmount > 0) && discountValid && !saving;
 
   const createOrder = async () => {
     if (!canSave) return;
@@ -209,12 +213,14 @@ function ManualOrderSheet({
           items: selectedItems.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
           shipping_mode: shippingMode,
           shipping_base_amount: shippingAmount.toFixed(2),
+          discount_amount: discountValue.toFixed(2),
         },
         newIdempotencyKey(),
       ));
       setSelectedItems([]);
       setShippingMode('free');
       setShippingCost('');
+      setDiscountAmount('');
       onCreated(response.data.order);
       onClose();
       Alert.alert('Order created', 'Manual order created. Open the order to copy the confirmation link when you are ready.');
@@ -303,6 +309,26 @@ function ManualOrderSheet({
                       </>
                     ) : (
                       <Text style={styles.selectedMeta}>Shipping will show as Free in customer summary.</Text>
+                    )}
+                  </View>
+                  <View style={styles.shippingChoiceBlock}>
+                    <Text style={styles.selectedTitle}>Discount</Text>
+                    <TextInput
+                      keyboardType="decimal-pad"
+                      onChangeText={setDiscountAmount}
+                      placeholder="Discount amount"
+                      placeholderTextColor="#82958D"
+                      style={styles.shippingCostInput}
+                      value={discountAmount}
+                    />
+                    {discountValue > 0 ? (
+                      <Text style={[styles.selectedMeta, !discountValid && styles.errorText]}>
+                        {discountValid
+                          ? `Discount applied: -${rupees(discountValue)}`
+                          : 'Discount cannot be more than order total.'}
+                      </Text>
+                    ) : (
+                      <Text style={styles.selectedMeta}>Optional. Customer will see this as discount applied.</Text>
                     )}
                   </View>
                   <View style={styles.manualTotalRow}>
@@ -929,6 +955,7 @@ const styles = StyleSheet.create({
   selectedCopy: { flex: 1 },
   selectedName: { color: '#17352A', fontSize: 14, fontWeight: '900' },
   selectedMeta: { color: '#71867D', fontSize: 11, fontWeight: '700', marginTop: 3 },
+  errorText: { color: '#B42318' },
   qtyInput: { width: 52, minHeight: 42, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 12, color: '#17352A', fontSize: 16, fontWeight: '900', textAlign: 'center', backgroundColor: '#FFFFFF' },
   removeItemButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF2F2' },
   shippingChoiceBlock: { borderTopColor: '#DCE5E1', borderTopWidth: 1, marginTop: 10, paddingTop: 12 },

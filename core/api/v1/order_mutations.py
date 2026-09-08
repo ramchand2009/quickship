@@ -2,7 +2,14 @@
 
 import hashlib
 import json
+import base64
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
+from uuid import uuid4
 
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import FileSystemStorage
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -31,6 +38,14 @@ ISSUE_REASON_LABELS = {
     "courier_issue": "Courier issue",
     "customer_unreachable": "Customer unreachable",
     "other": "Other",
+}
+
+PACKING_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+PACKING_IMAGE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
 }
 
 
@@ -96,6 +111,7 @@ def _apply_status_timestamp(order):
     now = timezone.now()
     timestamp_fields = {
         ShiprocketOrder.STATUS_SHIPPED: "shipped_at",
+        ShiprocketOrder.STATUS_PACKED: "packed_at",
         ShiprocketOrder.STATUS_OUT_FOR_DELIVERY: "out_for_delivery_at",
         ShiprocketOrder.STATUS_DELIVERED: "delivered_at",
         ShiprocketOrder.STATUS_COMPLETED: "completed_at",
@@ -105,6 +121,40 @@ def _apply_status_timestamp(order):
         setattr(order, field, now)
         return field
     return None
+
+
+def _save_packing_image(values):
+    existing_url = str(values.get("packing_image_url") or "").strip()
+    image_data = str(values.get("packing_image_base64") or "").strip()
+    if not image_data:
+        return existing_url
+
+    if "," in image_data and image_data.lower().startswith("data:"):
+        image_data = image_data.split(",", 1)[1]
+    try:
+        decoded = base64.b64decode(image_data, validate=True)
+    except Exception:
+        raise ValidationError({"packing_image_base64": ["Upload a valid packing image."]})
+    if not decoded:
+        raise ValidationError({"packing_image_base64": ["Upload a packing image."]})
+    if len(decoded) > PACKING_IMAGE_MAX_BYTES:
+        raise ValidationError({"packing_image_base64": ["Packing image must be 5 MB or smaller."]})
+
+    content_type = str(values.get("packing_image_type") or "").strip().lower()
+    suffix = PACKING_IMAGE_EXTENSIONS.get(content_type)
+    if not suffix:
+        suffix = Path(str(values.get("packing_image_name") or "")).suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise ValidationError({"packing_image_base64": ["Upload a JPG, PNG, or WebP packing image."]})
+    if suffix == ".jpeg":
+        suffix = ".jpg"
+
+    storage = FileSystemStorage(
+        location=settings.MEDIA_ROOT / "packing-images",
+        base_url=f"{settings.MEDIA_URL.rstrip('/')}/packing-images/",
+    )
+    filename = storage.save(f"{uuid4().hex}{suffix}", ContentFile(decoded))
+    return storage.url(filename)
 
 
 def _status_side_effects(order, *, previous_status, actor):
@@ -219,19 +269,45 @@ def update_order_status(*, session, tenant, role, actor, order_id, idempotency_k
                     raise ValidationError({"customer_phone": ["Enter a valid customer mobile number."]})
                 order.manual_customer_phone = phone
             if target_status == ShiprocketOrder.STATUS_SHIPPED:
+                if previous_status != ShiprocketOrder.STATUS_PACKED:
+                    required = {
+                        "courier_name": values.get("courier_name"),
+                        "tracking_number": values.get("tracking_number"),
+                        "package_weight_kg": values.get("package_weight_kg") or values.get("package_weight_grams"),
+                    }
+                    missing = {key: ["This field is required before shipping."] for key, value in required.items() if value in (None, "")}
+                    if missing:
+                        raise ValidationError(missing)
                 required = {
-                    "courier_name": values.get("courier_name"),
-                    "tracking_number": values.get("tracking_number"),
-                    "package_weight_kg": values.get("package_weight_kg"),
                     "shipping_base_amount": values.get("shipping_base_amount"),
                 }
                 missing = {key: ["This field is required."] for key, value in required.items() if value in (None, "")}
                 if missing:
                     raise ValidationError(missing)
-                order.courier_name = values["courier_name"]
-                order.tracking_number = values["tracking_number"]
-                order.package_weight_kg = values["package_weight_kg"]
                 order.shipping_base_amount = values["shipping_base_amount"]
+            if target_status == ShiprocketOrder.STATUS_PACKED:
+                packing_image_url = _save_packing_image(values)
+                required = {
+                    "tracking_number": values.get("tracking_number"),
+                    "package_weight_grams": values.get("package_weight_grams"),
+                    "packing_image_url": packing_image_url,
+                }
+                missing = {key: ["This field is required."] for key, value in required.items() if value in (None, "")}
+                if missing:
+                    raise ValidationError(missing)
+                try:
+                    weight_grams = Decimal(str(values["package_weight_grams"]))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise ValidationError({"package_weight_grams": ["Enter a valid package weight in grams."]})
+                order.tracking_number = values["tracking_number"]
+                order.package_weight_kg = (weight_grams / Decimal("1000")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+                payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
+                order.raw_payload = {
+                    **payload,
+                    "packing_image_url": packing_image_url,
+                    "packing_weight_grams": str(int(weight_grams)),
+                    "packed_from_mobile": True,
+                }
             if target_status == ShiprocketOrder.STATUS_CANCELLED:
                 if not values.get("cancellation_reason"):
                     raise ValidationError({"cancellation_reason": ["Select a cancellation reason."]})

@@ -41,6 +41,17 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
         decimal_places=3,
         min_value=Decimal("0.001"),
     )
+    package_weight_grams = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=9,
+        decimal_places=0,
+        min_value=Decimal("1"),
+    )
+    packing_image_url = serializers.URLField(required=False, allow_blank=True, max_length=1000)
+    packing_image_base64 = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
+    packing_image_name = serializers.CharField(required=False, allow_blank=True, max_length=160, trim_whitespace=True)
+    packing_image_type = serializers.CharField(required=False, allow_blank=True, max_length=80, trim_whitespace=True)
     cancellation_reason = serializers.ChoiceField(
         required=False,
         allow_blank=True,
@@ -282,6 +293,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
     shipping_gst = serializers.SerializerMethodField()
     shipping_total = serializers.SerializerMethodField()
     package_weight_kg = serializers.SerializerMethodField()
+    package_weight_grams = serializers.SerializerMethodField()
+    packing_image_url = serializers.SerializerMethodField()
     payment_received_at = serializers.DateTimeField(allow_null=True)
     cancellation_reason = serializers.SerializerMethodField()
     cancellation_note = serializers.SerializerMethodField()
@@ -301,6 +314,8 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "shipping_gst",
             "shipping_total",
             "package_weight_kg",
+            "package_weight_grams",
+            "packing_image_url",
             "payment_received_at",
             "cancellation_reason",
             "cancellation_note",
@@ -412,6 +427,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
                     "quantity": quantity,
                     "total": _money(total),
                     "image_url": image_url,
+                    "line_type": str(item.get("line_type") or "").strip() or "product",
                 }
             )
         return serialized
@@ -431,6 +447,18 @@ class OrderDetailSerializer(OrderSummarySerializer):
     def get_package_weight_kg(self, order):
         weight = order.package_weight_kg or Decimal("0.000")
         return f"{weight:.3f}" if weight > 0 else None
+
+    def get_package_weight_grams(self, order):
+        weight = order.package_weight_kg or Decimal("0.000")
+        return str(int((weight * Decimal("1000")).quantize(Decimal("1")))) if weight > 0 else None
+
+    def get_packing_image_url(self, order):
+        payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
+        value = str(payload.get("packing_image_url") or "").strip()
+        if value.startswith("/"):
+            base = str(self.context.get("base_url") or "").rstrip("/")
+            return f"{base}{value}" if base else value
+        return value or None
 
     def get_shipping_label(self, order):
         tenant = self.context.get("tenant") or order.tenant
@@ -470,16 +498,17 @@ class OrderDetailSerializer(OrderSummarySerializer):
         actions = []
         if "orders.update_status" in permissions:
             for target in ShiprocketOrder.ALLOWED_STATUS_TRANSITIONS.get(order.local_status, []):
-                if target == ShiprocketOrder.STATUS_PACKED:
-                    continue
                 required_fields = []
                 if target == ShiprocketOrder.STATUS_ACCEPTED and not order.resolved_customer_phone:
                     required_fields = ["customer_phone"]
+                elif target == ShiprocketOrder.STATUS_PACKED:
+                    required_fields = [
+                        "tracking_number",
+                        "package_weight_grams",
+                        "packing_image_url",
+                    ]
                 elif target == ShiprocketOrder.STATUS_SHIPPED:
                     required_fields = [
-                        "courier_name",
-                        "tracking_number",
-                        "package_weight_kg",
                         "shipping_base_amount",
                     ]
                 actions.append(

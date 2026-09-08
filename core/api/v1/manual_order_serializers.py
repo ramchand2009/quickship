@@ -40,6 +40,13 @@ class ManualOrderCreateSerializer(serializers.Serializer):
         required=False,
         default=0,
     )
+    discount_amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        default=0,
+    )
     note = serializers.CharField(required=False, allow_blank=True, max_length=255, trim_whitespace=True)
 
     def validate(self, attrs):
@@ -51,6 +58,7 @@ class ManualOrderCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError({"shipping_base_amount": ["Enter the shipping charge, or choose free shipping."]})
         if attrs.get("shipping_mode") == "free":
             attrs["shipping_base_amount"] = 0
+        attrs["discount_amount"] = attrs.get("discount_amount") or 0
         return attrs
 
 
@@ -66,4 +74,5 @@ class ManualOrderUpdateSerializer(ManualOrderCreateSerializer):
             raise serializers.ValidationError({"shipping_base_amount": ["Enter the shipping charge, or choose free shipping."]})
         if attrs.get("shipping_mode") == "free":
             attrs["shipping_base_amount"] = 0
+        attrs["discount_amount"] = attrs.get("discount_amount") or 0
         return attrs

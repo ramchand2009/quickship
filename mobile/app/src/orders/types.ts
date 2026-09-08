@@ -56,6 +56,7 @@ export type OrderItem = {
   quantity: number;
   total: Money;
   image_url: string | null;
+  line_type?: 'product' | 'shipping' | 'discount' | string;
 };
 
 export type OrderActivity = {
@@ -82,6 +83,8 @@ export type OrderDetail = OrderSummary & {
   items: OrderItem[];
   courier_name: string | null;
   package_weight_kg: string | null;
+  package_weight_grams: string | null;
+  packing_image_url: string | null;
   shipping_cost: Money;
   shipping_gst: Money;
   shipping_total: Money;
@@ -129,6 +132,11 @@ export type OrderStatusUpdate = {
   courier_name?: string;
   tracking_number?: string;
   package_weight_kg?: string;
+  package_weight_grams?: string;
+  packing_image_url?: string;
+  packing_image_base64?: string;
+  packing_image_name?: string;
+  packing_image_type?: string;
   shipping_base_amount?: string;
   cancellation_reason?: string;
   cancellation_note?: string;

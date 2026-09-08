@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {
@@ -9,6 +10,7 @@ import {
   AppState,
   BackHandler,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -78,8 +80,16 @@ type ManualEditItem = {
   unitPrice: number;
 };
 
+type PackingImageDraft = {
+  uri: string;
+  base64: string;
+  name: string;
+  type: string;
+};
+
 const ACTION_LABELS: Record<string, string> = {
   order_accepted: 'Accept order',
+  order_packed: 'Mark packed',
   shipped: 'Mark shipped',
   out_for_delivery: 'Mark out for delivery',
   delivered: 'Mark delivered',
@@ -231,7 +241,7 @@ h1 { font-size: 20px; margin: 0 0 6px; }
 ${order.courier_name ? `<div class="meta">Courier: ${escapeHtml(order.courier_name)}</div>` : ''}
 ${order.tracking_number ? `<div class="meta">Tracking: ${escapeHtml(order.tracking_number)}</div>` : ''}
 <div class="meta">India Post Customer ID: ${INDIA_POST_CUSTOMER_ID}</div>
-${order.package_weight_kg ? `<div class="meta">Weight: ${escapeHtml(order.package_weight_kg)} kg</div>` : ''}</div>
+${order.package_weight_grams ? `<div class="meta">Weight: ${escapeHtml(order.package_weight_grams)} g</div>` : ''}</div>
 <div class="box"><div class="eyebrow">TO</div><div class="name">${escapeHtml(order.customer.name || 'Customer')}</div>
 <div class="address">${escapeHtml(order.customer.delivery_address || 'Delivery address unavailable')}</div>
 ${order.customer.phone ? `<div class="phone">Phone: ${escapeHtml(order.customer.phone)}</div>` : ''}</div>
@@ -268,7 +278,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [courierMenuOpen, setCourierMenuOpen] = useState(false);
   const [customCourier, setCustomCourier] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState('');
-  const [packageWeightKg, setPackageWeightKg] = useState('');
+  const [packageWeightGrams, setPackageWeightGrams] = useState('');
+  const [packingImageUrl, setPackingImageUrl] = useState('');
+  const [packingImageDraft, setPackingImageDraft] = useState<PackingImageDraft | null>(null);
   const [shippingCost, setShippingCost] = useState('');
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationNote, setCancellationNote] = useState('');
@@ -294,6 +306,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [manualEditItems, setManualEditItems] = useState<ManualEditItem[]>([]);
   const [manualEditShippingMode, setManualEditShippingMode] = useState<'free' | 'charged'>('free');
   const [manualEditShippingCost, setManualEditShippingCost] = useState('');
+  const [manualEditDiscountCost, setManualEditDiscountCost] = useState('');
   const [manualEditLoading, setManualEditLoading] = useState(false);
   const [manualEditSaving, setManualEditSaving] = useState(false);
   const [manualEditError, setManualEditError] = useState('');
@@ -475,7 +488,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       setCustomCourier(Boolean(order?.courier_name && !COURIER_PARTNERS.includes(order.courier_name)));
       setCourierMenuOpen(false);
       setTrackingNumber(order?.tracking_number || '');
-      setPackageWeightKg(order?.package_weight_kg || '');
+      setPackageWeightGrams(order?.package_weight_grams || '');
+      setPackingImageUrl(order?.packing_image_url || '');
+      setPackingImageDraft(null);
       setShippingCost(order?.shipping_cost.amount === '0.00' ? '' : order?.shipping_cost.amount || '');
       setCancellationReason('');
       setCancellationNote('');
@@ -500,10 +515,17 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     }
     const values: Partial<OrderStatusUpdate> = {};
     if (selectedAction.required_fields.includes('customer_phone')) values.customer_phone = customerPhone.trim();
-    if (selectedAction.target_status === 'shipped') {
-      values.courier_name = courierName.trim();
+    if (selectedAction.target_status === 'order_packed') {
       values.tracking_number = trackingNumber.trim().toUpperCase();
-      values.package_weight_kg = packageWeightKg.trim();
+      values.package_weight_grams = packageWeightGrams.trim();
+      values.packing_image_url = packingImageUrl.trim();
+      if (packingImageDraft) {
+        values.packing_image_base64 = packingImageDraft.base64;
+        values.packing_image_name = packingImageDraft.name;
+        values.packing_image_type = packingImageDraft.type;
+      }
+    }
+    if (selectedAction.target_status === 'shipped') {
       values.shipping_base_amount = shippingCost.trim();
     }
     if (selectedAction.target_status === 'order_cancelled') {
@@ -585,7 +607,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const openManualOrderEditor = async () => {
     if (!order?.can_edit_manual_order) return;
     const editableItems = order.items
-      .filter((item) => item.product_id !== null)
+      .filter((item) => item.product_id !== null && item.line_type !== 'shipping' && item.line_type !== 'discount')
       .map((item) => {
         const quantity = Math.max(1, item.quantity || 1);
         const lineTotal = parseMoneyAmount(item.total?.amount);
@@ -599,8 +621,12 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       });
     setManualEditItems(editableItems);
     const shippingTotal = parseMoneyAmount(order.shipping_total?.amount);
+    const discountTotal = order.items
+      .filter((item) => item.line_type === 'discount')
+      .reduce((sum, item) => sum + Math.abs(parseMoneyAmount(item.total?.amount)), 0);
     setManualEditShippingMode(shippingTotal > 0 ? 'charged' : 'free');
     setManualEditShippingCost(shippingTotal > 0 ? shippingTotal.toFixed(2) : '');
+    setManualEditDiscountCost(discountTotal > 0 ? discountTotal.toFixed(2) : '');
     setManualEditSearch('');
     setManualEditProducts([]);
     setManualEditError('');
@@ -634,6 +660,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     const shippingAmount = manualEditShippingMode === 'charged'
       ? Number.parseFloat(manualEditShippingCost.replace(/[^0-9.]/g, '')) || 0
       : 0;
+    const discountAmount = Number.parseFloat(manualEditDiscountCost.replace(/[^0-9.]/g, '')) || 0;
     try {
       const response = await runAuthenticated((token) => api.updateManualOrder(
         token,
@@ -643,6 +670,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
           items: manualEditItems.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
           shipping_mode: manualEditShippingMode,
           shipping_base_amount: shippingAmount.toFixed(2),
+          discount_amount: discountAmount.toFixed(2),
         },
         newIdempotencyKey(),
       ));
@@ -692,17 +720,20 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const manualEditShippingGst = manualEditShippingAmount > 0 ? manualEditShippingAmount * 0.18 : 0;
   const manualEditShippingBase = manualEditShippingAmount > 0 ? manualEditShippingAmount - manualEditShippingGst : 0;
   const manualEditProductsTotal = manualEditItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const manualEditReady = manualEditItems.length > 0 && (manualEditShippingMode === 'free' || manualEditShippingAmount > 0) && !manualEditSaving;
+  const manualEditDiscountAmount = Number.parseFloat(manualEditDiscountCost.replace(/[^0-9.]/g, '')) || 0;
+  const manualEditTotalBeforeDiscount = manualEditProductsTotal + manualEditShippingAmount;
+  const manualEditDiscountValid = manualEditDiscountAmount <= manualEditTotalBeforeDiscount;
+  const manualEditReady = manualEditItems.length > 0 && (manualEditShippingMode === 'free' || manualEditShippingAmount > 0) && manualEditDiscountValid && !manualEditSaving;
   const actionFormReady = selectedAction
     ? (selectedAction.code !== 'flag_issue' || Boolean(issueReason && issueNote.trim().length >= 3))
       && (!selectedAction.required_fields.includes('customer_phone') || customerPhone.replace(/\D/g, '').length >= 10)
-      && (selectedAction.target_status !== 'shipped'
+      && (selectedAction.target_status !== 'order_packed'
         || Boolean(
-          courierName.trim()
-          && /^[A-Za-z]{2}\d{9}[A-Za-z]{2}$/.test(trackingNumber.trim())
-          && Number(packageWeightKg) > 0
-          && shippingCost.trim()
+          /^[A-Za-z]{2}\d{9}[A-Za-z]{2}$/.test(trackingNumber.trim())
+          && Number(packageWeightGrams) > 0
+          && (Boolean(packingImageDraft) || /^https?:\/\/.+/i.test(packingImageUrl.trim()))
         ))
+      && (selectedAction.target_status !== 'shipped' || Boolean(shippingCost.trim() && shippingInputBaseAmount > 0))
       && (selectedAction.target_status !== 'order_cancelled' || Boolean(cancellationReason))
     : false;
   const addressFormReady = Boolean(
@@ -727,6 +758,47 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     } catch {
       Alert.alert('Dialer unavailable', 'The phone dialer could not be opened on this device.');
     }
+  };
+
+  const setPickedPackingImage = (asset: ImagePicker.ImagePickerAsset | undefined) => {
+    if (!asset?.base64 || !asset.uri) {
+      Alert.alert('Photo not selected', 'Please choose a valid packing photo.');
+      return;
+    }
+    const fileName = asset.fileName || `packing-${Date.now()}.jpg`;
+    const mimeType = asset.mimeType || 'image/jpeg';
+    setPackingImageDraft({
+      uri: asset.uri,
+      base64: asset.base64,
+      name: fileName,
+      type: mimeType,
+    });
+    setPackingImageUrl('');
+  };
+
+  const choosePackingImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: false,
+      base64: true,
+      mediaTypes: ['images'],
+      quality: 0.72,
+    });
+    if (!result.canceled) setPickedPackingImage(result.assets[0]);
+  };
+
+  const takePackingImage = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Camera permission needed', 'Allow camera access to capture the packing photo.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      base64: true,
+      mediaTypes: ['images'],
+      quality: 0.72,
+    });
+    if (!result.canceled) setPickedPackingImage(result.assets[0]);
   };
   const printShippingLabel = async () => {
     setLabelBusy(true);
@@ -994,7 +1066,11 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       <View style={styles.sectionCard}>
         <DetailRow label="Courier" value={order.courier_name} />
         <DetailRow label="Tracking number" value={order.tracking_number} />
-        <DetailRow label="Package weight" value={order.package_weight_kg ? `${order.package_weight_kg} kg` : null} />
+        <DetailRow label="Package weight" value={order.package_weight_grams ? `${order.package_weight_grams} g` : null} />
+        <DetailRow label="Packing image" value={order.packing_image_url} />
+        {order.packing_image_url ? (
+          <Image source={{ uri: order.packing_image_url }} style={styles.packingPreviewImage} />
+        ) : null}
         {hasShippingCharge ? (
           <>
             <DetailRow label="Shipping charge" value={money(order.shipping_cost)} />
@@ -1032,7 +1108,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
               {order.courier_name ? <Text style={styles.labelSheetMeta}>Courier: {order.courier_name}</Text> : null}
               {order.tracking_number ? <Text style={styles.labelSheetMeta}>Tracking: {order.tracking_number}</Text> : null}
               <Text style={styles.labelSheetMeta}>India Post Customer ID: {INDIA_POST_CUSTOMER_ID}</Text>
-              {order.package_weight_kg ? <Text style={styles.labelSheetMeta}>Weight: {order.package_weight_kg} kg</Text> : null}
+              {order.package_weight_grams ? <Text style={styles.labelSheetMeta}>Weight: {order.package_weight_grams} g</Text> : null}
               <View style={styles.labelAddressBox}>
                 <Text style={styles.labelEyebrow}>TO</Text>
                 <Text style={styles.labelRecipient}>{order.customer.name || 'Customer'}</Text>
@@ -1149,9 +1225,18 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                 ) : (
                   <Text style={styles.formHint}>Shipping will show as Free.</Text>
                 )}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Discount amount</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={setManualEditDiscountCost} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={manualEditDiscountCost} />
+                  <Text style={[styles.formHint, !manualEditDiscountValid && styles.addressError]}>
+                    {manualEditDiscountValid
+                      ? `Customer will see discount applied: -${formatInrAmount(manualEditDiscountAmount)}`
+                      : 'Discount cannot be more than order total.'}
+                  </Text>
+                </View>
                 <View style={styles.manualEditTotalBox}>
                   <Text style={styles.shippingTaxTotalLabel}>Updated total</Text>
-                  <Text style={styles.shippingTaxTotalValue}>{formatInrAmount(manualEditProductsTotal + manualEditShippingAmount)}</Text>
+                  <Text style={styles.shippingTaxTotalValue}>{formatInrAmount(Math.max(0, manualEditTotalBeforeDiscount - manualEditDiscountAmount))}</Text>
                 </View>
                 {manualEditError ? <Text accessibilityRole="alert" style={styles.addressError}>{manualEditError}</Text> : null}
               </ScrollView>
@@ -1198,45 +1283,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                   />
                 </View>
               ) : null}
-              {selectedAction?.target_status === 'shipped' ? (
+              {selectedAction?.target_status === 'order_packed' ? (
                 <>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Courier partner</Text>
-                    <Pressable onPress={() => setCourierMenuOpen((current) => !current)} style={styles.courierSelect}>
-                      <Text style={[styles.courierSelectText, !courierName && styles.courierPlaceholder]}>
-                        {courierName || 'Select courier partner'}
-                      </Text>
-                      <MaterialCommunityIcons color="#587066" name={courierMenuOpen ? 'chevron-up' : 'chevron-down'} size={22} />
-                    </Pressable>
-                    {courierMenuOpen ? (
-                      <View style={styles.courierMenu}>
-                        {[...COURIER_PARTNERS, 'Other'].map((partner) => (
-                          <Pressable
-                            key={partner}
-                            onPress={() => {
-                              setCustomCourier(partner === 'Other');
-                              setCourierName(partner === 'Other' ? '' : partner);
-                              setCourierMenuOpen(false);
-                            }}
-                            style={styles.courierOption}
-                          >
-                            <Text style={styles.courierOptionText}>{partner}</Text>
-                            {courierName === partner ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={19} /> : null}
-                          </Pressable>
-                        ))}
-                      </View>
-                    ) : null}
-                    {customCourier ? (
-                      <TextInput
-                        autoFocus
-                        onChangeText={setCourierName}
-                        placeholder="Enter courier partner"
-                        placeholderTextColor="#82958D"
-                        style={[styles.formInput, styles.customCourierInput]}
-                        value={courierName}
-                      />
-                    ) : null}
-                  </View>
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Tracking number</Text>
                     <TextInput
@@ -1248,21 +1296,46 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                       style={styles.formInput}
                       value={trackingNumber}
                     />
-                    <Text style={styles.formHint}>Enter 2 letters, 9 digits, then 2 letters.</Text>
+                    <Text style={styles.formHint}>Scan the India Post barcode or type 2 letters, 9 digits, then 2 letters.</Text>
                   </View>
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Package weight (kg)</Text>
+                    <Text style={styles.formLabel}>Package weight (g)</Text>
                     <TextInput
-                      keyboardType="decimal-pad"
-                      maxLength={8}
-                      onChangeText={setPackageWeightKg}
-                      placeholder="Example: 1.250"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      onChangeText={setPackageWeightGrams}
+                      placeholder="Example: 250"
                       placeholderTextColor="#82958D"
                       style={styles.formInput}
-                      value={packageWeightKg}
+                      value={packageWeightGrams}
                     />
-                    <Text style={styles.formHint}>Enter the packed shipment weight in kilograms.</Text>
+                    <Text style={styles.formHint}>Enter the packed shipment weight in grams.</Text>
                   </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Packing image</Text>
+                    <View style={styles.photoActionRow}>
+                      <Pressable onPress={() => void takePackingImage()} style={styles.photoActionButton}>
+                        <MaterialCommunityIcons color="#0B5D3B" name="camera-outline" size={20} />
+                        <Text style={styles.photoActionText}>Take photo</Text>
+                      </Pressable>
+                      <Pressable onPress={() => void choosePackingImage()} style={styles.photoActionButton}>
+                        <MaterialCommunityIcons color="#0B5D3B" name="image-outline" size={20} />
+                        <Text style={styles.photoActionText}>Choose photo</Text>
+                      </Pressable>
+                    </View>
+                    {packingImageDraft ? (
+                      <Image source={{ uri: packingImageDraft.uri }} style={styles.packingPreviewImage} />
+                    ) : null}
+                    {order?.packing_image_url && !packingImageDraft ? (
+                      <Text style={styles.formHint}>Existing packing image is already saved.</Text>
+                    ) : (
+                      <Text style={styles.formHint}>Upload the packed parcel photo before moving this order to Packed.</Text>
+                    )}
+                  </View>
+                </>
+              ) : null}
+              {selectedAction?.target_status === 'shipped' ? (
+                <>
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Shipping charge before GST</Text>
                     <TextInput keyboardType="decimal-pad" onChangeText={setShippingCost} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={shippingCost} />
@@ -1604,6 +1677,7 @@ const styles = StyleSheet.create({
   detailRow: { marginBottom: 13 },
   detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   detailValue: { color: '#29483D', fontSize: 15, lineHeight: 21, fontWeight: '600', marginTop: 4 },
+  packingPreviewImage: { width: '100%', height: 180, borderRadius: 14, backgroundColor: '#EEF3F0', marginTop: 8, marginBottom: 12 },
   maskedNote: { color: '#7A4A00', backgroundColor: '#FFF4D8', borderRadius: 9, padding: 10, lineHeight: 18 },
   contactActions: { borderTopColor: '#E7ECEA', borderTopWidth: 1, flexDirection: 'row', columnGap: 10, marginTop: 4, paddingTop: 14 },
   whatsAppButton: { flex: 1, minHeight: 48, backgroundColor: '#128C4A', borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
@@ -1662,6 +1736,9 @@ const styles = StyleSheet.create({
   modalTitle: { flex: 1, color: '#17352A', fontSize: 20, fontWeight: '900', paddingRight: 12 },
   modalClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' },
   formGroup: { marginBottom: 16 },
+  photoActionRow: { flexDirection: 'row', columnGap: 10, marginBottom: 10 },
+  photoActionButton: { flex: 1, minHeight: 48, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 13, backgroundColor: '#F4FAF7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 7 },
+  photoActionText: { color: '#0B5D3B', fontSize: 13, fontWeight: '900' },
   formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 },
   formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 },
   shippingTaxPreview: { backgroundColor: '#F4FAF7', borderColor: '#DCE9E3', borderWidth: 1, borderRadius: 12, marginTop: 10, padding: 12, rowGap: 8 },

@@ -148,7 +148,7 @@ def _build_manual_order_totals(*, tenant, values):
         for product in Product.objects.filter(tenant=tenant, pk__in=product_ids, is_active=True)
     }
     order_items = []
-    total = Decimal("0.00")
+    products_total = Decimal("0.00")
     for item in values["items"]:
         product = products.get(item["product_id"])
         if product is None:
@@ -156,7 +156,7 @@ def _build_manual_order_totals(*, tenant, values):
         quantity = int(item["quantity"])
         unit_price = _price_for_product(product)
         line_total = unit_price * quantity
-        total += line_total
+        products_total += line_total
         order_items.append(
             {
                 "product_id": product.pk,
@@ -174,8 +174,8 @@ def _build_manual_order_totals(*, tenant, values):
     shipping_base_amount, shipping_gst_amount, shipping_total_amount = _split_inclusive_gst(
         values.get("shipping_base_amount")
     )
+    total_before_discount = products_total + shipping_total_amount
     if shipping_total_amount > 0:
-        total += shipping_total_amount
         order_items.append(
             {
                 "product_id": None,
@@ -211,9 +211,32 @@ def _build_manual_order_totals(*, tenant, values):
                 "shipping_label": "Free shipping",
             }
         )
+    discount_amount = _decimal_money(values.get("discount_amount"))
+    if discount_amount > total_before_discount:
+        raise ValidationError({"discount_amount": ["Discount cannot be more than the order total."]})
+    if discount_amount > 0:
+        order_items.append(
+            {
+                "product_id": None,
+                "name": "Discount applied",
+                "sku": "DISCOUNT",
+                "quantity": 1,
+                "price": f"-{discount_amount:.2f}",
+                "unit_price": f"-{discount_amount:.2f}",
+                "total": f"-{discount_amount:.2f}",
+                "image_url": "",
+                "source": "manual_mobile_order",
+                "line_type": "discount",
+                "discount_amount": f"{discount_amount:.2f}",
+                "discount_label": "Discount applied",
+            }
+        )
+    total = total_before_discount - discount_amount
     return {
         "order_items": order_items,
         "total": total,
+        "products_total": products_total,
+        "discount_amount": discount_amount,
         "shipping_base_amount": shipping_base_amount,
         "shipping_gst_amount": shipping_gst_amount,
         "shipping_total_amount": shipping_total_amount,
@@ -278,6 +301,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                     "customer_key": customer.get("key"),
                     "note": values.get("note") or "",
                     "shipping_mode": "charged" if totals["shipping_total_amount"] > 0 else "free",
+                    "discount_amount": f"{totals['discount_amount']:.2f}",
                     "shipping_gst_amount": f"{totals['shipping_gst_amount']:.2f}",
                     "shipping_total_amount": f"{totals['shipping_total_amount']:.2f}",
                 },
@@ -386,6 +410,7 @@ def update_manual_mobile_order(*, session, tenant, role, actor, order_id, idempo
                 "manual_order_updated_at": timezone.now().isoformat(),
                 "note": values.get("note") or payload.get("note") or "",
                 "shipping_mode": "charged" if totals["shipping_total_amount"] > 0 else "free",
+                "discount_amount": f"{totals['discount_amount']:.2f}",
                 "shipping_gst_amount": f"{totals['shipping_gst_amount']:.2f}",
                 "shipping_total_amount": f"{totals['shipping_total_amount']:.2f}",
             }

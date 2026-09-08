@@ -40,6 +40,7 @@ from .views import (
     product_change_requests,
     product_categories,
     product_image_media,
+    packing_image_media,
     manifest_webmanifest,
     offline_page,
     run_integration_smoke,
@@ -147,6 +148,7 @@ urlpatterns = [
     path("stock-management/products/<int:pk>/barcode/", stock_product_barcode, name="stock_product_barcode"),
     path("stock-management/products/<int:pk>/barcode/pdf/", stock_product_barcode_pdf, name="stock_product_barcode_pdf"),
     path("media/product-images/<path:filename>", product_image_media, name="product_image_media"),
+    path("media/packing-images/<path:filename>", packing_image_media, name="packing_image_media"),
     path(
         "stock-management/products/<int:pk>/<slug:section>/",
         stock_product_section,

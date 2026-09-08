@@ -99,6 +99,29 @@ def _customer_key(order):
     return f"order:{order.pk}"
 
 
+def _profile_customer_keys(profile):
+    keys = {profile.customer_key}
+    phone = _normalize_phone(profile.phone)
+    if phone:
+        keys.add(f"phone:{phone}")
+    email = _normalize_text(profile.email)
+    if email:
+        keys.add(f"email:{email}")
+    name = _normalize_text(profile.name)
+    if name:
+        keys.add(f"name:{hashlib.sha1(name.encode('utf-8')).hexdigest()[:16]}")
+    return keys
+
+
+def _order_matches_customer_key(order, customer_key, profile=None):
+    order_key = _customer_key(order)
+    if order_key == customer_key:
+        return True
+    if profile is None:
+        return False
+    return order_key in _profile_customer_keys(profile)
+
+
 def _customer_payload_from_order(order, key):
     address = order.display_shipping_address
     name = str(address.get("name") or order.customer_name or "Customer").strip()
@@ -172,21 +195,29 @@ def mobile_customer_list(*, tenant, role, search=""):
     search_text = _normalize_text(search)
     search_phone = _normalize_phone(search)
     customers = OrderedDict()
+    customer_aliases = {}
     try:
         for profile in MobileCustomerProfile.objects.filter(tenant=tenant).order_by("name", "-updated_at"):
             customers[profile.customer_key] = _customer_payload_from_profile(profile)
             customers[profile.customer_key]["_total"] = Decimal("0.00")
+            for alias in _profile_customer_keys(profile):
+                customer_aliases[alias] = profile.customer_key
     except (OperationalError, ProgrammingError):
         pass
 
     for order in _base_customer_orders(tenant):
-        key = _customer_key(order)
+        order_key = _customer_key(order)
+        key = customer_aliases.get(order_key, order_key)
         if key not in customers:
             customers[key] = _customer_payload_from_order(order, key)
             customers[key]["_total"] = Decimal("0.00")
         customer = customers[key]
         customer["order_count"] += 1
         customer["_total"] += order.total or Decimal("0.00")
+        order_date = order.order_date or order.created_at
+        if not customer.get("last_order_at") or (order_date and order_date > customer["last_order_at"]):
+            customer["last_order_at"] = order_date
+            customer["latest_order_reference"] = order.source_order_reference
 
     rows = []
     for customer in customers.values():
@@ -264,10 +295,24 @@ def mobile_customer_detail(*, tenant, role, customer_key):
             return None
         if profile is None:
             return None
+        matching_orders = [
+            order
+            for order in _base_customer_orders(tenant)
+            if _order_matches_customer_key(order, customer_key, profile)
+        ]
+        customer = _customer_payload_from_profile(profile)
+        total = sum((order.total or Decimal("0.00") for order in matching_orders), Decimal("0.00"))
+        customer["order_count"] = len(matching_orders)
+        customer["total_spent"] = _money(total)
+        if matching_orders:
+            latest_order = matching_orders[0]
+            customer["last_order_at"] = latest_order.order_date or latest_order.created_at
+            customer["latest_order_reference"] = latest_order.source_order_reference
+        orders = OrderSummarySerializer(matching_orders[:100], many=True, context={"role": role}).data
         return {
             "data": {
-                "customer": _customer_payload_from_profile(profile),
-                "orders": [],
+                "customer": customer,
+                "orders": orders,
                 "sender": _sender_payload(tenant),
             }
         }
@@ -288,7 +333,14 @@ def mobile_customer_detail(*, tenant, role, customer_key):
 
 def mobile_customer_order_detail(*, tenant, role, customer_key, order_id):
     order, activity = mobile_order_detail(tenant=tenant, order_id=order_id)
-    if order is None or _customer_key(order) != customer_key:
+    profile = None
+    if customer_key.startswith("saved:"):
+        profile_id = customer_key.split(":", 1)[1]
+        try:
+            profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
+        except (OperationalError, ProgrammingError):
+            profile = None
+    if order is None or not _order_matches_customer_key(order, customer_key, profile):
         return None
     return {
         "data": OrderDetailSerializer(
