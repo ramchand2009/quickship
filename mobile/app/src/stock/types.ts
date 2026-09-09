@@ -46,6 +46,20 @@ export type ProductListResponse = {
   pagination: { next_cursor: string | null; has_more: boolean };
   meta?: { total_count?: number; attention_count?: number; categories?: string[] };
 };
+export type ProductSyncResponse = {
+  data: {
+    synced: boolean;
+    message: string;
+    summary: {
+      products_seen: number;
+      variations_seen: number;
+      created: number;
+      updated: number;
+      unchanged: number;
+      skipped: number;
+    };
+  };
+};
 export type ProductDetailResponse = { data: ProductDetail };
 export type StockMovementResponse = {
   data: StockMovement[];
@@ -77,6 +91,20 @@ export type ProductUpdate = {
   actual_price?: string | null;
   regular_price?: string | null;
   sale_price?: string | null;
+  reorder_level: number;
+  is_active: boolean;
+};
+
+export type ProductCreate = {
+  name: string;
+  sku: string;
+  barcode?: string | null;
+  category?: string;
+  description?: string;
+  actual_price?: string | null;
+  regular_price?: string | null;
+  sale_price?: string | null;
+  stock_quantity: number;
   reorder_level: number;
   is_active: boolean;
 };

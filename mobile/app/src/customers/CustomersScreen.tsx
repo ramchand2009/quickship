@@ -142,6 +142,10 @@ function ManualOrderSheet({
 }) {
   const { runAuthenticated } = useAuth();
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [selectedItems, setSelectedItems] = useState<{ product: ProductSummary; quantity: number }[]>([]);
   const [shippingMode, setShippingMode] = useState<'free' | 'charged'>('free');
@@ -155,14 +159,15 @@ function ManualOrderSheet({
     setLoadingProducts(true);
     setError('');
     try {
-      const response = await runAuthenticated((token) => api.products(token, { search }));
+      const response = await runAuthenticated((token) => api.products(token, { search, category }));
       setProducts(response.data.slice(0, 25));
+      setCategories(response.meta?.categories ?? []);
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Products could not be loaded.');
     } finally {
       setLoadingProducts(false);
     }
-  }, [runAuthenticated, search]);
+  }, [category, runAuthenticated, search]);
 
   useEffect(() => {
     if (visible) void loadProducts();
@@ -221,6 +226,8 @@ function ManualOrderSheet({
       setShippingMode('free');
       setShippingCost('');
       setDiscountAmount('');
+      setCategory('');
+      setCategorySearch('');
       onCreated(response.data.order);
       onClose();
       Alert.alert('Order created', 'Manual order created. Open the order to copy the confirmation link when you are ready.');
@@ -231,14 +238,17 @@ function ManualOrderSheet({
     }
   };
 
+  const visibleCategories = categories.filter((value) => value.toLocaleLowerCase().includes(categorySearch.trim().toLocaleLowerCase()));
+
   return (
+    <>
     <Modal animationType="slide" onRequestClose={() => !saving && onClose()} transparent visible={visible}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
         <View style={styles.modalBackdrop}>
           <View style={styles.formSheet}>
             <View style={styles.formHeader}>
               <View style={styles.sheetTitleCopy}>
-                <Text style={styles.formTitle}>Create manual order</Text>
+                <Text style={styles.formTitle}>Create Order</Text>
               </View>
               <Pressable disabled={saving} onPress={onClose} style={styles.closeButton}>
                 <MaterialCommunityIcons color="#587066" name="close" size={24} />
@@ -258,6 +268,16 @@ function ManualOrderSheet({
                 />
                 <Pressable onPress={() => void loadProducts()} style={styles.searchButton}>
                   <MaterialCommunityIcons color="#FFFFFF" name="magnify" size={23} />
+                </Pressable>
+              </View>
+              <View style={styles.manualCategoryBlock}>
+                <Text style={styles.inputLabel}>Category</Text>
+                <Pressable onPress={() => setCategoryPickerVisible(true)} style={styles.manualCategoryDropdown}>
+                  <View style={styles.manualCategoryCopy}>
+                    <Text style={styles.manualCategoryValue}>{category || 'All categories'}</Text>
+                    <Text style={styles.manualCategoryHint}>Show products from selected category</Text>
+                  </View>
+                  <MaterialCommunityIcons color="#52665E" name="chevron-down" size={22} />
                 </Pressable>
               </View>
               {error ? <Text style={styles.formError}>{error}</Text> : null}
@@ -362,6 +382,49 @@ function ManualOrderSheet({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+    <Modal animationType="fade" transparent visible={categoryPickerVisible} onRequestClose={() => setCategoryPickerVisible(false)}>
+      <View style={styles.categoryModalBackdrop}>
+        <Pressable onPress={() => setCategoryPickerVisible(false)} style={styles.categoryModalDismiss} />
+        <View style={styles.categoryModalCard}>
+          <View style={styles.categoryModalHeader}>
+            <Text style={styles.categoryModalTitle}>Select category</Text>
+            <Pressable onPress={() => setCategoryPickerVisible(false)} style={styles.categoryModalClose}>
+              <MaterialCommunityIcons color="#52665E" name="close" size={23} />
+            </Pressable>
+          </View>
+          {categories.length > 8 ? (
+            <TextInput
+              autoCapitalize="none"
+              onChangeText={setCategorySearch}
+              placeholder="Search categories"
+              placeholderTextColor="#82958D"
+              style={styles.categorySearchInput}
+              value={categorySearch}
+            />
+          ) : null}
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {[{ code: '', label: 'All categories' }, ...visibleCategories.map((value) => ({ code: value, label: value }))].map((option) => {
+              const selected = category === option.code;
+              return (
+                <Pressable
+                  key={option.code || 'all-categories'}
+                  onPress={() => {
+                    setCategory(option.code);
+                    setCategorySearch('');
+                    setCategoryPickerVisible(false);
+                  }}
+                  style={[styles.categoryOption, selected && styles.categoryOptionSelected]}
+                >
+                  <Text style={[styles.categoryOptionText, selected && styles.categoryOptionTextSelected]}>{option.label}</Text>
+                  {selected ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={21} /> : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -558,7 +621,7 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
 
       <Pressable onPress={() => setManualOrderVisible(true)} style={({ pressed }) => [styles.manualOrderButton, pressed && styles.pressed]}>
         <MaterialCommunityIcons color="#FFFFFF" name="cart-plus" size={22} />
-        <Text style={styles.manualOrderText}>Create manual order</Text>
+        <Text style={styles.manualOrderText}>Create Order</Text>
       </Pressable>
 
       <Text style={styles.sectionTitle}>Customer details</Text>
@@ -965,6 +1028,22 @@ const styles = StyleSheet.create({
   shippingModeText: { color: '#0B5D3B', fontSize: 13, fontWeight: '900' },
   shippingModeTextActive: { color: '#FFFFFF' },
   shippingCostInput: { minHeight: 48, borderColor: '#CAD7D1', borderWidth: 1, borderRadius: 13, color: '#17352A', fontSize: 15, fontWeight: '800', paddingHorizontal: 13, marginBottom: 6, backgroundColor: '#FFFFFF' },
+  manualCategoryBlock: { marginBottom: 12 },
+  manualCategoryDropdown: { minHeight: 56, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center' },
+  manualCategoryCopy: { flex: 1 },
+  manualCategoryValue: { color: '#29483D', fontSize: 14, fontWeight: '900' },
+  manualCategoryHint: { color: '#82958D', fontSize: 10, marginTop: 3 },
+  categoryModalBackdrop: { flex: 1, backgroundColor: 'rgba(15,35,28,.52)', justifyContent: 'center', padding: 24 },
+  categoryModalDismiss: { position: 'absolute', inset: 0 },
+  categoryModalCard: { maxHeight: '76%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16 },
+  categoryModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  categoryModalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' },
+  categoryModalClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' },
+  categorySearchInput: { minHeight: 48, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, color: '#17352A', marginBottom: 10 },
+  categoryOption: { minHeight: 50, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  categoryOptionSelected: { backgroundColor: '#EAF6EF', borderRadius: 10 },
+  categoryOptionText: { color: '#40564D', fontSize: 14, fontWeight: '700' },
+  categoryOptionTextSelected: { color: '#0B5D3B', fontWeight: '900' },
   manualTotalRow: { borderTopColor: '#DCE5E1', borderTopWidth: 1, marginTop: 9, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between' },
   manualTotalLabel: { color: '#40564D', fontSize: 13, fontWeight: '900' },
   manualTotalValue: { color: '#0B5D3B', fontSize: 18, fontWeight: '900' },

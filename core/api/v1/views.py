@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from core.access import active_tenant_memberships
 from core.forms import LoginForm
 from core.models import MobileDevice, MobileNotification, MobileSession, Tenant, TenantMembership
+from core.woocommerce import WooCommerceAPIError, sync_products as sync_woocommerce_products
 
 from .serializers import (
     DashboardQuerySerializer,
@@ -56,6 +57,7 @@ from .notification_serializers import (
 from .notification_services import effective_notification_preferences, update_notification_preferences
 from .product_serializers import (
     ProductDetailSerializer,
+    ProductCreateSerializer,
     ProductListQuerySerializer,
     ProductSummarySerializer,
     ProductUpdateSerializer,
@@ -63,7 +65,7 @@ from .product_serializers import (
     StockMovementSerializer,
     StockQuantityUpdateSerializer,
 )
-from .product_mutations import set_mobile_stock_quantity, update_mobile_product
+from .product_mutations import create_mobile_product, set_mobile_stock_quantity, update_mobile_product
 from .product_services import (
     mobile_product_detail,
     mobile_product_inventory_summary,
@@ -753,6 +755,25 @@ class MobileProductListView(MobileReadEnabledMixin, APIView):
         )
         return response
 
+    def post(self, request):
+        if not settings.MOBILE_API_ENABLED or not settings.MOBILE_WRITE_API_ENABLED:
+            raise NotFound("The requested resource is unavailable.")
+        if request.tenant_membership.role not in {
+            TenantMembership.ROLE_VENDOR_OWNER,
+            TenantMembership.ROLE_VENDOR_OPERATOR,
+        }:
+            self.permission_denied(request)
+        serializer = ProductCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = create_mobile_product(
+            session=request.auth,
+            tenant=request.tenant,
+            role=request.tenant_membership.role,
+            idempotency_key=MobileWriteEnabledMixin.idempotency_key(self, request),
+            values=serializer.validated_data,
+        )
+        return Response(payload, status=201)
+
 
 class MobileProductDetailView(MobileReadEnabledMixin, APIView):
     permission_classes = [HasActiveMobileTenant]
@@ -813,6 +834,46 @@ class MobileProductStockView(MobileWriteEnabledMixin, APIView):
             values=serializer.validated_data,
         )
         return Response(payload)
+
+
+class MobileProductSyncView(MobileWriteEnabledMixin, APIView):
+    permission_classes = [HasMobileTenantRole]
+    mobile_allowed_roles = [
+        TenantMembership.ROLE_VENDOR_OWNER,
+        TenantMembership.ROLE_VENDOR_OPERATOR,
+    ]
+    throttle_scope = "mobile_write"
+
+    def post(self, request):
+        try:
+            summary = sync_woocommerce_products(tenant=request.tenant)
+        except WooCommerceAPIError as exc:
+            return Response(
+                {
+                    "data": {
+                        "synced": False,
+                        "message": str(exc),
+                        "summary": {
+                            "products_seen": 0,
+                            "variations_seen": 0,
+                            "created": 0,
+                            "updated": 0,
+                            "unchanged": 0,
+                            "skipped": 0,
+                        },
+                    }
+                },
+                status=400,
+            )
+        return Response(
+            {
+                "data": {
+                    "synced": True,
+                    "message": "WooCommerce products synced.",
+                    "summary": summary,
+                }
+            }
+        )
 
 
 class MobileStockMovementListView(MobileReadEnabledMixin, APIView):

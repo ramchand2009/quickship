@@ -3,14 +3,112 @@
 from django.db import transaction
 from rest_framework.exceptions import NotFound
 
-from core.models import Product
+from core.models import Product, ProductCategory
 from core.stock import set_manual_stock_quantity
-from core.woocommerce import WooCommerceAPIError, update_product as update_woocommerce_product
+from core.woocommerce import WooCommerceAPIError, create_product as create_woocommerce_product, update_product as update_woocommerce_product
 
 from .exceptions import ConflictError
 from .order_mutations import _begin_receipt, _complete_receipt, _delete_failed_receipt, _fingerprint
 from .product_serializers import ProductDetailSerializer, StockMovementSerializer
 from .product_services import mobile_product_detail, mobile_product_routing_rules
+
+
+def _get_or_create_category(*, tenant, name):
+    category_name = str(name or "").strip()
+    if not category_name:
+        return None
+    category = ProductCategory.objects.filter(name__iexact=category_name).first()
+    if category:
+        return category
+    return ProductCategory.objects.create(tenant=tenant, name=category_name, is_active=True)
+
+
+def create_mobile_product(*, session, tenant, role, idempotency_key, values):
+    request_hash = _fingerprint(
+        operation="product_create",
+        order_id="product:new",
+        payload=values,
+    )
+    receipt, replay = _begin_receipt(
+        session=session,
+        tenant=tenant,
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
+    )
+    if replay is not None:
+        product = Product.objects.filter(tenant=tenant, pk=replay.get("product_id")).first()
+        if product is None:
+            raise NotFound("The requested resource is unavailable.")
+        return _serialize_result(
+            tenant=tenant,
+            role=role,
+            product=product,
+            movement=None,
+            replayed=True,
+            effects=replay.get("effects") if isinstance(replay, dict) else [],
+        )
+
+    try:
+        with transaction.atomic():
+            sku = str(values["sku"] or "").strip().upper()
+            barcode = str(values.get("barcode") or "").strip() or None
+            if Product.objects.filter(sku__iexact=sku).exists():
+                raise ConflictError(fields={"sku": ["This SKU is already used by another product."]})
+            if barcode and Product.objects.filter(barcode__iexact=barcode).exists():
+                raise ConflictError(fields={"barcode": ["This barcode is already used by another product."]})
+
+            category_name = values.get("category") or ""
+            product = Product.objects.create(
+                tenant=tenant,
+                name=values["name"],
+                sku=sku,
+                barcode=barcode,
+                category=category_name,
+                category_master=_get_or_create_category(tenant=tenant, name=category_name),
+                description=values.get("description") or "",
+                actual_price=values.get("actual_price"),
+                regular_price=values.get("regular_price"),
+                sale_price=values.get("sale_price"),
+                stock_quantity=values.get("stock_quantity") or 0,
+                reorder_level=values.get("reorder_level") or 0,
+                is_active=values.get("is_active", True),
+            )
+
+        effects = []
+        try:
+            create_woocommerce_product(product)
+            product.refresh_from_db()
+            effects.append({
+                "code": "woocommerce_sync",
+                "state": "completed",
+                "message": "WooCommerce product created.",
+            })
+        except WooCommerceAPIError as exc:
+            effects.append({
+                "code": "woocommerce_sync",
+                "state": "warning",
+                "message": f"Saved locally, but WooCommerce product creation failed: {exc}",
+            })
+
+        _complete_receipt(
+            receipt,
+            {
+                "product_id": product.pk,
+                "movement_id": None,
+                "effects": effects,
+            },
+        )
+        return _serialize_result(
+            tenant=tenant,
+            role=role,
+            product=product,
+            movement=None,
+            replayed=False,
+            effects=effects,
+        )
+    except Exception:
+        _delete_failed_receipt(receipt)
+        raise
 
 
 def update_mobile_product(

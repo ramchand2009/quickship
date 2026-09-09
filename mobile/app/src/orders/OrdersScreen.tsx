@@ -35,7 +35,9 @@ const STATUS_FILTERS = [
   { code: 'waiting_order', label: 'Waiting' },
   { code: 'new_order', label: 'New' },
   { code: 'order_accepted', label: 'Accepted' },
+  { code: 'order_packed', label: 'Packed' },
   { code: 'shipped', label: 'Shipped' },
+  { code: 'delivery_issue', label: 'Attention' },
   { code: 'completed', label: 'Completed' },
   { code: 'order_cancelled', label: 'Cancelled' },
 ];

@@ -191,6 +191,10 @@ def _base_customer_orders(tenant):
     )
 
 
+def _visible_customer_orders(tenant):
+    return _base_customer_orders(tenant).exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
+
+
 def mobile_customer_list(*, tenant, role, search=""):
     search_text = _normalize_text(search)
     search_phone = _normalize_phone(search)
@@ -205,7 +209,7 @@ def mobile_customer_list(*, tenant, role, search=""):
     except (OperationalError, ProgrammingError):
         pass
 
-    for order in _base_customer_orders(tenant):
+    for order in _visible_customer_orders(tenant):
         order_key = _customer_key(order)
         key = customer_aliases.get(order_key, order_key)
         if key not in customers:
@@ -297,7 +301,7 @@ def mobile_customer_detail(*, tenant, role, customer_key):
             return None
         matching_orders = [
             order
-            for order in _base_customer_orders(tenant)
+            for order in _visible_customer_orders(tenant)
             if _order_matches_customer_key(order, customer_key, profile)
         ]
         customer = _customer_payload_from_profile(profile)
@@ -317,7 +321,7 @@ def mobile_customer_detail(*, tenant, role, customer_key):
             }
         }
 
-    matching_orders = [order for order in _base_customer_orders(tenant) if _customer_key(order) == customer_key]
+    matching_orders = [order for order in _visible_customer_orders(tenant) if _customer_key(order) == customer_key]
     if not matching_orders:
         return None
 

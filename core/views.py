@@ -93,6 +93,7 @@ from .models import (
     DEFAULT_TENANT_SLUG,
     ExpensePerson,
     MobileOrderConfirmation,
+    MobileCustomerProfile,
     OrderActivityLog,
     Product,
     ProductChangeRequest,
@@ -142,6 +143,7 @@ from .woocommerce import (
     get_settings_for_webhook_secret as get_woocommerce_settings_for_webhook_secret,
     import_order_payload as import_woocommerce_order_payload,
     refresh_product_from_woocommerce,
+    sync_product_from_payload as sync_woocommerce_product_from_payload,
     sync_orders as sync_woocommerce_orders,
     sync_products as sync_woocommerce_products,
     update_order_status as update_woocommerce_order_status,
@@ -305,6 +307,55 @@ def _apply_confirmation_address(order, confirmation, address):
     order.customer_phone = address["phone"]
     order.shipping_address = {**(order.shipping_address if isinstance(order.shipping_address, dict) else {}), **address}
     order.billing_address = {**(order.billing_address if isinstance(order.billing_address, dict) else {}), **address}
+    _update_confirmation_customer_profile(order=order, tenant=confirmation.tenant, address=address)
+
+
+def _update_confirmation_customer_profile(*, order, tenant, address):
+    raw_payload = order.raw_payload if isinstance(order.raw_payload, dict) else {}
+    customer_key = str(raw_payload.get("customer_key") or "").strip()
+    profile = None
+    if customer_key.startswith("saved:"):
+        profile_id = customer_key.split(":", 1)[1]
+        if profile_id.isdigit():
+            profile = (
+                MobileCustomerProfile.objects
+                .select_for_update()
+                .filter(tenant=tenant, pk=int(profile_id))
+                .first()
+            )
+
+    if profile is None:
+        phone_digits = re.sub(r"\D+", "", address.get("phone") or "")
+        phone_tail = phone_digits[-10:] if len(phone_digits) >= 10 else phone_digits
+        if phone_tail:
+            profile = (
+                MobileCustomerProfile.objects
+                .select_for_update()
+                .filter(tenant=tenant, phone__icontains=phone_tail)
+                .order_by("-updated_at", "-created_at")
+                .first()
+            )
+
+    if profile is None:
+        return
+
+    updates = {
+        "name": address["name"],
+        "phone": address["phone"],
+        "address_1": address["address_1"],
+        "address_2": address["address_2"],
+        "city": address["city"],
+        "state": address["state"],
+        "pincode": address["pincode"],
+        "country": address["country"],
+    }
+    changed_fields = []
+    for field_name, value in updates.items():
+        if getattr(profile, field_name) != value:
+            setattr(profile, field_name, value)
+            changed_fields.append(field_name)
+    if changed_fields:
+        profile.save(update_fields=[*changed_fields, "updated_at"])
 
 
 @require_http_methods(["GET", "POST"])
@@ -8083,6 +8134,11 @@ def woocommerce_webhook(request):
     webhook_resource = str(request.headers.get("X-WC-Webhook-Resource") or "").strip().lower()
     webhook_event = str(request.headers.get("X-WC-Webhook-Event") or "").strip().lower()
     product_status = str(payload.get("status") or "").strip().lower()
+    webhook_import_tenant = (
+        settings_tenant
+        if str(getattr(settings_tenant, "slug", "") or "").strip().lower() != DEFAULT_TENANT_SLUG
+        else None
+    )
     is_product_webhook = webhook_resource == "product" or webhook_topic.startswith("product.")
     is_product_delete = (
         is_product_webhook
@@ -8106,11 +8162,29 @@ def woocommerce_webhook(request):
             }
         )
 
-    webhook_import_tenant = (
-        settings_tenant
-        if str(getattr(settings_tenant, "slug", "") or "").strip().lower() != DEFAULT_TENANT_SLUG
-        else None
-    )
+    if is_product_webhook:
+        try:
+            result = sync_woocommerce_product_from_payload(payload, tenant=webhook_import_tenant)
+        except WooCommerceAPIError as exc:
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "product_synced": False,
+                    "product_sync_error": str(exc),
+                    "auth_mode": auth_mode,
+                    "settings_tenant_id": settings_tenant.pk,
+                }
+            )
+        return JsonResponse(
+            {
+                "ok": True,
+                "product_synced": True,
+                "auth_mode": auth_mode,
+                "settings_tenant_id": settings_tenant.pk,
+                **result,
+            }
+        )
+
     order, created = import_woocommerce_order_payload(payload, tenant=webhook_import_tenant)
     if not order:
         return fallback_sync_response(

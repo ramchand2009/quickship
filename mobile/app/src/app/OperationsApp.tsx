@@ -49,6 +49,7 @@ const METRIC_ICONS: Record<string, TabIconName> = {
   waiting_orders: 'timer-sand',
   pending_orders: 'clock-outline',
   accepted_orders: 'clipboard-check-outline',
+  packed_orders: 'package-variant-closed-check',
   shipped_orders: 'truck-delivery-outline',
   completed_orders: 'package-variant-closed-check',
   cancelled_orders: 'close-circle-outline',
@@ -59,6 +60,7 @@ const METRIC_COLORS: Record<string, { foreground: string; background: string; bo
   waiting_orders: { foreground: '#7A4A00', background: '#FFF9E9', border: '#EDD28B' },
   pending_orders: { foreground: '#E68200', background: '#FFF7E8', border: '#F3D28B' },
   accepted_orders: { foreground: '#14733D', background: '#ECF7EE', border: '#B9DDBF' },
+  packed_orders: { foreground: '#5B5FC7', background: '#F1F2FF', border: '#C7CAFF' },
   shipped_orders: { foreground: '#1769C2', background: '#EFF6FF', border: '#B6D7FF' },
   completed_orders: { foreground: '#14733D', background: '#ECF7EE', border: '#B9DDBF' },
   cancelled_orders: { foreground: '#D92D3A', background: '#FFF1F2', border: '#FFC2C7' },
@@ -68,6 +70,7 @@ const METRIC_ORDER_STATUSES: Record<string, string> = {
   waiting_orders: 'waiting_order',
   pending_orders: 'new_order',
   accepted_orders: 'order_accepted',
+  packed_orders: 'order_packed',
   shipped_orders: 'shipped',
   completed_orders: 'completed',
   cancelled_orders: 'order_cancelled',
@@ -259,6 +262,7 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
   const newOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'pending_orders');
   const pipelineMetrics = dashboard.data.metrics.filter((metric) => (
     metric.key === 'accepted_orders'
+    || metric.key === 'packed_orders'
     || metric.key === 'shipped_orders'
     || metric.key === 'completed_orders'
     || metric.key === 'cancelled_orders'

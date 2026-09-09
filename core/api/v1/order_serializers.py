@@ -209,6 +209,9 @@ class OrderSummarySerializer(serializers.ModelSerializer):
         items = order.order_items if isinstance(order.order_items, list) else []
         total = 0
         for item in items:
+            line_type = str((item or {}).get("line_type") or "product").strip().lower()
+            if line_type and line_type != "product":
+                continue
             try:
                 total += max(0, int((item or {}).get("quantity") or 1))
             except (TypeError, ValueError):

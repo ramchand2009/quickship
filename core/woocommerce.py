@@ -860,6 +860,53 @@ def deactivate_product_from_payload(payload):
     }
 
 
+def sync_product_from_payload(payload, tenant=None):
+    summary = {
+        "products_seen": 0,
+        "variations_seen": 0,
+        "created": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "skipped": 0,
+        "woocommerce_product_id": "",
+    }
+    if not isinstance(payload, dict):
+        return summary
+
+    summary["products_seen"] = 1
+    summary["woocommerce_product_id"] = str(payload.get("id") or "").strip()
+
+    row = _normalized_product_row(payload)
+    if row:
+        summary[_sync_product_row(row, tenant=tenant)] += 1
+    elif normalize_sku(payload.get("sku")):
+        summary["skipped"] += 1
+
+    product_id = payload.get("id")
+    variation_payloads = payload.get("variations")
+    if isinstance(variation_payloads, list) and all(isinstance(item, dict) for item in variation_payloads):
+        variations = variation_payloads
+    else:
+        variations = []
+        should_fetch_variations = str(payload.get("type") or "").lower() == "variable" or bool(variation_payloads)
+        if should_fetch_variations and product_id:
+            variations = _fetch_paginated(
+                f"products/{product_id}/variations",
+                params={"status": "any", "orderby": "id", "order": "asc"},
+                tenant=tenant,
+            )
+
+    summary["variations_seen"] = len(variations)
+    for variation in variations:
+        row = _normalized_product_row(variation, parent_product=payload)
+        if not row:
+            summary["skipped"] += 1
+            continue
+        summary[_sync_product_row(row, tenant=tenant)] += 1
+
+    return summary
+
+
 def _fetch_paginated(path, params=None, *, per_page=100, tenant=None):
     rows = []
     page = 1
@@ -893,7 +940,7 @@ def sync_products(tenant=None):
     for product in products:
         row = _normalized_product_row(product)
         if row:
-            summary[_sync_product_row(row)] += 1
+            summary[_sync_product_row(row, tenant=tenant)] += 1
         elif normalize_sku(product.get("sku")):
             summary["skipped"] += 1
 
@@ -913,7 +960,7 @@ def sync_products(tenant=None):
             if not row:
                 summary["skipped"] += 1
                 continue
-            summary[_sync_product_row(row)] += 1
+            summary[_sync_product_row(row, tenant=tenant)] += 1
 
     return summary
 
@@ -1059,6 +1106,16 @@ def update_product(product, extra_fields=None):
             return _json_request_for_tenant(_product_update_path(product), method="PUT", payload=payload, tenant=tenant)
         except WooCommerceAPIError as retry_exc:
             raise retry_exc from exc
+
+
+def create_product(product):
+    tenant = getattr(product, "tenant", None)
+    payload = _build_product_update_payload(product)
+    response = _json_request_for_tenant("products", method="POST", payload=payload, tenant=tenant)
+    row = _normalized_product_row(response)
+    if row:
+        _apply_product_row(product, row)
+    return response
 
 
 def _import_statuses(tenant=None):

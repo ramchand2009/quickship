@@ -186,6 +186,20 @@ class ProductUpdateSerializer(serializers.Serializer):
     is_active = serializers.BooleanField(required=False)
 
 
+class ProductCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160, trim_whitespace=True)
+    sku = serializers.CharField(max_length=120, trim_whitespace=True)
+    barcode = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=120, trim_whitespace=True)
+    category = serializers.CharField(required=False, allow_blank=True, max_length=120, trim_whitespace=True)
+    description = serializers.CharField(required=False, allow_blank=True, max_length=5000, trim_whitespace=True)
+    actual_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2, min_value=0)
+    regular_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2, min_value=0)
+    sale_price = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=2, min_value=0)
+    stock_quantity = serializers.IntegerField(min_value=0, max_value=999999999, default=0)
+    reorder_level = serializers.IntegerField(min_value=0, max_value=999999999, default=0)
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
 class StockQuantityUpdateSerializer(serializers.Serializer):
     expected_quantity = serializers.IntegerField()
     target_quantity = serializers.IntegerField(min_value=0, max_value=999999999)

@@ -34,6 +34,8 @@ const FILTERS = [
 const STOCK_LABELS = { in_stock: 'In stock', low_stock: 'Low stock', out_of_stock: 'Out of stock' };
 const money = (value: Money | null) => value ? `${value.currency === 'INR' ? '₹' : value.currency} ${value.amount}` : '';
 const priceDraft = (value: Money | null) => value?.amount ?? '';
+const priceReady = (value: string) => value.trim() === '' || /^\d+(\.\d{0,2})?$/.test(value.trim());
+const optionalPrice = (value: string) => value.trim() ? Number(value.trim()).toFixed(2) : null;
 const when = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -190,7 +192,7 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
   return <View style={styles.detailRow}><Text style={styles.detailLabel}>{label}</Text><Text selectable style={styles.detailValue}>{value}</Text></View>;
 }
 
-function ProductDetailScreen({ productId, onBack }: { productId: number; onBack: () => void }) {
+function ProductDetailScreen({ productId, categories, onBack }: { productId: number; categories: string[]; onBack: () => void }) {
   const { runAuthenticated } = useAuth();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -204,6 +206,8 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
   const [quantityError, setQuantityError] = useState('');
   const [labelSaving, setLabelSaving] = useState(false);
   const [productEditorVisible, setProductEditorVisible] = useState(false);
+  const [productCategoryPickerVisible, setProductCategoryPickerVisible] = useState(false);
+  const [productCategorySearch, setProductCategorySearch] = useState('');
   const [productSaving, setProductSaving] = useState(false);
   const [productError, setProductError] = useState('');
   const [productDraft, setProductDraft] = useState({
@@ -277,6 +281,14 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
     && priceReady(productDraft.regular_price)
     && priceReady(productDraft.sale_price);
   const canCreateBarcodeLabel = Boolean(barcodeValue(product));
+  const productCategoryOptions = Array.from(new Set(
+    [product.category ?? '', ...categories]
+      .map((value) => value.trim())
+      .filter(Boolean),
+  )).sort((first, second) => first.localeCompare(second));
+  const visibleProductCategoryOptions = productCategoryOptions.filter((value) => (
+    value.toLocaleLowerCase().includes(productCategorySearch.trim().toLocaleLowerCase())
+  ));
 
   const saveBarcodeLabel = async () => {
     const code = barcodeValue(product);
@@ -560,7 +572,13 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
               </View>
 
               <Text style={[styles.formLabel, styles.noteLabel]}>Category</Text>
-              <TextInput maxLength={120} onChangeText={(value) => updateProductDraft('category', value)} placeholder="Category" placeholderTextColor="#82958D" style={styles.formInput} value={productDraft.category} />
+              <Pressable onPress={() => setProductCategoryPickerVisible(true)} style={styles.categoryDropdown}>
+                <View style={styles.categoryDropdownCopy}>
+                  <Text style={styles.categoryDropdownValue}>{productDraft.category || 'Select category'}</Text>
+                  <Text style={styles.categoryDropdownHint}>Choose from product categories</Text>
+                </View>
+                <MaterialCommunityIcons color="#52665E" name="chevron-down" size={22} />
+              </Pressable>
 
               <View style={styles.twoColumnRow}>
                 <View style={styles.twoColumnField}>
@@ -618,6 +636,48 @@ function ProductDetailScreen({ productId, onBack }: { productId: number; onBack:
         </View>
       </KeyboardAvoidingView>
     </Modal>
+    <Modal animationType="fade" transparent visible={productCategoryPickerVisible} onRequestClose={() => setProductCategoryPickerVisible(false)}>
+      <View style={styles.categoryModalBackdrop}>
+        <Pressable onPress={() => setProductCategoryPickerVisible(false)} style={styles.categoryModalDismiss} />
+        <View style={styles.categoryModalCard}>
+          <View style={styles.categoryModalHeader}>
+            <Text style={styles.categoryModalTitle}>Select category</Text>
+            <Pressable onPress={() => setProductCategoryPickerVisible(false)} style={styles.categoryModalClose}>
+              <MaterialCommunityIcons color="#52665E" name="close" size={23} />
+            </Pressable>
+          </View>
+          {productCategoryOptions.length > 8 ? (
+            <TextInput
+              autoCapitalize="none"
+              onChangeText={setProductCategorySearch}
+              placeholder="Search categories"
+              placeholderTextColor="#82958D"
+              style={styles.categorySearchInput}
+              value={productCategorySearch}
+            />
+          ) : null}
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {visibleProductCategoryOptions.map((option) => {
+              const selected = productDraft.category === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => {
+                    updateProductDraft('category', option);
+                    setProductCategorySearch('');
+                    setProductCategoryPickerVisible(false);
+                  }}
+                  style={[styles.categoryOption, selected && styles.categoryOptionSelected]}
+                >
+                  <Text style={[styles.categoryOptionText, selected && styles.categoryOptionTextSelected]}>{option}</Text>
+                  {selected ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={21} /> : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
     </>
   );
 }
@@ -639,6 +699,25 @@ export default function StockScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState(false);
+  const [productCreateVisible, setProductCreateVisible] = useState(false);
+  const [createCategoryPickerVisible, setCreateCategoryPickerVisible] = useState(false);
+  const [createCategorySearch, setCreateCategorySearch] = useState('');
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [createProductError, setCreateProductError] = useState('');
+  const [createDraft, setCreateDraft] = useState({
+    name: '',
+    sku: '',
+    barcode: '',
+    category: '',
+    description: '',
+    actual_price: '',
+    regular_price: '',
+    sale_price: '',
+    stock_quantity: '0',
+    reorder_level: '0',
+    is_active: true,
+  });
   const [error, setError] = useState('');
 
   const loadFirst = useCallback(async (refresh = false) => {
@@ -665,7 +744,93 @@ export default function StockScreen() {
     finally { setLoadingMore(false); }
   };
 
-  if (selectedId !== null) return <ProductDetailScreen productId={selectedId} onBack={() => setSelectedId(null)} />;
+  const syncWooCommerceProducts = async () => {
+    if (syncingProducts) return;
+    setSyncingProducts(true);
+    setError('');
+    try {
+      const response = await runAuthenticated((token) => api.syncProducts(token));
+      const summary = response.data.summary;
+      await loadFirst(true);
+      Alert.alert(
+        'Products synced',
+        `Created ${summary.created}, updated ${summary.updated}, unchanged ${summary.unchanged}, skipped ${summary.skipped}.`,
+      );
+    } catch (reason) {
+      Alert.alert(
+        'Sync not completed',
+        reason instanceof api.ApiError ? reason.message : 'WooCommerce products could not be synced.',
+      );
+    } finally {
+      setSyncingProducts(false);
+    }
+  };
+
+  const openCreateProduct = () => {
+    setCreateDraft({
+      name: '',
+      sku: '',
+      barcode: '',
+      category: category || '',
+      description: '',
+      actual_price: '',
+      regular_price: '',
+      sale_price: '',
+      stock_quantity: '0',
+      reorder_level: '0',
+      is_active: true,
+    });
+    setCreateProductError('');
+    setProductCreateVisible(true);
+  };
+  const updateCreateDraft = (key: keyof typeof createDraft, value: string | boolean) => {
+    setCreateDraft((current) => ({ ...current, [key]: value }));
+  };
+  const createProductReady = Boolean(createDraft.name.trim())
+    && Boolean(createDraft.sku.trim())
+    && /^\d+$/.test(createDraft.stock_quantity.trim())
+    && Number(createDraft.stock_quantity) <= 999999999
+    && /^\d+$/.test(createDraft.reorder_level.trim())
+    && Number(createDraft.reorder_level) <= 999999999
+    && priceReady(createDraft.actual_price)
+    && priceReady(createDraft.regular_price)
+    && priceReady(createDraft.sale_price);
+  const submitCreateProduct = async () => {
+    if (!createProductReady || creatingProduct) return;
+    setCreatingProduct(true);
+    setCreateProductError('');
+    try {
+      const response = await runAuthenticated((token) => api.createProduct(
+        token,
+        {
+          name: createDraft.name.trim(),
+          sku: createDraft.sku.trim(),
+          barcode: createDraft.barcode.trim() || null,
+          category: createDraft.category.trim(),
+          description: createDraft.description.trim(),
+          actual_price: optionalPrice(createDraft.actual_price),
+          regular_price: optionalPrice(createDraft.regular_price),
+          sale_price: optionalPrice(createDraft.sale_price),
+          stock_quantity: Number(createDraft.stock_quantity),
+          reorder_level: Number(createDraft.reorder_level),
+          is_active: createDraft.is_active,
+        },
+        newIdempotencyKey(),
+      ));
+      const wooEffect = response.data.effects?.find((effect) => effect.code === 'woocommerce_sync');
+      const wooMessage = wooEffect?.message ? `\n\n${wooEffect.message}` : '';
+      setProductCreateVisible(false);
+      await loadFirst(true);
+      setSelectedId(response.data.product.id);
+      Alert.alert('Product created', `Product saved.${wooMessage}`);
+    } catch (reason) {
+      setCreateProductError(reason instanceof api.ApiError ? reason.message : 'Product could not be created.');
+    } finally {
+      setCreatingProduct(false);
+    }
+  };
+
+  if (selectedId !== null) return <ProductDetailScreen productId={selectedId} categories={categories} onBack={() => setSelectedId(null)} />;
   if (loading && !products.length) return <View style={styles.center}><ActivityIndicator size="large" color="#0B5D3B" /><Text style={styles.loadingText}>Loading stock...</Text></View>;
   if (error && !products.length) return <View style={styles.center}><Text style={styles.errorTitle}>Stock unavailable</Text><Text style={styles.errorMessage}>{error}</Text><Pressable onPress={() => void loadFirst()} style={styles.primaryButton}><Text style={styles.primaryText}>Try again</Text></Pressable></View>;
 
@@ -716,12 +881,22 @@ export default function StockScreen() {
           <MaterialCommunityIcons color="#52665E" name="chevron-down" size={22} />
         </Pressable>
       </View>
+      <Pressable disabled={syncingProducts} onPress={() => void syncWooCommerceProducts()} style={({ pressed }) => [styles.syncButton, (pressed || syncingProducts) && styles.pressed]}>
+        {syncingProducts ? <ActivityIndicator color="#0B5D3B" /> : <MaterialCommunityIcons color="#0B5D3B" name="cloud-sync-outline" size={21} />}
+        <Text style={styles.syncButtonText}>{syncingProducts ? 'Syncing WooCommerce...' : 'Sync WooCommerce products'}</Text>
+      </Pressable>
+      <Pressable onPress={openCreateProduct} style={({ pressed }) => [styles.addProductButton, pressed && styles.pressed]}>
+        <MaterialCommunityIcons color="#FFFFFF" name="plus-circle-outline" size={21} />
+        <Text style={styles.addProductText}>Add product</Text>
+      </Pressable>
       {error && products.length ? <View style={styles.warning}><Text style={styles.warningText}>{error}</Text></View> : null}
       <Text style={styles.resultText}>{products.length} matching product{products.length === 1 ? '' : 's'} loaded</Text>
     </View>
   );
 
   const visibleCategories = categories.filter((value) => value.toLocaleLowerCase().includes(categorySearch.trim().toLocaleLowerCase()));
+  const createCategoryOptions = Array.from(new Set([createDraft.category, ...categories].map((value) => value.trim()).filter(Boolean))).sort((first, second) => first.localeCompare(second));
+  const visibleCreateCategoryOptions = createCategoryOptions.filter((value) => value.toLocaleLowerCase().includes(createCategorySearch.trim().toLocaleLowerCase()));
   return <>
     <FlatList contentContainerStyle={styles.listContent} data={products} keyExtractor={(item) => String(item.id)} ListHeaderComponent={header} ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No matching products</Text><Text style={styles.emptyText}>Try another search or stock filter.</Text></View>} ListFooterComponent={nextCursor ? <Pressable disabled={loadingMore} onPress={() => void loadMore()} style={styles.loadMore}>{loadingMore ? <ActivityIndicator color="#0B5D3B" /> : <Text style={styles.loadMoreText}>Load more products</Text>}</Pressable> : products.length ? <Text style={styles.endText}>All matching products loaded</Text> : null} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadFirst(true)} colors={['#0B5D3B']} tintColor="#0B5D3B" />} renderItem={({ item }) => <ProductCard product={item} onPress={() => setSelectedId(item.id)} />} />
     <Modal animationType="fade" transparent visible={categoryPickerVisible} onRequestClose={() => setCategoryPickerVisible(false)}>
@@ -734,6 +909,97 @@ export default function StockScreen() {
             {[{ code: '', label: 'All categories' }, ...visibleCategories.map((value) => ({ code: value, label: value }))].map((option) => {
               const selected = category === option.code;
               return <Pressable key={option.code || 'all-categories'} onPress={() => { setCategory(option.code); setCategorySearch(''); setCategoryPickerVisible(false); }} style={[styles.categoryOption, selected && styles.categoryOptionSelected]}><Text style={[styles.categoryOptionText, selected && styles.categoryOptionTextSelected]}>{option.label}</Text>{selected ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={21} /> : null}</Pressable>;
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+    <Modal animationType="slide" onRequestClose={() => !creatingProduct && setProductCreateVisible(false)} transparent visible={productCreateVisible}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.productModal}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleWrap}>
+                <Text style={styles.modalTitle}>Add product</Text>
+                <Text style={styles.modalSubtitle}>Create locally and in WooCommerce</Text>
+              </View>
+              <Pressable disabled={creatingProduct} onPress={() => setProductCreateVisible(false)} style={styles.modalClose}>
+                <MaterialCommunityIcons color="#587066" name="close" size={24} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.quantityModalScroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.formLabel}>Product name</Text>
+              <TextInput maxLength={160} onChangeText={(value) => updateCreateDraft('name', value)} placeholder="Product name" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.name} />
+              <View style={styles.twoColumnRow}>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>SKU</Text>
+                  <TextInput autoCapitalize="characters" maxLength={120} onChangeText={(value) => updateCreateDraft('sku', value)} placeholder="SKU" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.sku} />
+                </View>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Barcode</Text>
+                  <TextInput autoCapitalize="characters" maxLength={120} onChangeText={(value) => updateCreateDraft('barcode', value)} placeholder="Barcode" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.barcode} />
+                </View>
+              </View>
+              <Text style={[styles.formLabel, styles.noteLabel]}>Category</Text>
+              <Pressable onPress={() => setCreateCategoryPickerVisible(true)} style={styles.categoryDropdown}>
+                <View style={styles.categoryDropdownCopy}>
+                  <Text style={styles.categoryDropdownValue}>{createDraft.category || 'Select category'}</Text>
+                  <Text style={styles.categoryDropdownHint}>Choose from product categories</Text>
+                </View>
+                <MaterialCommunityIcons color="#52665E" name="chevron-down" size={22} />
+              </Pressable>
+              <View style={styles.twoColumnRow}>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Purchase price</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={(value) => updateCreateDraft('actual_price', value)} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.actual_price} />
+                </View>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Regular price</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={(value) => updateCreateDraft('regular_price', value)} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.regular_price} />
+                </View>
+              </View>
+              <View style={styles.twoColumnRow}>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Sale price</Text>
+                  <TextInput keyboardType="decimal-pad" onChangeText={(value) => updateCreateDraft('sale_price', value)} placeholder="0.00" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.sale_price} />
+                </View>
+                <View style={styles.twoColumnField}>
+                  <Text style={styles.formLabel}>Stock qty</Text>
+                  <TextInput keyboardType="number-pad" maxLength={9} onChangeText={(value) => updateCreateDraft('stock_quantity', value.replace(/\D/g, ''))} placeholder="0" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.stock_quantity} />
+                </View>
+              </View>
+              <Text style={[styles.formLabel, styles.noteLabel]}>Reorder level</Text>
+              <TextInput keyboardType="number-pad" maxLength={9} onChangeText={(value) => updateCreateDraft('reorder_level', value.replace(/\D/g, ''))} placeholder="0" placeholderTextColor="#82958D" style={styles.formInput} value={createDraft.reorder_level} />
+              <Text style={[styles.formLabel, styles.noteLabel]}>Description</Text>
+              <TextInput maxLength={5000} multiline onChangeText={(value) => updateCreateDraft('description', value)} placeholder="Product description" placeholderTextColor="#82958D" style={[styles.formInput, styles.noteInput]} value={createDraft.description} />
+              <Pressable onPress={() => updateCreateDraft('is_active', !createDraft.is_active)} style={styles.activeToggleRow}>
+                <View style={[styles.activeToggleIcon, createDraft.is_active && styles.activeToggleOn]}>
+                  <MaterialCommunityIcons color={createDraft.is_active ? '#FFFFFF' : '#71867D'} name={createDraft.is_active ? 'check' : 'close'} size={18} />
+                </View>
+                <View style={styles.activeToggleCopy}>
+                  <Text style={styles.activeToggleTitle}>{createDraft.is_active ? 'Product active' : 'Product inactive'}</Text>
+                  <Text style={styles.activeToggleHint}>Inactive products are saved as draft in WooCommerce.</Text>
+                </View>
+              </Pressable>
+              {createProductError ? <Text accessibilityRole="alert" style={styles.quantityError}>{createProductError}</Text> : null}
+              <Pressable disabled={!createProductReady || creatingProduct} onPress={() => void submitCreateProduct()} style={[styles.saveQuantityButton, (!createProductReady || creatingProduct) && styles.disabledButton]}>
+                {creatingProduct ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Create product</Text>}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+    <Modal animationType="fade" transparent visible={createCategoryPickerVisible} onRequestClose={() => setCreateCategoryPickerVisible(false)}>
+      <View style={styles.categoryModalBackdrop}>
+        <Pressable onPress={() => setCreateCategoryPickerVisible(false)} style={styles.categoryModalDismiss} />
+        <View style={styles.categoryModalCard}>
+          <View style={styles.categoryModalHeader}><Text style={styles.categoryModalTitle}>Select category</Text><Pressable onPress={() => setCreateCategoryPickerVisible(false)} style={styles.categoryModalClose}><MaterialCommunityIcons color="#52665E" name="close" size={23} /></Pressable></View>
+          {createCategoryOptions.length > 8 ? <TextInput autoCapitalize="none" onChangeText={setCreateCategorySearch} placeholder="Search categories" placeholderTextColor="#82958D" style={styles.categorySearchInput} value={createCategorySearch} /> : null}
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {visibleCreateCategoryOptions.map((option) => {
+              const selected = createDraft.category === option;
+              return <Pressable key={option} onPress={() => { updateCreateDraft('category', option); setCreateCategorySearch(''); setCreateCategoryPickerVisible(false); }} style={[styles.categoryOption, selected && styles.categoryOptionSelected]}><Text style={[styles.categoryOptionText, selected && styles.categoryOptionTextSelected]}>{option}</Text>{selected ? <MaterialCommunityIcons color="#0B5D3B" name="check" size={21} /> : null}</Pressable>;
             })}
           </ScrollView>
         </View>
@@ -752,7 +1018,7 @@ const styles = StyleSheet.create({
   summaryLabel: { color: '#71867D', fontSize: 11, fontWeight: '700', marginTop: 2 },
   summaryDivider: { width: 1, height: 44, backgroundColor: '#E1E7E4', marginHorizontal: 12 },
   searchRow: { flexDirection: 'row', marginBottom: 12 }, searchInput: { flex: 1, minHeight: 50, backgroundColor: '#FFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, color: '#17352A' }, searchButton: { width: 50, height: 50, backgroundColor: '#0B5D3B', borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  filterRow: { paddingBottom: 12, columnGap: 8 }, filterChip: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 20, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9 }, filterActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' }, filterText: { color: '#587066', fontSize: 13, fontWeight: '700' }, filterTextActive: { color: '#FFF' }, categoryFilterBlock: { marginTop: -2, marginBottom: 12 }, categoryFilterLabel: { color: '#40564D', fontSize: 12, fontWeight: '800', marginBottom: 7 }, categoryDropdown: { minHeight: 58, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center' }, categoryDropdownCopy: { flex: 1 }, categoryDropdownValue: { color: '#29483D', fontSize: 14, fontWeight: '900' }, categoryDropdownHint: { color: '#82958D', fontSize: 10, marginTop: 3 }, categoryModalBackdrop: { flex: 1, backgroundColor: 'rgba(15,35,28,.52)', justifyContent: 'center', padding: 24 }, categoryModalDismiss: { position: 'absolute', inset: 0 }, categoryModalCard: { maxHeight: '76%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16 }, categoryModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, categoryModalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, categoryModalClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, categorySearchInput: { minHeight: 48, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, color: '#17352A', marginBottom: 10 }, categoryOption: { minHeight: 50, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categoryOptionSelected: { backgroundColor: '#EAF6EF', borderRadius: 10 }, categoryOptionText: { color: '#40564D', fontSize: 14, fontWeight: '700' }, categoryOptionTextSelected: { color: '#0B5D3B', fontWeight: '900' }, resultText: { color: '#71867D', fontSize: 12, marginBottom: 10 },
+  filterRow: { paddingBottom: 12, columnGap: 8 }, filterChip: { borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 20, backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 9 }, filterActive: { backgroundColor: '#0B5D3B', borderColor: '#0B5D3B' }, filterText: { color: '#587066', fontSize: 13, fontWeight: '700' }, filterTextActive: { color: '#FFF' }, categoryFilterBlock: { marginTop: -2, marginBottom: 12 }, categoryFilterLabel: { color: '#40564D', fontSize: 12, fontWeight: '800', marginBottom: 7 }, categoryDropdown: { minHeight: 58, backgroundColor: '#FFFFFF', borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center' }, categoryDropdownCopy: { flex: 1 }, categoryDropdownValue: { color: '#29483D', fontSize: 14, fontWeight: '900' }, categoryDropdownHint: { color: '#82958D', fontSize: 10, marginTop: 3 }, syncButton: { minHeight: 48, backgroundColor: '#F4FBF7', borderColor: '#BFD8CA', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, syncButtonText: { color: '#0B5D3B', fontSize: 13, fontWeight: '900' }, addProductButton: { minHeight: 52, backgroundColor: '#0B5D3B', borderRadius: 15, paddingHorizontal: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 }, addProductText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' }, categoryModalBackdrop: { flex: 1, backgroundColor: 'rgba(15,35,28,.52)', justifyContent: 'center', padding: 24 }, categoryModalDismiss: { position: 'absolute', inset: 0 }, categoryModalCard: { maxHeight: '76%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16 }, categoryModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, categoryModalTitle: { color: '#17352A', fontSize: 20, fontWeight: '900' }, categoryModalClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, categorySearchInput: { minHeight: 48, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, color: '#17352A', marginBottom: 10 }, categoryOption: { minHeight: 50, borderBottomColor: '#E7ECEA', borderBottomWidth: 1, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categoryOptionSelected: { backgroundColor: '#EAF6EF', borderRadius: 10 }, categoryOptionText: { color: '#40564D', fontSize: 14, fontWeight: '700' }, categoryOptionTextSelected: { color: '#0B5D3B', fontWeight: '900' }, resultText: { color: '#71867D', fontSize: 12, marginBottom: 10 },
   productCard: { minHeight: 98, backgroundColor: '#FFF', borderColor: '#DEE7E3', borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 11, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 }, productImage: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#EDF2EF' }, imageFallback: { width: 66, height: 66, borderRadius: 13, backgroundColor: '#E2F1E9', alignItems: 'center', justifyContent: 'center' }, imageFallbackText: { color: '#0B5D3B', fontSize: 24, fontWeight: '900' }, productCopy: { flex: 1, marginLeft: 12 }, productName: { color: '#17352A', fontSize: 15, fontWeight: '800' }, productMeta: { color: '#71867D', fontSize: 11, marginTop: 4 }, stockRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 }, stockBadge: { minHeight: 24, borderRadius: 12, backgroundColor: '#E7F6E8', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', marginRight: 7 }, stockBadgeCritical: { backgroundColor: '#FFF0E0' }, stockDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#147348', marginRight: 5 }, stockDotCritical: { backgroundColor: '#D98200' }, stockQuantity: { color: '#147348', fontSize: 10, fontWeight: '900' }, stockCritical: { color: '#A65A00' }, reorderText: { color: '#82958D', fontSize: 10, flex: 1 },
   warning: { backgroundColor: '#FFF4D8', borderColor: '#F0D08D', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 }, warningText: { color: '#7A4A00' }, emptyState: { alignItems: 'center', paddingVertical: 48 }, emptyTitle: { color: '#17352A', fontSize: 20, fontWeight: '800' }, emptyText: { color: '#71867D', textAlign: 'center', marginTop: 7 }, loadMore: { minHeight: 50, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, loadMoreText: { color: '#0B5D3B', fontWeight: '800' }, endText: { color: '#82958D', textAlign: 'center', marginVertical: 14 }, pressed: { opacity: 0.65 },
   errorTitle: { color: '#17352A', fontSize: 21, fontWeight: '800' }, errorMessage: { color: '#587066', textAlign: 'center', marginTop: 8 }, primaryButton: { backgroundColor: '#0B5D3B', minHeight: 48, borderRadius: 13, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, primaryText: { color: '#FFF', fontWeight: '800' },

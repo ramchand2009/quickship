@@ -12,6 +12,8 @@ import type {
   ProductDetailResponse,
   ProductFilters,
   ProductListResponse,
+  ProductCreate,
+  ProductSyncResponse,
   ProductUpdate,
   StockMovementResponse,
   StockQuantityMutationResponse,
@@ -344,8 +346,27 @@ export async function products(accessToken: string, filters: ProductFilters = {}
   });
 }
 
+export async function createProduct(
+  accessToken: string,
+  values: ProductCreate,
+  idempotencyKey: string,
+): Promise<StockQuantityMutationResponse> {
+  return request<StockQuantityMutationResponse>('/products', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(values),
+  });
+}
+
 export async function productDetail(accessToken: string, productId: number): Promise<ProductDetailResponse> {
   return request<ProductDetailResponse>(`/products/${productId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function syncProducts(accessToken: string): Promise<ProductSyncResponse> {
+  return request<ProductSyncResponse>('/products/sync', {
+    method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
