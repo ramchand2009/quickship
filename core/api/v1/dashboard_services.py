@@ -139,9 +139,15 @@ def build_mobile_dashboard(*, tenant, role, now=None, month=None):
     waiting = status_counts[ShiprocketOrder.STATUS_WAITING]
     accepted = status_counts[ShiprocketOrder.STATUS_ACCEPTED]
     packed = status_counts[ShiprocketOrder.STATUS_PACKED]
+    active_flow_total = (
+        accepted
+        + packed
+        + status_counts[ShiprocketOrder.STATUS_SHIPPED]
+        + status_counts[ShiprocketOrder.STATUS_COMPLETED]
+    )
     attention = status_counts[ShiprocketOrder.STATUS_DELIVERY_ISSUE]
     metrics = [
-        _metric("total_orders", "Total orders", len(monthly_order_rows), order_destination()),
+        _metric("total_orders", "Total orders", active_flow_total, order_destination()),
         _metric("waiting_orders", "Waiting", waiting, order_destination(ShiprocketOrder.STATUS_WAITING), "attention" if waiting else "positive"),
         _metric("pending_orders", "New", pending, order_destination(ShiprocketOrder.STATUS_NEW), "attention" if pending else "positive"),
         _metric("accepted_orders", "Accepted", accepted, order_destination(ShiprocketOrder.STATUS_ACCEPTED)),

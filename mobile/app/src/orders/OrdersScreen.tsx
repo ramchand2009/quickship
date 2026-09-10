@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
@@ -122,6 +123,12 @@ function parseMoneyAmount(value: string | null | undefined) {
 
 function formatInrAmount(value: number) {
   return `₹ ${value.toFixed(2)}`;
+}
+
+function normalizeTrackingBarcode(value: string) {
+  const cleaned = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const match = cleaned.match(/[A-Z]{2}\d{9}[A-Z]{2}/);
+  return match ? match[0] : cleaned;
 }
 
 function productUnitPrice(product: ProductSummary) {
@@ -267,6 +274,7 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () => void }) {
   const { runAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -280,6 +288,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [courierMenuOpen, setCourierMenuOpen] = useState(false);
   const [customCourier, setCustomCourier] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState('');
+  const [trackingScannerVisible, setTrackingScannerVisible] = useState(false);
+  const [trackingScanned, setTrackingScanned] = useState(false);
   const [packageWeightGrams, setPackageWeightGrams] = useState('');
   const [packingImageUrl, setPackingImageUrl] = useState('');
   const [packingImageDraft, setPackingImageDraft] = useState<PackingImageDraft | null>(null);
@@ -535,6 +545,30 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       values.cancellation_note = cancellationNote.trim();
     }
     void submitStatusAction(selectedAction, values);
+  };
+
+  const openTrackingScanner = async () => {
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) {
+        Alert.alert('Camera permission needed', 'Allow camera access to scan the tracking barcode.');
+        return;
+      }
+    }
+    setTrackingScanned(false);
+    setTrackingScannerVisible(true);
+  };
+
+  const handleTrackingBarcode = (result: BarcodeScanningResult) => {
+    if (trackingScanned) return;
+    const code = normalizeTrackingBarcode(result.data);
+    if (!code) return;
+    setTrackingScanned(true);
+    setTrackingNumber(code);
+    setTrackingScannerVisible(false);
+    if (!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code)) {
+      Alert.alert('Barcode scanned', 'Tracking number filled. Please check the value before saving.');
+    }
   };
 
   const openAddressEditor = () => {
@@ -1289,15 +1323,21 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                 <>
                   <View style={styles.formGroup}>
                     <Text style={styles.formLabel}>Tracking number</Text>
-                    <TextInput
-                      autoCapitalize="characters"
-                      maxLength={13}
-                      onChangeText={setTrackingNumber}
-                      placeholder="AA123456789AA"
-                      placeholderTextColor="#82958D"
-                      style={styles.formInput}
-                      value={trackingNumber}
-                    />
+                    <View style={styles.trackingInputRow}>
+                      <TextInput
+                        autoCapitalize="characters"
+                        maxLength={13}
+                        onChangeText={(value) => setTrackingNumber(normalizeTrackingBarcode(value))}
+                        placeholder="AA123456789AA"
+                        placeholderTextColor="#82958D"
+                        style={[styles.formInput, styles.trackingInput]}
+                        value={trackingNumber}
+                      />
+                      <Pressable onPress={() => void openTrackingScanner()} style={({ pressed }) => [styles.scanTrackingButton, pressed && styles.pressed]}>
+                        <MaterialCommunityIcons color="#FFFFFF" name="barcode-scan" size={22} />
+                        <Text style={styles.scanTrackingText}>Scan</Text>
+                      </Pressable>
+                    </View>
                     <Text style={styles.formHint}>Scan the India Post barcode or type 2 letters, 9 digits, then 2 letters.</Text>
                   </View>
                   <View style={styles.formGroup}>
@@ -1429,6 +1469,31 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal animationType="slide" visible={trackingScannerVisible} onRequestClose={() => setTrackingScannerVisible(false)}>
+        <View style={styles.scannerScreen}>
+          <CameraView
+            barcodeScannerSettings={{
+              barcodeTypes: ['code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e', 'itf14'],
+            }}
+            onBarcodeScanned={trackingScanned ? undefined : handleTrackingBarcode}
+            style={styles.scannerCamera}
+          >
+            <View style={styles.scannerOverlay}>
+              <View style={styles.scannerTopBar}>
+                <Text style={styles.scannerTitle}>Scan tracking barcode</Text>
+                <Pressable onPress={() => setTrackingScannerVisible(false)} style={styles.scannerCloseButton}>
+                  <MaterialCommunityIcons color="#FFFFFF" name="close" size={24} />
+                </Pressable>
+              </View>
+              <View style={styles.scannerGuide}>
+                <View style={styles.scannerFrame} />
+                <Text style={styles.scannerHint}>Place the India Post barcode inside the box.</Text>
+              </View>
+            </View>
+          </CameraView>
+        </View>
       </Modal>
 
       </ScrollView>
@@ -1743,6 +1808,19 @@ const styles = StyleSheet.create({
   photoActionText: { color: '#0B5D3B', fontSize: 13, fontWeight: '900' },
   formLabel: { color: '#29483D', fontSize: 13, fontWeight: '800', marginBottom: 7 },
   formInput: { minHeight: 49, borderColor: '#CBD9D3', borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', color: '#17352A', fontSize: 15, paddingHorizontal: 14 },
+  trackingInputRow: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
+  trackingInput: { flex: 1 },
+  scanTrackingButton: { minHeight: 49, borderRadius: 12, backgroundColor: '#0B5D3B', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 6 },
+  scanTrackingText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  scannerScreen: { flex: 1, backgroundColor: '#000000' },
+  scannerCamera: { flex: 1 },
+  scannerOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.18)' },
+  scannerTopBar: { minHeight: 92, paddingHorizontal: 20, paddingTop: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  scannerTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
+  scannerCloseButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0, 0, 0, 0.35)', alignItems: 'center', justifyContent: 'center' },
+  scannerGuide: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  scannerFrame: { width: '100%', maxWidth: 330, height: 150, borderColor: '#FFFFFF', borderWidth: 3, borderRadius: 18, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
+  scannerHint: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', textAlign: 'center', marginTop: 18, lineHeight: 20 },
   shippingTaxPreview: { backgroundColor: '#F4FAF7', borderColor: '#DCE9E3', borderWidth: 1, borderRadius: 12, marginTop: 10, padding: 12, rowGap: 8 },
   shippingTaxRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: 12 },
   shippingTaxLabel: { color: '#587066', fontSize: 12, fontWeight: '800' },

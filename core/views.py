@@ -209,6 +209,11 @@ def _confirmation_order_items(order):
                 "line_type": str(item.get("line_type") or "").strip(),
                 "shipping_label": str(item.get("shipping_label") or "").strip(),
                 "discount_label": str(item.get("discount_label") or "").strip(),
+                "image_url": (
+                    str(item.get("image_url") or item.get("image") or "").strip()
+                    if str(item.get("image_url") or item.get("image") or "").strip().startswith(("https://", "http://"))
+                    else ""
+                ),
             }
         )
     return rows

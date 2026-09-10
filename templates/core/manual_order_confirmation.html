@@ -290,12 +290,40 @@
         }
         .item {
             display: flex;
+            align-items: center;
             justify-content: space-between;
             gap: 10px;
             padding: 12px;
             border-bottom: 1px solid var(--line);
         }
         .item:last-child { border-bottom: 0; }
+        .item-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+        .item-thumb {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #eef7f2;
+            object-fit: cover;
+            flex: 0 0 54px;
+        }
+        .item-thumb-fallback {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--green);
+            font-size: 22px;
+            font-weight: 950;
+        }
+        .item-copy {
+            min-width: 0;
+        }
         .item-name {
             font-weight: 900;
             line-height: 1.35;
@@ -621,15 +649,24 @@
                 <section class="card">
                     {% for item in items %}
                         <div class="item">
-                            <div>
-                                <div class="item-name">{{ item.name }}</div>
-                                {% if item.line_type == "shipping" %}
-                                    <div class="item-meta">{{ item.shipping_label|default:"Shipping" }}</div>
-                                {% elif item.line_type == "discount" %}
-                                    <div class="item-meta">{{ item.discount_label|default:"Discount applied" }}</div>
-                                {% else %}
-                                    <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
+                            <div class="item-main">
+                                {% if item.line_type != "shipping" and item.line_type != "discount" %}
+                                    {% if item.image_url %}
+                                        <img class="item-thumb" src="{{ item.image_url }}" alt="{{ item.name }}">
+                                    {% else %}
+                                        <div class="item-thumb item-thumb-fallback" aria-hidden="true">⌑</div>
+                                    {% endif %}
                                 {% endif %}
+                                <div class="item-copy">
+                                    <div class="item-name">{{ item.name }}</div>
+                                    {% if item.line_type == "shipping" %}
+                                        <div class="item-meta">{{ item.shipping_label|default:"Shipping" }}</div>
+                                    {% elif item.line_type == "discount" %}
+                                        <div class="item-meta">{{ item.discount_label|default:"Discount applied" }}</div>
+                                    {% else %}
+                                        <div class="item-meta">Qty {{ item.quantity }}{% if item.sku %} · SKU {{ item.sku }}{% endif %} · ₹ {{ item.unit_price|floatformat:2 }} each</div>
+                                    {% endif %}
+                                </div>
                             </div>
                             <div class="item-total">{% if item.line_type == "discount" %}- ₹ {{ item.display_total|floatformat:2 }}{% else %}₹ {{ item.line_total|floatformat:2 }}{% endif %}</div>
                         </div>

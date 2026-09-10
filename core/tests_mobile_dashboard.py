@@ -68,6 +68,8 @@ class MobileDashboardApiTests(TestCase):
             total="175.00",
             order_items=[{"sku": "DASH-SKU-PROFIT", "quantity": 1, "price": "75.00"}],
         )
+        self.order(self.tenant, "PACKED", ShiprocketOrder.STATUS_PACKED)
+        self.order(self.tenant, "WAITING", ShiprocketOrder.STATUS_WAITING)
         self.order(self.tenant, "SHIPPED", ShiprocketOrder.STATUS_SHIPPED)
         self.order(self.tenant, "COMPLETED", ShiprocketOrder.STATUS_COMPLETED)
         self.order(self.tenant, "CANCELLED", ShiprocketOrder.STATUS_CANCELLED)
@@ -85,9 +87,11 @@ class MobileDashboardApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         metric_rows = {row["key"]: row for row in response.json()["data"]["metrics"]}
         metrics = {key: row["value"] for key, row in metric_rows.items()}
-        self.assertEqual(metrics["total_orders"], 6)
+        self.assertEqual(metrics["total_orders"], 4)
+        self.assertEqual(metrics["waiting_orders"], 1)
         self.assertEqual(metrics["pending_orders"], 1)
         self.assertEqual(metrics["accepted_orders"], 1)
+        self.assertEqual(metrics["packed_orders"], 1)
         self.assertEqual(metrics["shipped_orders"], 1)
         self.assertEqual(metrics["completed_orders"], 1)
         self.assertEqual(metrics["cancelled_orders"], 1)
@@ -100,8 +104,10 @@ class MobileDashboardApiTests(TestCase):
             set(metrics),
             {
                 "total_orders",
+                "waiting_orders",
                 "pending_orders",
                 "accepted_orders",
+                "packed_orders",
                 "shipped_orders",
                 "completed_orders",
                 "cancelled_orders",
@@ -120,8 +126,10 @@ class MobileDashboardApiTests(TestCase):
     def test_all_roles_receive_the_monthly_order_and_financial_metrics(self):
         expected_keys = {
             "total_orders",
+            "waiting_orders",
             "pending_orders",
             "accepted_orders",
+            "packed_orders",
             "shipped_orders",
             "completed_orders",
             "cancelled_orders",

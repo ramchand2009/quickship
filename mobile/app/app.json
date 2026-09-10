@@ -49,6 +49,12 @@
           "photosPermission": "Allow Mathukai Organic to choose packing photos.",
           "cameraPermission": "Allow Mathukai Organic to capture packing photos."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Mathukai Organic to scan tracking barcodes."
+        }
       ]
     ],
     "experiments": {
