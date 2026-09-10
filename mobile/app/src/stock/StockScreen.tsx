@@ -18,6 +18,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
@@ -194,6 +195,7 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
 
 function ProductDetailScreen({ productId, categories, onBack }: { productId: number; categories: string[]; onBack: () => void }) {
   const { runAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -482,7 +484,7 @@ function ProductDetailScreen({ productId, categories, onBack }: { productId: num
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.quantityModal}>
+          <View style={[styles.quantityModal, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleWrap}>
                 <Text style={styles.modalTitle}>Update stock quantity</Text>
@@ -524,7 +526,7 @@ function ProductDetailScreen({ productId, categories, onBack }: { productId: num
               <Pressable
                 disabled={!quantityReady || quantitySaving}
                 onPress={() => void submitQuantity()}
-                style={[styles.saveQuantityButton, (!quantityReady || quantitySaving) && styles.disabledButton]}
+                style={[styles.saveQuantityButton, { marginBottom: Math.max(insets.bottom, 10) }, (!quantityReady || quantitySaving) && styles.disabledButton]}
               >
                 {quantitySaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Save quantity</Text>}
               </Pressable>
@@ -541,7 +543,7 @@ function ProductDetailScreen({ productId, categories, onBack }: { productId: num
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.productModal}>
+          <View style={[styles.productModal, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleWrap}>
                 <Text style={styles.modalTitle}>Edit product</Text>
@@ -627,7 +629,7 @@ function ProductDetailScreen({ productId, categories, onBack }: { productId: num
               <Pressable
                 disabled={!productReady || productSaving}
                 onPress={() => void submitProduct()}
-                style={[styles.saveQuantityButton, (!productReady || productSaving) && styles.disabledButton]}
+                style={[styles.saveQuantityButton, { marginBottom: Math.max(insets.bottom, 10) }, (!productReady || productSaving) && styles.disabledButton]}
               >
                 {productSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Save product</Text>}
               </Pressable>
@@ -684,6 +686,7 @@ function ProductDetailScreen({ productId, categories, onBack }: { productId: num
 
 export default function StockScreen() {
   const { runAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -917,7 +920,7 @@ export default function StockScreen() {
     <Modal animationType="slide" onRequestClose={() => !creatingProduct && setProductCreateVisible(false)} transparent visible={productCreateVisible}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.productModal}>
+          <View style={[styles.productModal, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleWrap}>
                 <Text style={styles.modalTitle}>Add product</Text>
@@ -982,7 +985,7 @@ export default function StockScreen() {
                 </View>
               </Pressable>
               {createProductError ? <Text accessibilityRole="alert" style={styles.quantityError}>{createProductError}</Text> : null}
-              <Pressable disabled={!createProductReady || creatingProduct} onPress={() => void submitCreateProduct()} style={[styles.saveQuantityButton, (!createProductReady || creatingProduct) && styles.disabledButton]}>
+              <Pressable disabled={!createProductReady || creatingProduct} onPress={() => void submitCreateProduct()} style={[styles.saveQuantityButton, { marginBottom: Math.max(insets.bottom, 10) }, (!createProductReady || creatingProduct) && styles.disabledButton]}>
                 {creatingProduct ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveQuantityText}>Create product</Text>}
               </Pressable>
             </ScrollView>

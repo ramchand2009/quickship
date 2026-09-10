@@ -16,6 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
@@ -141,31 +142,41 @@ function ManualOrderSheet({
   onCreated: (order: OrderDetail) => void;
 }) {
   const { runAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   const [products, setProducts] = useState<ProductSummary[]>([]);
+  const [nextProductCursor, setNextProductCursor] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<{ product: ProductSummary; quantity: number }[]>([]);
   const [shippingMode, setShippingMode] = useState<'free' | 'charged'>('free');
   const [shippingCost, setShippingCost] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const loadProducts = useCallback(async () => {
-    setLoadingProducts(true);
+  const loadProducts = useCallback(async (cursor?: string | null) => {
+    if (cursor) setLoadingMoreProducts(true);
+    else setLoadingProducts(true);
     setError('');
     try {
-      const response = await runAuthenticated((token) => api.products(token, { search, category }));
-      setProducts(response.data.slice(0, 25));
+      const response = await runAuthenticated((token) => api.products(token, { search, category, cursor: cursor || undefined }));
+      setProducts((current) => (
+        cursor
+          ? [...current, ...response.data.filter((product) => !current.some((existing) => existing.id === product.id))]
+          : response.data
+      ));
+      setNextProductCursor(response.pagination.next_cursor);
       setCategories(response.meta?.categories ?? []);
     } catch (reason) {
       setError(reason instanceof api.ApiError ? reason.message : 'Products could not be loaded.');
     } finally {
       setLoadingProducts(false);
+      setLoadingMoreProducts(false);
     }
   }, [category, runAuthenticated, search]);
 
@@ -245,7 +256,7 @@ function ManualOrderSheet({
     <Modal animationType="slide" onRequestClose={() => !saving && onClose()} transparent visible={visible}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.formSheet}>
+          <View style={[styles.formSheet, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
             <View style={styles.formHeader}>
               <View style={styles.sheetTitleCopy}>
                 <Text style={styles.formTitle}>Create Order</Text>
@@ -374,8 +385,13 @@ function ManualOrderSheet({
                   <MaterialCommunityIcons color="#0B5D3B" name="plus-circle-outline" size={24} />
                 </Pressable>
               ))}
+              {!loadingProducts && nextProductCursor ? (
+                <Pressable disabled={loadingMoreProducts} onPress={() => void loadProducts(nextProductCursor)} style={styles.loadMoreProductsButton}>
+                  {loadingMoreProducts ? <ActivityIndicator color="#0B5D3B" /> : <Text style={styles.loadMoreProductsText}>Load more products</Text>}
+                </Pressable>
+              ) : null}
             </ScrollView>
-            <Pressable disabled={!canSave} onPress={() => void createOrder()} style={[styles.saveButton, !canSave && styles.disabledButton]}>
+            <Pressable disabled={!canSave} onPress={() => void createOrder()} style={[styles.saveButton, { marginBottom: Math.max(insets.bottom, 10) }, !canSave && styles.disabledButton]}>
               {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Create order</Text>}
             </Pressable>
           </View>
@@ -705,6 +721,7 @@ function CustomerDetailScreen({ customerKey, onBack }: { customerKey: string; on
 
 export default function CustomersScreen() {
   const { runAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
   const [draftSearch, setDraftSearch] = useState('');
@@ -844,7 +861,7 @@ export default function CustomersScreen() {
       <Modal animationType="slide" onRequestClose={() => !formSaving && setFormVisible(false)} transparent visible={formVisible}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
           <View style={styles.modalBackdrop}>
-            <View style={styles.formSheet}>
+            <View style={[styles.formSheet, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
               <View style={styles.formHeader}>
                 <View>
                   <Text style={styles.formTitle}>Add Customer</Text>
@@ -892,7 +909,7 @@ export default function CustomersScreen() {
                 )}
                 {formError ? <Text style={styles.formError}>{formError}</Text> : null}
               </ScrollView>
-              <Pressable disabled={!formReady || formSaving} onPress={() => void saveCustomer()} style={[styles.saveButton, (!formReady || formSaving) && styles.disabledButton]}>
+              <Pressable disabled={!formReady || formSaving} onPress={() => void saveCustomer()} style={[styles.saveButton, { marginBottom: Math.max(insets.bottom, 10) }, (!formReady || formSaving) && styles.disabledButton]}>
                 {formSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Save customer</Text>}
               </Pressable>
             </View>
@@ -1052,4 +1069,6 @@ const styles = StyleSheet.create({
   productPickCopy: { flex: 1 },
   productPickName: { color: '#17352A', fontSize: 14, fontWeight: '900' },
   productPickMeta: { color: '#71867D', fontSize: 11, marginTop: 3, fontWeight: '700' },
+  loadMoreProductsButton: { minHeight: 48, borderColor: '#0B5D3B', borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4, marginBottom: 12 },
+  loadMoreProductsText: { color: '#0B5D3B', fontSize: 14, fontWeight: '900' },
 });

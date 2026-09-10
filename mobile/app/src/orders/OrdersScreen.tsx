@@ -929,7 +929,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <>
           <Text style={styles.sectionTitle}>Manual order tools</Text>
           <View style={styles.sectionCard}>
-            <Text style={styles.actionHelp}>Update the Waiting order if needed, then copy the latest customer confirmation link manually.</Text>
+            <Text style={styles.actionHelp}>Update the Waiting order if needed, then open the latest order link manually.</Text>
             <View style={styles.actionList}>
               {order.can_edit_manual_order ? (
                 <Pressable onPress={() => void openManualOrderEditor()} style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
@@ -940,7 +940,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
               {order.confirmation_url ? (
                 <Pressable onPress={() => void copyConfirmationLink()} style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
                   <MaterialCommunityIcons color="#0B5D3B" name="content-copy" size={21} />
-                  <Text style={styles.actionButtonText}>Copy confirmation link</Text>
+                  <Text style={styles.actionButtonText}>Order Link</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -1028,7 +1028,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
           <View style={styles.modalBackdrop}>
-            <View style={styles.addressModal}>
+            <View style={[styles.addressModal, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
               <View style={styles.modalHeader}>
                 <View style={styles.addressModalTitleWrap}>
                   <Text style={styles.modalTitle}>Edit delivery details</Text>
@@ -1076,7 +1076,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
               <Pressable
                 disabled={!addressFormReady || addressSaving}
                 onPress={() => void submitShippingAddress()}
-                style={[styles.confirmActionButton, (!addressFormReady || addressSaving) && styles.disabledButton]}
+                style={[styles.confirmActionButton, { marginBottom: Math.max(insets.bottom, 10) }, (!addressFormReady || addressSaving) && styles.disabledButton]}
               >
                 {addressSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Save delivery details</Text>}
               </Pressable>
@@ -1189,7 +1189,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
           <View style={styles.modalBackdrop}>
-            <View style={styles.actionModal}>
+            <View style={[styles.actionModal, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit manual order</Text>
                 <Pressable disabled={manualEditSaving} onPress={() => setManualEditVisible(false)} style={styles.modalClose}>
@@ -1276,7 +1276,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                 </View>
                 {manualEditError ? <Text accessibilityRole="alert" style={styles.addressError}>{manualEditError}</Text> : null}
               </ScrollView>
-              <Pressable disabled={!manualEditReady} onPress={() => void submitManualOrderEdit()} style={[styles.confirmActionButton, !manualEditReady && styles.disabledButton]}>
+              <Pressable disabled={!manualEditReady} onPress={() => void submitManualOrderEdit()} style={[styles.confirmActionButton, { marginBottom: Math.max(insets.bottom, 10) }, !manualEditReady && styles.disabledButton]}>
                 {manualEditSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmActionText}>Save updated order</Text>}
               </Pressable>
             </View>
@@ -1292,7 +1292,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardView}>
           <View style={styles.modalBackdrop}>
-            <View style={styles.actionModal}>
+            <View style={[styles.actionModal, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedAction ? actionLabel(selectedAction) : ''}</Text>
               <Pressable disabled={submittingAction} onPress={() => setSelectedAction(null)} style={styles.modalClose}>
@@ -1461,6 +1461,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
               style={[
                 styles.confirmActionButton,
                 selectedAction?.target_status === 'order_cancelled' && styles.confirmCancelButton,
+                { marginBottom: Math.max(insets.bottom, 10) },
                 (!actionFormReady || submittingAction) && styles.disabledButton,
               ]}
             >

@@ -18,7 +18,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
@@ -458,6 +458,7 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
 
 function AccountScreen() {
   const { auth, runAuthenticated, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [labelVisible, setLabelVisible] = useState(false);
   const [labelName, setLabelName] = useState('');
@@ -604,7 +605,7 @@ function AccountScreen() {
       <Modal animationType="slide" onRequestClose={() => setLabelVisible(false)} transparent visible={labelVisible}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKeyboardView}>
           <View style={styles.modalBackdrop}>
-            <View style={styles.labelFormSheet}>
+            <View style={[styles.labelFormSheet, { paddingBottom: Math.max(insets.bottom + 28, 40) }]}>
               <View style={styles.labelHeader}>
                 <View>
                   <Text style={styles.labelTitle}>Shipping Label PDF</Text>
@@ -646,7 +647,7 @@ function AccountScreen() {
                 <Pressable
                   disabled={!labelReady || labelBusy}
                   onPress={() => void createLabelPdf()}
-                  style={({ pressed }) => [styles.labelCreateButton, (!labelReady || labelBusy) && styles.disabledButton, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.labelCreateButton, { marginBottom: Math.max(insets.bottom, 10) }, (!labelReady || labelBusy) && styles.disabledButton, pressed && styles.pressed]}
                 >
                   {labelBusy ? <ActivityIndicator color="#FFFFFF" /> : (
                     <>
