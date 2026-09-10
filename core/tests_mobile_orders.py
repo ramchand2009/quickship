@@ -9,7 +9,16 @@ from django.utils import timezone
 
 from core.api.v1.session_services import create_mobile_session
 from core.api.v1.token_services import issue_access_token
-from core.models import OrderActivityLog, SenderAddress, ShiprocketOrder, Tenant, TenantMembership
+from core.models import (
+    MobileCustomerProfile,
+    MobileOrderConfirmation,
+    OrderActivityLog,
+    Product,
+    SenderAddress,
+    ShiprocketOrder,
+    Tenant,
+    TenantMembership,
+)
 
 
 @override_settings(MOBILE_API_ENABLED=True, MOBILE_READ_API_ENABLED=True)
@@ -23,13 +32,13 @@ class MobileOrderListApiTests(TestCase):
             tenant=self.tenant,
             role=TenantMembership.ROLE_VENDOR_OWNER,
         )
-        session = create_mobile_session(
+        self.session = create_mobile_session(
             user=self.user,
             installation_id=uuid.uuid4(),
             app_version="1.0.0",
             active_tenant=self.tenant,
         )
-        token, _ = issue_access_token(session)
+        token, _ = issue_access_token(self.session)
         self.headers = {"Authorization": f"Bearer {token}"}
 
     def order(self, suffix, *, tenant=None, status=None, **values):
@@ -77,6 +86,57 @@ class MobileOrderListApiTests(TestCase):
         self.assertNotIn("shipping_address", row)
         self.assertEqual(response.json()["pagination"]["has_more"], False)
         self.assertIn("request_id", response.json()["meta"])
+
+    @override_settings(MOBILE_WRITE_API_ENABLED=True)
+    def test_manual_order_link_prefills_latest_saved_customer_address(self):
+        profile = MobileCustomerProfile.objects.create(
+            tenant=self.tenant,
+            created_by=self.user,
+            name="Saved Customer",
+            phone="+919876543210",
+            country="India",
+        )
+        self.order(
+            "ADDRESS",
+            status=ShiprocketOrder.STATUS_COMPLETED,
+            customer_name="Saved Customer",
+            customer_phone="+919876543210",
+            shipping_address={
+                "name": "Saved Customer",
+                "phone": "+919876543210",
+                "address_1": "25 Market Street",
+                "address_2": "Near temple",
+                "city": "Chennai",
+                "state": "Tamil Nadu",
+                "pincode": "600001",
+                "country": "India",
+            },
+        )
+        product = Product.objects.create(
+            tenant=self.tenant,
+            name="Manual Product",
+            sku="MOBILE-MANUAL-PREFILL",
+            sale_price="120.00",
+            stock_quantity=10,
+        )
+
+        response = self.client.post(
+            "/api/v1/manual-orders",
+            {
+                "customer_key": profile.customer_key,
+                "items": [{"product_id": product.pk, "quantity": 1}],
+                "shipping_mode": "free",
+            },
+            content_type="application/json",
+            headers={**self.headers, "Idempotency-Key": "manual-prefill-address"},
+        )
+
+        self.assertEqual(response.status_code, 201)
+        confirmation = MobileOrderConfirmation.objects.get(order_id=response.json()["data"]["order"]["id"])
+        self.assertEqual(confirmation.address_1, "25 Market Street")
+        self.assertEqual(confirmation.city, "Chennai")
+        self.assertEqual(confirmation.state, "Tamil Nadu")
+        self.assertEqual(confirmation.pincode, "600001")
 
     def test_status_payment_and_date_filters_apply_together(self):
         now = timezone.now()

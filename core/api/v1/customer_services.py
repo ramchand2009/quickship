@@ -59,24 +59,51 @@ def _sender_payload(tenant):
     }
 
 
-def _customer_payload_from_profile(profile):
+def _profile_address_payload(profile):
+    return {
+        "name": profile.name,
+        "phone": profile.phone,
+        "email": profile.email,
+        "address_1": profile.address_1,
+        "address_2": profile.address_2,
+        "city": profile.city,
+        "state": profile.state,
+        "pincode": profile.pincode,
+        "country": profile.country,
+    }
+
+
+def _address_has_delivery_details(address):
+    return all(str(address.get(key) or "").strip() for key in ["address_1", "city", "state", "pincode"])
+
+
+def _merge_profile_address_with_order(profile, fallback_order=None):
+    address = _profile_address_payload(profile)
+    if _address_has_delivery_details(address) or fallback_order is None:
+        return address
+    fallback = fallback_order.display_shipping_address
+    return {
+        "name": address["name"] or str(fallback.get("name") or "").strip(),
+        "phone": address["phone"] or str(fallback.get("phone") or "").strip(),
+        "email": address["email"] or str(fallback.get("email") or "").strip(),
+        "address_1": address["address_1"] or str(fallback.get("address_1") or "").strip(),
+        "address_2": address["address_2"] or str(fallback.get("address_2") or "").strip(),
+        "city": address["city"] or str(fallback.get("city") or "").strip(),
+        "state": address["state"] or str(fallback.get("state") or "").strip(),
+        "pincode": address["pincode"] or str(fallback.get("pincode") or "").strip(),
+        "country": address["country"] or str(fallback.get("country") or "").strip() or "India",
+    }
+
+
+def _customer_payload_from_profile(profile, fallback_order=None):
+    shipping_address = _merge_profile_address_with_order(profile, fallback_order)
     return {
         "key": profile.customer_key,
         "name": profile.name,
         "phone": profile.phone or None,
         "email": profile.email or None,
-        "address": profile.address_line or None,
-        "shipping_address": {
-            "name": profile.name,
-            "phone": profile.phone,
-            "email": profile.email,
-            "address_1": profile.address_1,
-            "address_2": profile.address_2,
-            "city": profile.city,
-            "state": profile.state,
-            "pincode": profile.pincode,
-            "country": profile.country,
-        },
+        "address": _address_line(shipping_address) or None,
+        "shipping_address": shipping_address,
         "last_order_at": None,
         "order_count": 0,
         "total_spent": _money(Decimal("0.00")),
@@ -304,7 +331,7 @@ def mobile_customer_detail(*, tenant, role, customer_key):
             for order in _visible_customer_orders(tenant)
             if _order_matches_customer_key(order, customer_key, profile)
         ]
-        customer = _customer_payload_from_profile(profile)
+        customer = _customer_payload_from_profile(profile, matching_orders[0] if matching_orders else None)
         total = sum((order.total or Decimal("0.00") for order in matching_orders), Decimal("0.00"))
         customer["order_count"] = len(matching_orders)
         customer["total_spent"] = _money(total)

@@ -90,6 +90,7 @@ class MobileDashboardApiTests(TestCase):
         self.assertEqual(metrics["total_orders"], 4)
         self.assertEqual(metrics["waiting_orders"], 1)
         self.assertEqual(metrics["pending_orders"], 1)
+        self.assertEqual(metrics["attention_orders"], 1)
         self.assertEqual(metrics["accepted_orders"], 1)
         self.assertEqual(metrics["packed_orders"], 1)
         self.assertEqual(metrics["shipped_orders"], 1)
@@ -106,6 +107,7 @@ class MobileDashboardApiTests(TestCase):
                 "total_orders",
                 "waiting_orders",
                 "pending_orders",
+                "attention_orders",
                 "accepted_orders",
                 "packed_orders",
                 "shipped_orders",
@@ -128,6 +130,7 @@ class MobileDashboardApiTests(TestCase):
             "total_orders",
             "waiting_orders",
             "pending_orders",
+            "attention_orders",
             "accepted_orders",
             "packed_orders",
             "shipped_orders",

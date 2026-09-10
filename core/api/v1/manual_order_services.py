@@ -89,7 +89,8 @@ def _customer_from_key(*, tenant, role, customer_key):
         profile = MobileCustomerProfile.objects.filter(tenant=tenant, pk=profile_id).first()
         if profile is None:
             return None, None
-        payload = _customer_payload_from_profile(profile)
+        detail = mobile_customer_detail(tenant=tenant, role=role, customer_key=customer_key)
+        payload = detail["data"]["customer"] if detail else _customer_payload_from_profile(profile)
         return payload, _normalize_address(payload["shipping_address"])
     detail = mobile_customer_detail(tenant=tenant, role=role, customer_key=customer_key)
     if not detail:

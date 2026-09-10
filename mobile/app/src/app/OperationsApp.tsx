@@ -48,6 +48,7 @@ const METRIC_ICONS: Record<string, TabIconName> = {
   total_orders: 'clipboard-list-outline',
   waiting_orders: 'timer-sand',
   pending_orders: 'clock-outline',
+  attention_orders: 'alert-circle-outline',
   accepted_orders: 'clipboard-check-outline',
   packed_orders: 'package-variant-closed-check',
   shipped_orders: 'truck-delivery-outline',
@@ -59,6 +60,7 @@ const METRIC_COLORS: Record<string, { foreground: string; background: string; bo
   total_orders: { foreground: '#14733D', background: '#ECF7EE', border: '#B9DDBF' },
   waiting_orders: { foreground: '#7A4A00', background: '#FFF9E9', border: '#EDD28B' },
   pending_orders: { foreground: '#E68200', background: '#FFF7E8', border: '#F3D28B' },
+  attention_orders: { foreground: '#B42318', background: '#FFF1F0', border: '#FFCCC7' },
   accepted_orders: { foreground: '#14733D', background: '#ECF7EE', border: '#B9DDBF' },
   packed_orders: { foreground: '#5B5FC7', background: '#F1F2FF', border: '#C7CAFF' },
   shipped_orders: { foreground: '#1769C2', background: '#EFF6FF', border: '#B6D7FF' },
@@ -69,6 +71,7 @@ const METRIC_COLORS: Record<string, { foreground: string; background: string; bo
 const METRIC_ORDER_STATUSES: Record<string, string> = {
   waiting_orders: 'waiting_order',
   pending_orders: 'new_order',
+  attention_orders: 'delivery_issue',
   accepted_orders: 'order_accepted',
   packed_orders: 'order_packed',
   shipped_orders: 'shipped',
@@ -259,13 +262,17 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
 
   const financeMetrics = dashboard.data.metrics.filter((metric) => metric.key === 'total_sales' || metric.key === 'total_profit');
   const totalOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'total_orders');
+  const priorityMetrics = dashboard.data.metrics.filter((metric) => (
+    metric.key === 'waiting_orders'
+    || metric.key === 'pending_orders'
+    || metric.key === 'attention_orders'
+  ));
   const newOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'pending_orders');
   const pipelineMetrics = dashboard.data.metrics.filter((metric) => (
     metric.key === 'accepted_orders'
     || metric.key === 'packed_orders'
     || metric.key === 'shipped_orders'
     || metric.key === 'completed_orders'
-    || metric.key === 'cancelled_orders'
   ));
   const firstName = (auth?.session.user.display_name || '').trim().split(/\s+/)[0];
   const greeting = greetingForCurrentTime();
@@ -324,20 +331,34 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
           </Pressable>
         ))}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => onOpenProductReport(selectedMonth)}
-        style={({ pressed }) => [styles.reportLinkCard, pressed && styles.pressed]}
-      >
-        <View style={styles.reportLinkIcon}>
-          <MaterialCommunityIcons color="#0B5D3B" name="chart-box-outline" size={24} />
-        </View>
-        <View style={styles.reportLinkCopy}>
-          <Text style={styles.reportLinkTitle}>Product sales report</Text>
-          <Text style={styles.reportLinkText}>Qty, sales and profit product-wise</Text>
-        </View>
-        <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
-      </Pressable>
+
+      <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Waiting, new and attention</Text>
+      <View style={styles.metricGrid}>
+        {priorityMetrics.map((metric) => {
+          const colors = METRIC_COLORS[metric.key] || METRIC_COLORS.total_orders;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              key={metric.key}
+              onPress={() => onNavigate(
+                METRIC_ORDER_STATUSES[metric.key]
+                  ? destinationWithOrderStatus(metric.destination, METRIC_ORDER_STATUSES[metric.key])
+                  : metric.destination,
+              )}
+              style={({ pressed }) => [styles.metricCard, pressed && styles.pressed]}
+            >
+              <View style={[styles.metricIcon, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <MaterialCommunityIcons color={colors.foreground} name={METRIC_ICONS[metric.key]} size={25} />
+              </View>
+              <View style={styles.metricCopy}>
+                <Text style={styles.metricLabel}>{metric.label}</Text>
+                <Text style={[styles.metricValue, { color: colors.foreground }]}>{formatMetricValue(metric.value)}</Text>
+              </View>
+              <MaterialCommunityIcons color="#52665E" name="chevron-right" size={22} />
+            </Pressable>
+          );
+        })}
+      </View>
 
       <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Order pipeline</Text>
       <View style={styles.metricGrid}>
@@ -401,6 +422,21 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
           </Pressable>
         ))}
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => onOpenProductReport(selectedMonth)}
+        style={({ pressed }) => [styles.reportLinkCard, styles.reportLinkBottomCard, pressed && styles.pressed]}
+      >
+        <View style={styles.reportLinkIcon}>
+          <MaterialCommunityIcons color="#0B5D3B" name="chart-box-outline" size={24} />
+        </View>
+        <View style={styles.reportLinkCopy}>
+          <Text style={styles.reportLinkTitle}>Product sales report</Text>
+          <Text style={styles.reportLinkText}>Qty, sales and profit product-wise</Text>
+        </View>
+        <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
+      </Pressable>
       </ScrollView>
 
       <Modal
@@ -865,6 +901,7 @@ const styles = StyleSheet.create({
   performanceLabel: { color: '#64746D', fontSize: 11, fontWeight: '700', marginTop: 7 },
   performanceValue: { color: '#08733F', fontSize: 18, fontWeight: '900', marginTop: 4, maxWidth: '100%' },
   reportLinkCard: { minHeight: 68, backgroundColor: '#FFFFFF', borderColor: '#DFE7E3', borderWidth: 1, borderRadius: 16, padding: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#17352A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 },
+  reportLinkBottomCard: { marginTop: 0, marginBottom: 8 },
   reportLinkIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#EAF6EF', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   reportLinkCopy: { flex: 1 },
   reportLinkTitle: { color: '#17352A', fontSize: 15, fontWeight: '900' },
