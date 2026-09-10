@@ -156,6 +156,9 @@ class OrderSummarySerializer(serializers.ModelSerializer):
     customer_display_name = serializers.SerializerMethodField()
     item_count = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
+    shipping_cost = serializers.SerializerMethodField()
+    shipping_gst = serializers.SerializerMethodField()
+    shipping_total = serializers.SerializerMethodField()
     tracking_number = serializers.SerializerMethodField()
     attention_required = serializers.SerializerMethodField()
     issue_flag = serializers.SerializerMethodField()
@@ -172,6 +175,9 @@ class OrderSummarySerializer(serializers.ModelSerializer):
             "customer_display_name",
             "item_count",
             "total",
+            "shipping_cost",
+            "shipping_gst",
+            "shipping_total",
             "order_date",
             "tracking_number",
             "attention_required",
@@ -221,6 +227,15 @@ class OrderSummarySerializer(serializers.ModelSerializer):
     def get_total(self, order):
         amount = order.total if order.total is not None else Decimal("0.00")
         return {"amount": f"{amount:.2f}", "currency": "INR"}
+
+    def get_shipping_cost(self, order):
+        return _money(order.shipping_base_amount)
+
+    def get_shipping_gst(self, order):
+        return _money(order.shipping_tax_amount)
+
+    def get_shipping_total(self, order):
+        return _money(order.shipping_total_amount)
 
     def get_tracking_number(self, order):
         return str(order.tracking_number or "").strip() or None
@@ -292,9 +307,6 @@ class OrderDetailSerializer(OrderSummarySerializer):
     customer = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
     courier_name = serializers.SerializerMethodField()
-    shipping_cost = serializers.SerializerMethodField()
-    shipping_gst = serializers.SerializerMethodField()
-    shipping_total = serializers.SerializerMethodField()
     package_weight_kg = serializers.SerializerMethodField()
     package_weight_grams = serializers.SerializerMethodField()
     packing_image_url = serializers.SerializerMethodField()
@@ -313,9 +325,6 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "customer",
             "items",
             "courier_name",
-            "shipping_cost",
-            "shipping_gst",
-            "shipping_total",
             "package_weight_kg",
             "package_weight_grams",
             "packing_image_url",
@@ -437,15 +446,6 @@ class OrderDetailSerializer(OrderSummarySerializer):
 
     def get_courier_name(self, order):
         return order.courier_name or None
-
-    def get_shipping_cost(self, order):
-        return _money(order.shipping_base_amount)
-
-    def get_shipping_gst(self, order):
-        return _money(order.shipping_tax_amount)
-
-    def get_shipping_total(self, order):
-        return _money(order.shipping_total_amount)
 
     def get_package_weight_kg(self, order):
         weight = order.package_weight_kg or Decimal("0.000")

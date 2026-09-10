@@ -99,6 +99,7 @@ function CustomerCard({ customer, onPress }: { customer: CustomerSummary; onPres
 
 function OrderHistoryCard({ order, onPress }: { order: OrderSummary; onPress: () => void }) {
   const attention = order.attention_required;
+  const shippingTotal = parseAmount(order.shipping_total);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, pressed && styles.pressed]}>
       <View style={styles.orderIcon}>
@@ -110,6 +111,7 @@ function OrderHistoryCard({ order, onPress }: { order: OrderSummary; onPress: ()
           <Text style={styles.orderTotal}>{money(order.total)}</Text>
         </View>
         <Text style={styles.orderMeta}>{dateLabel(order.order_date)} · {order.item_count} item{order.item_count === 1 ? '' : 's'}</Text>
+        {shippingTotal > 0 ? <Text style={styles.orderShipping}>Shipping: {money(order.shipping_total)}</Text> : null}
         <View style={styles.pillRow}>
           <Text style={[styles.statusPill, attention && styles.attentionPill]}>{order.status.label}</Text>
           <Text style={styles.paymentPill}>Payment: {order.payment_state.label}</Text>
@@ -986,6 +988,7 @@ const styles = StyleSheet.create({
   orderReference: { color: '#17352A', fontSize: 15, fontWeight: '900' },
   orderTotal: { color: '#17352A', fontSize: 15, fontWeight: '900' },
   orderMeta: { color: '#71867D', fontSize: 12, marginTop: 4 },
+  orderShipping: { color: '#0B5D3B', fontSize: 12, fontWeight: '800', marginTop: 4 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 8 },
   statusPill: { backgroundColor: '#E4F3EB', borderRadius: 12, color: '#147348', fontSize: 10, fontWeight: '900', overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4 },
   attentionPill: { backgroundColor: '#FFF4D8', color: '#9A5B00' },

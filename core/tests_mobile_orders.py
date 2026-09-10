@@ -65,6 +65,7 @@ class MobileOrderListApiTests(TestCase):
             "OWN",
             status=ShiprocketOrder.STATUS_DELIVERY_ISSUE,
             total="125.50",
+            shipping_base_amount="40.00",
             tracking_number="TRACK-OWN",
         )
         self.order("OTHER", tenant=self.other_tenant)
@@ -80,6 +81,9 @@ class MobileOrderListApiTests(TestCase):
         self.assertEqual(row["payment_state"]["code"], "pending")
         self.assertEqual(row["item_count"], 2)
         self.assertEqual(row["total"], {"amount": "125.50", "currency": "INR"})
+        self.assertEqual(row["shipping_cost"], {"amount": "40.00", "currency": "INR"})
+        self.assertEqual(row["shipping_gst"], {"amount": "7.20", "currency": "INR"})
+        self.assertEqual(row["shipping_total"], {"amount": "47.20", "currency": "INR"})
         self.assertTrue(row["attention_required"])
         self.assertEqual(row["version"], "1")
         self.assertNotIn("raw_payload", row)
@@ -332,6 +336,28 @@ class MobileOrderDetailApiTests(TestCase):
         response_text = response.content.decode("utf-8")
         self.assertNotIn("consumer_secret", response_text)
         self.assertNotIn("must-never-leak", response_text)
+
+    def test_manual_order_detail_recalculates_shipping_tax_when_payload_has_zero_tax(self):
+        order = ShiprocketOrder.objects.create(
+            tenant=self.tenant,
+            source="manual",
+            shiprocket_order_id="MO-SHIPPING-TAX",
+            local_status=ShiprocketOrder.STATUS_SHIPPED,
+            customer_name="Manual Customer",
+            customer_phone="9876543210",
+            shipping_base_amount="100.00",
+            raw_payload={
+                "manual_order": True,
+                "shipping_gst_amount": "0.00",
+                "shipping_total_amount": "0.00",
+            },
+        )
+
+        data = self.get(order).json()["data"]
+
+        self.assertEqual(data["shipping_cost"], {"amount": "100.00", "currency": "INR"})
+        self.assertEqual(data["shipping_gst"], {"amount": "18.00", "currency": "INR"})
+        self.assertEqual(data["shipping_total"], {"amount": "118.00", "currency": "INR"})
 
     def test_role_field_snapshots_and_allowed_actions(self):
         expectations = {

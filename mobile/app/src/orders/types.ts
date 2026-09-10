@@ -10,6 +10,9 @@ export type OrderSummary = {
   customer_display_name: string | null;
   item_count: number;
   total: Money;
+  shipping_cost: Money;
+  shipping_gst: Money;
+  shipping_total: Money;
   order_date: string | null;
   tracking_number: string | null;
   attention_required: boolean;
@@ -85,9 +88,6 @@ export type OrderDetail = OrderSummary & {
   package_weight_kg: string | null;
   package_weight_grams: string | null;
   packing_image_url: string | null;
-  shipping_cost: Money;
-  shipping_gst: Money;
-  shipping_total: Money;
   payment_received_at: string | null;
   cancellation_reason: string | null;
   cancellation_note: string | null;
