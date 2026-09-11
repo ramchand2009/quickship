@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block title %}Home | Mathukai{% endblock %}
+{% block extrastyle %}
+<style>
+    :root {
+        scroll-behavior: auto !important;
+    }
+
+    .orders-dashboard-shell {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .dashboard-card {
+        height: 100%;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .dashboard-card .card-body {
+        padding: 1.15rem;
+    }
+
+    .dashboard-card .metric-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .dashboard-tone-success {
+        border-top: 4px solid #28a745;
+    }
+
+    .dashboard-tone-warning {
+        border-top: 4px solid #f0ad4e;
+    }
+
+    .dashboard-tone-danger {
+        border-top: 4px solid #dc3545;
+    }
+
+    .dashboard-tone-primary {
+        border-top: 4px solid #007bff;
+    }
+
+    .dashboard-tone-info {
+        border-top: 4px solid #17a2b8;
+    }
+
+    .dashboard-tone-secondary {
+        border-top: 4px solid #6c757d;
+    }
+
+    .dashboard-panel-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .dashboard-insight-card {
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 0.75rem;
+        padding: 0.9rem 1rem;
+        height: 100%;
+        background: #fff;
+    }
+
+    .dashboard-stock-list-card {
+        height: 100%;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 1rem;
+        background: #fff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        padding: 1rem 1.1rem;
+    }
+
+    .dashboard-stock-list-card.is-danger {
+        border-top: 4px solid #dc3545;
+    }
+
+    .dashboard-stock-list-card.is-warning {
+        border-top: 4px solid #f0ad4e;
+    }
+
+    .dashboard-stock-list-head {
+        display: flex;
+        gap: 1rem;
+        align-items: stretch;
+        justify-content: space-between;
+    }
+
+    .dashboard-stock-list-metric {
+        min-width: 112px;
+        padding-right: 0.85rem;
+        border-right: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .dashboard-stock-list-metric .metric-value {
+        display: block;
+        margin-top: 0.3rem;
+        font-size: 2rem;
+    }
+
+    .dashboard-stock-list-items {
+        flex: 1 1 auto;
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .dashboard-stock-list-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.45rem;
+        color: #334155;
+        font-size: 0.95rem;
+        line-height: 1.4;
+    }
+
+    .dashboard-stock-list-name {
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .dashboard-stock-list-qty {
+        font-weight: 600;
+        color: #64748b;
+    }
+
+    .dashboard-stock-list-empty {
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 991.98px) {
+        .dashboard-card .card-body {
+            padding: 1rem;
+        }
+
+        .dashboard-card .metric-value {
+            font-size: 1.55rem;
+        }
+
+        .dashboard-insight-card {
+            padding: 0.8rem 0.9rem;
+        }
+
+        .dashboard-stock-list-head {
+            flex-direction: column;
+        }
+
+        .dashboard-stock-list-metric {
+            min-width: 0;
+            border-right: 0;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+            padding-right: 0;
+            padding-bottom: 0.8rem;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .orders-dashboard-shell {
+            gap: 0.65rem;
+        }
+
+        .dashboard-card .card-body {
+            padding: 0.9rem;
+        }
+
+        .dashboard-card .metric-value {
+            font-size: 1.4rem;
+        }
+
+        .dashboard-panel-head {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="page-header-title mb-3">
+            <h4 class="m-b-10">Home Dashboard</h4>
+        </div>
+        <ul class="breadcrumb mb-4">
+            <li class="breadcrumb-item"><a href="#!"><i class="feather icon-home"></i></a></li>
+            <li class="breadcrumb-item">Dashboard</li>
+            <li class="breadcrumb-item">Home</li>
+        </ul>
+    </div>
+</div>
+
+<div class="orders-dashboard-shell">
+    <div class="row mb-2">
+        <div class="col-12">
+            <div class="card dashboard-card">
+                <div class="card-body">
+                    <div class="dashboard-panel-head">
+                        <div>
+                            <h5 class="mb-1">This Month Order Status</h5>
+                            <p class="mb-0 text-muted">
+                                {{ current_month_label }} total orders: {{ monthly_status_total }} |
+                                Monthly sales: Rs {{ monthly_sales_total|floatformat:2 }} |
+                                Monthly profit: Rs {{ monthly_profit_total|floatformat:2 }}
+                            </p>
+                        </div>
+                        <a href="{% url 'order_management' %}" class="btn btn-sm btn-outline-secondary">Open Orders</a>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        {% for card in monthly_status_cards %}
+                        <div class="col-md-4 col-xl">
+                            <div class="dashboard-insight-card">
+                                <div class="small text-muted text-uppercase">{{ card.label }}</div>
+                                <div class="metric-value mt-2">{{ card.count }}</div>
+                                <a href="{{ card.url }}" class="btn btn-sm btn-outline-primary mt-3">View Orders</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-panel-head mt-2">
+        <div>
+            <h5 class="mb-1">Stock Dashboard</h5>
+            <p class="mb-0 text-muted">Low-stock and no-stock items only.</p>
+        </div>
+    </div>
+    <div class="row g-3 mb-2">
+        {% for card in stock_action_cards %}
+        <div class="col-md-6 col-xl-3">
+            <div class="card dashboard-card dashboard-tone-{{ card.tone }}">
+                <div class="card-body">
+                    <div class="small text-muted text-uppercase">{{ card.title }}</div>
+                    <div class="metric-value mt-2">{{ card.count }}</div>
+                    <div class="text-muted small mt-2">{{ card.description }}</div>
+                    <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-primary mt-3">{{ card.action_label }}</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col-xl-6">
+            <div class="dashboard-stock-list-card is-danger">
+                <div class="dashboard-stock-list-head">
+                    <div class="dashboard-stock-list-metric">
+                        <div class="small text-muted text-uppercase">Out Of Stock</div>
+                        <span class="metric-value">{{ no_stock_count }}</span>
+                        <div class="small text-muted mt-1">Items</div>
+                    </div>
+                    <div class="dashboard-stock-list-items">
+                        {% for product in no_stock_products %}
+                            <div class="dashboard-stock-list-row">
+                                <span class="dashboard-stock-list-name">{{ product.name }}</span>
+                                <span class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</span>
+                            </div>
+                        {% empty %}
+                            <div class="dashboard-stock-list-empty">No products are currently out of stock.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <a href="{% url 'stock_management' %}" class="btn btn-sm btn-outline-primary mt-3">Open Stock Management</a>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="dashboard-stock-list-card is-warning">
+                <div class="dashboard-stock-list-head">
+                    <div class="dashboard-stock-list-metric">
+                        <div class="small text-muted text-uppercase">Low Qty Stock</div>
+                        <span class="metric-value">{{ low_stock_count }}</span>
+                        <div class="small text-muted mt-1">Items</div>
+                    </div>
+                    <div class="dashboard-stock-list-items">
+                        {% for product in low_stock_products %}
+                            <div class="dashboard-stock-list-row">
+                                <span class="dashboard-stock-list-name">{{ product.name }}</span>
+                                <span class="dashboard-stock-list-qty">Qty {{ product.stock_quantity }}</span>
+                            </div>
+                        {% empty %}
+                            <div class="dashboard-stock-list-empty">No products are currently in the low quantity range.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <a href="{% url 'stock_management' %}" class="btn btn-sm btn-outline-primary mt-3">Open Stock Management</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

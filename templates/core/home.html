@@ -5,84 +5,251 @@
 <style>
     :root {
         scroll-behavior: auto !important;
+        --mo-green: #0B5D3B;
+        --mo-green-2: #08733F;
+        --mo-ink: #17352A;
+        --mo-muted: #71867D;
+        --mo-bg: #F7FAF8;
+        --mo-card: #FFFFFF;
+        --mo-border: #DCE6E1;
+        --mo-soft: #E7F5EB;
+        --mo-warning: #E68200;
+        --mo-danger: #B42318;
     }
 
     .orders-dashboard-shell {
         display: grid;
-        gap: 0.75rem;
+        gap: 1rem;
+        color: var(--mo-ink);
     }
 
-    .dashboard-card {
-        height: 100%;
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    .mo-web-hero {
+        overflow: hidden;
+        border: 0;
+        border-radius: 1.45rem;
+        background:
+            radial-gradient(circle at top right, rgba(255,255,255,0.22), transparent 34%),
+            linear-gradient(135deg, #0B5D3B 0%, #064329 100%);
+        color: #fff;
+        box-shadow: 0 18px 38px rgba(11, 93, 59, 0.18);
     }
 
-    .dashboard-card .card-body {
-        padding: 1.15rem;
+    .mo-web-hero .card-body {
+        padding: 1.45rem;
     }
 
-    .dashboard-card .metric-value {
-        font-size: 1.9rem;
-        font-weight: 700;
-        line-height: 1;
+    .mo-web-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        color: rgba(255,255,255,0.86);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
     }
 
-    .dashboard-tone-success {
-        border-top: 4px solid #28a745;
+    .mo-web-hero h4 {
+        color: #fff;
+        margin: 0.75rem 0 0.35rem;
+        font-size: clamp(1.75rem, 3vw, 2.55rem);
+        font-weight: 900;
+        letter-spacing: -0.04em;
     }
 
-    .dashboard-tone-warning {
-        border-top: 4px solid #f0ad4e;
+    .mo-web-hero p {
+        color: rgba(255,255,255,0.78);
+        font-size: 1rem;
+        line-height: 1.55;
+        margin: 0;
     }
 
-    .dashboard-tone-danger {
-        border-top: 4px solid #dc3545;
-    }
-
-    .dashboard-tone-primary {
-        border-top: 4px solid #007bff;
-    }
-
-    .dashboard-tone-info {
-        border-top: 4px solid #17a2b8;
-    }
-
-    .dashboard-tone-secondary {
-        border-top: 4px solid #6c757d;
-    }
-
-    .dashboard-panel-head {
+    .mo-hero-actions {
         display: flex;
         flex-wrap: wrap;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 0.75rem;
+        gap: 0.65rem;
+        justify-content: flex-end;
     }
 
-    .dashboard-insight-card {
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        border-radius: 0.75rem;
-        padding: 0.9rem 1rem;
-        height: 100%;
+    .mo-hero-button {
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        border-radius: 999px;
+        padding: 0.55rem 0.95rem;
+        font-weight: 800;
+    }
+
+    .mo-hero-button-primary {
         background: #fff;
+        color: var(--mo-green);
+        border: 1px solid #fff;
+    }
+
+    .mo-hero-button-ghost {
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.38);
+        background: rgba(255,255,255,0.08);
+    }
+
+    .mo-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.85rem;
+        margin-top: 1.15rem;
+    }
+
+    .mo-summary-card,
+    .dashboard-card {
+        height: 100%;
+        border: 1px solid var(--mo-border);
+        border-radius: 1.15rem;
+        background: var(--mo-card);
+        box-shadow: 0 12px 28px rgba(23, 53, 42, 0.06);
+    }
+
+    .mo-summary-card {
+        padding: 1rem;
+    }
+
+    .mo-summary-label {
+        color: var(--mo-muted);
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .mo-summary-value {
+        display: block;
+        color: var(--mo-green);
+        font-size: clamp(1.35rem, 2vw, 2rem);
+        font-weight: 900;
+        line-height: 1;
+        margin-top: 0.5rem;
+    }
+
+    .mo-web-section-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 0.85rem;
+        margin-top: 0.6rem;
+    }
+
+    .mo-web-section-head h5 {
+        color: var(--mo-ink);
+        font-size: 1.35rem;
+        font-weight: 900;
+        margin: 0;
+    }
+
+    .mo-web-section-head p {
+        color: var(--mo-muted);
+        margin: 0.25rem 0 0;
+    }
+
+    .mo-pipeline-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.85rem;
+    }
+
+    .mo-pipeline-card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        min-height: 96px;
+        padding: 1rem;
+        border: 1px solid var(--mo-border);
+        border-radius: 1.1rem;
+        background: #fff;
+        color: var(--mo-ink);
+        box-shadow: 0 10px 24px rgba(23, 53, 42, 0.05);
+        transition: transform 120ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+
+    .mo-pipeline-card:hover {
+        color: var(--mo-ink);
+        border-color: #BFD8CA;
+        transform: translateY(-1px);
+        box-shadow: 0 16px 30px rgba(23, 53, 42, 0.08);
+        text-decoration: none;
+    }
+
+    .mo-pipeline-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mo-soft);
+        color: var(--mo-green);
+        font-size: 1.25rem;
+    }
+
+    .dashboard-tone-warning .mo-pipeline-icon,
+    .dashboard-tone-light .mo-pipeline-icon {
+        background: #FFF7E8;
+        color: var(--mo-warning);
+    }
+
+    .dashboard-tone-danger .mo-pipeline-icon {
+        background: #FFF1F0;
+        color: var(--mo-danger);
+    }
+
+    .dashboard-tone-info .mo-pipeline-icon,
+    .dashboard-tone-secondary .mo-pipeline-icon,
+    .dashboard-tone-primary .mo-pipeline-icon {
+        background: #EFF6FF;
+        color: #1769C2;
+    }
+
+    .mo-pipeline-label {
+        color: var(--mo-muted);
+        font-size: 0.8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .mo-pipeline-value {
+        color: var(--mo-ink);
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 1;
+        margin-top: 0.35rem;
+    }
+
+    .mo-pipeline-chevron {
+        margin-left: auto;
+        color: #90A39A;
     }
 
     .dashboard-stock-list-card {
         height: 100%;
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        border-radius: 1rem;
+        border: 1px solid var(--mo-border);
+        border-radius: 1.15rem;
         background: #fff;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 12px 28px rgba(23, 53, 42, 0.06);
         padding: 1rem 1.1rem;
     }
 
     .dashboard-stock-list-card.is-danger {
-        border-top: 4px solid #dc3545;
+        border-color: #FFC2C7;
     }
 
     .dashboard-stock-list-card.is-warning {
-        border-top: 4px solid #f0ad4e;
+        border-color: #F3D28B;
     }
 
     .dashboard-stock-list-head {
@@ -114,37 +281,48 @@
         display: flex;
         align-items: baseline;
         gap: 0.45rem;
-        color: #334155;
+        color: #29483D;
         font-size: 0.95rem;
         line-height: 1.4;
     }
 
     .dashboard-stock-list-name {
         font-weight: 600;
-        color: #0f172a;
+        color: var(--mo-ink);
     }
 
     .dashboard-stock-list-qty {
         font-weight: 600;
-        color: #64748b;
+        color: var(--mo-muted);
     }
 
     .dashboard-stock-list-empty {
-        color: #64748b;
+        color: var(--mo-muted);
         font-size: 0.9rem;
     }
 
+    .mo-web-soft-button {
+        border-radius: 999px;
+        border: 1px solid #BFD8CA;
+        background: #F4FBF7;
+        color: var(--mo-green);
+        font-weight: 800;
+    }
+
+    .mo-web-soft-button:hover {
+        background: var(--mo-green);
+        border-color: var(--mo-green);
+        color: #fff;
+    }
+
     @media (max-width: 991.98px) {
-        .dashboard-card .card-body {
-            padding: 1rem;
+        .mo-summary-grid {
+            grid-template-columns: 1fr;
         }
 
-        .dashboard-card .metric-value {
-            font-size: 1.55rem;
-        }
-
-        .dashboard-insight-card {
-            padding: 0.8rem 0.9rem;
+        .mo-hero-actions {
+            justify-content: flex-start;
+            margin-top: 1rem;
         }
 
         .dashboard-stock-list-head {
@@ -165,72 +343,94 @@
             gap: 0.65rem;
         }
 
-        .dashboard-card .card-body {
-            padding: 0.9rem;
+        .mo-web-hero .card-body {
+            padding: 1.15rem;
         }
 
-        .dashboard-card .metric-value {
-            font-size: 1.4rem;
-        }
-
-        .dashboard-panel-head {
-            flex-direction: column;
-            align-items: stretch;
+        .mo-pipeline-grid {
+            grid-template-columns: 1fr;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="page-header-title mb-3">
-            <h4 class="m-b-10">Home Dashboard</h4>
-        </div>
-        <ul class="breadcrumb mb-4">
-            <li class="breadcrumb-item"><a href="#!"><i class="feather icon-home"></i></a></li>
-            <li class="breadcrumb-item">Dashboard</li>
-            <li class="breadcrumb-item">Home</li>
-        </ul>
-    </div>
-</div>
-
 <div class="orders-dashboard-shell">
     <div class="row mb-2">
         <div class="col-12">
-            <div class="card dashboard-card">
+            <div class="card mo-web-hero">
                 <div class="card-body">
-                    <div class="dashboard-panel-head">
-                        <div>
-                            <h5 class="mb-1">This Month Order Status</h5>
-                            <p class="mb-0 text-muted">
-                                {{ current_month_label }} total orders: {{ monthly_status_total }} |
-                                Monthly sales: Rs {{ monthly_sales_total|floatformat:2 }} |
-                                Monthly profit: Rs {{ monthly_profit_total|floatformat:2 }}
-                            </p>
+                    <div class="row align-items-center">
+                        <div class="col-lg-7">
+                            <span class="mo-web-kicker"><i class="feather icon-home"></i> {{ active_tenant.name|default:"Mathukai Organic" }}</span>
+                            <h4>Operations dashboard</h4>
+                            <p>{{ current_month_label }} order pipeline, stock attention, sales and profit summary in one place.</p>
                         </div>
-                        <a href="{% url 'order_management' %}" class="btn btn-sm btn-outline-secondary">Open Orders</a>
-                    </div>
-                    <div class="row g-3 mt-1">
-                        {% for card in monthly_status_cards %}
-                        <div class="col-md-4 col-xl">
-                            <div class="dashboard-insight-card">
-                                <div class="small text-muted text-uppercase">{{ card.label }}</div>
-                                <div class="metric-value mt-2">{{ card.count }}</div>
-                                <a href="{{ card.url }}" class="btn btn-sm btn-outline-primary mt-3">View Orders</a>
+                        <div class="col-lg-5">
+                            <div class="mo-hero-actions">
+                                <a href="{% url 'order_management' %}" class="mo-hero-button mo-hero-button-primary"><i class="feather icon-layers"></i> Open Orders</a>
+                                <a href="{% url 'stock_management' %}" class="mo-hero-button mo-hero-button-ghost"><i class="feather icon-package"></i> Open Stock</a>
                             </div>
                         </div>
-                        {% endfor %}
+                    </div>
+                    <div class="mo-summary-grid">
+                        <div class="mo-summary-card">
+                            <span class="mo-summary-label">Total orders</span>
+                            <span class="mo-summary-value">{{ monthly_status_total }}</span>
+                        </div>
+                        <div class="mo-summary-card">
+                            <span class="mo-summary-label">Monthly sales</span>
+                            <span class="mo-summary-value">Rs {{ monthly_sales_total|floatformat:2 }}</span>
+                        </div>
+                        <div class="mo-summary-card">
+                            <span class="mo-summary-label">Monthly profit</span>
+                            <span class="mo-summary-value">Rs {{ monthly_profit_total|floatformat:2 }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="dashboard-panel-head mt-2">
+    <div class="mo-web-section-head">
         <div>
-            <h5 class="mb-1">Stock Dashboard</h5>
-            <p class="mb-0 text-muted">Low-stock and no-stock items only.</p>
+            <h5>Order pipeline</h5>
+            <p>Track every stage using the same flow as the mobile app.</p>
+        </div>
+    </div>
+    <div class="mo-pipeline-grid">
+        {% for card in monthly_status_cards %}
+            <a href="{{ card.url }}" class="mo-pipeline-card dashboard-tone-{{ card.tone }}">
+                <span class="mo-pipeline-icon">
+                    {% if "Wait" in card.label or "Pending" in card.label or "New" in card.label %}
+                        <i class="feather icon-clock"></i>
+                    {% elif "Accept" in card.label %}
+                        <i class="feather icon-check-square"></i>
+                    {% elif "Pack" in card.label %}
+                        <i class="feather icon-package"></i>
+                    {% elif "Ship" in card.label or "Delivery" in card.label %}
+                        <i class="feather icon-truck"></i>
+                    {% elif "Cancel" in card.label %}
+                        <i class="feather icon-x-circle"></i>
+                    {% else %}
+                        <i class="feather icon-clipboard"></i>
+                    {% endif %}
+                </span>
+                <span>
+                    <span class="mo-pipeline-label">
+                        {% if card.label == "New Order" %}New{% elif card.label == "Order Accepted" %}Accepted{% elif card.label == "Order Packed" %}Packed{% elif card.label == "Delivery Issue" %}Attention{% elif card.label == "Order Cancelled" %}Canceled{% else %}{{ card.label }}{% endif %}
+                    </span>
+                    <span class="mo-pipeline-value">{{ card.count }}</span>
+                </span>
+                <i class="feather icon-chevron-right mo-pipeline-chevron"></i>
+            </a>
+        {% endfor %}
+    </div>
+
+    <div class="mo-web-section-head mt-3">
+        <div>
+            <h5>Stock dashboard</h5>
+            <p>Low-stock and no-stock items that need action.</p>
         </div>
     </div>
     <div class="row g-3 mb-2">
@@ -238,10 +438,10 @@
         <div class="col-md-6 col-xl-3">
             <div class="card dashboard-card dashboard-tone-{{ card.tone }}">
                 <div class="card-body">
-                    <div class="small text-muted text-uppercase">{{ card.title }}</div>
-                    <div class="metric-value mt-2">{{ card.count }}</div>
+                    <div class="mo-summary-label">{{ card.title }}</div>
+                    <div class="mo-summary-value">{{ card.count }}</div>
                     <div class="text-muted small mt-2">{{ card.description }}</div>
-                    <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-primary mt-3">{{ card.action_label }}</a>
+                    <a href="{{ card.action_url }}" class="btn btn-sm mo-web-soft-button mt-3">{{ card.action_label }}</a>
                 </div>
             </div>
         </div>
@@ -268,7 +468,7 @@
                         {% endfor %}
                     </div>
                 </div>
-                <a href="{% url 'stock_management' %}" class="btn btn-sm btn-outline-primary mt-3">Open Stock Management</a>
+                <a href="{% url 'stock_management' %}" class="btn btn-sm mo-web-soft-button mt-3">Open Stock Management</a>
             </div>
         </div>
         <div class="col-xl-6">
@@ -290,7 +490,7 @@
                         {% endfor %}
                     </div>
                 </div>
-                <a href="{% url 'stock_management' %}" class="btn btn-sm btn-outline-primary mt-3">Open Stock Management</a>
+                <a href="{% url 'stock_management' %}" class="btn btn-sm mo-web-soft-button mt-3">Open Stock Management</a>
             </div>
         </div>
     </div>

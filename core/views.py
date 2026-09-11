@@ -2921,6 +2921,8 @@ def home(request):
     context = _build_orders_dashboard_context(request)
     if context["ops_mobile_mode"]:
         return render(request, "core/home_ops.html", context)
+    if is_super_admin(request.user):
+        return render(request, "core/home_admin.html", context)
     return render(request, "core/home.html", context)
 
 
