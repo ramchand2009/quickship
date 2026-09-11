@@ -2798,6 +2798,26 @@ def _build_orders_dashboard_context(request):
                 "url": f"{reverse('order_management')}?tab=cancelled",
             },
         ]
+    elif is_vendor_dashboard:
+        vendor_status_pipeline = [
+            (ShiprocketOrder.STATUS_WAITING, "Waiting", "warning"),
+            (ShiprocketOrder.STATUS_NEW, "New", "warning"),
+            (ShiprocketOrder.STATUS_ACCEPTED, "Accepted", "info"),
+            (ShiprocketOrder.STATUS_PACKED, "Packed", "primary"),
+            (ShiprocketOrder.STATUS_SHIPPED, "Shipped", "secondary"),
+            (ShiprocketOrder.STATUS_COMPLETED, "Completed", "success"),
+            (ShiprocketOrder.STATUS_DELIVERY_ISSUE, "Attention", "danger"),
+            (ShiprocketOrder.STATUS_CANCELLED, "Canceled", "danger"),
+        ]
+        monthly_status_cards = [
+            {
+                "label": label,
+                "count": monthly_status_map.get(status_key, 0),
+                "tone": tone,
+                "url": _dashboard_status_url(status_key),
+            }
+            for status_key, label, tone in vendor_status_pipeline
+        ]
     else:
         monthly_status_cards = [
             {
@@ -2890,6 +2910,7 @@ def _build_orders_dashboard_context(request):
         "show_webhook_stale_banner": show_webhook_stale_banner,
         "system_status": system_status,
         "can_edit_operations": can_edit_operations,
+        "is_vendor_dashboard": is_vendor_dashboard,
         "ops_mobile_mode": ops_mobile_mode,
         "action_cards": action_cards,
         "order_action_cards": order_action_cards,
@@ -2949,7 +2970,7 @@ def home(request):
     if is_super_admin(request.user):
         return render(request, "core/home_admin.html", context)
     if is_vendor_user(request.user):
-        return render(request, "core/home.html", context)
+        return render(request, "core/home_ops.html", context)
     if context["ops_mobile_mode"]:
         return render(request, "core/home_ops.html", context)
     return render(request, "core/home.html", context)

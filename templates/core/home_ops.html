@@ -587,14 +587,18 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                                 <span class="ops-home-status-icon">
                                     {% if card.label == "All" %}
                                         <svg viewBox="0 0 24 24"><path d="M9 7h6"/><path d="M7 3h7l4 4v14H6V3z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h4"/></svg>
-                                    {% elif card.label == "Pending" %}
+                                    {% elif card.label == "Pending" or card.label == "Waiting" or card.label == "New" %}
                                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/><path d="M17 7h3v3"/></svg>
                                     {% elif card.label == "Accepted" %}
                                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2 4.8-4.9"/></svg>
+                                    {% elif card.label == "Packed" %}
+                                        <svg viewBox="0 0 24 24"><path d="m3 7 9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
                                     {% elif card.label == "Shipped" %}
                                         <svg viewBox="0 0 24 24"><path d="M3 7h11l2 3h5v6h-2"/><path d="M3 7v9h2"/><path d="M16 10V7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
                                     {% elif card.label == "Completed" %}
                                         <svg viewBox="0 0 24 24"><path d="M12 3 6.5 5v5.5c0 4.1 2.4 7.8 5.5 9.5 3.1-1.7 5.5-5.4 5.5-9.5V5L12 3Z"/><path d="m9.5 12 1.8 1.8 3.2-3.4"/></svg>
+                                    {% elif card.label == "Attention" %}
+                                        <svg viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.84 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.84a2 2 0 0 0-3.4 0Z"/></svg>
                                     {% else %}
                                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
                                     {% endif %}
@@ -602,19 +606,25 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                             </div>
                             <div>
                                 <span class="ops-home-status-value">{{ card.count }}</span>
-                                <span class="ops-home-status-caption {% if card.label == 'Cancelled' %}is-danger{% elif card.label == 'Pending' %}is-warning{% elif card.label == 'All' %}is-positive{% endif %}">
+                                <span class="ops-home-status-caption {% if card.label == 'Cancelled' or card.label == 'Canceled' or card.label == 'Attention' %}is-danger{% elif card.label == 'Pending' or card.label == 'Waiting' or card.label == 'New' %}is-warning{% elif card.label == 'All' or card.label == 'Completed' %}is-positive{% endif %}">
                                     {% if card.label == "All" %}
                                         {{ current_month_label }}
-                                    {% elif card.label == "Pending" %}
+                                    {% elif card.label == "Pending" or card.label == "Waiting" %}
                                         Requires action
+                                    {% elif card.label == "New" %}
+                                        Ready to accept
                                     {% elif card.label == "Accepted" %}
                                         In processing
+                                    {% elif card.label == "Packed" %}
+                                        Ready to ship
                                     {% elif card.label == "Shipped" %}
                                         On the way
                                     {% elif card.label == "Completed" %}
                                         Finalized
+                                    {% elif card.label == "Attention" %}
+                                        Needs action
                                     {% else %}
-                                        Refunds issued
+                                        Canceled orders
                                     {% endif %}
                                 </span>
                             </div>
