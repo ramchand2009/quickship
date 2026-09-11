@@ -605,6 +605,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     justify-content: space-between;
     gap: 1rem;
     align-items: center;
+    flex-wrap: nowrap;
 }
 
 .ops-home-month-control {
@@ -831,11 +832,11 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         font-size: 2rem;
     }
     .ops-home-meta-row {
-        align-items: flex-start;
-        flex-direction: column;
+        gap: 0.65rem;
     }
     .ops-home-month-control {
-        width: 100%;
+        width: auto;
+        min-width: 164px;
         justify-content: space-between;
     }
     .ops-home-summary-item {
@@ -858,7 +859,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                         <span class="ops-home-avatar"><img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="{{ active_tenant.name|default:'Mathukai' }} Logo" class="ops-home-logo-img"></span>
                         <span>
                             <span class="ops-home-brand-kicker">Mathukai</span>
-                            <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Organic" }}</span>
+                            <span class="ops-home-topbar-title">{{ dashboard_brand_name }}</span>
                         </span>
                     </a>
                 {% else %}
@@ -866,7 +867,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
                         <span class="ops-home-avatar"><img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="{{ active_tenant.name|default:'Mathukai' }} Logo" class="ops-home-logo-img"></span>
                         <span>
                             <span class="ops-home-brand-kicker">Mathukai</span>
-                            <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Organic" }}</span>
+                            <span class="ops-home-topbar-title">{{ dashboard_brand_name }}</span>
                         </span>
                     </span>
                 {% endif %}
@@ -901,7 +902,7 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <main class="ops-home-main">
         <section class="ops-home-hero">
             <div class="ops-home-header">
-                <h2 class="ops-home-title">{{ dashboard_greeting }}, {{ request.user.first_name|default:request.user.username }}</h2>
+                <h2 class="ops-home-title">{{ dashboard_greeting }}, {{ dashboard_user_name }}</h2>
                 <div class="ops-home-meta-row">
                     <span class="ops-home-date-line">{{ dashboard_today_label }}</span>
                     <span class="ops-home-date-line">Updated {{ dashboard_updated_label }}</span>

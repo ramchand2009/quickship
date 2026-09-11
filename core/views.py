@@ -2485,6 +2485,10 @@ def _build_orders_dashboard_context(request):
         dashboard_greeting = "Good afternoon"
     else:
         dashboard_greeting = "Good evening"
+    dashboard_brand_name = str(getattr(active_tenant, "name", "") or "Mathukai Organic").strip()
+    if dashboard_brand_name.lower() == "mathukai":
+        dashboard_brand_name = "Mathukai Organic"
+    dashboard_user_name = (user.get_full_name() or user.username) if getattr(user, "is_authenticated", False) else ""
     counters = get_operational_counters()
     failed_queue_count = counters["failed_queue_count"]
     pending_queue_count = counters["pending_queue_count"]
@@ -2942,6 +2946,8 @@ def _build_orders_dashboard_context(request):
         "no_stock_products": stock_lists["no_stock_products"],
         "current_month_label": current_month_label,
         "dashboard_greeting": dashboard_greeting,
+        "dashboard_brand_name": dashboard_brand_name,
+        "dashboard_user_name": dashboard_user_name,
         "dashboard_today_label": f"{now.strftime('%A, %B')} {now.day}",
         "dashboard_updated_label": now.strftime("%I:%M %p").lstrip("0"),
         "monthly_status_total": monthly_total,
