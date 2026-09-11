@@ -34,6 +34,7 @@ const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL
   || 'https://quickship.mathukaiorganic.store/api/v1'
 ).replace(/\/$/, '');
+const REQUEST_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {
   constructor(
@@ -50,13 +51,18 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      signal: controller.signal,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init.headers },
     });
   } catch {
     throw new ApiError(0, 'network_error', 'Cannot reach the server. Check your connection and API address.');
+  } finally {
+    clearTimeout(timeout);
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as ApiErrorBody;

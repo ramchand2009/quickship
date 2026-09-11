@@ -13,6 +13,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  type LayoutChangeEvent,
   Linking,
   Modal,
   Platform,
@@ -90,9 +91,11 @@ type PackingImageDraft = {
   type: string;
 };
 
+type ScannerRect = { x: number; y: number; width: number; height: number };
+
 const ACTION_LABELS: Record<string, string> = {
   order_accepted: 'Accept order',
-  order_packed: 'Mark packed',
+  order_packed: 'Order Packet',
   shipped: 'Mark shipped',
   out_for_delivery: 'Mark out for delivery',
   delivered: 'Mark delivered',
@@ -101,7 +104,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 function actionLabel(action: OrderAction) {
-  if (action.code === 'mark_payment_received') return 'Mark payment received';
+  if (action.code === 'mark_payment_received') return 'Payment Received';
   if (action.code === 'flag_issue') return 'Flag issue';
   return ACTION_LABELS[action.target_status || ''] || action.label;
 }
@@ -129,6 +132,49 @@ function normalizeTrackingBarcode(value: string) {
   const cleaned = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
   const match = cleaned.match(/[A-Z]{2}\d{9}[A-Z]{2}/);
   return match ? match[0] : cleaned;
+}
+
+function barcodeCenter(result: BarcodeScanningResult) {
+  const points = Array.isArray(result.cornerPoints) ? result.cornerPoints : [];
+  const usablePoints = points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (usablePoints.length > 0) {
+    return {
+      x: usablePoints.reduce((sum, point) => sum + point.x, 0) / usablePoints.length,
+      y: usablePoints.reduce((sum, point) => sum + point.y, 0) / usablePoints.length,
+    };
+  }
+  const bounds = result.bounds;
+  if (
+    bounds?.origin
+    && bounds?.size
+    && Number.isFinite(bounds.origin.x)
+    && Number.isFinite(bounds.origin.y)
+    && Number.isFinite(bounds.size.width)
+    && Number.isFinite(bounds.size.height)
+    && bounds.size.width > 0
+    && bounds.size.height > 0
+  ) {
+    return {
+      x: bounds.origin.x + bounds.size.width / 2,
+      y: bounds.origin.y + bounds.size.height / 2,
+    };
+  }
+  return null;
+}
+
+function isBarcodeInsideScanFrame(result: BarcodeScanningResult, frame: ScannerRect | null, camera: ScannerRect | null) {
+  if (!frame || frame.width <= 0 || frame.height <= 0) return true;
+  const center = barcodeCenter(result);
+  if (!center) return true;
+  const x = camera && center.x >= 0 && center.x <= 1 ? center.x * camera.width : center.x;
+  const y = camera && center.y >= 0 && center.y <= 1 ? center.y * camera.height : center.y;
+  const margin = 10;
+  return (
+    x >= frame.x - margin
+    && x <= frame.x + frame.width + margin
+    && y >= frame.y - margin
+    && y <= frame.y + frame.height + margin
+  );
 }
 
 function productUnitPrice(product: ProductSummary) {
@@ -290,6 +336,9 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingScannerVisible, setTrackingScannerVisible] = useState(false);
   const [trackingScanned, setTrackingScanned] = useState(false);
+  const [scannerCameraLayout, setScannerCameraLayout] = useState<ScannerRect | null>(null);
+  const [scannerGuideLayout, setScannerGuideLayout] = useState<ScannerRect | null>(null);
+  const [scannerFrameLayout, setScannerFrameLayout] = useState<ScannerRect | null>(null);
   const [packageWeightGrams, setPackageWeightGrams] = useState('');
   const [packingImageUrl, setPackingImageUrl] = useState('');
   const [packingImageDraft, setPackingImageDraft] = useState<PackingImageDraft | null>(null);
@@ -556,11 +605,36 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       }
     }
     setTrackingScanned(false);
+    setScannerCameraLayout(null);
+    setScannerGuideLayout(null);
+    setScannerFrameLayout(null);
     setTrackingScannerVisible(true);
+  };
+
+  const scannerFrameBounds = scannerGuideLayout && scannerFrameLayout
+    ? {
+      x: scannerGuideLayout.x + scannerFrameLayout.x,
+      y: scannerGuideLayout.y + scannerFrameLayout.y,
+      width: scannerFrameLayout.width,
+      height: scannerFrameLayout.height,
+    }
+    : null;
+
+  const captureScannerCameraLayout = (event: LayoutChangeEvent) => {
+    setScannerCameraLayout(event.nativeEvent.layout);
+  };
+
+  const captureScannerGuideLayout = (event: LayoutChangeEvent) => {
+    setScannerGuideLayout(event.nativeEvent.layout);
+  };
+
+  const captureScannerFrameLayout = (event: LayoutChangeEvent) => {
+    setScannerFrameLayout(event.nativeEvent.layout);
   };
 
   const handleTrackingBarcode = (result: BarcodeScanningResult) => {
     if (trackingScanned) return;
+    if (!isBarcodeInsideScanFrame(result, scannerFrameBounds, scannerCameraLayout)) return;
     const code = normalizeTrackingBarcode(result.data);
     if (!code) return;
     setTrackingScanned(true);
@@ -1478,6 +1552,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
             barcodeScannerSettings={{
               barcodeTypes: ['code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e', 'itf14'],
             }}
+            onLayout={captureScannerCameraLayout}
             onBarcodeScanned={trackingScanned ? undefined : handleTrackingBarcode}
             style={styles.scannerCamera}
           >
@@ -1488,8 +1563,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
                   <MaterialCommunityIcons color="#FFFFFF" name="close" size={24} />
                 </Pressable>
               </View>
-              <View style={styles.scannerGuide}>
-                <View style={styles.scannerFrame} />
+              <View onLayout={captureScannerGuideLayout} style={styles.scannerGuide}>
+                <View onLayout={captureScannerFrameLayout} style={styles.scannerFrame} />
                 <Text style={styles.scannerHint}>Place the India Post barcode inside the box.</Text>
               </View>
             </View>

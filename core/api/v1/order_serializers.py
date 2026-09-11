@@ -532,7 +532,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
             actions.append(
                 {
                     "code": "mark_payment_received",
-                    "label": "Mark payment received",
+                    "label": "Payment Received",
                     "target_status": None,
                     "confirmation_required": True,
                     "reason_required": False,

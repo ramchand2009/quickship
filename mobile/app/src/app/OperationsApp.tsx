@@ -22,7 +22,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { DashboardResponse } from '../auth/types';
+import type { DashboardMetric, DashboardResponse } from '../auth/types';
 import CustomersScreen from '../customers/CustomersScreen';
 import type { ShippingLabelSender } from '../customers/types';
 import ExpensesScreen from '../expenses/ExpensesScreen';
@@ -78,6 +78,17 @@ const METRIC_ORDER_STATUSES: Record<string, string> = {
   completed_orders: 'completed',
   cancelled_orders: 'order_cancelled',
 };
+
+const PIPELINE_METRIC_KEYS = [
+  'waiting_orders',
+  'pending_orders',
+  'accepted_orders',
+  'packed_orders',
+  'shipped_orders',
+  'completed_orders',
+  'attention_orders',
+  'cancelled_orders',
+];
 
 const INDIA_POST_CUSTOMER_ID = '1828524916';
 
@@ -262,18 +273,9 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
 
   const financeMetrics = dashboard.data.metrics.filter((metric) => metric.key === 'total_sales' || metric.key === 'total_profit');
   const totalOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'total_orders');
-  const priorityMetrics = dashboard.data.metrics.filter((metric) => (
-    metric.key === 'waiting_orders'
-    || metric.key === 'pending_orders'
-    || metric.key === 'attention_orders'
-  ));
-  const newOrdersMetric = dashboard.data.metrics.find((metric) => metric.key === 'pending_orders');
-  const pipelineMetrics = dashboard.data.metrics.filter((metric) => (
-    metric.key === 'accepted_orders'
-    || metric.key === 'packed_orders'
-    || metric.key === 'shipped_orders'
-    || metric.key === 'completed_orders'
-  ));
+  const pipelineMetrics = PIPELINE_METRIC_KEYS
+    .map((key) => dashboard.data.metrics.find((metric) => metric.key === key))
+    .filter((metric): metric is DashboardMetric => Boolean(metric));
   const firstName = (auth?.session.user.display_name || '').trim().split(/\s+/)[0];
   const greeting = greetingForCurrentTime();
   const todayLabel = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
@@ -332,34 +334,6 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
         ))}
       </View>
 
-      <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Waiting, new and attention</Text>
-      <View style={styles.metricGrid}>
-        {priorityMetrics.map((metric) => {
-          const colors = METRIC_COLORS[metric.key] || METRIC_COLORS.total_orders;
-          return (
-            <Pressable
-              accessibilityRole="button"
-              key={metric.key}
-              onPress={() => onNavigate(
-                METRIC_ORDER_STATUSES[metric.key]
-                  ? destinationWithOrderStatus(metric.destination, METRIC_ORDER_STATUSES[metric.key])
-                  : metric.destination,
-              )}
-              style={({ pressed }) => [styles.metricCard, pressed && styles.pressed]}
-            >
-              <View style={[styles.metricIcon, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <MaterialCommunityIcons color={colors.foreground} name={METRIC_ICONS[metric.key]} size={25} />
-              </View>
-              <View style={styles.metricCopy}>
-                <Text style={styles.metricLabel}>{metric.label}</Text>
-                <Text style={[styles.metricValue, { color: colors.foreground }]}>{formatMetricValue(metric.value)}</Text>
-              </View>
-              <MaterialCommunityIcons color="#52665E" name="chevron-right" size={22} />
-            </Pressable>
-          );
-        })}
-      </View>
-
       <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Order pipeline</Text>
       <View style={styles.metricGrid}>
         {pipelineMetrics.map((metric) => {
@@ -379,7 +353,7 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
                 <MaterialCommunityIcons color={colors.foreground} name={METRIC_ICONS[metric.key]} size={25} />
               </View>
               <View style={styles.metricCopy}>
-                <Text style={styles.metricLabel}>{metric.label}</Text>
+                <Text style={styles.metricLabel}>{metric.key === 'cancelled_orders' ? 'Canceled' : metric.label}</Text>
                 <Text style={[styles.metricValue, { color: colors.foreground }]}>{formatMetricValue(metric.value)}</Text>
               </View>
               <MaterialCommunityIcons color="#52665E" name="chevron-right" size={22} />
@@ -388,40 +362,27 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
         })}
       </View>
 
-      <View style={styles.attentionCard}>
-        <Text style={styles.attentionHeading}>Needs your attention</Text>
-        {newOrdersMetric ? (
-          <Pressable
-            onPress={() => onNavigate(destinationWithOrderStatus(newOrdersMetric.destination, 'new_order'))}
-            style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
-          >
-            <View style={[styles.attentionIcon, styles.newOrderAttentionIcon]}>
-              <MaterialCommunityIcons color="#E68200" name="clock-outline" size={24} />
-            </View>
-            <View style={styles.attentionCopy}>
-              <Text style={styles.attentionLabel}>New orders</Text>
-            </View>
-            <Text style={styles.attentionValue}>{formatMetricValue(newOrdersMetric.value)}</Text>
-            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
-          </Pressable>
-        ) : null}
-        {dashboard.data.alerts.map((alert) => (
-          <Pressable
-            key={alert.id}
-            onPress={() => onNavigate(alert.destination)}
-            style={({ pressed }) => [styles.attentionRow, styles.attentionRowDivider, pressed && styles.pressed]}
-          >
-            <View style={styles.attentionIcon}>
-              <MaterialCommunityIcons color="#D98200" name="alert-outline" size={24} />
-            </View>
-            <View style={styles.attentionCopy}>
-              <Text style={styles.attentionLabel}>{alert.title}</Text>
-              <Text numberOfLines={1} style={styles.attentionHint}>{alert.message}</Text>
-            </View>
-            <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
-          </Pressable>
-        ))}
-      </View>
+      {dashboard.data.alerts.length > 0 ? (
+        <View style={styles.attentionCard}>
+          <Text style={styles.attentionHeading}>Needs your attention</Text>
+          {dashboard.data.alerts.map((alert, index) => (
+            <Pressable
+              key={alert.id}
+              onPress={() => onNavigate(alert.destination)}
+              style={({ pressed }) => [styles.attentionRow, index > 0 && styles.attentionRowDivider, pressed && styles.pressed]}
+            >
+              <View style={styles.attentionIcon}>
+                <MaterialCommunityIcons color="#D98200" name="alert-outline" size={24} />
+              </View>
+              <View style={styles.attentionCopy}>
+                <Text style={styles.attentionLabel}>{alert.title}</Text>
+                <Text numberOfLines={1} style={styles.attentionHint}>{alert.message}</Text>
+              </View>
+              <MaterialCommunityIcons color="#52665E" name="chevron-right" size={23} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
