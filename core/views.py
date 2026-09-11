@@ -2479,6 +2479,12 @@ def _build_orders_dashboard_context(request):
     now = timezone.localtime(timezone.now())
     today = now.date()
     yesterday = today - timedelta(days=1)
+    if now.hour < 12:
+        dashboard_greeting = "Good morning"
+    elif now.hour < 17:
+        dashboard_greeting = "Good afternoon"
+    else:
+        dashboard_greeting = "Good evening"
     counters = get_operational_counters()
     failed_queue_count = counters["failed_queue_count"]
     pending_queue_count = counters["pending_queue_count"]
@@ -2935,6 +2941,9 @@ def _build_orders_dashboard_context(request):
         "low_stock_products": stock_lists["low_stock_products"],
         "no_stock_products": stock_lists["no_stock_products"],
         "current_month_label": current_month_label,
+        "dashboard_greeting": dashboard_greeting,
+        "dashboard_today_label": f"{now.strftime('%A, %B')} {now.day}",
+        "dashboard_updated_label": now.strftime("%I:%M %p").lstrip("0"),
         "monthly_status_total": monthly_total,
         "monthly_sales_total": monthly_sales_total,
         "monthly_profit_total": monthly_profit_total,

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Home | Mathukai{% endblock %}
 {% block extrastyle %}
@@ -518,6 +519,332 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
         grid-template-columns: 1fr 1fr;
     }
 }
+
+.ops-home-shell {
+    background: #f6fbf8;
+    color: #063f30;
+    font-family: Inter, "Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ops-home-shell .ops-mobile-topbar {
+    min-height: 88px;
+    background: #ffffff;
+    border-bottom-color: #dbe8e1;
+}
+
+.ops-home-topbar-brand {
+    gap: 0.85rem;
+}
+
+.ops-home-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 999px;
+    border: 1px solid #b9dec8;
+    background: #eaf8ee;
+    overflow: hidden;
+}
+
+.ops-home-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 0.28rem;
+    border-radius: 999px;
+}
+
+.ops-home-brand-kicker {
+    display: block;
+    color: #6f8c7c;
+    font-size: 0.74rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.ops-home-topbar-title {
+    display: block;
+    color: #053c2c;
+    font-size: 1.45rem;
+    font-weight: 900;
+}
+
+.ops-home-shell .ops-mobile-topbar-control,
+.ops-home-topbar-menu summary {
+    width: 56px;
+    height: 56px;
+    color: #006b43;
+    background: #edf8f0;
+    border-color: #d8efe1;
+}
+
+.ops-home-main {
+    gap: 1.35rem;
+    padding: 1.45rem 1rem 7.4rem;
+}
+
+.ops-home-hero {
+    gap: 0.8rem;
+}
+
+.ops-home-title {
+    color: #063f30;
+    font-size: clamp(2.2rem, 8vw, 3.1rem);
+    letter-spacing: -0.05em;
+}
+
+.ops-home-header p,
+.ops-home-date-line {
+    color: #6c8278;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.ops-home-meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+}
+
+.ops-home-month-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 56px;
+    padding: 0 1rem;
+    border: 1px solid #d2ded8;
+    border-radius: 1.1rem;
+    background: #fff;
+    color: #173f31;
+    font-weight: 900;
+    box-shadow: 0 6px 16px rgba(6, 63, 48, 0.05);
+}
+
+.ops-home-month-control svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ops-home-section-title {
+    color: #063f30;
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    margin: 0 0 0.7rem;
+}
+
+.ops-home-summary-card {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid #d9e7df;
+    border-radius: 1.45rem;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(6, 63, 48, 0.10);
+    overflow: hidden;
+}
+
+.ops-home-summary-item {
+    display: grid;
+    place-items: center;
+    gap: 0.45rem;
+    min-height: 126px;
+    padding: 0.85rem 0.5rem;
+    text-align: center;
+    border-right: 1px solid #e2ebe6;
+}
+
+.ops-home-summary-item:last-child {
+    border-right: 0;
+}
+
+.ops-home-summary-icon {
+    width: 48px;
+    height: 48px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
+    background: #eaf8ee;
+    color: #008a52;
+}
+
+.ops-home-summary-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ops-home-summary-label {
+    color: #64796f;
+    font-size: 0.88rem;
+    font-weight: 900;
+}
+
+.ops-home-summary-value {
+    color: #00824d;
+    font-size: clamp(1.25rem, 4.5vw, 1.8rem);
+    font-weight: 950;
+    line-height: 1.1;
+}
+
+.ops-home-panel {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.ops-home-panel-head h3 {
+    color: #063f30;
+    font-size: 1.75rem;
+    font-weight: 900;
+}
+
+.ops-home-status-grid {
+    gap: 0.9rem;
+}
+
+.ops-home-status-card {
+    border: 1px solid #dce7e1;
+    border-radius: 1.2rem;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(6, 63, 48, 0.08);
+}
+
+.ops-home-status-card a {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.85rem;
+    min-height: 104px;
+    padding: 0.95rem;
+}
+
+.ops-home-status-head {
+    display: contents;
+}
+
+.ops-home-status-icon {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 52px;
+    height: 52px;
+    border-radius: 1rem;
+    background: #eaf8ee;
+    border: 1px solid #bee8ce;
+    color: #00824d;
+}
+
+.ops-home-status-label {
+    grid-column: 2;
+    color: #416257;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.ops-home-status-value {
+    grid-column: 2;
+    color: #00824d;
+    font-size: 2rem;
+    font-weight: 950;
+}
+
+.ops-home-status-caption {
+    display: none;
+}
+
+.ops-home-status-card a::after {
+    content: "›";
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    color: #4d6b60;
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ops-home-status-card.is-warning .ops-home-status-icon,
+.ops-home-status-card.is-light .ops-home-status-icon {
+    color: #d47a00;
+    background: #fff9eb;
+    border-color: #f5dca0;
+}
+
+.ops-home-status-card.is-warning .ops-home-status-value,
+.ops-home-status-card.is-light .ops-home-status-value {
+    color: #9a6100;
+}
+
+.ops-home-status-card.is-danger .ops-home-status-icon {
+    color: #d6001c;
+    background: #fff2f3;
+    border-color: #ffcbd0;
+}
+
+.ops-home-status-card.is-danger .ops-home-status-value {
+    color: #b00016;
+}
+
+.ops-home-status-card.is-primary .ops-home-status-icon {
+    color: #605ce6;
+    background: #f2f1ff;
+    border-color: #d5d2ff;
+}
+
+.ops-home-status-card.is-primary .ops-home-status-value {
+    color: #5a56db;
+}
+
+.ops-home-status-card.is-secondary .ops-home-status-icon {
+    color: #0074b8;
+    background: #eff8ff;
+    border-color: #b9e1ff;
+}
+
+.ops-home-status-card.is-secondary .ops-home-status-value {
+    color: #0074b8;
+}
+
+.ops-home-extra-panel {
+    display: none;
+}
+
+@media (min-width: 900px) {
+    .ops-home-main {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+}
+
+@media (max-width: 420px) {
+    .ops-home-title {
+        font-size: 2rem;
+    }
+    .ops-home-meta-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .ops-home-month-control {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .ops-home-summary-item {
+        min-height: 112px;
+    }
+    .ops-home-summary-value {
+        font-size: 1.1rem;
+    }
+}
 </style>
 {% endblock %}
 
@@ -528,13 +855,19 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
             <div class="ops-home-topbar-cluster">
                 {% if can_manage_current_vendor_settings %}
                     <a href="{% url 'vendor_profile' %}" class="ops-home-topbar-brand" aria-label="Vendor profile">
-                        <span class="ops-home-avatar">{{ active_tenant.name|default:"M"|slice:":1"|upper }}</span>
-                        <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Vendor" }}</span>
+                        <span class="ops-home-avatar"><img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="{{ active_tenant.name|default:'Mathukai' }} Logo" class="ops-home-logo-img"></span>
+                        <span>
+                            <span class="ops-home-brand-kicker">Mathukai</span>
+                            <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Organic" }}</span>
+                        </span>
                     </a>
                 {% else %}
                     <span class="ops-home-topbar-brand">
-                        <span class="ops-home-avatar">{{ active_tenant.name|default:"M"|slice:":1"|upper }}</span>
-                        <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Vendor" }}</span>
+                        <span class="ops-home-avatar"><img src="{% static 'assets/images/mathukai-logo.png' %}?v=20260319" alt="{{ active_tenant.name|default:'Mathukai' }} Logo" class="ops-home-logo-img"></span>
+                        <span>
+                            <span class="ops-home-brand-kicker">Mathukai</span>
+                            <span class="ops-home-topbar-title">{{ active_tenant.name|default:"Mathukai Organic" }}</span>
+                        </span>
                     </span>
                 {% endif %}
                 <details class="ops-home-topbar-menu">
@@ -568,16 +901,43 @@ body.ops-mobile-layout .pcoded-wrapper, body.ops-mobile-layout .pcoded-inner-con
     <main class="ops-home-main">
         <section class="ops-home-hero">
             <div class="ops-home-header">
-                <h2 class="ops-home-title">Welcome, {{ active_tenant.name|default:"Mathukai Vendor" }}</h2>
-                <p>Here's your operational overview for today.</p>
+                <h2 class="ops-home-title">{{ dashboard_greeting }}, {{ request.user.first_name|default:request.user.username }}</h2>
+                <div class="ops-home-meta-row">
+                    <span class="ops-home-date-line">{{ dashboard_today_label }}</span>
+                    <span class="ops-home-date-line">Updated {{ dashboard_updated_label }}</span>
+                </div>
             </div>
-            <div class="ops-home-date-pill">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4M17 3v4"/><path d="M4 9h16"/><rect x="4" y="5" width="16" height="15" rx="2"/></svg>
-                <span>{% now "F j, Y" %}</span>
+            <div class="ops-home-meta-row">
+                <span class="ops-home-date-line">Viewing month</span>
+                <span class="ops-home-month-control">{{ current_month_label }} <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+        </section>
+
+        <section>
+            <h3 class="ops-home-section-title">Monthly summary</h3>
+            <div class="ops-home-summary-card">
+                <div class="ops-home-summary-item">
+                    <span class="ops-home-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-7"/><path d="m8 10 4-4 4 3 4-5"/></svg></span>
+                    <span class="ops-home-summary-label">Sales</span>
+                    <span class="ops-home-summary-value">₹ {{ monthly_sales_total|floatformat:2 }}</span>
+                </div>
+                <div class="ops-home-summary-item">
+                    <span class="ops-home-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10"/><path d="M7 9h10"/><path d="M8 5c6 0 6 8 0 8h-1l8 6"/></svg></span>
+                    <span class="ops-home-summary-label">Profit</span>
+                    <span class="ops-home-summary-value">₹ {{ monthly_profit_total|floatformat:2 }}</span>
+                </div>
+                <div class="ops-home-summary-item">
+                    <span class="ops-home-summary-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h6"/><path d="M7 3h7l4 4v14H6V3z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h4"/></svg></span>
+                    <span class="ops-home-summary-label">Orders</span>
+                    <span class="ops-home-summary-value">{{ monthly_status_total }}</span>
+                </div>
             </div>
         </section>
 
         <section class="ops-home-panel">
+            <div class="ops-home-panel-head">
+                <h3>Order pipeline</h3>
+            </div>
             <div class="ops-home-status-grid">
                 {% for card in monthly_status_cards %}
                     <div class="ops-home-status-card is-{{ card.tone }}">
