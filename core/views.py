@@ -1374,6 +1374,8 @@ def _active_whatsapp_tenant(request):
 def resolve_post_login_url(user):
     if is_super_admin(user):
         return reverse("home")
+    if is_vendor_user(user):
+        return reverse("home")
     if is_ops_viewer(user):
         return reverse("order_management")
     return reverse("home")
@@ -2919,10 +2921,12 @@ def _build_orders_dashboard_context(request):
 @login_required
 def home(request):
     context = _build_orders_dashboard_context(request)
-    if context["ops_mobile_mode"]:
-        return render(request, "core/home_ops.html", context)
     if is_super_admin(request.user):
         return render(request, "core/home_admin.html", context)
+    if is_vendor_user(request.user):
+        return render(request, "core/home.html", context)
+    if context["ops_mobile_mode"]:
+        return render(request, "core/home_ops.html", context)
     return render(request, "core/home.html", context)
 
 
