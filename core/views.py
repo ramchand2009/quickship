@@ -2464,8 +2464,10 @@ def _get_order_management_undo_context(request):
 
 
 def _build_orders_dashboard_context(request):
-    can_edit_operations = _can_edit_operations(getattr(request, "user", None))
-    ops_mobile_mode = _is_ops_viewer(getattr(request, "user", None))
+    user = getattr(request, "user", None)
+    can_edit_operations = _can_edit_operations(user)
+    is_vendor_dashboard = is_vendor_user(user)
+    ops_mobile_mode = _is_ops_viewer(user) and not is_vendor_dashboard
     active_tenant = get_active_tenant(request)
     project_queryset = _scope_queryset_to_active_tenant(request, Project.objects.all())
     contact_queryset = _scope_queryset_to_active_tenant(request, ContactMessage.objects.all())
@@ -2507,21 +2509,41 @@ def _build_orders_dashboard_context(request):
             status_tabs[0]["key"],
         )
 
-    whatsapp_diagnostics = _build_whatsapp_diagnostics()
-    work_queues = _build_dashboard_work_queues(order_queryset)
-    last_successful_send = whatsapp_diagnostics["last_success_log"]
-    yesterday_sent_count = OrderActivityLog.objects.filter(
-        event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_SUCCESS,
-        created_at__date=yesterday,
-    ).count()
-    yesterday_failed_count = OrderActivityLog.objects.filter(
-        event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_FAILED,
-        created_at__date=yesterday,
-    ).count()
-    yesterday_retried_count = OrderActivityLog.objects.filter(
-        event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_RETRY,
-        created_at__date=yesterday,
-    ).count()
+    if is_vendor_dashboard:
+        whatsapp_diagnostics = {
+            "last_success_log": None,
+            "recent_jobs": [],
+            "retry_jobs": [],
+            "template_health": [],
+            "worker_health": {},
+            "backup_health": {},
+        }
+        work_queues = {
+            "new_orders": {"count": 0, "rows": []},
+            "ready_to_pack": {"count": 0, "rows": []},
+            "packing_blockers": {"count": 0, "rows": []},
+            "ready_to_print": {"count": 0, "rows": []},
+        }
+        last_successful_send = None
+        yesterday_sent_count = 0
+        yesterday_failed_count = 0
+        yesterday_retried_count = 0
+    else:
+        whatsapp_diagnostics = _build_whatsapp_diagnostics()
+        work_queues = _build_dashboard_work_queues(order_queryset)
+        last_successful_send = whatsapp_diagnostics["last_success_log"]
+        yesterday_sent_count = OrderActivityLog.objects.filter(
+            event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_SUCCESS,
+            created_at__date=yesterday,
+        ).count()
+        yesterday_failed_count = OrderActivityLog.objects.filter(
+            event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_FAILED,
+            created_at__date=yesterday,
+        ).count()
+        yesterday_retried_count = OrderActivityLog.objects.filter(
+            event_type=OrderActivityLog.EVENT_WHATSAPP_QUEUE_RETRY,
+            created_at__date=yesterday,
+        ).count()
 
     shortcut_tabs = []
     shortcut_tones = {
@@ -2562,10 +2584,9 @@ def _build_orders_dashboard_context(request):
     ]
     monthly_value_orders = monthly_orders.filter(local_status__in=monthly_value_statuses)
     monthly_sales_total = monthly_value_orders.aggregate(total_amount=Sum("total")).get("total_amount") or 0
-    monthly_profit_total = sum(
-        summarize_order_profit(order)["profit_amount"]
-        for order in monthly_value_orders
-    )
+    monthly_profit_total = Decimal("0.00")
+    for order in monthly_value_orders.only("id", "tenant", "order_items"):
+        monthly_profit_total += summarize_order_profit(order)["profit_amount"]
 
     order_action_cards = [
         {
@@ -2840,7 +2861,11 @@ def _build_orders_dashboard_context(request):
             "url": reverse("stock_management"),
         },
     ]
-    vendor_issue_alerts = _vendor_issue_alerts_for_tenant(active_tenant) if active_tenant else None
+    vendor_issue_alerts = (
+        _vendor_issue_alerts_for_tenant(active_tenant)
+        if active_tenant and ops_mobile_mode
+        else None
+    )
 
     context = {
         "projects": projects,
