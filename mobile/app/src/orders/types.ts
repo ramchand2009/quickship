@@ -72,6 +72,14 @@ export type OrderActivity = {
   created_at: string;
 };
 
+export type OrderProgressItem = {
+  key: string;
+  title: string;
+  description: string;
+  state: 'completed' | 'pending' | 'skipped';
+  timestamp: string | null;
+};
+
 export type OrderAction = {
   code: 'update_status' | 'mark_payment_received' | 'flag_issue';
   label: string;
@@ -93,6 +101,7 @@ export type OrderDetail = OrderSummary & {
   cancellation_note: string | null;
   allowed_actions: OrderAction[];
   activity: OrderActivity[];
+  progress: OrderProgressItem[];
   shipping_label?: {
     sender: {
       name: string;

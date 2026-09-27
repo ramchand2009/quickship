@@ -272,8 +272,42 @@ INDIA_STATE_OPTIONS = [
 ]
 
 
+INDIA_STATE_ALIASES = {
+    "tn": "Tamil Nadu",
+    "tamilnadu": "Tamil Nadu",
+    "tamil nadu": "Tamil Nadu",
+    "ka": "Karnataka",
+    "kar": "Karnataka",
+    "karnataka": "Karnataka",
+    "kl": "Kerala",
+    "kerala": "Kerala",
+    "ap": "Andhra Pradesh",
+    "andhra pradesh": "Andhra Pradesh",
+    "ts": "Telangana",
+    "tg": "Telangana",
+    "telangana": "Telangana",
+    "mh": "Maharashtra",
+    "maharashtra": "Maharashtra",
+    "dl": "Delhi",
+    "delhi": "Delhi",
+}
+
+
+def _normalize_confirmation_state(value):
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    for state_name in INDIA_STATE_OPTIONS:
+        if raw_value.casefold() == state_name.casefold():
+            return state_name
+    folded = " ".join(raw_value.replace("-", " ").split()).casefold()
+    compact = folded.replace(" ", "")
+    return INDIA_STATE_ALIASES.get(folded) or INDIA_STATE_ALIASES.get(compact) or raw_value
+
+
 def _validate_confirmation_address(address):
     errors = []
+    address["state"] = _normalize_confirmation_state(address.get("state"))
     phone_digits = re.sub(r"\D+", "", address.get("phone") or "")
     if not address.get("name") or len(address["name"]) < 2:
         errors.append("enter the customer name")
@@ -291,6 +325,7 @@ def _validate_confirmation_address(address):
 
 
 def _apply_confirmation_address(order, confirmation, address):
+    address["state"] = _normalize_confirmation_state(address.get("state"))
     confirmation.customer_name = address["name"]
     confirmation.customer_phone = address["phone"]
     confirmation.address_1 = address["address_1"]
@@ -490,11 +525,13 @@ def manual_order_confirmation(request, token):
                     actor=None,
                 )
 
+    confirmation_address = confirmation.address_payload
+    confirmation_address["state"] = _normalize_confirmation_state(confirmation_address.get("state"))
     context = {
         "confirmation": confirmation,
         "order": order,
         "items": _confirmation_order_items(order),
-        "address": confirmation.address_payload,
+        "address": confirmation_address,
         "form_error": form_error,
         "action_result": action_result,
         "is_open": confirmation.is_open and order.local_status in confirmation_allowed_statuses,

@@ -56,6 +56,36 @@ def _normalize_address(values):
     }
 
 
+INDIA_STATE_ALIASES = {
+    "tn": "Tamil Nadu",
+    "tamilnadu": "Tamil Nadu",
+    "tamil nadu": "Tamil Nadu",
+    "ka": "Karnataka",
+    "kar": "Karnataka",
+    "karnataka": "Karnataka",
+    "kl": "Kerala",
+    "kerala": "Kerala",
+    "ap": "Andhra Pradesh",
+    "andhra pradesh": "Andhra Pradesh",
+    "ts": "Telangana",
+    "tg": "Telangana",
+    "telangana": "Telangana",
+    "mh": "Maharashtra",
+    "maharashtra": "Maharashtra",
+    "dl": "Delhi",
+    "delhi": "Delhi",
+}
+
+
+def _normalize_india_state(value):
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    folded = " ".join(raw_value.replace("-", " ").split()).casefold()
+    compact = folded.replace(" ", "")
+    return INDIA_STATE_ALIASES.get(folded) or INDIA_STATE_ALIASES.get(compact) or raw_value
+
+
 def _address_line(address):
     return ", ".join(
         str(address.get(key) or "").strip()
@@ -267,6 +297,7 @@ def create_manual_mobile_order(*, session, tenant, role, actor, idempotency_key,
                 )
             if not customer or not address:
                 raise NotFound("The selected customer is unavailable.")
+            address = {**address, "state": _normalize_india_state(address.get("state"))}
 
             totals = _build_manual_order_totals(tenant=tenant, values=values)
 

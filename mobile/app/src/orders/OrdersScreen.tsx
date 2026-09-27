@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
@@ -29,7 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
-import type { Money, OrderAction, OrderDetail, OrderIssueFlagUpdate, OrderListFilters, OrderStatusUpdate, OrderSummary, ShippingAddress } from './types';
+import type { Money, OrderAction, OrderDetail, OrderIssueFlagUpdate, OrderListFilters, OrderProgressItem, OrderStatusUpdate, OrderSummary, ShippingAddress } from './types';
 import type { ProductSummary } from '../stock/types';
 
 const STATUS_FILTERS = [
@@ -317,6 +317,69 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
   );
 }
 
+function LinkRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  const openLink = async () => {
+    const canOpen = await Linking.canOpenURL(value);
+    if (canOpen) {
+      await Linking.openURL(value);
+      return;
+    }
+    Alert.alert('Link unavailable', 'This image link could not be opened on this device.');
+  };
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Pressable onPress={() => void openLink()} style={({ pressed }) => [styles.inlineLinkButton, pressed && styles.pressed]}>
+        <MaterialCommunityIcons color="#1769C2" name="open-in-new" size={17} />
+        <Text numberOfLines={1} style={styles.inlineLinkText}>{value}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function progressIcon(step: OrderProgressItem) {
+  if (step.state === 'completed') return 'check';
+  if (step.state === 'skipped') return 'minus';
+  return 'clock-outline';
+}
+
+function OrderProgressCard({ progress }: { progress: OrderProgressItem[] }) {
+  if (!progress.length) return null;
+  return (
+    <>
+      <Text style={styles.sectionTitle}>Order progress</Text>
+      <View style={styles.progressCard}>
+        {progress.map((step, index) => {
+          const completed = step.state === 'completed';
+          const pending = step.state === 'pending';
+          const skipped = step.state === 'skipped';
+          const last = index === progress.length - 1;
+          return (
+            <View key={step.key} style={styles.progressRow}>
+              <View style={styles.progressRail}>
+                <View style={[
+                  styles.progressDot,
+                  completed && styles.progressDotCompleted,
+                  pending && styles.progressDotPending,
+                ]}>
+                  <MaterialCommunityIcons color={completed ? '#0B5D3B' : pending ? '#8A6A2A' : '#63766E'} name={progressIcon(step)} size={19} />
+                </View>
+                {!last ? <View style={[styles.progressLine, completed && styles.progressLineCompleted]} /> : null}
+              </View>
+              <View style={styles.progressCopy}>
+                <Text style={styles.progressTitle}>{step.title}</Text>
+                <Text style={styles.progressDescription}>{step.description}</Text>
+                <Text style={styles.progressTime}>{step.timestamp ? dateTime(step.timestamp) : skipped ? 'Skipped / not required' : 'Waiting for update'}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
 function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () => void }) {
   const { runAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
@@ -336,6 +399,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingScannerVisible, setTrackingScannerVisible] = useState(false);
   const [trackingScanned, setTrackingScanned] = useState(false);
+  const stableScanRef = useRef<{ code: string; count: number; lastSeenAt: number }>({ code: '', count: 0, lastSeenAt: 0 });
   const [scannerCameraLayout, setScannerCameraLayout] = useState<ScannerRect | null>(null);
   const [scannerGuideLayout, setScannerGuideLayout] = useState<ScannerRect | null>(null);
   const [scannerFrameLayout, setScannerFrameLayout] = useState<ScannerRect | null>(null);
@@ -605,6 +669,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
       }
     }
     setTrackingScanned(false);
+    stableScanRef.current = { code: '', count: 0, lastSeenAt: 0 };
     setScannerCameraLayout(null);
     setScannerGuideLayout(null);
     setScannerFrameLayout(null);
@@ -636,13 +701,16 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
     if (trackingScanned) return;
     if (!isBarcodeInsideScanFrame(result, scannerFrameBounds, scannerCameraLayout)) return;
     const code = normalizeTrackingBarcode(result.data);
-    if (!code) return;
+    if (!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code)) return;
+    const now = Date.now();
+    const previous = stableScanRef.current;
+    const isSameRecentScan = previous.code === code && now - previous.lastSeenAt <= 1800;
+    const nextCount = isSameRecentScan ? previous.count + 1 : 1;
+    stableScanRef.current = { code, count: nextCount, lastSeenAt: now };
+    if (nextCount < 2) return;
     setTrackingScanned(true);
     setTrackingNumber(code);
     setTrackingScannerVisible(false);
-    if (!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code)) {
-      Alert.alert('Barcode scanned', 'Tracking number filled. Please check the value before saving.');
-    }
   };
 
   const openAddressEditor = () => {
@@ -999,6 +1067,8 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         </View>
       ) : null}
 
+      <OrderProgressCard progress={order.progress || []} />
+
       {(order.can_edit_manual_order || order.confirmation_url) ? (
         <>
           <Text style={styles.sectionTitle}>Manual order tools</Text>
@@ -1177,7 +1247,7 @@ function OrderDetailScreen({ orderId, onBack }: { orderId: number; onBack: () =>
         <DetailRow label="Courier" value={order.courier_name} />
         <DetailRow label="Tracking number" value={order.tracking_number} />
         <DetailRow label="Package weight" value={order.package_weight_grams ? `${order.package_weight_grams} g` : null} />
-        <DetailRow label="Packing image" value={order.packing_image_url} />
+        <LinkRow label="Packing image" value={order.packing_image_url} />
         {order.packing_image_url ? (
           <Image source={{ uri: order.packing_image_url }} style={styles.packingPreviewImage} />
         ) : null}
@@ -1809,6 +1879,18 @@ const styles = StyleSheet.create({
   editAddressButton: { minHeight: 36, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', columnGap: 6, backgroundColor: '#F4FAF7' },
   editAddressText: { color: '#0B5D3B', fontSize: 12, fontWeight: '800' },
   sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 22 },
+  progressCard: { backgroundColor: '#FFFFFF', borderColor: '#DCEAE3', borderWidth: 1, borderRadius: 18, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 6, marginBottom: 22 },
+  progressRow: { flexDirection: 'row', minHeight: 86 },
+  progressRail: { width: 54, alignItems: 'center' },
+  progressDot: { width: 43, height: 43, borderRadius: 22, backgroundColor: '#F3F5F4', alignItems: 'center', justifyContent: 'center' },
+  progressDotCompleted: { backgroundColor: '#E4F3EB' },
+  progressDotPending: { backgroundColor: '#FFF4D8' },
+  progressLine: { width: 3, flex: 1, backgroundColor: '#D8E3DE', marginTop: 2 },
+  progressLineCompleted: { backgroundColor: '#B8D5C8' },
+  progressCopy: { flex: 1, paddingBottom: 18 },
+  progressTitle: { color: '#17352A', fontSize: 16, fontWeight: '900' },
+  progressDescription: { color: '#587066', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  progressTime: { color: '#71867D', fontSize: 12, fontWeight: '800', marginTop: 6 },
   actionHelp: { color: '#71867D', fontSize: 12, lineHeight: 18, marginBottom: 12 },
   actionList: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   actionButton: { flexBasis: '48%', flexGrow: 1, minHeight: 50, borderColor: '#B8D5C8', borderWidth: 1, borderRadius: 13, backgroundColor: '#F4FAF7', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
@@ -1820,6 +1902,8 @@ const styles = StyleSheet.create({
   detailRow: { marginBottom: 13 },
   detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   detailValue: { color: '#29483D', fontSize: 15, lineHeight: 21, fontWeight: '600', marginTop: 4 },
+  inlineLinkButton: { minHeight: 38, borderColor: '#BBD7F0', borderWidth: 1, borderRadius: 11, backgroundColor: '#F1F7FD', marginTop: 6, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', columnGap: 7 },
+  inlineLinkText: { color: '#1769C2', flex: 1, fontSize: 13, fontWeight: '800' },
   packingPreviewImage: { width: '100%', height: 180, borderRadius: 14, backgroundColor: '#EEF3F0', marginTop: 8, marginBottom: 12 },
   maskedNote: { color: '#7A4A00', backgroundColor: '#FFF4D8', borderRadius: 9, padding: 10, lineHeight: 18 },
   contactActions: { borderTopColor: '#E7ECEA', borderTopWidth: 1, flexDirection: 'row', columnGap: 10, marginTop: 4, paddingTop: 14 },

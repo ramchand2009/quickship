@@ -100,6 +100,11 @@ def mobile_order_detail(*, tenant, order_id):
         "tracking_number",
         "package_weight_kg",
         "shipping_base_amount",
+        "packed_at",
+        "shipped_at",
+        "out_for_delivery_at",
+        "delivered_at",
+        "completed_at",
         "cancellation_reason",
         "cancellation_note",
         "version",
@@ -117,6 +122,7 @@ def mobile_order_detail(*, tenant, order_id):
             "triggered_by",
             "previous_status",
             "current_status",
+            "event_type",
             "created_at",
         )
         .order_by("-created_at", "-pk")[:50]

@@ -559,7 +559,16 @@ def sync_stock_for_status_transition(*, order, previous_status, current_status, 
     if previous_status == current_status:
         return result
 
-    if current_status == ShiprocketOrder.STATUS_ACCEPTED:
+    stock_deducted_statuses = {
+        ShiprocketOrder.STATUS_ACCEPTED,
+        ShiprocketOrder.STATUS_PACKED,
+        ShiprocketOrder.STATUS_SHIPPED,
+        ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+        ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+        ShiprocketOrder.STATUS_DELIVERED,
+        ShiprocketOrder.STATUS_COMPLETED,
+    }
+    if current_status in stock_deducted_statuses:
         result["mode"] = "deduct"
         return _apply_order_stock_deduction(order=order, actor=actor, result=result)
     if current_status == ShiprocketOrder.STATUS_CANCELLED:

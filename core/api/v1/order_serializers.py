@@ -315,6 +315,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
     cancellation_note = serializers.SerializerMethodField()
     allowed_actions = serializers.SerializerMethodField()
     activity = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
     shipping_label = serializers.SerializerMethodField()
     can_edit_shipping_address = serializers.SerializerMethodField()
     can_edit_manual_order = serializers.SerializerMethodField()
@@ -333,6 +334,7 @@ class OrderDetailSerializer(OrderSummarySerializer):
             "cancellation_note",
             "allowed_actions",
             "activity",
+            "progress",
             "shipping_label",
             "can_edit_shipping_address",
             "can_edit_manual_order",
@@ -574,4 +576,145 @@ class OrderDetailSerializer(OrderSummarySerializer):
                 "created_at": entry.created_at,
             }
             for entry in self.context.get("activity", [])
+        ]
+
+    def _activity_time_for_status(self, target_status):
+        timestamps = [
+            entry.created_at
+            for entry in self.context.get("activity", [])
+            if entry.current_status == target_status
+        ]
+        return min(timestamps) if timestamps else None
+
+    def _activity_time_for_title(self, needle):
+        needle = str(needle or "").casefold()
+        timestamps = [
+            entry.created_at
+            for entry in self.context.get("activity", [])
+            if needle in str(entry.title or "").casefold()
+        ]
+        return min(timestamps) if timestamps else None
+
+    def _confirmation_for_order(self, order):
+        try:
+            return order.mobile_confirmation
+        except MobileOrderConfirmation.DoesNotExist:
+            return None
+
+    def _progress_item(self, *, key, title, description, timestamp, completed=False, skipped=False):
+        if completed:
+            state = "completed"
+        elif skipped:
+            state = "skipped"
+        else:
+            state = "pending"
+        return {
+            "key": key,
+            "title": title,
+            "description": description,
+            "state": state,
+            "timestamp": timestamp,
+        }
+
+    def get_progress(self, order):
+        confirmation = self._confirmation_for_order(order)
+        current_status = order.local_status
+        is_cancelled = current_status == ShiprocketOrder.STATUS_CANCELLED
+        is_completed = current_status == ShiprocketOrder.STATUS_COMPLETED
+        confirmed_at = confirmation.confirmed_at if confirmation else None
+        cancelled_at = confirmation.cancelled_at if confirmation else None
+        accepted_at = self._activity_time_for_status(ShiprocketOrder.STATUS_ACCEPTED)
+        cancelled_at = cancelled_at or self._activity_time_for_status(ShiprocketOrder.STATUS_CANCELLED)
+        packed_at = order.packed_at or self._activity_time_for_status(ShiprocketOrder.STATUS_PACKED)
+        shipped_at = order.shipped_at or self._activity_time_for_status(ShiprocketOrder.STATUS_SHIPPED)
+        delivered_at = order.delivered_at or self._activity_time_for_status(ShiprocketOrder.STATUS_DELIVERED)
+        completed_at = order.completed_at or self._activity_time_for_status(ShiprocketOrder.STATUS_COMPLETED)
+        change_requested_at = confirmation.change_requested_at if confirmation else self._activity_time_for_title("requested")
+        final_closed_at = cancelled_at or completed_at or delivered_at
+
+        progress = [
+            self._progress_item(
+                key="order_created",
+                title="Order created",
+                description="Order was created in the system",
+                timestamp=order.order_date or order.created_at,
+                completed=True,
+            ),
+            self._progress_item(
+                key="customer_confirmed",
+                title="Customer confirmed",
+                description="Customer approved products and address",
+                timestamp=confirmed_at,
+                completed=bool(confirmed_at) or order.source != "manual",
+            ),
+            self._progress_item(
+                key="change_requested",
+                title="Change requested",
+                description="Customer asked to modify the order",
+                timestamp=change_requested_at,
+                completed=bool(change_requested_at),
+                skipped=not bool(change_requested_at),
+            ),
+            self._progress_item(
+                key="owner_accepted",
+                title="Order accepted",
+                description="Seller accepted the order",
+                timestamp=accepted_at,
+                completed=bool(accepted_at)
+                or current_status
+                in {
+                    ShiprocketOrder.STATUS_ACCEPTED,
+                    ShiprocketOrder.STATUS_PACKED,
+                    ShiprocketOrder.STATUS_SHIPPED,
+                    ShiprocketOrder.STATUS_DELIVERY_ISSUE,
+                    ShiprocketOrder.STATUS_OUT_FOR_DELIVERY,
+                    ShiprocketOrder.STATUS_DELIVERED,
+                    ShiprocketOrder.STATUS_COMPLETED,
+                },
+                skipped=is_completed and not accepted_at,
+            ),
+            self._progress_item(
+                key="packed",
+                title="Order packed",
+                description="Products are packed and ready",
+                timestamp=packed_at,
+                completed=bool(packed_at),
+                skipped=is_completed and not packed_at,
+            ),
+            self._progress_item(
+                key="shipped",
+                title="Order shipped",
+                description="Courier and tracking details added",
+                timestamp=shipped_at,
+                completed=bool(shipped_at),
+                skipped=is_completed and not shipped_at,
+            ),
+            self._progress_item(
+                key="delivered",
+                title="Order delivered",
+                description="Order was delivered to the customer",
+                timestamp=delivered_at,
+                completed=bool(delivered_at),
+                skipped=is_completed and not delivered_at,
+            ),
+            self._progress_item(
+                key="completed",
+                title="Order completed",
+                description="Order successfully completed",
+                timestamp=completed_at,
+                completed=bool(completed_at) or is_completed,
+            ),
+            self._progress_item(
+                key="cancelled",
+                title="Order cancelled",
+                description="Order was cancelled",
+                timestamp=cancelled_at or (order.updated_at if is_cancelled else None),
+                completed=is_cancelled,
+                skipped=bool(final_closed_at) and not is_cancelled,
+            ),
+        ]
+        return [
+            item
+            for item in progress
+            if item["key"] not in {"change_requested", "cancelled"} or item["timestamp"] or item["state"] == "completed"
         ]
