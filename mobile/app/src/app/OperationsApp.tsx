@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Print from 'expo-print';
+import * as SecureStore from 'expo-secure-store';
 import * as Sharing from 'expo-sharing';
 import {
   ActivityIndicator,
@@ -89,6 +90,17 @@ const PIPELINE_METRIC_KEYS = [
   'attention_orders',
   'cancelled_orders',
 ];
+
+const SHOW_MONTHLY_SUMMARY_KEY = 'mathukai_show_monthly_summary';
+
+async function loadShowMonthlySummaryPreference() {
+  const stored = await SecureStore.getItemAsync(SHOW_MONTHLY_SUMMARY_KEY);
+  return stored !== 'false';
+}
+
+async function saveShowMonthlySummaryPreference(value: boolean) {
+  await SecureStore.setItemAsync(SHOW_MONTHLY_SUMMARY_KEY, value ? 'true' : 'false');
+}
 
 const INDIA_POST_CUSTOMER_ID = '1828524916';
 
@@ -214,7 +226,15 @@ function destinationWithOrderStatus(destination: string, status: string) {
   return `${path}?status=${encodeURIComponent(status)}${remainingParameters.length ? `&${remainingParameters.join('&')}` : ''}`;
 }
 
-function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (destination: string) => void; onOpenProductReport: (month: string) => void }) {
+function DashboardScreen({
+  onNavigate,
+  onOpenProductReport,
+  showMonthlySummary,
+}: {
+  onNavigate: (destination: string) => void;
+  onOpenProductReport: (month: string) => void;
+  showMonthlySummary: boolean;
+}) {
   const { auth, runAuthenticated } = useAuth();
   const monthOptions = useMemo(() => dashboardMonthOptions(), []);
   const [selectedMonth, setSelectedMonth] = useState(() => monthKey(new Date()));
@@ -313,26 +333,30 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
         </Pressable>
       </View>
 
-      <Text style={[styles.sectionTitle, styles.monthHeading]}>Monthly summary</Text>
-      <View style={styles.performanceCard}>
-        {[...financeMetrics, ...(totalOrdersMetric ? [totalOrdersMetric] : [])].map((metric, index) => (
-          <Pressable
-            key={metric.key}
-            onPress={() => onNavigate(metric.destination)}
-            style={({ pressed }) => [styles.performanceMetric, index > 0 && styles.performanceMetricBorder, pressed && styles.pressed]}
-          >
-            <View style={styles.performanceIcon}>
-              <MaterialCommunityIcons
-                color="#14733D"
-                name={metric.key === 'total_sales' ? 'finance' : metric.key === 'total_profit' ? 'currency-inr' : 'clipboard-list-outline'}
-                size={22}
-              />
-            </View>
-            <Text style={styles.performanceLabel}>{metric.key === 'total_profit' ? 'Profit' : metric.key === 'total_orders' ? 'Orders' : 'Sales'}</Text>
-            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.performanceValue}>{formatMetricValue(metric.value)}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {showMonthlySummary ? (
+        <>
+          <Text style={[styles.sectionTitle, styles.monthHeading]}>Monthly summary</Text>
+          <View style={styles.performanceCard}>
+            {[...financeMetrics, ...(totalOrdersMetric ? [totalOrdersMetric] : [])].map((metric, index) => (
+              <Pressable
+                key={metric.key}
+                onPress={() => onNavigate(metric.destination)}
+                style={({ pressed }) => [styles.performanceMetric, index > 0 && styles.performanceMetricBorder, pressed && styles.pressed]}
+              >
+                <View style={styles.performanceIcon}>
+                  <MaterialCommunityIcons
+                    color="#14733D"
+                    name={metric.key === 'total_sales' ? 'finance' : metric.key === 'total_profit' ? 'currency-inr' : 'clipboard-list-outline'}
+                    size={22}
+                  />
+                </View>
+                <Text style={styles.performanceLabel}>{metric.key === 'total_profit' ? 'Profit' : metric.key === 'total_orders' ? 'Orders' : 'Sales'}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={styles.performanceValue}>{formatMetricValue(metric.value)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <Text style={[styles.sectionTitle, styles.pipelineHeading]}>Order pipeline</Text>
       <View style={styles.metricGrid}>
@@ -453,7 +477,13 @@ function DashboardScreen({ onNavigate, onOpenProductReport }: { onNavigate: (des
   );
 }
 
-function AccountScreen() {
+function AccountScreen({
+  showMonthlySummary,
+  onToggleMonthlySummary,
+}: {
+  showMonthlySummary: boolean;
+  onToggleMonthlySummary: (value: boolean) => void;
+}) {
   const { auth, runAuthenticated, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
@@ -573,6 +603,25 @@ function AccountScreen() {
         </View>
 
         <Text style={styles.accountSectionTitle}>Application</Text>
+        <View style={styles.preferenceCard}>
+          <View style={styles.preferenceIcon}>
+            <MaterialCommunityIcons color="#0B5D3B" name="chart-box-outline" size={24} />
+          </View>
+          <View style={styles.preferenceCopy}>
+            <Text style={styles.preferenceTitle}>Show monthly summary</Text>
+            <Text style={styles.preferenceText}>Display Sales, Profit and Orders card on Home.</Text>
+          </View>
+          <Pressable
+            accessibilityLabel={showMonthlySummary ? 'Hide monthly summary on Home' : 'Show monthly summary on Home'}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: showMonthlySummary }}
+            onPress={() => onToggleMonthlySummary(!showMonthlySummary)}
+            style={[styles.preferenceSwitch, showMonthlySummary && styles.preferenceSwitchOn]}
+          >
+            <View style={[styles.preferenceSwitchThumb, showMonthlySummary && styles.preferenceSwitchThumbOn]} />
+          </Pressable>
+        </View>
+
         <View style={styles.appInfoCard}>
           <View style={styles.appMark}>
             <Image accessibilityLabel="Mathukai Organic logo" resizeMode="contain" source={require('../../assets/images/mathukai-organic-logo-transparent.png')} style={styles.appMarkImage} />
@@ -672,6 +721,28 @@ export default function OperationsApp() {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [openingOrders, setOpeningOrders] = useState(false);
   const [reportInitialMonth, setReportInitialMonth] = useState<string | undefined>(undefined);
+  const [showMonthlySummary, setShowMonthlySummary] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    loadShowMonthlySummaryPreference()
+      .then((value) => {
+        if (active) setShowMonthlySummary(value);
+      })
+      .catch(() => {
+        if (active) setShowMonthlySummary(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateShowMonthlySummary = useCallback((value: boolean) => {
+    setShowMonthlySummary(value);
+    saveShowMonthlySummaryPreference(value).catch(() => {
+      Alert.alert('Setting not saved', 'The monthly summary setting could not be saved on this device.');
+    });
+  }, []);
 
   const refreshUnreadCount = useCallback(async () => {
     if (!auth?.session.active_tenant) return;
@@ -775,12 +846,12 @@ export default function OperationsApp() {
 
       <View style={styles.content}>
         <NotificationBridge onDestination={openDestination} onNotificationReceived={handleNotificationReceived} />
-        {activeTab === 'dashboard' ? <DashboardScreen key={`dashboard-${liveRefreshKey}`} onNavigate={openDestination} onOpenProductReport={openProductReport} /> : null}
+        {activeTab === 'dashboard' ? <DashboardScreen key={`dashboard-${liveRefreshKey}`} onNavigate={openDestination} onOpenProductReport={openProductReport} showMonthlySummary={showMonthlySummary} /> : null}
         {activeTab === 'orders' ? <OrdersScreen initialFilters={ordersInitialFilters} initialOrderId={ordersInitialOrderId} key={`${ordersScreenKey}-${liveRefreshKey}`} /> : null}
         {activeTab === 'expenses' ? <ExpensesScreen /> : null}
         {activeTab === 'stock' ? <StockScreen /> : null}
         {activeTab === 'customers' ? <CustomersScreen /> : null}
-        {activeTab === 'account' ? <AccountScreen /> : null}
+        {activeTab === 'account' ? <AccountScreen onToggleMonthlySummary={updateShowMonthlySummary} showMonthlySummary={showMonthlySummary} /> : null}
         {activeTab === 'notifications' ? <NotificationsScreen onOpenDestination={openDestination} onUnreadCountChange={setUnreadNotificationCount} /> : null}
         {activeTab === 'reports' ? <ProductSalesReportScreen initialMonth={reportInitialMonth} onBack={() => setActiveTab('dashboard')} /> : null}
       </View>
@@ -950,6 +1021,15 @@ const styles = StyleSheet.create({
   detailLabel: { color: '#71867D', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
   detailValue: { color: '#17352A', fontSize: 16, fontWeight: '800', marginTop: 5 },
   divider: { height: 1, backgroundColor: '#E4EAE7', marginVertical: 16 },
+  preferenceCard: { minHeight: 82, backgroundColor: '#FFFFFF', borderColor: '#DFE5E2', borderWidth: 1, borderRadius: 17, padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  preferenceIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: '#E4F3EB', alignItems: 'center', justifyContent: 'center' },
+  preferenceCopy: { flex: 1, marginLeft: 12, paddingRight: 10 },
+  preferenceTitle: { color: '#17352A', fontSize: 15, fontWeight: '900' },
+  preferenceText: { color: '#71867D', fontSize: 12, lineHeight: 17, marginTop: 4 },
+  preferenceSwitch: { width: 54, height: 32, borderRadius: 18, backgroundColor: '#D7E0DC', padding: 3, justifyContent: 'center' },
+  preferenceSwitchOn: { backgroundColor: '#0B5D3B' },
+  preferenceSwitchThumb: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#17352A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.14, shadowRadius: 2, elevation: 2 },
+  preferenceSwitchThumbOn: { alignSelf: 'flex-end' },
   appInfoCard: { minHeight: 78, backgroundColor: '#FFFFFF', borderColor: '#DFE5E2', borderWidth: 1, borderRadius: 17, padding: 13, flexDirection: 'row', alignItems: 'center' },
   appMark: { width: 52, height: 52, borderRadius: 14, backgroundColor: '#FFFFFF', borderColor: '#DCE6E1', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   appMarkImage: { width: 46, height: 46 },

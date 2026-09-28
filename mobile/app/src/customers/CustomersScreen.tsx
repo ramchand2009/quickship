@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as api from '../auth/api';
 import { useAuth } from '../auth/AuthContext';
 import type { CustomerAddressInput, CustomerSummary } from './types';
-import type { Money, OrderDetail, OrderSummary } from '../orders/types';
+import type { Money, OrderDetail, OrderProgressItem, OrderSummary } from '../orders/types';
 import type { ProductSummary } from '../stock/types';
 
 const EMPTY_CUSTOMER_FORM: CustomerAddressInput = {
@@ -63,6 +63,13 @@ function dateLabel(value: string | null | undefined) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'No date';
   return parsed.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function dateTime(value: string | null | undefined) {
+  if (!value) return 'Not available';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Not available';
+  return parsed.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 function normalizePhone(value: string | null | undefined) {
@@ -129,6 +136,48 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
       <Text style={styles.detailLabel}>{label}</Text>
       <Text selectable style={styles.detailValue}>{value}</Text>
     </View>
+  );
+}
+
+function progressIcon(step: OrderProgressItem) {
+  if (step.state === 'completed') return 'check';
+  if (step.state === 'skipped') return 'minus';
+  return 'clock-outline';
+}
+
+function OrderProgressCard({ progress }: { progress: OrderProgressItem[] }) {
+  if (!progress.length) return null;
+  return (
+    <>
+      <Text style={styles.sectionTitle}>Order progress</Text>
+      <View style={styles.progressCard}>
+        {progress.map((step, index) => {
+          const completed = step.state === 'completed';
+          const pending = step.state === 'pending';
+          const skipped = step.state === 'skipped';
+          const last = index === progress.length - 1;
+          return (
+            <View key={step.key} style={styles.progressRow}>
+              <View style={styles.progressRail}>
+                <View style={[
+                  styles.progressDot,
+                  completed && styles.progressDotCompleted,
+                  pending && styles.progressDotPending,
+                ]}>
+                  <MaterialCommunityIcons color={completed ? '#0B5D3B' : pending ? '#8A6A2A' : '#63766E'} name={progressIcon(step)} size={19} />
+                </View>
+                {!last ? <View style={[styles.progressLine, completed && styles.progressLineCompleted]} /> : null}
+              </View>
+              <View style={styles.progressCopy}>
+                <Text style={styles.progressTitle}>{step.title}</Text>
+                <Text style={styles.progressDescription}>{step.description}</Text>
+                <Text style={styles.progressTime}>{step.timestamp ? dateTime(step.timestamp) : skipped ? 'Skipped / not required' : 'Waiting for update'}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </>
   );
 }
 
@@ -464,6 +513,8 @@ function OrderDetailView({ order, onBack }: { order: OrderDetail; onBack: () => 
         </View>
         <Text style={styles.heroPayment}>Payment: {order.payment_state.label}</Text>
       </View>
+
+      <OrderProgressCard progress={order.progress || []} />
 
       <Text style={styles.sectionTitle}>Customer details</Text>
       <View style={styles.sectionCard}>
@@ -978,6 +1029,18 @@ const styles = StyleSheet.create({
   manualOrderText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   sectionTitle: { color: '#17352A', fontSize: 19, fontWeight: '900', marginBottom: 10 },
   sectionCard: { backgroundColor: '#FFFFFF', borderColor: '#E0E7E3', borderWidth: 1, borderRadius: 17, padding: 16, marginBottom: 20 },
+  progressCard: { backgroundColor: '#FFFFFF', borderColor: '#DCEAE3', borderWidth: 1, borderRadius: 18, paddingHorizontal: 16, paddingTop: 18, paddingBottom: 6, marginBottom: 20 },
+  progressRow: { flexDirection: 'row', minHeight: 86 },
+  progressRail: { width: 54, alignItems: 'center' },
+  progressDot: { width: 43, height: 43, borderRadius: 22, backgroundColor: '#F3F5F4', alignItems: 'center', justifyContent: 'center' },
+  progressDotCompleted: { backgroundColor: '#E4F3EB' },
+  progressDotPending: { backgroundColor: '#FFF4D8' },
+  progressLine: { width: 3, flex: 1, backgroundColor: '#D8E3DE', marginTop: 2 },
+  progressLineCompleted: { backgroundColor: '#B8D5C8' },
+  progressCopy: { flex: 1, paddingBottom: 18 },
+  progressTitle: { color: '#17352A', fontSize: 16, fontWeight: '900' },
+  progressDescription: { color: '#587066', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  progressTime: { color: '#71867D', fontSize: 12, fontWeight: '800', marginTop: 6 },
   detailRow: { marginBottom: 13 },
   detailLabel: { color: '#71867D', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   detailValue: { color: '#29483D', fontSize: 15, lineHeight: 21, fontWeight: '600', marginTop: 4 },

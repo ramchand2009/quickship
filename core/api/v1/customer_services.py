@@ -231,6 +231,7 @@ def mobile_customer_list(*, tenant, role, search=""):
         for profile in MobileCustomerProfile.objects.filter(tenant=tenant).order_by("name", "-updated_at"):
             customers[profile.customer_key] = _customer_payload_from_profile(profile)
             customers[profile.customer_key]["_total"] = Decimal("0.00")
+            customers[profile.customer_key]["_sort_at"] = profile.created_at
             for alias in _profile_customer_keys(profile):
                 customer_aliases[alias] = profile.customer_key
     except (OperationalError, ProgrammingError):
@@ -242,6 +243,7 @@ def mobile_customer_list(*, tenant, role, search=""):
         if key not in customers:
             customers[key] = _customer_payload_from_order(order, key)
             customers[key]["_total"] = Decimal("0.00")
+            customers[key]["_sort_at"] = order.order_date or order.created_at
         customer = customers[key]
         customer["order_count"] += 1
         customer["_total"] += order.total or Decimal("0.00")
@@ -249,6 +251,8 @@ def mobile_customer_list(*, tenant, role, search=""):
         if not customer.get("last_order_at") or (order_date and order_date > customer["last_order_at"]):
             customer["last_order_at"] = order_date
             customer["latest_order_reference"] = order.source_order_reference
+        if order_date and (not customer.get("_sort_at") or order_date > customer["_sort_at"]):
+            customer["_sort_at"] = order_date
 
     rows = []
     for customer in customers.values():
@@ -261,8 +265,12 @@ def mobile_customer_list(*, tenant, role, search=""):
         if search_text and search_text not in haystack and (not search_phone or search_phone not in phone_haystack):
             continue
         rows.append(customer)
-        if len(rows) >= 150:
-            break
+    def _customer_sort_key(customer):
+        sort_at = customer.pop("_sort_at", None) or customer.get("last_order_at")
+        return sort_at.isoformat() if hasattr(sort_at, "isoformat") else str(sort_at or "")
+
+    rows.sort(key=_customer_sort_key, reverse=True)
+    rows = rows[:150]
     return {"data": rows, "meta": {"count": len(rows)}}
 
 
