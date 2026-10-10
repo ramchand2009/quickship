@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import re
 import csv
+import zipfile
 from types import SimpleNamespace
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -14,6 +15,7 @@ from io import StringIO
 from datetime import date, datetime, timedelta
 from uuid import uuid4
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 from django.conf import settings
 from django.contrib import messages
@@ -21,6 +23,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.cache import cache
+from django.core.exceptions import PermissionDenied
 from django.core.files.storage import FileSystemStorage
 from django.core.management import CommandError, call_command
 from django.core.paginator import Paginator
@@ -3367,6 +3370,218 @@ def order_management_export_csv(request):
             ]
         )
     return response
+
+
+def _excel_column_name(index):
+    letters = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(65 + remainder) + letters
+    return letters
+
+
+def _excel_cell(row_index, column_index, value, *, style=None):
+    reference = f"{_excel_column_name(column_index)}{row_index}"
+    style_attr = f' s="{style}"' if style else ""
+    if value is None or value == "":
+        return f'<c r="{reference}"{style_attr}/>'
+    if isinstance(value, Decimal):
+        value = f"{value:.2f}"
+        return f'<c r="{reference}"{style_attr}><v>{value}</v></c>'
+    if isinstance(value, (int, float)):
+        return f'<c r="{reference}"{style_attr}><v>{value}</v></c>'
+    return f'<c r="{reference}" t="inlineStr"{style_attr}><is><t>{xml_escape(str(value))}</t></is></c>'
+
+
+def _build_xlsx_response(*, filename, sheet_name, headers, rows):
+    sheet_rows = [
+        '<row r="1">'
+        + "".join(_excel_cell(1, index, header, style=1) for index, header in enumerate(headers, start=1))
+        + "</row>"
+    ]
+    for row_index, row in enumerate(rows, start=2):
+        sheet_rows.append(
+            f'<row r="{row_index}">'
+            + "".join(_excel_cell(row_index, column_index, value) for column_index, value in enumerate(row, start=1))
+            + "</row>"
+        )
+
+    column_widths = [28, 18, 22, 18, 22]
+    columns_xml = "<cols>" + "".join(
+        f'<col min="{index}" max="{index}" width="{width}" customWidth="1"/>'
+        for index, width in enumerate(column_widths, start=1)
+    ) + "</cols>"
+    worksheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f"{columns_xml}<sheetData>{''.join(sheet_rows)}</sheetData>"
+        "</worksheet>"
+    )
+    workbook_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<sheets><sheet name="{xml_escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets>'
+        "</workbook>"
+    )
+    workbook_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        "</Relationships>"
+    )
+    root_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+    styles_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+        '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+        '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>'
+        "</styleSheet>"
+    )
+    content_types_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+        "</Types>"
+    )
+
+    output = BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types_xml)
+        archive.writestr("_rels/.rels", root_rels_xml)
+        archive.writestr("xl/workbook.xml", workbook_xml)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+        archive.writestr("xl/styles.xml", styles_xml)
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet_xml)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _normalize_customer_phone(value):
+    digits = re.sub(r"\D+", "", str(value or ""))
+    if len(digits) > 10 and digits.startswith("91"):
+        return digits[-10:]
+    return digits
+
+
+def _customer_export_key(*, name="", phone="", email=""):
+    phone_key = _normalize_customer_phone(phone)
+    if phone_key:
+        return f"phone:{phone_key}"
+    email_key = str(email or "").strip().lower()
+    if email_key:
+        return f"email:{email_key}"
+    name_key = re.sub(r"\s+", " ", str(name or "").strip()).lower()
+    return f"name:{name_key or 'unknown'}"
+
+
+def _format_export_datetime(value):
+    if not value:
+        return ""
+    return timezone.localtime(value).strftime("%Y-%m-%d %H:%M:%S")
+
+
+@login_required
+def customer_export_xlsx(request):
+    if not _is_ops_admin(request.user):
+        raise PermissionDenied("You do not have permission to export customers.")
+
+    customers = {}
+
+    profile_queryset = _scope_queryset_to_active_tenant(request, MobileCustomerProfile.objects.all())
+    for profile in profile_queryset.order_by("-created_at", "-updated_at"):
+        key = _customer_export_key(name=profile.name, phone=profile.phone, email=profile.email)
+        customers.setdefault(
+            key,
+            {
+                "name": str(profile.name or "").strip() or "Customer",
+                "phone": str(profile.phone or "").strip(),
+                "order_count": 0,
+                "total_value": Decimal("0.00"),
+                "last_order_at": None,
+                "sort_at": profile.created_at,
+            },
+        )
+
+    order_queryset = (
+        _scope_queryset_to_active_tenant(request, ShiprocketOrder.objects.all())
+        .exclude(local_status=ShiprocketOrder.STATUS_CANCELLED)
+        .defer("raw_payload", "billing_address")
+        .order_by("-order_date", "-created_at")
+    )
+    for order in order_queryset.iterator(chunk_size=500):
+        shipping = order.display_shipping_address
+        name = shipping.get("name") or order.manual_customer_name or order.customer_name or "Customer"
+        phone = shipping.get("phone") or order.manual_customer_phone or order.customer_phone or ""
+        email = order.manual_customer_email or order.customer_email or shipping.get("email") or ""
+        key = _customer_export_key(name=name, phone=phone, email=email)
+        customer = customers.setdefault(
+            key,
+            {
+                "name": str(name or "").strip() or "Customer",
+                "phone": str(phone or "").strip(),
+                "order_count": 0,
+                "total_value": Decimal("0.00"),
+                "last_order_at": None,
+                "sort_at": order.order_date or order.created_at,
+            },
+        )
+        if not customer["name"] or customer["name"] == "Customer":
+            customer["name"] = str(name or "").strip() or "Customer"
+        if not customer["phone"]:
+            customer["phone"] = str(phone or "").strip()
+        customer["order_count"] += 1
+        customer["total_value"] += order.total or Decimal("0.00")
+        order_date = order.order_date or order.created_at
+        if order_date and (not customer["last_order_at"] or order_date > customer["last_order_at"]):
+            customer["last_order_at"] = order_date
+            customer["sort_at"] = order_date
+
+    rows = []
+    for customer in sorted(
+        customers.values(),
+        key=lambda row: (row.get("sort_at") or row.get("last_order_at")).isoformat()
+        if row.get("sort_at") or row.get("last_order_at")
+        else "",
+        reverse=True,
+    ):
+        rows.append(
+            [
+                customer["name"],
+                customer["phone"],
+                customer["order_count"],
+                customer["total_value"],
+                _format_export_datetime(customer["last_order_at"]),
+            ]
+        )
+
+    stamp = timezone.localtime(timezone.now()).strftime("%Y%m%d_%H%M%S")
+    return _build_xlsx_response(
+        filename=f"customer_list_{stamp}.xlsx",
+        sheet_name="Customers",
+        headers=["Name", "Mobile Number", "Total Orders Received", "Total Order Value", "Last Order Date"],
+        rows=rows,
+    )
 
 
 @login_required

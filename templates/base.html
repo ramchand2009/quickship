@@ -46,6 +46,14 @@
                                 <span class="pcoded-mtext">Order Management</span>
                             </a>
                         </li>
+                        {% if request.user.is_authenticated and is_ops_admin %}
+                            <li class="nav-item">
+                                <a href="{% url 'customer_export_xlsx' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-download"></i></span>
+                                    <span class="pcoded-mtext">Customer Export</span>
+                                </a>
+                            </li>
+                        {% endif %}
                         {% if can_manage_stock %}
                             <li class="nav-item {% if current == 'stock_management' %}active{% endif %}">
                                 <a href="{% url 'stock_management' %}" class="nav-link">
