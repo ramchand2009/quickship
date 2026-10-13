@@ -46,6 +46,14 @@
                                 <span class="pcoded-mtext">Order Management</span>
                             </a>
                         </li>
+                        {% if request.user.is_authenticated and is_super_admin %}
+                            <li class="nav-item {% if current == 'post_office_sandbox' %}active{% endif %}">
+                                <a href="{% url 'post_office_sandbox' %}" class="nav-link">
+                                    <span class="pcoded-micon"><i class="feather icon-send"></i></span>
+                                    <span class="pcoded-mtext">Post Office Sandbox</span>
+                                </a>
+                            </li>
+                        {% endif %}
                         {% if request.user.is_authenticated and is_ops_admin %}
                             <li class="nav-item">
                                 <a href="{% url 'customer_export_xlsx' %}" class="nav-link">

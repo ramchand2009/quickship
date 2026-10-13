@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Post Office Sandbox | Mathukai{% endblock %}
+
+{% block extrastyle %}
+<style>
+.po-wrap { max-width: 1120px; margin: 0 auto; }
+.po-intro { background: #eaf5ef; border: 1px solid #c9e2d5; border-radius: 16px; padding: 22px; }
+.po-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.po-card { background: #fff; border: 1px solid #dce8e1; border-radius: 14px; padding: 20px; box-shadow: 0 3px 14px rgba(20, 54, 38, .05); }
+.po-card h5 { margin-bottom: 8px; color: #124832; }
+.po-card label { display: block; font-weight: 600; margin: 12px 0 5px; }
+.po-card input, .po-card select, .po-card textarea { width: 100%; border: 1px solid #bfcfc6; border-radius: 8px; padding: 10px; background: #fff; }
+.po-card textarea { min-height: 145px; font-family: monospace; font-size: 13px; }
+.po-card button { margin-top: 16px; min-height: 42px; }
+.po-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.po-table { overflow-x: auto; background: #fff; border-radius: 12px; border: 1px solid #dce8e1; }
+.po-table table { min-width: 700px; margin: 0; }
+.po-preview { max-width: 450px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow-y: auto; font-size: 12px; }
+.po-check { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; }
+.po-check input { width: auto; margin-top: 5px; }
+@media (max-width: 760px) { .po-grid, .po-fields { grid-template-columns: 1fr; } .po-intro, .po-card { padding: 16px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="po-wrap pb-5">
+    <div class="po-intro mb-4">
+        <h3 class="mb-2">India Post sandbox</h3>
+        <p class="mb-2">Run the onboarding checks here and keep the HTTP results for production approval. Requests use the India Post test host only.</p>
+        <div class="small">Credentials: <strong>{{ configured.credentials|yesno:"Configured,Missing" }}</strong> &nbsp;·&nbsp; Customer ID: <strong>{{ configured.customer_id|yesno:"Configured,Missing" }}</strong> &nbsp;·&nbsp; Webhook token: <strong>{{ configured.webhook_token|yesno:"Configured,Missing" }}</strong></div>
+    </div>
+
+    <div class="po-card mb-4">
+        <h5>Sandbox testing checklist</h5>
+        <div class="d-flex flex-wrap" style="gap: 10px 20px;">
+            {% for label, status in checklist %}<span>{{ label }}: <strong>{{ status|title }}</strong></span>{% endfor %}
+            <span>Webhook events: <strong>{{ events|length }} shown</strong></span>
+        </div>
+    </div>
+
+    <div class="po-grid">
+        <section class="po-card">
+            <h5>1. Token generation</h5>
+            <p class="text-muted mb-0">Test the UAT login. Access tokens are used for the other checks and are never displayed or saved.</p>
+            <form method="post">{% csrf_token %}<input type="hidden" name="action" value="token"><button class="btn btn-primary" type="submit">Test token</button></form>
+        </section>
+
+        <section class="po-card">
+            <h5>2. Tariff calculation</h5>
+            <p class="text-muted mb-0">Calculate a domestic Speed Post or Business Parcel tariff in grams.</p>
+            <form method="post">
+                {% csrf_token %}<input type="hidden" name="action" value="tariff">
+                <div class="po-fields">
+                    <div><label for="po-service">Service</label><select id="po-service" name="service"><option value="SP">Speed Post</option><option value="BP">Business Parcel</option></select></div>
+                    <div><label for="po-weight">Weight (g)</label><input id="po-weight" name="weight" type="number" min="1" max="35000" value="550" required></div>
+                    <div><label for="po-source">Source PIN</label><input id="po-source" name="source_pincode" inputmode="numeric" pattern="[0-9]{6}" value="600001" required></div>
+                    <div><label for="po-dest">Destination PIN</label><input id="po-dest" name="destination_pincode" inputmode="numeric" pattern="[0-9]{6}" value="110001" required></div>
+                    <div><label for="po-length">Length (cm)</label><input id="po-length" name="length" type="number" min="0" max="150" step="0.1" value="20"></div>
+                    <div><label for="po-width">Width (cm)</label><input id="po-width" name="width" type="number" min="0" max="150" step="0.1" value="12"></div>
+                    <div><label for="po-height">Height (cm)</label><input id="po-height" name="height" type="number" min="0" max="150" step="0.1" value="9"></div>
+                </div>
+                <button class="btn btn-primary" type="submit">Calculate tariff</button>
+            </form>
+        </section>
+
+        <section class="po-card">
+            <h5>3. Booking API</h5>
+            <p class="text-muted mb-0">Paste a sample JSON payload with your assigned UAT customer ID, contract ID and unique barcode. This creates a sandbox booking.</p>
+            <form method="post">
+                {% csrf_token %}<input type="hidden" name="action" value="booking">
+                <label for="po-booking">Booking payload</label>
+                <textarea id="po-booking" name="booking_payload" rows="13" required>{{ booking_template }}</textarea>
+                <label class="po-check"><input type="checkbox" name="confirm_booking" value="yes" required><span>I checked the sandbox barcode and customer details.</span></label>
+                <button class="btn btn-primary" type="submit">Submit sample booking</button>
+            </form>
+        </section>
+
+        <section class="po-card">
+            <h5>4. Event download</h5>
+            <p class="text-muted mb-0">Request events from <code>{{ event_path }}</code>. The supplied document names the endpoint but does not specify its method or filters. Confirm these with India Post before recording this check as validated.</p>
+            <form method="post">
+                {% csrf_token %}<input type="hidden" name="action" value="events">
+                <label for="po-event-method">Method</label><select id="po-event-method" name="event_method"><option value="GET">GET</option><option value="POST">POST</option></select>
+                <label for="po-event-body">POST JSON body, if required</label><textarea id="po-event-body" name="event_payload" placeholder="{}"></textarea>
+                <button class="btn btn-primary" type="submit">Download events</button>
+            </form>
+        </section>
+
+        <section class="po-card">
+            <h5>5. Tracking API</h5>
+            <p class="text-muted mb-0">Look up up to 500 articles booked under the sandbox customer ID.</p>
+            <form method="post">
+                {% csrf_token %}<input type="hidden" name="action" value="tracking">
+                <label for="po-articles">Article numbers</label><textarea id="po-articles" name="article_numbers" placeholder="One per line or comma separated" required></textarea>
+                <button class="btn btn-primary" type="submit">Check tracking</button>
+            </form>
+        </section>
+
+        <section class="po-card">
+            <h5>Webhook events</h5>
+            <p class="text-muted">Give India Post this HTTPS endpoint after setting a shared token. Send the token in <code>X-India-Post-Webhook-Token</code>. Their sample document does not specify webhook authentication, so confirm they can send this header.</p>
+            <code>{{ request.scheme }}://{{ request.get_host }}{% url 'post_office_webhook' %}</code>
+            <p class="small text-muted mt-3 mb-0">Repeated events are accepted once. Article number, event, office and date are shown below; full customer data is not retained.</p>
+        </section>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mt-4 mb-2">
+        <h4 class="mb-0">Sandbox test results</h4>
+        <div><a class="btn btn-outline-primary btn-sm" href="{% url 'post_office_report' %}">View UAT report</a> <a class="btn btn-outline-secondary btn-sm" href="{% url 'post_office_evidence' %}">Download JSON evidence</a></div>
+    </div>
+    <div class="po-table mb-4">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Time</th><th>Check</th><th>Result</th><th>HTTP</th><th>Response or error</th></tr></thead>
+            <tbody>
+            {% for run in runs %}
+                <tr><td>{{ run.created_at|date:"Y-m-d H:i:s T" }}</td><td>{{ run.action|title }}</td><td>{{ run.status|title }}</td><td>{{ run.http_status|default:"—" }}</td><td><strong>{{ run.summary }}</strong>{% if run.response_preview %}<pre class="po-preview mt-2 mb-0">{{ run.response_preview }}</pre>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="5">No sandbox checks recorded yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <h4>Recent webhook events</h4>
+    <div class="po-table">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Received</th><th>Article</th><th>Event</th><th>Office</th><th>Event date</th></tr></thead>
+            <tbody>
+            {% for event in events %}<tr><td>{{ event.received_at|date:"Y-m-d H:i:s T" }}</td><td>{{ event.article_number }}</td><td>{{ event.event_code }}{% if event.event_description %} · {{ event.event_description }}{% endif %}</td><td>{{ event.event_office_name|default:"—" }}</td><td>{{ event.event_date }} {{ event.event_time }}</td></tr>
+            {% empty %}<tr><td colspan="5">No webhook events received yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

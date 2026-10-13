@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>India Post Sandbox Test Report</title>
+    <style>
+        body { font: 15px/1.5 Arial, sans-serif; color: #162d22; max-width: 900px; margin: 36px auto; padding: 0 20px; }
+        h1, h2 { color: #10452d; }
+        h1 { margin-bottom: 4px; }
+        .meta { color: #50665b; margin-bottom: 28px; }
+        table { border-collapse: collapse; width: 100%; margin: 12px 0 28px; }
+        th, td { border: 1px solid #cadbd0; padding: 10px; text-align: left; vertical-align: top; }
+        th { background: #eaf5ef; }
+        td { overflow-wrap: anywhere; }
+        .notes { background: #f5f8f6; padding: 14px 18px; border-radius: 8px; }
+        .toolbar { margin-bottom: 25px; }
+        button { background: #006d43; color: white; border: 0; padding: 10px 16px; border-radius: 6px; cursor: pointer; }
+        @media print { body { margin: 12mm auto; } .toolbar { display: none; } h2 { break-after: avoid; } tr { break-inside: avoid; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar"><button onclick="window.print()">Print or save as PDF</button></div>
+    <h1>India Post Sandbox Test Report</h1>
+    <div class="meta">Generated {{ generated_at|date:"Y-m-d H:i:s T" }} · UAT host: {{ sandbox_host }}</div>
+    <p>This report records the latest test result for each required API check. A missing or failed result needs further testing before production approval.</p>
+
+    <h2>API checklist</h2>
+    <table><thead><tr><th>Check</th><th>Result</th><th>HTTP</th><th>Time</th><th>Summary</th></tr></thead><tbody>
+    {% for check in checks %}<tr>
+        <td>{{ check.label }}</td>
+        <td>{% if check.run %}{{ check.run.status|title }}{% else %}Not tested{% endif %}</td>
+        <td>{% if check.run.http_status %}{{ check.run.http_status }}{% else %}—{% endif %}</td>
+        <td>{% if check.run %}{{ check.run.created_at|date:"Y-m-d H:i:s T" }}{% else %}—{% endif %}</td>
+        <td>{% if check.run %}{{ check.run.summary }}{% else %}—{% endif %}</td>
+    </tr>{% endfor %}
+    </tbody></table>
+
+    <h2>Webhook delivery</h2>
+    <p>Receiver: <code>{{ webhook_url }}</code></p>
+    <table><thead><tr><th>Article</th><th>Event</th><th>Event date</th><th>Received</th></tr></thead><tbody>
+    {% for event in webhook_events %}<tr><td>{{ event.article_number }}</td><td>{{ event.event_code }}</td><td>{{ event.event_date }} {{ event.event_time }}</td><td>{{ event.received_at|date:"Y-m-d H:i:s T" }}</td></tr>
+    {% empty %}<tr><td colspan="4">No webhook event received yet.</td></tr>{% endfor %}
+    </tbody></table>
+
+    <h2>Production approval items</h2>
+    <div class="notes">
+        <p>Confirm the event download request method and filters, and agree on the webhook authentication header with India Post. Record the whitelisted static IP, production credentials handover, and both teams’ sign-off separately.</p>
+        <p>India Post reviewer: ____________________ &nbsp; Date: __________</p>
+        <p>Customer reviewer: _____________________ &nbsp; Date: __________</p>
+    </div>
+</body>
+</html>

@@ -1,5 +1,6 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
+from django.urls import include
 
 from .forms import LoginForm
 from .views import (
@@ -90,6 +91,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("post-office/", include("post_office.urls")),
     path(".well-known/assetlinks.json", android_asset_links, name="android_asset_links"),
     path("manifest.webmanifest", manifest_webmanifest, name="pwa_manifest"),
     path("service-worker.js", service_worker, name="service_worker"),
